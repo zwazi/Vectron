@@ -228,6 +228,7 @@ function splitTool_click() {
 
                 var origWall = wall, wA = wallA, wB = wallB;
                 aamap_recordAction({
+                    label: "Split wall",
                     undo: function() {
                         _aamap_removeObj(wA); _aamap_removeObj(wB);
                         aamap_objects.push(origWall);
@@ -284,6 +285,7 @@ function splitTool_click() {
 
         var origWall = wall, wA = wallA, wB = wallB;
         aamap_recordAction({
+            label: "Split wall",
             undo: function() {
                 _aamap_removeObj(wA); _aamap_removeObj(wB);
                 aamap_objects.push(origWall);

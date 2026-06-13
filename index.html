@@ -132,33 +132,42 @@
                     </div>
 
                     <div class="tab-pane fade" id="gui-adjustment">
-                      <div class="form-group" title="Scale your map by multiplying everything by this value.">
-                        <label for="map_scale">Scale Map</label> <br />
-                        <input type="text" style="display:inline-block;width:84%" class="form-control" id="map_scale" name="map_scale" value="1" />
-                        <button id="scale_map" style="width:14%" class="btn btn-default">Scale</button>
+                      <div class="form-group">
+                        <label>Scale Map</label>
+                        <div class="input-group" style="max-width:260px;">
+                          <input type="text" class="form-control" id="map_scale" name="map_scale" value="1" placeholder="Scale factor" />
+                          <span class="input-group-btn">
+                            <button id="scale_map" class="btn btn-default">Scale</button>
+                          </span>
+                        </div>
                       </div>
                       <div class="form-group">
-                        <label for="map_scale">Rotate Map</label> <br />
-                        <style>
-                          .rotate-left
-                          {
-                            -webkit-transform: scaleX(-1);
-                            -moz-transform: scaleX(-1);
-                            -ms-transform: scaleX(-1);
-                            transform: scaleX(-1);
-                          }
-                        </style>
-                        <button id="map_rotate_left" class="btn btn-default" title="Rotate left"><span class="glyphicon glyphicon-repeat rotate-left"></span></button>
-                        <button id="map_rotate_right" class="btn btn-default" title="Rotate right"><span class="glyphicon glyphicon-repeat rotate-right"></span></button>
-                        or custom relative angle:
-                        <input type="text" style="display:inline-block;width:31.8%" class="form-control" id="map_rot_angle" name="map_rot_angle" value="0" />
-                        <button id="rotate_map" style="width:14%" class="btn btn-default">Rotate</button>
+                        <label>Rotate Map</label>
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                          <button id="map_rotate_left" class="btn btn-default" title="Rotate left 90°"><span class="glyphicon glyphicon-repeat" style="-webkit-transform:scaleX(-1);transform:scaleX(-1);display:inline-block;"></span></button>
+                          <button id="map_rotate_right" class="btn btn-default" title="Rotate right 90°"><span class="glyphicon glyphicon-repeat"></span></button>
+                          <span style="font-size:12px;color:#888;">or custom angle:</span>
+                          <div class="input-group" style="max-width:180px;">
+                            <input type="text" class="form-control" id="map_rot_angle" name="map_rot_angle" value="0" placeholder="Degrees" />
+                            <span class="input-group-btn">
+                              <button id="rotate_map" class="btn btn-default">Rotate</button>
+                            </span>
+                          </div>
+                        </div>
                       </div>
                       <div class="form-group">
-                        <label>Move <small>(translate)</small> Map</label> <br />
-                        x=<input type="text" style="display:inline-block;width:38%" class="form-control" id="map_move_x" name="map_move_x" value="0" />;
-                        y=<input type="text" style="display:inline-block;width:38%" class="form-control" id="map_move_y" name="map_move_y" value="0" />
-                        <button id="move_map" style="width:14%" class="btn btn-default">Move</button>
+                        <label>Move <small>(translate)</small> Map</label>
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                          <div class="input-group" style="max-width:130px;">
+                            <span class="input-group-addon">X</span>
+                            <input type="text" class="form-control" id="map_move_x" name="map_move_x" value="0" />
+                          </div>
+                          <div class="input-group" style="max-width:130px;">
+                            <span class="input-group-addon">Y</span>
+                            <input type="text" class="form-control" id="map_move_y" name="map_move_y" value="0" />
+                          </div>
+                          <button id="move_map" class="btn btn-default">Move</button>
+                        </div>
                       </div>
                     </div>
 
@@ -265,13 +274,52 @@
 
         </div>
         <div id="canvas_container"></div>
-        <div id="rubber-zone-bar">
-            <label for="dRubberVal" style="margin:0;white-space:nowrap;">Rubber Zone Value:</label>
-            <input type="number" id="dRubberVal" name="dRubberVal" value="2" step="0.1" min="0" style="width:80px;padding:2px 6px;border-radius:3px;border:1px solid #888;background:#222;color:#fff;" />
+        <!-- Wall Tool Popover Window -->
+        <div id="wall-tool-window" style="display:none;">
+            <div id="wall-tool-header">Wall Tool <span id="wall-tool-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
+            <div id="wall-tool-body">
+                <div class="wall-tool-section">
+                    <label style="margin:0 6px 0 0;white-space:nowrap;font-size:12px;">Wall Height:</label>
+                    <input type="number" id="dWallHeight" name="dWallHeight" value="4" step="1" min="1" max="50" style="width:60px;" />
+                </div>
+                <div class="wall-tool-section" id="wall-tool-points-section" style="display:none;">
+                    <div id="wall-tool-points-label" style="font-size:11px;font-weight:bold;margin-bottom:4px;">Points &amp; Walls</div>
+                    <div id="wall-tool-points-list" style="font-size:11px;max-height:200px;overflow-y:auto;"></div>
+                </div>
+                <div class="wall-tool-section">
+                    <button id="wall-tool-finish" class="btn btn-sm btn-primary" style="width:100%;display:none;">Finish Wall</button>
+                </div>
+            </div>
         </div>
-        <div id="wall-height-bar">
-            <label for="dWallHeight" style="margin:0;white-space:nowrap;">Wall Height:</label>
-            <input type="number" id="dWallHeight" name="dWallHeight" value="4" step="1" min="1" max="50" style="width:70px;padding:2px 6px;border-radius:3px;border:1px solid #888;background:#222;color:#fff;" />
+
+        <!-- Zone Tool Popover Window -->
+        <div id="zone-tool-window" style="display:none;">
+            <div id="zone-tool-header">Zone Tool <span id="zone-tool-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
+            <div id="zone-tool-body">
+                <div id="zone-tool-types-row" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+                    <button class="btn btn-xs zone-type-btn" data-type="0" style="background:#ff0000;color:#fff;border-color:#cc0000;">Death</button>
+                    <button class="btn btn-xs zone-type-btn" data-type="1" style="background:#00a800;color:#fff;border-color:#006600;">Win</button>
+                    <button class="btn btn-xs zone-type-btn" data-type="2" style="background:#00ff00;color:#000;border-color:#00cc00;">Target</button>
+                    <button class="btn btn-xs zone-type-btn" data-type="3" style="background:#ffc12b;color:#000;border-color:#cc9900;">Rubber</button>
+                    <button class="btn btn-xs zone-type-btn" data-type="4" style="background:#62bef6;color:#000;border-color:#3399cc;">Fortress</button>
+                </div>
+                <div id="zone-tool-settings" style="font-size:12px;">
+                    <div id="zone-rubber-setting" style="display:none;margin-bottom:6px;">
+                        <label style="margin:0 6px 0 0;white-space:nowrap;">Rubber Value:</label>
+                        <input type="number" id="dRubberVal" name="dRubberVal" value="2" step="0.1" min="0" style="width:70px;" />
+                    </div>
+                    <div id="zone-quick-placement" style="margin-bottom:4px;">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;">
+                            <input type="checkbox" id="zone-quick-placement-toggle" />
+                            <span>Quick placement</span>
+                        </label>
+                        <div id="zone-quick-size-row" style="display:none;margin-top:4px;">
+                            <label style="font-size:11px;margin:0 4px 0 0;">Size (radius):</label>
+                            <input type="number" id="zone-quick-size" value="32" min="1" step="1" style="width:70px;" />
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         <div id="debug_box">
             <div id="debug_stream">
@@ -352,9 +400,6 @@
                     <a class="toolbar-gui-open" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Settings"></a>
                     <a class="toolbar-gui-close" href="#" rel="tooltip" data-trigger="hover" data-placement="right" style="display:none;" data-original-title="Settings"></a>
                 </li>
-                <li>
-                    <a class="toolbar-toolInfo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="About Vectron"></a>
-                </li>
             </ul>
         </div>
 
@@ -367,6 +412,7 @@
                 <li><a tabindex="-1" href="#" class="toolbar-redo">Redo <span class="cm-shortcut">Ctrl+Shift+Z</span></a></li>
                 <li class="divider"></li>
                 <li><a tabindex="-1" href="#" class="toolbar-delete">Delete <span class="cm-shortcut">Del</span></a></li>
+                <li><a tabindex="-1" href="#" id="contextMenu-delete-vertex" style="display:none;">Delete Vertex <span class="cm-shortcut">Del</span></a></li>
                 <li class="divider"></li>
                 <li class="dropdown-submenu">
                     <a tabindex="-1" href="#">Pan/Zoom</a>
