@@ -3,7 +3,7 @@
   position: absolute;
   right: 0;
   left: 50px;
-  top: 0;
+  top: 36px;
   bottom: 0;
 }
 
@@ -899,6 +899,108 @@ body.noscroll {
 .cfg-form-group label {
   font-size: 13px;
 }
+/* Top settings bar */
+#top-settings-bar {
+  position: absolute;
+  top: 0;
+  left: 50px;
+  right: 0;
+  height: 36px;
+  background: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 6px;
+  z-index: 5;
+  font-size: 12px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.tsb-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tsb-field label {
+  margin: 0;
+  font-weight: bold;
+  white-space: nowrap;
+  cursor: help;
+  font-size: 12px;
+  color: #444;
+}
+
+.tsb-input {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  font-size: 12px;
+  background: #fff;
+  color: #333;
+  width: 110px;
+  box-sizing: border-box;
+}
+
+.tsb-input-sm {
+  width: 70px;
+}
+
+.tsb-input:focus {
+  outline: none;
+  border-color: #66afe9;
+  box-shadow: 0 0 4px rgba(102,175,233,0.4);
+}
+
+.tsb-sep {
+  opacity: 0.35;
+  padding: 0 2px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Action history toolbar button */
+.toolbar-actionHistory:after {
+  font-family: 'Glyphicons Halflings';
+  content: "\e168";
+  font-size: 16px;
+  position: relative;
+  top: 3px;
+}
+
+/* Grid config flex layout (built by gridConfig_buildUI) */
+.grid-cfg-header {
+  display: grid;
+  grid-template-columns: 120px 110px 130px;
+  gap: 4px 8px;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.grid-cfg-row {
+  display: grid;
+  grid-template-columns: 120px 110px 130px;
+  gap: 4px 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.grid-cfg-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.grid-cfg-label {
+  font-size: 12px;
+}
+
 .cfg-form-group .form-control {
   margin-top: 4px;
   max-width: 260px;
