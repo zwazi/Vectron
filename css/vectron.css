@@ -408,6 +408,15 @@ body.noscroll {
     top:3px;
 }
 
+/* Wall Vertex Move Tool icon */
+.toolbar-toolWallVertexMove:after {
+    font-family: sans-serif;
+    content: "\25CF";
+    font-size: 14px;
+    position: relative;
+    top: 3px;
+}
+
 /* Join Tool icon */
 .toolbar-toolJoin:after {
     font-family: sans-serif;
@@ -433,6 +442,7 @@ body.noscroll {
   left: 0;
   right: 0;
   padding: 10px 10px;
+  padding-bottom: 14px;
   margin: 0;
 }
 
@@ -467,6 +477,61 @@ body.noscroll {
   position: relative;
   top: 5px;
   letter-spacing: -1px;
+}
+
+/* Action History Window */
+#action-history-window {
+  position: fixed;
+  top: 80px;
+  right: 10px;
+  width: 220px;
+  min-height: 120px;
+  max-height: 50vh;
+  background: rgba(20, 20, 20, 0.95);
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 4px;
+  box-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  resize: both;
+  overflow: hidden;
+}
+#action-history-header {
+  background: #333;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: move;
+  user-select: none;
+  border-bottom: 1px solid #555;
+  flex-shrink: 0;
+}
+#action-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 11px;
+}
+#action-history-list li {
+  padding: 2px 8px;
+}
+#action-history-list li.ah-undo {
+  color: #aaddff;
+}
+#action-history-list li.ah-redo {
+  color: #888;
+  font-style: italic;
+}
+#action-history-list li.ah-current {
+  color: #ffdd44;
+  font-weight: bold;
+  border-top: 1px solid #555;
+  border-bottom: 1px solid #555;
+  margin: 2px 0;
 }
 
 /* XML editor modal */

@@ -156,6 +156,19 @@ function eventHandler_init() {
             hide_debug();
     });
 
+    $("#show-action-history").change(function(box)
+    {
+        if($("#show-action-history").is(':checked'))
+            actionHistory_show();
+        else
+            actionHistory_hide();
+    });
+
+    $(document).on("click", "#action-history-close", function() {
+        actionHistory_hide();
+        $("#show-action-history").prop("checked", false);
+    });
+
     // Map Adjustments
     $("#scale_map").mouseup(function(e)
     {
@@ -282,6 +295,12 @@ function eventHandler_init() {
 
     $(".toolbar-toolSpawn").mouseup(function(e) {
         vectron_connectTool("spawn");
+        $("#zones-menu").hide();
+    });
+
+    $(".toolbar-toolWallVertexMove").mouseup(function(e) {
+        vectron_connectTool("wallVertexMove");
+        gui_writeLog('Wall Vertex Move Tool Connected.');
         $("#zones-menu").hide();
     });
 
@@ -567,6 +586,8 @@ function eventHandler_init() {
                     splitTool_click();
                 } else if(vectron_currentTool == "join") {
                     joinTool_click();
+                } else if(vectron_currentTool == "wallVertexMove" && vectron_toolActive) {
+                    wallVertexMoveTool_complete();
                 }
                 break;
             case 2:
@@ -602,6 +623,8 @@ function eventHandler_init() {
                     selectTool_start();
                 } else if(vectron_currentTool == "navigation" && !vectron_toolActive) {
                     navigationTool_start();
+                } else if(vectron_currentTool == "wallVertexMove" && !vectron_toolActive) {
+                    wallVertexMoveTool_start();
                 }
                 break;
             case 2:
@@ -664,6 +687,10 @@ function eventHandler_init() {
             splitTool_guide();
         } else if(vectron_currentTool == "join") {
             joinTool_guide();
+        } else if(vectron_currentTool == "wallVertexMove") {
+            if(vectron_toolActive) {
+                wallVertexMoveTool_progress();
+            }
         }
 
     });
@@ -859,6 +886,9 @@ function eventHandler_init() {
                 vectron_currentTool = "";
                 vectron_connectTool("spawn");
             }
+        } else if(vectron_currentTool == "select" && !vectron_toolActive && selectTool_selectedObjs.length > 0) {
+            selectTool_deselectAll();
+            vectron_render();
         }
     });
 

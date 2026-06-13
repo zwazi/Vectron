@@ -32,6 +32,10 @@ function spawnTool_connect() {
 }
 
 function spawnTool_disconnect() {
+    if(spawnTool_currentObj != null) {
+        if(spawnTool_currentObj.guideObj != null) spawnTool_currentObj.guideObj.remove();
+        spawnTool_currentObj = null;
+    }
     $(".toolbar-toolSpawn").removeClass("toolbar-tool-active");
     vectron_toolActive = false;
 }
@@ -47,6 +51,7 @@ function spawnTool_complete() {
     aamap_add(completedSpawn);
     completedSpawn.render();
     aamap_recordAction({
+        label: "Add spawn",
         undo: function() { _aamap_removeObj(completedSpawn); vectron_render(); },
         redo: function() { aamap_objects.push(completedSpawn); vectron_render(); }
     });

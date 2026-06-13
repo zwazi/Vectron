@@ -88,6 +88,11 @@ function aamap_render() {
     {
         selectTool_progress();
     }
+    else if( vectron_currentTool == "wallVertexMove" )
+    {
+        wallVertexMoveTool_dots = null; // cleared by screen.clear()
+        wallVertexMoveTool_drawDots();
+    }
 }
 
 function aamap_panCenter() {
@@ -201,11 +206,13 @@ var aamap_redoStack = [];
 function aamap_recordAction(action) {
     aamap_undoStack.push(action);
     aamap_redoStack = [];
+    actionHistory_update();
 }
 
 function aamap_clearHistory() {
     aamap_undoStack = [];
     aamap_redoStack = [];
+    actionHistory_update();
 }
 
 function _aamap_removeObj(aamapObject) {
@@ -234,6 +241,7 @@ function aamap_undo() {
     var action = aamap_undoStack.pop();
     action.undo();
     aamap_redoStack.push(action);
+    actionHistory_update();
 }
 
 function aamap_redo() {
@@ -241,6 +249,7 @@ function aamap_redo() {
     var action = aamap_redoStack.pop();
     action.redo();
     aamap_undoStack.push(action);
+    actionHistory_update();
 }
 
 function aamap_activate() {
@@ -288,39 +297,87 @@ function aamap_drawGrid() {
     
     var gridSpacing = vectron_zoom*vectron_grid_spacing;
 
-    var gridArray = [];
+    var regularArray = [];
+    var tenthArray = [];
+    var axisXArray = [];
+    var axisYArray = [];
+
     var midWidth = vectron_width/2 + (vectron_zoom * vectron_panX);
     var midHeight = vectron_height/2 - (vectron_zoom * vectron_panY);
 
-    /**
-     * drawing from mid to width from top to bottom
-     */
-    for(var i=midWidth; i < vectron_width; i+= gridSpacing) {
-        gridArray.push("M", i, vectron_height, "L", i, 0);
+    // Helper: determine which "count" a line at pixel pos i is, given the mid and spacing
+    // Returns the grid index (0 = axis, multiple of 10 = tenth line, else regular)
+    function gridIndex(pos, mid, spacing) {
+        return Math.round((pos - mid) / spacing);
     }
 
     /**
-     * drawing from mid to width from top to bottom
+     * drawing vertical lines from mid to right and mid to left
      */
-    for(var i=midWidth; i > 0; i -= gridSpacing) {
-        gridArray.push("M", i, vectron_height, "L", i, 0);
+    for(var i=midWidth; i < vectron_width; i+= gridSpacing) {
+        var idx = gridIndex(i, midWidth, gridSpacing);
+        if(idx === 0) axisYArray.push("M", i, vectron_height, "L", i, 0);
+        else if(idx % 10 === 0) tenthArray.push("M", i, vectron_height, "L", i, 0);
+        else regularArray.push("M", i, vectron_height, "L", i, 0);
+    }
+    for(var i=midWidth - gridSpacing; i > 0; i -= gridSpacing) {
+        var idx = gridIndex(i, midWidth, gridSpacing);
+        if(idx === 0) axisYArray.push("M", i, vectron_height, "L", i, 0);
+        else if(idx % 10 === 0) tenthArray.push("M", i, vectron_height, "L", i, 0);
+        else regularArray.push("M", i, vectron_height, "L", i, 0);
     }
 
     for(var i=midHeight; i < vectron_height; i+= gridSpacing) {
-        gridArray.push("M", vectron_width, i, "L", 0, i);
+        var idx = gridIndex(i, midHeight, gridSpacing);
+        if(idx === 0) axisXArray.push("M", vectron_width, i, "L", 0, i);
+        else if(idx % 10 === 0) tenthArray.push("M", vectron_width, i, "L", 0, i);
+        else regularArray.push("M", vectron_width, i, "L", 0, i);
+    }
+    for(var i=midHeight - gridSpacing; i > 0; i -= gridSpacing) {
+        var idx = gridIndex(i, midHeight, gridSpacing);
+        if(idx === 0) axisXArray.push("M", vectron_width, i, "L", 0, i);
+        else if(idx % 10 === 0) tenthArray.push("M", vectron_width, i, "L", 0, i);
+        else regularArray.push("M", vectron_width, i, "L", 0, i);
     }
 
-    for(var i=midHeight; i > 0; i -= gridSpacing) {
-        gridArray.push("M", vectron_width, i, "L", 0, i);
-    }
-    
-    aamap_grid = vectron_screen.path(gridArray).attr("stroke", "#d6d6ec");
-    {
-        aamap_grid.node.style.shapeRendering = "crispedges";
-        if(vectron_zoom*vectron_grid_spacing > 8) aamap_grid.attr('stroke-width',2);
-    }
-    if(config_isDark) aamap_grid.attr('stroke', '#1a1a1a');
+    // Draw regular grid lines
+    var gridColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
+    var regularStroke = (vectron_zoom*vectron_grid_spacing > 8) ? 2 : 1;
 
+    aamap_grid = vectron_screen.set();
+
+    if(regularArray.length > 0) {
+        var reg = vectron_screen.path(regularArray)
+            .attr({stroke: gridColor, "stroke-width": regularStroke});
+        reg.node.style.shapeRendering = "crispedges";
+        aamap_grid.push(reg);
+    }
+
+    // Draw every-10th lines (thicker white/light)
+    if(tenthArray.length > 0) {
+        var tenth = vectron_screen.path(tenthArray)
+            .attr({stroke: config_isDark ? "#444" : "#fff", "stroke-width": regularStroke + 1});
+        tenth.node.style.shapeRendering = "crispedges";
+        aamap_grid.push(tenth);
+    }
+
+    // Draw Y-axis (x=0) in red (thicker)
+    if(axisYArray.length > 0) {
+        var axY = vectron_screen.path(axisYArray)
+            .attr({stroke: "#cc2222", "stroke-width": regularStroke + 1});
+        axY.node.style.shapeRendering = "crispedges";
+        aamap_grid.push(axY);
+    }
+
+    // Draw X-axis (y=0) in blue (thicker)
+    if(axisXArray.length > 0) {
+        var axX = vectron_screen.path(axisXArray)
+            .attr({stroke: "#2244cc", "stroke-width": regularStroke + 1});
+        axX.node.style.shapeRendering = "crispedges";
+        aamap_grid.push(axX);
+    }
+
+    // Store bbox for compatibility with panning code
     aamap_grid.bbox = aamap_grid.getBBox();
 }
 
