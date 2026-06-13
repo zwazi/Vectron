@@ -397,25 +397,76 @@ function eventHandler_init() {
         aamap_active = true;
     }
 
+    function xmlEditor_validateXML(content, isFragment) {
+        // Use jQuery's parseXML which throws on invalid XML.
+        // For fragments, wrap in a neutral root so multiple top-level elements are accepted.
+        try {
+            if(isFragment) {
+                $.parseXML('<VectronRoot>' + content + '</VectronRoot>');
+            } else {
+                $.parseXML(content);
+            }
+            return false; // valid
+        } catch(e) {
+            return true; // invalid
+        }
+    }
+
     function xmlEditor_apply() {
         var content = $('#xml-editor-content').val();
+        var errDiv = document.getElementById('xml-editor-error');
+
+        // Validate XML (display fixed message, not user content)
+        var isFragment = (xmlEditor_mode === 'selected');
+        if(xmlEditor_validateXML(content, isFragment)) {
+            errDiv.textContent = "Invalid XML: please check your syntax and try again.";
+            errDiv.style.display = '';
+            return;
+        }
+        errDiv.style.display = 'none';
+
+        // Save old state for undo
+        var oldObjects = aamap_objects.slice();
+
         if (xmlEditor_mode === 'selected' && xmlEditor_selectedSnapshot.length > 0) {
-            // Remove the originally selected objects
             aamap_objects = aamap_objects.diff(xmlEditor_selectedSnapshot);
             xmlEditor_selectedSnapshot.forEach(function(e) {
                 if (e.obj) e.obj.remove();
                 if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
             });
-            // Parse the new XML fragment
             xml_process_piece(content);
-            aamap_clearHistory();
             vectron_render();
         } else {
-            // Full map replace
             aamap_objects = [];
-            xml_process(content); // xml_process calls aamap_clearHistory() internally
+            xml_process(content, true); // suppress history clear
             vectron_render();
         }
+
+        var newObjects = aamap_objects.slice();
+
+        // Record XML edit as an undoable action
+        aamap_redoStack = [];
+        aamap_recordAction({
+            label: "Edit XML",
+            undo: function() {
+                aamap_objects.forEach(function(e) {
+                    if(e.obj) e.obj.remove();
+                    if(e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
+                });
+                aamap_objects = oldObjects;
+                vectron_render();
+                actionHistory_update();
+            },
+            redo: function() {
+                aamap_objects.forEach(function(e) {
+                    if(e.obj) e.obj.remove();
+                    if(e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
+                });
+                aamap_objects = newObjects;
+                vectron_render();
+            }
+        });
+
         xmlEditor_close();
     }
 
@@ -906,28 +957,49 @@ function eventHandler_init() {
     });
 
     Mousetrap.bind('escape', function(e) {
+        // Priority: close xml editor → close settings → cancel active tool / switch to select → deselect / open settings
+        if($('#xml-editor-overlay').hasClass('visible')) {
+            xmlEditor_close();
+            return false;
+        }
+        if(gui_active) {
+            gui_hide();
+            $(".toolbar-gui-close").hide();
+            $(".toolbar-gui-open").show();
+            return false;
+        }
         if(vectron_currentTool == "zone" && zoneTool_placingSize) {
             zoneTool_placingSize = false;
             vectron_toolActive = false;
             if(zoneTool_guideObj != null) { zoneTool_guideObj.remove(); zoneTool_guideObj = null; }
             zoneTool_guide();
-        } else if(vectron_toolActive) {
-            if(vectron_currentTool == "wall")
-            {
+            return false;
+        }
+        if(vectron_toolActive) {
+            if(vectron_currentTool == "wall") {
                 wallTool_disconnect();
                 vectron_currentTool = "";
                 vectron_connectTool("wall");
-            }
-            else if(vectron_currentTool == "spawn")
-            {
+            } else if(vectron_currentTool == "spawn") {
                 spawnTool_disconnect();
                 vectron_currentTool = "";
                 vectron_connectTool("spawn");
             }
-        } else if(vectron_currentTool == "select" && !vectron_toolActive && selectTool_selectedObjs.length > 0) {
+            return false;
+        }
+        if(vectron_currentTool !== "select") {
+            vectron_connectTool("select");
+            return false;
+        }
+        // Already on select tool with no active action
+        if(selectTool_selectedObjs.length > 0) {
             selectTool_deselectAll();
             vectron_render();
+        } else {
+            // open settings
+            if(!gui_active) { gui_show(); $(".toolbar-gui-open").hide(); $(".toolbar-gui-close").show(); }
         }
+        return false;
     });
 
     Mousetrap.bind('right', function(e) {
@@ -993,6 +1065,56 @@ function eventHandler_init() {
         if(!aamap_active) return;
         aamap_fitToScreen();
         return false;
+    });
+
+    // Wall height bar: update wall height input on change
+    $("#dWallHeight").on("change input", function() {
+        var v = parseInt($(this).val());
+        if(isNaN(v) || v < 1) { $(this).val(1); }
+        else if(v > 50) { $(this).val(50); }
+    });
+
+    // New map button (toolbar)
+    $(".toolbar-newMap").mouseup(function(e) {
+        if(gui_active) { gui_hide(); $(".toolbar-gui-close").hide(); $(".toolbar-gui-open").show(); }
+        if(!confirm("Create a new blank map? Unsaved changes will be lost.")) return;
+        aamap_objects.forEach(function(obj) {
+            if(obj.obj) obj.obj.remove();
+            if(obj.glowObj) { obj.glowObj.remove(); obj.glowObj = null; }
+        });
+        aamap_objects = [];
+        vectron_panX = 0;
+        vectron_panY = 0;
+        vectron_zoom = 1;
+        aamap_clearHistory();
+        vectron_render();
+        gui_writeLog("New map created.");
+        $("#zones-menu").hide();
+    });
+
+    // Import button (toolbar)
+    $(".toolbar-import").mouseup(function(e) {
+        $("#toolbar-files").val("");
+        $("#toolbar-files").click();
+        $("#zones-menu").hide();
+    });
+    $("#toolbar-files").change(function(e) {
+        aamap_objects = [];
+        xml_handle(e);
+        gui_writeLog("Loading.");
+    });
+
+    // Export button (toolbar)
+    $(".toolbar-export").mouseup(function(e) {
+        var mapName = $("#map_name").val().trim() || "map";
+        var mapAuthor = $("#map_author").val().trim();
+        var mapCategory = $("#map_category").val().trim();
+        var mapVersion = $("#map_version").val().trim() || "1";
+        var mapDtd = $("#map_dtd").val().trim() || "sty.dtd";
+        var mapAxes = parseInt($("#map_axes").val().trim()) || 4;
+        var mapSets = $("#map_settings").val().split("\n");
+        aamap_save(mapName, mapAuthor, mapCategory, mapVersion, mapDtd, mapAxes, mapSets);
+        $("#zones-menu").hide();
     });
 
 }

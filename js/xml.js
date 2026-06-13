@@ -43,7 +43,7 @@ function xml_init() {
     });
 }  
 
-function xml_process(xml) {
+function xml_process(xml, suppressHistoryClear) {
 
     var resource = $(xml).filter(":first");
     gui_writeLog(resource.attr("name"));
@@ -81,7 +81,7 @@ function xml_process(xml) {
     vectron_panY = -1*(max_y + min_y)/2;
     vectron_zoom = (((vectron_width+vectron_height)/2))/((max_x-min_x)+(max_y-min_y));
     vectron_render();
-    aamap_clearHistory();
+    if(!suppressHistoryClear) aamap_clearHistory();
 }
 
 function xml_process_piece(xml)

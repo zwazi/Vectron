@@ -108,3 +108,48 @@ body {
 #xml-editor-tabs > li.disabled > a {
 	color: #666;
 }
+
+#control_box {
+	background: #222;
+	color: #eee;
+	border-color: #555;
+}
+
+#control_box .tab-pane {
+	background: #1a1a1a;
+	border-color: #444;
+	color: #eee;
+}
+
+#control_box .nav-tabs > li > a {
+	background: #333;
+	border-color: #555;
+	color: #ccc;
+}
+
+#control_box .nav-tabs > li.active > a,
+#control_box .nav-tabs > li.active > a:hover {
+	background: #1a1a1a;
+	border-bottom-color: #1a1a1a;
+	color: #eee;
+}
+
+#control_box h1,
+#control_box h5,
+#control_box label {
+	color: #ddd;
+}
+
+#control_box .form-control,
+#control_box select,
+#control_box input[type="text"],
+#control_box input[type="number"],
+#control_box textarea {
+	background: #2a2a2a;
+	color: #eee;
+	border-color: #555;
+}
+
+#xml-editor-error {
+	color: #ff7070;
+}
