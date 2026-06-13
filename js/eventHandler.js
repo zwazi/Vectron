@@ -387,6 +387,7 @@ function eventHandler_init() {
 
     $(".toolbar-redo").mouseup(function(e) {
         aamap_redo();
+        vectron_render();
     });
 
     $(".toolbar-split-walls").mouseup(function(e) {
@@ -798,11 +799,6 @@ function eventHandler_init() {
         return false;
     });
 
-}
-
-function eventHandler_updateDisconnect()
-{
-    // No longer needed - delete and undo are separate buttons.
 }
 
 var __resize_timeout;
