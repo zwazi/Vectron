@@ -244,6 +244,7 @@ function selectTool_complete() {
 
     selectTool_selectArea(selectTool_mapX, selectTool_mapY, selectTool_endX, selectTool_endY);
     vectron_toolActive = false;
+    if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
 }
 
 function selectTool_delete() {
@@ -271,6 +272,7 @@ function selectTool_delete() {
             vectron_render();
         }
     });
+    if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
     vectron_render();
 }
 
@@ -347,6 +349,7 @@ function selectTool_deselectAll() {
         selectTool_deselect(selectTool_selectedObjs[i]);
     }
     selectTool_selectedObjs = [];
+    if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
 }
 
 var selectTool_clipboard = "";
@@ -444,6 +447,7 @@ function selectTool_paste()
                 vectron_render();
             }
         });
+        if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
     }
     else
     {
