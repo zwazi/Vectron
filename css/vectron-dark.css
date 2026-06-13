@@ -63,6 +63,10 @@ body {
 #tool_bar ul li a.active {
 	background-color:#1b1b1b;
 }
+
+#tool_bar ul li a.toolbar-tool-active {
+	background-color: rgba(255,255,255,0.2);
+}
 #tool_bar ul li a.disabled {
 	opacity: 0.3;
 	cursor: no-drop;
