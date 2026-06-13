@@ -37,6 +37,9 @@ var splitTool_guideObj = null;
 var splitTool_highlightObj = null;
 var splitTool_hoveredWall = null;
 
+/** Minimum parametric distance from a segment endpoint to allow splitting (avoids zero-length walls). */
+var SPLIT_ENDPOINT_TOLERANCE = 1e-6;
+
 function splitTool_connect() {
     $(".toolbar-toolSplit").addClass("toolbar-tool-active");
     cursor_active = false;
@@ -200,7 +203,7 @@ function splitTool_click() {
         var seg = pt.segIndex;
         var t = pt.t;
 
-        if (t < 1e-6 || t > 1 - 1e-6) {
+        if (t < SPLIT_ENDPOINT_TOLERANCE || t > 1 - SPLIT_ENDPOINT_TOLERANCE) {
             gui_writeLog("Split Tool: point is at an endpoint; split cancelled.");
             splitTool_selectedWall = null;
             vectron_toolActive = false;
