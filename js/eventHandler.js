@@ -52,7 +52,11 @@ function eventHandler_init() {
         return false;
     });
 
-    $contextMenu.on("mouseup", "a", function() {
+    $contextMenu.on("mouseup", "a", function(evt) {
+        // Don't close the menu when clicking a submenu toggle
+        if($(this).closest('li.dropdown-submenu').length && !$(this).closest('.cm-submenu').length) {
+            return;
+        }
         if(!aamap_active) {
             $contextMenu.hide();
             aamap_active = true;
@@ -389,12 +393,12 @@ function eventHandler_init() {
         }
         xmlEditor_switchTab((preferSelected && hasSelected) ? 'selected' : 'full');
         $('#xml-editor-overlay').addClass('visible');
-        aamap_active = false;
+        // Do NOT set aamap_active=false — allow canvas interaction while window is open
     }
 
     function xmlEditor_close() {
         $('#xml-editor-overlay').removeClass('visible');
-        aamap_active = true;
+        // Do NOT touch aamap_active — let the canvas remain in its current state
     }
 
     function xmlEditor_validateXML(content, isFragment) {
@@ -480,15 +484,34 @@ function eventHandler_init() {
         xmlEditor_close();
     });
 
+    $(document).on("click", "#xml-editor-close-x", function() {
+        xmlEditor_close();
+    });
+
     $("#xml-editor-apply").mouseup(function(e) {
         xmlEditor_apply();
     });
 
-    $("#xml-editor-overlay").mousedown(function(e) {
-        if ($(e.target).is("#xml-editor-overlay")) {
-            xmlEditor_close();
-        }
-    });
+    // Make XML editor draggable via its header
+    (function() {
+        var box = document.getElementById('xml-editor-box');
+        var header = document.getElementById('xml-editor-header');
+        if(!box || !header) return;
+        var isDragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+        header.addEventListener('mousedown', function(e) {
+            if($(e.target).is('#xml-editor-close-x')) return;
+            isDragging = true;
+            startX = e.clientX; startY = e.clientY;
+            origLeft = box.offsetLeft; origTop = box.offsetTop;
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if(!isDragging) return;
+            box.style.left = (origLeft + e.clientX - startX) + 'px';
+            box.style.top  = (origTop  + e.clientY - startY) + 'px';
+        });
+        document.addEventListener('mouseup', function() { isDragging = false; });
+    })();
 
     $(document).on('click', '#xml-editor-tabs a', function(e) {
         e.preventDefault();
@@ -500,6 +523,30 @@ function eventHandler_init() {
     $("#contextMenu-view-xml").mouseup(function(e) {
         var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
         xmlEditor_open(hasSelected);
+    });
+
+    // Pan/Zoom context menu submenu
+    $("#cm-navigation").mouseup(function(e) {
+        vectron_connectTool("navigation");
+        gui_writeLog('Navigation Tool Connected.');
+        $("#zones-menu").hide();
+    });
+    $("#cm-zoom-in").mouseup(function(e) {
+        vectron_zoom *= 1.1;
+        vectron_zoom_adjustment();
+        vectron_render();
+    });
+    $("#cm-zoom-out").mouseup(function(e) {
+        vectron_zoom /= 1.1;
+        vectron_zoom_adjustment();
+        vectron_render();
+    });
+    $("#cm-zoom-100").mouseup(function(e) {
+        vectron_zoom = 1;
+        vectron_render();
+    });
+    $("#cm-fit-screen").mouseup(function(e) {
+        aamap_fitToScreen();
     });
 
     $(".toolbar-toolUnlock-list .toolbar-toolUnlock").mouseup(function(e) {
@@ -1074,10 +1121,20 @@ function eventHandler_init() {
         else if(v > 50) { $(this).val(50); }
     });
 
-    // New map button (toolbar)
+    // New map button (toolbar) — show popover instead of native confirm
     $(".toolbar-newMap").mouseup(function(e) {
         if(gui_active) { gui_hide(); $(".toolbar-gui-close").hide(); $(".toolbar-gui-open").show(); }
-        if(!confirm("Create a new blank map? Unsaved changes will be lost.")) return;
+        var btn = this;
+        var popover = document.getElementById("new-map-popover");
+        var rect = btn.getBoundingClientRect();
+        popover.style.left = (rect.right + 8) + 'px';
+        popover.style.top  = rect.top + 'px';
+        popover.style.display = 'block';
+        $("#zones-menu").hide();
+    });
+
+    $("#new-map-confirm").mouseup(function(e) {
+        document.getElementById("new-map-popover").style.display = 'none';
         aamap_objects.forEach(function(obj) {
             if(obj.obj) obj.obj.remove();
             if(obj.glowObj) { obj.glowObj.remove(); obj.glowObj = null; }
@@ -1089,7 +1146,20 @@ function eventHandler_init() {
         aamap_clearHistory();
         vectron_render();
         gui_writeLog("New map created.");
-        $("#zones-menu").hide();
+    });
+
+    $("#new-map-cancel").mouseup(function(e) {
+        document.getElementById("new-map-popover").style.display = 'none';
+    });
+
+    // Close new-map popover when clicking elsewhere
+    $(document).on("mousedown.newmappopover", function(e) {
+        var pop = document.getElementById("new-map-popover");
+        if(pop && pop.style.display !== 'none' &&
+           !$(e.target).closest("#new-map-popover").length &&
+           !$(e.target).closest(".toolbar-newMap").length) {
+            pop.style.display = 'none';
+        }
     });
 
     // Import button (toolbar)
