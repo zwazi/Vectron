@@ -49,6 +49,7 @@ var selectTool_moveLastRealY = null;
 var shouldAddToSelected = false;
 
 
+var selectTool_clickedAlreadySelected = false;
 var selectTool_guideObj = null;
 var selectTool_selectedObjs = [];
 
@@ -71,6 +72,7 @@ function selectTool_disconnect() {
         selectTool_guideObj.remove();
     }
     selectTool_deselectAll();
+    selectTool_clickedAlreadySelected = false;
 
     cursor_active = true;
 
@@ -92,6 +94,7 @@ function selectTool_start() {
             if(aamap_objects[i].obj == selectTool_hoveredSet[0]) {
                 gui_writeLog("match");
                 selectTool_hoveredAamapObj = aamap_objects[i];
+                selectTool_clickedAlreadySelected = selectTool_hoveredAamapObj.isSelected;
                 if(shouldAddToSelected) {
                     selectTool_hoveredAamapObj.isSelected = true;
                     selectTool_selectedObjs.push(selectTool_hoveredAamapObj);
@@ -193,13 +196,31 @@ function selectTool_complete() {
         var dx = selectTool_moveStartX - endX;
         var dy = selectTool_moveStartY - endY;
 
+        var movedObjs = selectTool_selectedObjs.slice();
+        var finalDx = -dx, finalDy = -dy;
+
+        // Click (no drag) on an already-selected object: deselect it
+        if (finalDx === 0 && finalDy === 0 && selectTool_clickedAlreadySelected) {
+            var deselectObj = selectTool_hoveredAamapObj;
+            var idx = selectTool_selectedObjs.indexOf(deselectObj);
+            if (idx >= 0) selectTool_selectedObjs.splice(idx, 1);
+            selectTool_deselect(deselectObj);
+            selectTool_hoveredAamapObj = null;
+            selectTool_hoveredSet = null;
+            selectTool_clickedAlreadySelected = false;
+            shouldAddToSelected = false;
+            vectron_toolActive = false;
+            vectron_render();
+            if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
+            return;
+        }
+
+        selectTool_clickedAlreadySelected = false;
+
         selectTool_hoveredSet[0].remove();
         selectTool_hoveredSet[1].remove();
 
         selectTool_sets = [];
-
-        var movedObjs = selectTool_selectedObjs.slice();
-        var finalDx = -dx, finalDy = -dy;
 
         selectTool_selectedObjs.forEach(function(e) {
             e.move(-dx, -dy);
