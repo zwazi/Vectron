@@ -198,10 +198,27 @@ function selectTool_complete() {
 
         selectTool_sets = [];
 
+        var movedObjs = selectTool_selectedObjs.slice();
+        var finalDx = -dx, finalDy = -dy;
+
         selectTool_selectedObjs.forEach(function(e) {
             e.move(-dx, -dy);
             e.render();
         });
+
+        // Record move action for undo/redo
+        if (finalDx !== 0 || finalDy !== 0) {
+            aamap_recordAction({
+                undo: function() {
+                    movedObjs.forEach(function(e) { e.move(-finalDx, -finalDy); e.render(); });
+                    vectron_render();
+                },
+                redo: function() {
+                    movedObjs.forEach(function(e) { e.move(finalDx, finalDy); e.render(); });
+                    vectron_render();
+                }
+            });
+        }
 
         // render adds to sets
         for(var i = 0, ii = selectTool_sets.length; i < ii; i++) {
@@ -229,9 +246,29 @@ function selectTool_complete() {
 }
 
 function selectTool_delete() {
-    aamap_objects = aamap_objects.diff(selectTool_selectedObjs);
-    selectTool_deselectAll();
+    var deletedObjs = selectTool_selectedObjs.slice();
+    // Mark as deselected and remove Raphael elements directly
+    deletedObjs.forEach(function(e) {
+        e.isSelected = false;
+        if (e.obj) { e.obj.remove(); e.obj = null; }
+        if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
+    });
+    aamap_objects = aamap_objects.diff(deletedObjs);
     selectTool_selectedObjs = [];
+    aamap_recordAction({
+        undo: function() {
+            deletedObjs.forEach(function(e) { aamap_objects.push(e); });
+            vectron_render();
+        },
+        redo: function() {
+            aamap_objects = aamap_objects.diff(deletedObjs);
+            deletedObjs.forEach(function(e) {
+                if (e.obj) { e.obj.remove(); e.obj = null; }
+                if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
+            });
+            vectron_render();
+        }
+    });
     vectron_render();
 }
 
@@ -381,11 +418,29 @@ function selectTool_paste()
 
         // select pasted elements
         selectTool_deselectAll();
+        var pastedObjs = [];
         for(var i=objsBeforePaste;i<aamap_objects.length;++i) // objects pasted
         {
             selectTool_select(aamap_objects[i]);
             selectTool_selectedObjs.push(aamap_objects[i]);
+            pastedObjs.push(aamap_objects[i]);
         }
+
+        // Record paste for undo/redo
+        aamap_recordAction({
+            undo: function() {
+                aamap_objects = aamap_objects.diff(pastedObjs);
+                pastedObjs.forEach(function(e) {
+                    if (e.obj) e.obj.remove();
+                    if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
+                });
+                vectron_render();
+            },
+            redo: function() {
+                pastedObjs.forEach(function(e) { aamap_objects.push(e); });
+                vectron_render();
+            }
+        });
     }
     else
     {

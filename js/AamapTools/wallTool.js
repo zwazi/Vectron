@@ -59,7 +59,6 @@ function wallTool_start() {
 
     wallTool_currentObj.render();
     vectron_toolActive = true;
-    eventHandler_updateDisconnect();
 }
 
 function wallTool_progress() {
@@ -83,7 +82,6 @@ function wallTool_complete() {
         wallTool_currentObj.guideObj.remove();
         wallTool_currentObj = null;
         vectron_toolActive = false;
-        eventHandler_updateDisconnect();
         gui_writeLog("Wall canceled, < 2 points");
         return;
     } else {
@@ -95,10 +93,14 @@ function wallTool_complete() {
         }
     }
     wallTool_currentObj.guideObj.remove();
-    aamap_add(wallTool_currentObj);
+    var completedWall = wallTool_currentObj;
+    aamap_add(completedWall);
+    aamap_recordAction({
+        undo: function() { _aamap_removeObj(completedWall); vectron_render(); },
+        redo: function() { aamap_objects.push(completedWall); vectron_render(); }
+    });
     wallTool_currentObj = null;
     vectron_toolActive = false;
-    eventHandler_updateDisconnect();
 }
 
 /**

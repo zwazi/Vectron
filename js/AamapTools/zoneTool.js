@@ -144,7 +144,12 @@ function zoneTool_complete() {
         }
     }
 
-    aamap_add(new Zone(newX, newY, radius, 0, zoneTool_type));
+    var newZone = new Zone(newX, newY, radius, 0, zoneTool_type);
+    aamap_add(newZone);
+    aamap_recordAction({
+        undo: function() { _aamap_removeObj(newZone); vectron_render(); },
+        redo: function() { aamap_objects.push(newZone); vectron_render(); }
+    });
     zoneTool_removeGuide();
     zoneTool_placingSize = false;
     vectron_toolActive = false;

@@ -303,6 +303,101 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
+    // XML Editor
+    function xmlEditor_getFullXML() {
+        var xml = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>\n';
+        xml += '<!DOCTYPE Resource SYSTEM "' + (xml_dtd || 'sty.dtd') + '">\n';
+        xml += '<Resource type="aamap" name="' + (xml_name || '') + '" version="' + (xml_version || '') + '" author="' + (xml_author || '') + '" category="' + (xml_category || '') + '">\n';
+        xml += '<Map version="0.2.8">\n<World>\n<Field>\n';
+        for (var i = 0; i < aamap_objects.length; i++) {
+            xml += '  ' + aamap_objects[i].getXML() + '\n';
+        }
+        xml += '</Field>\n</World>\n</Map>\n</Resource>\n';
+        return xml;
+    }
+
+    function xmlEditor_getSelectedXML() {
+        var objs = selectTool_selectedObjs;
+        var xml = '<Field>\n';
+        for (var i = 0; i < objs.length; i++) {
+            xml += '  ' + objs[i].getXML() + '\n';
+        }
+        xml += '</Field>';
+        return xml;
+    }
+
+    var xmlEditor_mode = 'full'; // 'full' or 'selected'
+    var xmlEditor_selectedSnapshot = [];
+
+    function xmlEditor_open(selectedOnly) {
+        xmlEditor_mode = selectedOnly ? 'selected' : 'full';
+        xmlEditor_selectedSnapshot = selectTool_selectedObjs.slice();
+        var content, title;
+        if (selectedOnly && selectTool_selectedObjs.length > 0) {
+            content = xmlEditor_getSelectedXML();
+            title = '(' + selectTool_selectedObjs.length + ' object(s) selected)';
+        } else {
+            content = xmlEditor_getFullXML();
+            title = '(full map)';
+            xmlEditor_mode = 'full';
+        }
+        $('#xml-editor-content').val(content);
+        $('#xml-editor-title').text(title);
+        $('#xml-editor-overlay').addClass('visible');
+        aamap_active = false;
+    }
+
+    function xmlEditor_close() {
+        $('#xml-editor-overlay').removeClass('visible');
+        aamap_active = true;
+    }
+
+    function xmlEditor_apply() {
+        var content = $('#xml-editor-content').val();
+        if (xmlEditor_mode === 'selected' && xmlEditor_selectedSnapshot.length > 0) {
+            // Remove the originally selected objects
+            aamap_objects = aamap_objects.diff(xmlEditor_selectedSnapshot);
+            xmlEditor_selectedSnapshot.forEach(function(e) {
+                if (e.obj) e.obj.remove();
+                if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
+            });
+            // Parse the new XML fragment
+            xml_process_piece(content);
+            aamap_clearHistory();
+            vectron_render();
+        } else {
+            // Full map replace
+            aamap_objects = [];
+            xml_process(content); // xml_process calls aamap_clearHistory() internally
+            vectron_render();
+        }
+        xmlEditor_close();
+    }
+
+    $(".toolbar-toolXml").mouseup(function(e) {
+        xmlEditor_open(false);
+        $("#zones-menu").hide();
+    });
+
+    $("#xml-editor-close").mouseup(function(e) {
+        xmlEditor_close();
+    });
+
+    $("#xml-editor-apply").mouseup(function(e) {
+        xmlEditor_apply();
+    });
+
+    $("#xml-editor-overlay").mousedown(function(e) {
+        if ($(e.target).is("#xml-editor-overlay")) {
+            xmlEditor_close();
+        }
+    });
+
+    $("#contextMenu-view-xml").mouseup(function(e) {
+        var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
+        xmlEditor_open(hasSelected);
+    });
+
     $(".toolbar-toolUnlock-list .toolbar-toolUnlock").mouseup(function(e) {
         cursor_snap = true;
         $('.toolbar-toolUnlock-list').css('display','none');
@@ -409,8 +504,21 @@ function eventHandler_init() {
     });
 
     $(".toolbar-split-walls").mouseup(function(e) {
-        wallTool_splitByGrid();
+        // Removed: Split Walls at Grid Lines is no longer available
         $("#zones-menu").hide();
+    });
+
+    // Close settings modal when clicking outside it
+    $(document).on("mousedown", function(e) {
+        if (gui_active &&
+            !$(e.target).closest("#control_box").length &&
+            !$(e.target).closest(".toolbar-gui-open").length &&
+            !$(e.target).closest(".toolbar-gui-close").length) {
+            gui_hide();
+            $(".toolbar-gui-close").hide();
+            $(".toolbar-gui-open").show();
+            $("#zones-menu").hide();
+        }
     });
 
     $("#canvas_container").mouseleave(function(e) {
