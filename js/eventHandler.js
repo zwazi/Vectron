@@ -153,17 +153,6 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
-    $("#start-tour").mouseup(function(e) {
-        tour.complete();
-        tour.start();
-        if(gui_active) {
-            gui_hide();
-            $(".toolbar-gui-close").hide();
-            $(".toolbar-gui-open").show();
-        }
-        gui_writeLog('GUI TOGGLE');
-        $("#zones-menu").hide();
-    });
 
     // Handle settings changes
     $("#dark-theme").change(function(box)
@@ -280,14 +269,32 @@ function eventHandler_init() {
 
     $("#center_map_origin").mouseup(function(e)
     {
-        var oldPanX = vectron_panX, oldPanY = vectron_panY;
-        vectron_panX = 0;
-        vectron_panY = 0;
-        vectron_render();
+        var ptsx = [], ptsy = [];
+        for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
+            var obj = aamap_objects[i];
+            if(obj instanceof Zone || obj instanceof Spawn) {
+                ptsx.push(obj.x); ptsy.push(obj.y);
+            } else if(obj instanceof Wall) {
+                for(var j = 0, jj = obj.points.length; j < jj; j++) {
+                    if(obj.points[j] != null) {
+                        ptsx.push(obj.points[j].x);
+                        ptsy.push(obj.points[j].y);
+                    }
+                }
+            }
+        }
+        if(ptsx.length === 0) return;
+        var cx = (Math.max.apply(Math, ptsx) + Math.min.apply(Math, ptsx)) / 2;
+        var cy = (Math.max.apply(Math, ptsy) + Math.min.apply(Math, ptsy)) / 2;
+        if(cx === 0 && cy === 0) return;
+        var dx = -cx, dy = -cy;
+        var affectedObjs = aamap_objects.slice();
+        affectedObjs.forEach(function(o){ o.move(dx, dy); });
+        aamap_panCenter();
         aamap_recordAction({
-            label: "Center over 0,0",
-            undo: function() { vectron_panX = oldPanX; vectron_panY = oldPanY; vectron_render(); },
-            redo: function() { vectron_panX = 0; vectron_panY = 0; vectron_render(); }
+            label: "Center objects on 0,0",
+            undo: function() { affectedObjs.forEach(function(o){ o.move(-dx, -dy); }); aamap_panCenter(); },
+            redo: function() { affectedObjs.forEach(function(o){ o.move(dx, dy); }); aamap_panCenter(); }
         });
     });
 

@@ -213,7 +213,9 @@ function config_load()
     if(_config_check("showInfoBar"))
         show_info_bar(true);
     
-    if(!_config_check("showDebug"))
+    if(_config_check("showDebug"))
+        show_debug(true);
+    else
         hide_debug(true);
 
     if(_config_check("showActionHistory"))
@@ -303,7 +305,7 @@ function hide_info_bar(noset)
 
 function show_debug(noset)
 {
-    document.getElementById("debug_box").style.display = "";
+    document.getElementById("debug_box").style.display = "block";
     
     document.getElementById("show-debug-panel").checked = true;
     if(!noset) _config_set_enable("showDebug");
