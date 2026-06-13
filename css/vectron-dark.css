@@ -1,3 +1,31 @@
+/* Top settings bar - dark mode */
+#top-settings-bar {
+  background: #2a2a2a;
+  border-bottom-color: #444;
+}
+
+.tsb-field label {
+  color: #ccc;
+}
+
+.tsb-input {
+  background: #1e1e1e;
+  color: #eee;
+  border-color: #555;
+}
+
+.tsb-input:focus {
+  border-color: #4a9eff;
+  box-shadow: 0 0 4px rgba(74,158,255,0.3);
+}
+
+/* Grid line appearance — color picker fix in dark mode */
+#grid-config input[type="color"] {
+  background: transparent;
+  border: 1px solid #555;
+  padding: 1px;
+}
+
 body {
 	background-color: #000;
 }
@@ -218,23 +246,15 @@ body {
 }
 
 /* Grid line appearance section */
-#grid-config {
-	background: #1e1e1e;
-	border-radius: 4px;
-	padding: 6px;
-}
 #grid-config table {
-	background: #1e1e1e;
 	color: #eee;
 	border-collapse: collapse;
 }
 #grid-config th {
-	background: #1e1e1e;
 	border-color: #555 !important;
 	color: #ddd;
 }
 #grid-config td {
-	background: #1e1e1e;
 	color: #eee;
 	border-color: #444;
 }

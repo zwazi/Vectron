@@ -117,6 +117,20 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
+    $(".toolbar-actionHistory").mouseup(function(e) {
+        var win = document.getElementById("action-history-window");
+        if(win.style.display === "none") {
+            actionHistory_show();
+            _config_set_enable("showActionHistory");
+            $("#show-action-history").prop("checked", true);
+        } else {
+            actionHistory_hide();
+            _config_set_disable("showActionHistory");
+            $("#show-action-history").prop("checked", false);
+        }
+        $("#zones-menu").hide();
+    });
+
     $("#gui-export").mouseup(function(e) {
         var mapName = $("#map_name").val().trim();
         var mapAuthor = $("#map_author").val().trim();
@@ -261,6 +275,19 @@ function eventHandler_init() {
             label: "Move map",
             undo: function() { affectedObjs.forEach(function(o){ o.move(-x, -y); }); aamap_panCenter(); },
             redo: function() { affectedObjs.forEach(function(o){ o.move(x, y); }); aamap_panCenter(); }
+        });
+    });
+
+    $("#center_map_origin").mouseup(function(e)
+    {
+        var oldPanX = vectron_panX, oldPanY = vectron_panY;
+        vectron_panX = 0;
+        vectron_panY = 0;
+        vectron_render();
+        aamap_recordAction({
+            label: "Center over 0,0",
+            undo: function() { vectron_panX = oldPanX; vectron_panY = oldPanY; vectron_render(); },
+            redo: function() { vectron_panX = 0; vectron_panY = 0; vectron_render(); }
         });
     });
 
@@ -833,18 +860,8 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
-    // Close settings modal when clicking outside it
-    $(document).on("mousedown", function(e) {
-        if (gui_active &&
-            !$(e.target).closest("#control_box").length &&
-            !$(e.target).closest(".toolbar-gui-open").length &&
-            !$(e.target).closest(".toolbar-gui-close").length) {
-            gui_hide();
-            $(".toolbar-gui-close").hide();
-            $(".toolbar-gui-open").show();
-            $("#zones-menu").hide();
-        }
-    });
+    // Settings menu is only closed via the ✕ button or the settings toolbar button.
+    // Clicking outside or pressing Esc does NOT close it.
 
     $("#canvas_container").mouseleave(function(e) {
         e.preventDefault();
@@ -953,7 +970,7 @@ function eventHandler_init() {
         if(!aamap_active) return;
 
         cursor_pageX = event.pageX - 50;
-        cursor_pageY = event.pageY;
+        cursor_pageY = event.pageY - 36;
 
         if(eventHandler_middlePanning) {
             var xdir = eventHandler_middleClickX - cursor_pageX;
@@ -1181,14 +1198,8 @@ function eventHandler_init() {
     });
 
     Mousetrap.bind('escape', function(e) {
-        // Priority: close settings → cancel active tool / switch to select → deselect / open settings
-        // NOTE: Escape does NOT close the XML editor (use the × button or Close button instead)
-        if(gui_active) {
-            gui_hide();
-            $(".toolbar-gui-close").hide();
-            $(".toolbar-gui-open").show();
-            return false;
-        }
+        // Priority: cancel active tool / switch to select → deselect
+        // NOTE: Escape does NOT close the settings menu or the XML editor.
         if(vectron_currentTool == "zone" && zoneTool_placingSize) {
             zoneTool_placingSize = false;
             vectron_toolActive = false;
@@ -1233,9 +1244,6 @@ function eventHandler_init() {
         if(selectTool_selectedObjs.length > 0) {
             selectTool_deselectAll();
             vectron_render();
-        } else {
-            // open settings
-            if(!gui_active) { gui_show(); $(".toolbar-gui-open").hide(); $(".toolbar-gui-close").show(); }
         }
         return false;
     });
