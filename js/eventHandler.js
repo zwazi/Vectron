@@ -708,8 +708,12 @@ function eventHandler_init() {
     }, 'keydown');
 
     Mousetrap.bind('escape', function(e) {
-        if(vectron_toolActive)
-        {
+        if(vectron_currentTool == "zone" && zoneTool_placingSize) {
+            zoneTool_placingSize = false;
+            vectron_toolActive = false;
+            if(zoneTool_guideObj != null) { zoneTool_guideObj.remove(); zoneTool_guideObj = null; }
+            zoneTool_guide();
+        } else if(vectron_toolActive) {
             if(vectron_currentTool == "wall")
             {
                 wallTool_disconnect();

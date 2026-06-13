@@ -28,11 +28,11 @@ var spawnTool_currentObj = null;
 
 
 function spawnTool_connect() {
-    $(".toolbar-toolSpawn").css("background-color", "rgba(0,0,0,0.3)");
+    $(".toolbar-toolSpawn").addClass("toolbar-tool-active");
 }
 
 function spawnTool_disconnect() {
-    $(".toolbar-toolSpawn").attr("style", "");
+    $(".toolbar-toolSpawn").removeClass("toolbar-tool-active");
     vectron_toolActive = false;
 }
 

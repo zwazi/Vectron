@@ -31,13 +31,13 @@ var navigationTool_startPanX = null, navigationTool_startPanY = null;
 
 function navigationTool_connect()
 {
-    $(".toolbar-toolNavigation").css("background-color", "rgba(0,0,0,0.3)");
+    $(".toolbar-toolNavigation").addClass("toolbar-tool-active");
     cursor_active = false;
 }
 
 function navigationTool_disconnect()
 {
-    $(".toolbar-toolNavigation").attr("style", "");
+    $(".toolbar-toolNavigation").removeClass("toolbar-tool-active");
     vectron_toolActive = false;
     cursor_active = true;
 }

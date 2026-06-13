@@ -45,36 +45,80 @@ var zoneTool_radius = 1;
 var zoneTool_guideObj = null;
 var zoneTool_type = 0;
 
+var zoneTool_placingSize = false;
+var zoneTool_centerRealX = 0;
+var zoneTool_centerRealY = 0;
+var zoneTool_centerMapX = 0;
+var zoneTool_centerMapY = 0;
+
+var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
+
+function zoneTool_removeGuide() {
+    if(zoneTool_guideObj != null) {
+        zoneTool_guideObj.remove();
+        zoneTool_guideObj = null;
+    }
+}
 
 function zoneTool_connect() {
-    $(".toolbar-toolZone").css("background-color", "rgba(0,0,0,0.3)");
+    $(".toolbar-toolZone").addClass("toolbar-tool-active");
     zoneTool_radius = vectron_grid_spacing;
 }
 
 function zoneTool_disconnect() {
-    if(zoneTool_guideObj != null) zoneTool_guideObj.remove();
-    $(".toolbar-toolZone").attr("style", "");
+    zoneTool_removeGuide();
+    zoneTool_placingSize = false;
+    vectron_toolActive = false;
+    $(".toolbar-toolZone").removeClass("toolbar-tool-active");
 }
 
 function zoneTool_guide() {
-    if(zoneTool_guideObj != null) zoneTool_guideObj.remove();
+    zoneTool_removeGuide();
 
-    var realX = cursor_realX;
-    var realY = cursor_realY;
-    var radius = zoneTool_radius;
-    zoneTool_guideObj = vectron_screen.circle(realX, realY,
-        radius*vectron_zoom).attr(
-        {"stroke": zoneTool_typeArray[zoneTool_type][1],"stroke-dasharray": "--..", "fill": zoneTool_typeArray[zoneTool_type][1], "fill-opacity": "0.2"}
-    );  
+    var color = zoneTool_typeArray[zoneTool_type][1];
+
+    if (zoneTool_placingSize) {
+        var dx = cursor_realX - zoneTool_centerRealX;
+        var dy = cursor_realY - zoneTool_centerRealY;
+        var screenRadius = Math.sqrt(dx * dx + dy * dy);
+        zoneTool_guideObj = vectron_screen.circle(
+            zoneTool_centerRealX, zoneTool_centerRealY, screenRadius
+        ).attr({
+            "stroke": color, "stroke-dasharray": "--..",
+            "fill": color, "fill-opacity": "0.2"
+        });
+    } else {
+        zoneTool_guideObj = vectron_screen.circle(
+            cursor_realX, cursor_realY, ZONE_TOOL_CENTER_MARKER_RADIUS
+        ).attr({"stroke": color, "fill": color, "fill-opacity": "0.5"});
+    }
 }
 
 
 function zoneTool_complete() {
+    if (!zoneTool_placingSize) {
+        zoneTool_centerRealX = cursor_realX;
+        zoneTool_centerRealY = cursor_realY;
+        zoneTool_centerMapX = aamap_mapX(cursor_realX);
+        zoneTool_centerMapY = aamap_mapY(cursor_realY);
+        zoneTool_placingSize = true;
+        vectron_toolActive = true;
+        zoneTool_guide();
+        return;
+    }
 
-    var newX = aamap_mapX(cursor_realX);
-    var newY = aamap_mapY(cursor_realY);
-    var radius = zoneTool_radius;
+    var dx = cursor_realX - zoneTool_centerRealX;
+    var dy = cursor_realY - zoneTool_centerRealY;
+    var screenRadius = Math.sqrt(dx * dx + dy * dy);
+    var radius = screenRadius / vectron_zoom;
 
+    if (radius <= 0) {
+        gui_writeLog("Zone radius must be greater than 0.");
+        return;
+    }
+
+    var newX = zoneTool_centerMapX;
+    var newY = zoneTool_centerMapY;
 
     var prevObjs = aamap_objects;
     for(var i = 0; i < prevObjs.length; i++) {
@@ -88,7 +132,10 @@ function zoneTool_complete() {
             }
         }
     }
+
     aamap_add(new Zone(newX, newY, radius, 0, zoneTool_type));
-    zoneTool_guideObj.remove();
+    zoneTool_removeGuide();
+    zoneTool_placingSize = false;
+    vectron_toolActive = false;
     vectron_render();
 }
