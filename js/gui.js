@@ -70,9 +70,9 @@ function actionHistory_update() {
 
     for(var i = 0; i < aamap_undoStack.length; i++) {
         (function(idx) {
-            // Number of undo operations needed to reach the state AFTER action[idx] was applied:
-            // every action above idx in the stack must be undone.
-            var stepsToUndo = aamap_undoStack.length - 1 - idx;
+            // Undo enough steps so the current position marker ends up ABOVE this item.
+            // stepsToUndo = length - idx means we undo all actions from index idx onward.
+            var stepsToUndo = aamap_undoStack.length - idx;
             var li = makeItem(aamap_undoStack[idx].label, "ah-undo", function() {
                 for(var s = 0; s < stepsToUndo; s++) aamap_undo();
                 vectron_render();
@@ -87,7 +87,9 @@ function actionHistory_update() {
     // redo items: redoStack[length-1] is first after current, redoStack[0] is last
     for(var j = aamap_redoStack.length - 1; j >= 0; j--) {
         (function(redoIdx, displayPos) {
-            var stepsToRedo = displayPos + 1; // number of redos needed
+            // Redo enough steps so the current position marker ends up ABOVE this item.
+            // displayPos steps puts current just above this item (not including it).
+            var stepsToRedo = displayPos;
             var li = makeItem(aamap_redoStack[redoIdx].label, "ah-redo", function() {
                 for(var s = 0; s < stepsToRedo; s++) aamap_redo();
                 vectron_render();
