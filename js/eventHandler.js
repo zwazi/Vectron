@@ -886,7 +886,7 @@ function eventHandler_init() {
                 vectron_currentTool = "";
                 vectron_connectTool("spawn");
             }
-        } else if(vectron_currentTool == "select" && selectTool_selectedObjs.length > 0) {
+        } else if(vectron_currentTool == "select" && !vectron_toolActive && selectTool_selectedObjs.length > 0) {
             selectTool_deselectAll();
             vectron_render();
         }

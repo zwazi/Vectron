@@ -83,7 +83,7 @@ function wallVertexMoveTool_findVertex(realX, realY) {
             var rx = aamap_realX(obj.points[j].x);
             var ry = aamap_realY(obj.points[j].y);
             var dist = Math.sqrt(Math.pow(realX - rx, 2) + Math.pow(realY - ry, 2));
-            if(dist <= bestDist) {
+            if(dist < bestDist) {
                 bestDist = dist;
                 best = {wall: obj, ptIdx: j};
             }
