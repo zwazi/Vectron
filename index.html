@@ -2,6 +2,7 @@
     <head>
         <meta charset="utf-8">
         <title>Vectron</title>
+        <link rel="icon" href="./images/favicon.ico">
 
         <!-- Bootstrap -->
         <link href="./css/bootstrap.min.css" rel="stylesheet">
@@ -64,8 +65,7 @@
             <div id="control-box-header">Settings <span id="control-box-close" title="Close">✕</span></div>
             <div id="gui-content">
                 <ul id="gui-tab" class="nav nav-tabs">
-                    <li class="active"><a href="#gui-general" data-toggle="tab">General</a></li>
-                    <li><a href="#gui-settings" data-toggle="tab">Map Settings</a></li>
+                    <li class="active"><a href="#gui-settings" data-toggle="tab">Map Settings</a></li>
                     <li><a href="#gui-adjustment" data-toggle="tab">Adjust Map</a></li>
                     <li><a href="#gui-config" data-toggle="tab">Configure</a></li>
                     <li class="dropdown">
@@ -81,41 +81,7 @@
                 </ul>
                 <div id="gui-tab-content" class="tab-content">
 
-                    <div class="tab-pane fade in active" id="gui-general">
-                        <h5>Load Map</h5>
-                        <input type="file" id="files" name="file" />
-                        <div id="progress_bar"><div class="percent">0%</div></div>
-                        <form role="form">
-                          <div class="form-group" title="What should this map be called?">
-                            <label for="map_name">Map Name</label> (What should this map be called)
-                            <input type="text" class="form-control" id="map_name">
-                          </div>
-                          <div class="form-group" title="Who created this map?">
-                            <label for="map_author">Author</label> (Who created this map)
-                            <input type="text" class="form-control" id="map_author">
-                          </div>
-                          <div class="form-group" title="Where is this map for? (examples: racing, sumo)">
-                            <label for="map_category">Category</label> (What the map is for; examples: racing, sumo)
-                            <input type="text" class="form-control" id="map_category" default="maps">
-                          </div>
-                          <div class="form-group" title="The current revision of the map. Clients and servers will automatically download and cache maps and they do NOT re-download the same file even after you update it. It doesn't matter what it's set to, but it should therefore be changed every time you update the map.">
-                            <label for="map_version">Revision</label> (The version of this map - hover for an explanation of why.)
-                            <input type="text" class="form-control" id="map_version">
-                          </div>
-                          <br />
-                          <div class="form-group" title="What this map is verified against.">
-                            <label for="map_dtd">DTD</label> (The file this map is verified against.)
-                            <input type="text" class="form-control" id="map_dtd" default="sty.dtd" list="dtds">
-                            <datalist id="dtds">
-                              <option value="sty.dtd"/>
-                              <option value="Loverboy/map-0.2.9_styctap_v1.5.dtd"/>
-                              <option value="map-0.3.1-a.dtd"/>
-                            </datalist>
-                          </div>
-                        </form>
-                    </div>
-
-                    <div class="tab-pane fade" id="gui-settings">
+                    <div class="tab-pane fade in active" id="gui-settings">
                       <div class="form-group" title="The directions you turn in-game.">
                         <label for="map_axes">Map Axes</label> (the directions turned in game. <i>axes = 360 / angle</i>) <br />
                         <div class="input-group">
@@ -134,7 +100,7 @@
                     <div class="tab-pane fade" id="gui-adjustment">
                       <div class="form-group">
                         <label>Scale Map</label>
-                        <div class="input-group" style="max-width:260px;">
+                        <div class="input-group" style="max-width:200px;">
                           <input type="text" class="form-control" id="map_scale" name="map_scale" value="1" placeholder="Scale factor" />
                           <span class="input-group-btn">
                             <button id="scale_map" class="btn btn-default">Scale</button>
@@ -146,7 +112,9 @@
                         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                           <button id="map_rotate_left" class="btn btn-default" title="Rotate left 90°"><span class="glyphicon glyphicon-repeat" style="-webkit-transform:scaleX(-1);transform:scaleX(-1);display:inline-block;"></span></button>
                           <button id="map_rotate_right" class="btn btn-default" title="Rotate right 90°"><span class="glyphicon glyphicon-repeat"></span></button>
-                          <span style="font-size:12px;color:#888;">or custom angle:</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+                          <span style="font-size:12px;color:#888;">Custom angle:</span>
                           <div class="input-group" style="max-width:180px;">
                             <input type="text" class="form-control" id="map_rot_angle" name="map_rot_angle" value="0" placeholder="Degrees" />
                             <span class="input-group-btn">
@@ -167,6 +135,12 @@
                             <input type="text" class="form-control" id="map_move_y" name="map_move_y" value="0" />
                           </div>
                           <button id="move_map" class="btn btn-default">Move</button>
+                        </div>
+                      </div>
+                      <div class="form-group">
+                        <label>Center Map</label>
+                        <div>
+                          <button id="center_map_origin" class="btn btn-default" title="Pan the view so that map coordinate (0,0) is at the center of the screen">Center over 0,0</button>
                         </div>
                       </div>
                     </div>
@@ -267,6 +241,37 @@
                 </div>
             </div>
 
+        </div>
+        <div id="top-settings-bar">
+            <span class="tsb-field">
+                <label for="map_name" title="What should this map be called?">Name</label>
+                <input type="text" class="tsb-input" id="map_name" placeholder="Map name">
+            </span>
+            <span class="tsb-sep">|</span>
+            <span class="tsb-field">
+                <label for="map_author" title="Who created this map?">Author</label>
+                <input type="text" class="tsb-input" id="map_author" placeholder="Author">
+            </span>
+            <span class="tsb-sep">|</span>
+            <span class="tsb-field">
+                <label for="map_category" title="What the map is for; examples: racing, sumo">Category</label>
+                <input type="text" class="tsb-input" id="map_category" placeholder="Category" default="maps">
+            </span>
+            <span class="tsb-sep">|</span>
+            <span class="tsb-field">
+                <label for="map_version" title="The current revision of the map. Clients and servers will automatically download and cache maps and they do NOT re-download the same file even after you update it. Change this every time you update the map.">Revision</label>
+                <input type="text" class="tsb-input tsb-input-sm" id="map_version" placeholder="Version">
+            </span>
+            <span class="tsb-sep">|</span>
+            <span class="tsb-field">
+                <label for="map_dtd" title="The DTD file this map is verified against.">DTD</label>
+                <input type="text" class="tsb-input" id="map_dtd" placeholder="sty.dtd" default="sty.dtd" list="dtds">
+                <datalist id="dtds">
+                    <option value="sty.dtd"/>
+                    <option value="Loverboy/map-0.2.9_styctap_v1.5.dtd"/>
+                    <option value="map-0.3.1-a.dtd"/>
+                </datalist>
+            </span>
         </div>
         <div id="canvas_container"></div>
         <!-- Wall Tool Popover Window -->
@@ -391,6 +396,9 @@
                 </li>
             </ul>
             <ul id="toolbar-bottom-ul">
+                <li>
+                    <a class="toolbar-actionHistory" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Toggle Action History"></a>
+                </li>
                 <li>
                     <a class="toolbar-gui-open" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Settings"></a>
                     <a class="toolbar-gui-close" href="#" rel="tooltip" data-trigger="hover" data-placement="right" style="display:none;" data-original-title="Settings"></a>
