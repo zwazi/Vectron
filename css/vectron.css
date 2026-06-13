@@ -320,6 +320,16 @@ body.noscroll {
   padding:30px;
   text-align:right;
   display:none;
+  resize: both;
+  overflow: auto;
+  min-width: 320px;
+  min-height: 200px;
+  box-sizing: border-box;
+}
+
+#control_box > h1 {
+  cursor: move;
+  user-select: none;
 }
 
 @media only screen and (max-height: 800px)
