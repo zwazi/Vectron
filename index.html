@@ -71,9 +71,7 @@
                     <li class="dropdown">
                         <a href="#" id="gui-dropdown" class="dropdown-toggle" data-toggle="dropdown">Help <b class="caret"></b></a>
                         <ul class="dropdown-menu" role="menu" aria-labelledby="gui-dropdown">
-                            <li><a href="#" id="start-tour">Show Guide</a></li>
-                            <li><a href="#gui-wt" tabindex="-1" data-toggle="tab">Wall Tool</a></li>
-                            <li><a href="#gui-zt" tabindex="-1" data-toggle="tab">Zone Tool</a></li>
+                            <li><a href="#gui-help" tabindex="-1" data-toggle="tab">Help</a></li>
                             <li role="presentation" class="divider"></li>
                             <li><a href="#gui-about" tabindex="-1" data-toggle="tab">About</a></li>
                         </ul>
@@ -82,15 +80,6 @@
                 <div id="gui-tab-content" class="tab-content">
 
                     <div class="tab-pane fade in active" id="gui-settings">
-                      <div class="form-group" title="The directions you turn in-game.">
-                        <label for="map_axes">Map Axes</label> (the directions turned in game. <i>axes = 360 / angle</i>) <br />
-                        <div class="input-group">
-                          <span class="input-group-addon">
-                            <input class="form-check-input" id="map_axes_forced" type="checkbox" title="Force the axes in the map?" />
-                          </span>
-                          <input type="number" class="form-control" id="map_axes" name="map_axes" min=2 max=360 default=4 />
-                        </div>
-                      </div>
                       <div class="form-group" title="Settings. This is NOT the place to stick all of your configuration files; rather any settings that must be for whatever reason tied with the map.">
                         <label for="map_settings">The settings included in the map</label> <br />
                         <textarea class="form-control" style="font-size:10pt;font-family:monospace;width:100%" rows=7 id="map_settings" name="map_settings"></textarea>
@@ -140,45 +129,89 @@
                       <div class="form-group">
                         <label>Center Map</label>
                         <div>
-                          <button id="center_map_origin" class="btn btn-default" title="Pan the view so that map coordinate (0,0) is at the center of the screen">Center over 0,0</button>
+                          <button id="center_map_origin" class="btn btn-default" title="Translate all objects so their group center lands on coordinate (0,0)">Center over 0,0</button>
                         </div>
                       </div>
                     </div>
 
-                    <div class="tab-pane fade" id="gui-wt">
-                        <h4 class="gui-tool-name">Wall Tool</h4>
-                        <table class="table table-bordered">
-                            <tbody>
-                                <tr>
-                                    <td><strong>Click</strong></td>
-                                    <td>Place WallPoint</td>
-                                    <td>Start new Wall</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Double Click</strong></td>
-                                    <td>Place EndPoint</td>
-                                    <td>End Wall</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <div class="tab-pane fade" id="gui-help">
+                        <h4 class="gui-tool-name">Help &amp; Reference</h4>
 
-                    <div class="tab-pane fade" id="gui-zt">
-                        <h4 class="gui-tool-name">Zone Tool</h4>
-                        <table class="table table-bordered">
+                        <p class="cfg-section-label">Tools</p>
+                        <table class="table table-bordered" style="font-size:12px;">
+                            <thead><tr><th>Tool</th><th>Key</th><th>Description</th></tr></thead>
                             <tbody>
-                                <tr>
-                                    <td><strong>+/-</strong></td>
-                                    <td>Increase Zone Radius</td>
-                                    <td>Decrease Zone Radius</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Click</strong></td>
-                                    <td>Place new Zone</td>
-                                    <td></td>
-                                </tr>
+                                <tr><td><b>Select</b></td><td><kbd>1</kbd></td><td>Click an object to select it. Drag on empty space to box-select. Click a selected object to deselect. <kbd>Del</kbd> deletes the selection.</td></tr>
+                                <tr><td><b>Navigation</b></td><td><kbd>2</kbd></td><td>Click and drag to pan the view. Alternatively use middle-click drag or arrow keys at any time.</td></tr>
+                                <tr><td><b>Wall</b></td><td><kbd>3</kbd></td><td>Click to place wall points. Double-click or press <kbd>Shift+W</kbd> to end the wall. Press <kbd>Esc</kbd> to cancel.</td></tr>
+                                <tr><td><b>Zone</b></td><td><kbd>4</kbd></td><td>Choose a zone type in the Zone Tool window, then click to place. <kbd>+</kbd>/<kbd>=</kbd> increase radius; <kbd>-</kbd>/<kbd>_</kbd> decrease radius. <kbd>Shift+Z</kbd> cycles zone types.</td></tr>
+                                <tr><td><b>Spawn</b></td><td><kbd>5</kbd></td><td>Click to place a spawn point. Move the cursor to set the spawn direction, then click again to confirm.</td></tr>
+                                <tr><td><b>Snap Toggle</b></td><td><kbd>6</kbd></td><td>Toggles grid snapping on/off. The lock/unlock icon in the toolbar reflects the current state.</td></tr>
+                                <tr><td><b>Wall Split</b></td><td><kbd>7</kbd></td><td>Click on a wall to split it at the nearest point. Hover over the wall to see the split preview.</td></tr>
+                                <tr><td><b>Wall Join</b></td><td><kbd>8</kbd></td><td>Click the endpoint of one wall, then the endpoint of another to merge them into a single wall.</td></tr>
+                                <tr><td><b>Vertex Move</b></td><td><kbd>0</kbd></td><td>Click to select a wall, then drag its vertex dots to reposition them. <kbd>Del</kbd> deletes the selected vertex.</td></tr>
                             </tbody>
                         </table>
+
+                        <p class="cfg-section-label">Keyboard Shortcuts</p>
+                        <table class="table table-bordered" style="font-size:12px;">
+                            <tbody>
+                                <tr><td><kbd>Ctrl+Z</kbd></td><td>Undo</td></tr>
+                                <tr><td><kbd>Ctrl+Shift+Z</kbd></td><td>Redo</td></tr>
+                                <tr><td><kbd>Ctrl+C</kbd></td><td>Copy selected objects</td></tr>
+                                <tr><td><kbd>Ctrl+V</kbd></td><td>Paste copied objects</td></tr>
+                                <tr><td><kbd>Del</kbd></td><td>Delete selected objects (or selected vertex in Vertex Move tool)</td></tr>
+                                <tr><td><kbd>Ctrl+0</kbd></td><td>Fit map to screen</td></tr>
+                                <tr><td><kbd>Ctrl+1</kbd></td><td>Zoom to 100%</td></tr>
+                                <tr><td><kbd>Arrow keys</kbd></td><td>Pan the view</td></tr>
+                                <tr><td><kbd>Shift+Space</kbd></td><td>Re-center view over the map</td></tr>
+                                <tr><td><kbd>Esc</kbd></td><td>Cancel current action; switch to Select tool; deselect all</td></tr>
+                                <tr><td><kbd>Shift+W</kbd></td><td>Finish current wall (Wall tool)</td></tr>
+                                <tr><td><kbd>Shift+Z</kbd></td><td>Cycle zone type (Zone tool)</td></tr>
+                                <tr><td><kbd>+</kbd> / <kbd>=</kbd></td><td>Increase zone radius (Zone tool)</td></tr>
+                                <tr><td><kbd>-</kbd> / <kbd>_</kbd></td><td>Decrease zone radius (Zone tool)</td></tr>
+                                <tr><td><kbd>1</kbd>–<kbd>8</kbd>, <kbd>0</kbd></td><td>Switch tools (customizable in Configure tab)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p class="cfg-section-label">Mouse Shortcuts</p>
+                        <table class="table table-bordered" style="font-size:12px;">
+                            <tbody>
+                                <tr><td><b>Scroll wheel</b></td><td>Zoom in/out</td></tr>
+                                <tr><td><b>Middle-click drag</b></td><td>Pan the view (works with any tool)</td></tr>
+                                <tr><td><b>Right-click</b></td><td>Open context menu (copy, paste, undo, redo, delete, pan/zoom shortcuts, view XML)</td></tr>
+                                <tr><td><b>Double-click</b> (Wall tool)</td><td>End the current wall</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p class="cfg-section-label">Top Bar Fields</p>
+                        <table class="table table-bordered" style="font-size:12px;">
+                            <tbody>
+                                <tr><td><b>Name</b></td><td>Map name included in the exported file</td></tr>
+                                <tr><td><b>Author</b></td><td>Author name included in the exported file</td></tr>
+                                <tr><td><b>Category</b></td><td>Map category (e.g. <i>racing</i>, <i>sumo</i>)</td></tr>
+                                <tr><td><b>Revision</b></td><td>Map version number. Servers and clients cache maps; increment this each time you update so the new version is downloaded.</td></tr>
+                                <tr><td><b>DTD</b></td><td>The DTD file the map is validated against. Common values: <code>sty.dtd</code>, <code>map-0.3.1-a.dtd</code>. Type freely or pick from the dropdown.</td></tr>
+                                <tr><td><b>Axes ☐</b></td><td>Number of axes (turning directions). <i>axes = 360 / angle</i>. Check the box to include this in the exported map file.</td></tr>
+                            </tbody>
+                        </table>
+
+                        <p class="cfg-section-label">Settings Menu Tabs</p>
+                        <ul style="font-size:12px;padding-left:18px;">
+                            <li><b>Map Settings</b> — Settings tags embedded in the map file (not your server config).</li>
+                            <li><b>Adjust Map</b> — Scale, rotate, translate, or center all objects at once. "Center over 0,0" moves all objects so their group center lands on the world origin.</li>
+                            <li><b>Configure</b> — Dark theme, info bar, debug log, action history, zoom step, grid line colors/thickness, and keybind customization.</li>
+                        </ul>
+
+                        <p class="cfg-section-label">Toolbar Buttons</p>
+                        <ul style="font-size:12px;padding-left:18px;">
+                            <li><b>XML Editor</b> — View and edit the map XML directly. Changes are applied immediately.</li>
+                            <li><b>New Map</b> — Clears all objects and resets the map. Unsaved changes are lost.</li>
+                            <li><b>Import</b> — Load an <code>.aamap.xml</code> file from disk.</li>
+                            <li><b>Export</b> — Save the current map as an <code>.aamap.xml</code> file.</li>
+                            <li><b>Action History</b> — Toggle the action history panel (also accessible from Configure).</li>
+                            <li><b>Settings</b> — Open/close this settings window.</li>
+                        </ul>
                     </div>
 
 
@@ -268,9 +301,19 @@
                 <input type="text" class="tsb-input" id="map_dtd" placeholder="sty.dtd" default="sty.dtd" list="dtds">
                 <datalist id="dtds">
                     <option value="sty.dtd"/>
-                    <option value="Loverboy/map-0.2.9_styctap_v1.5.dtd"/>
+                    <option value="map-0.2.8.dtd"/>
+                    <option value="map-0.2.9.dtd"/>
                     <option value="map-0.3.1-a.dtd"/>
+                    <option value="Anonymous/map-0.2.8.dtd"/>
+                    <option value="Loverboy/map-0.2.9_styctap_v1.5.dtd"/>
+                    <option value="aacockpit-0.1.dtd"/>
+                    <option value="wrtlprnft/map-0.2.8-0.1.dtd"/>
                 </datalist>
+            </span>
+            <span class="tsb-sep">|</span>
+            <span class="tsb-field" title="Map axes: controls the number of turning directions. axes = 360 / angle. Check the box to force axes in the map file.">
+                <label for="map_axes_forced" title="Force axes in map file?"><input class="form-check-input" id="map_axes_forced" type="checkbox" /> Axes</label>
+                <input type="number" class="tsb-input tsb-input-sm" id="map_axes" name="map_axes" min="2" max="360" value="4" />
             </span>
         </div>
         <div id="canvas_container"></div>
