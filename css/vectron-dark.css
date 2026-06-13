@@ -369,6 +369,66 @@ body {
 	color: #ff7070;
 }
 
+/* Map Settings search UI dark mode */
+#map-settings-dropdown {
+	background: #222 !important;
+	border-color: #555 !important;
+}
+#map-settings-dropdown .mss-item {
+	border-bottom-color: #333 !important;
+	color: #eee;
+}
+#map-settings-dropdown .mss-item:hover {
+	background: #2a2a3a !important;
+}
+#map-settings-dropdown .mss-item div:first-child {
+	color: #ddd !important;
+}
+#map-settings-dropdown .mss-item div:nth-child(2) {
+	color: #999 !important;
+}
+#map-settings-dropdown .mss-item span {
+	background: #333 !important;
+	color: #bbb !important;
+}
+#map-settings-list {
+	background: #1e1e1e !important;
+	border-color: #555 !important;
+	color: #eee !important;
+}
+#map-settings-list .mss-entry {
+	border-bottom-color: rgba(255,255,255,0.07) !important;
+}
+#map-settings-list .mss-entry button {
+	color: #f77 !important;
+}
+#map-settings-empty {
+	color: #666 !important;
+}
+
+/* Help tab tables dark mode */
+#control_box table {
+	background: #1a1a1a;
+	color: #eee;
+}
+#control_box table th,
+#control_box table td {
+	border-color: #444 !important;
+	color: #eee;
+}
+#control_box table > thead > tr > th {
+	background: #222;
+}
+#control_box table > tbody > tr > td {
+	background: #1a1a1a;
+}
+#control_box table kbd {
+	background: #333;
+	color: #ddd;
+	border-color: #555;
+	box-shadow: none;
+}
+
 /* Wall tool and Zone tool floating window dark mode */
 #wall-tool-window,
 #zone-tool-window {
