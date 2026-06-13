@@ -200,10 +200,6 @@
 
 
                     <div class="tab-pane fade" id="gui-config">
-                      <div class="form-group">
-                        <label for="map_scale">Default Rubber Zone Value</label> <br />
-                        <input type="text" style="display:inline-block" class="form-control" id="dRubberVal" name="dRubberVal" value="2" />
-                      </div>
                       <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="dark-theme" name="dark-theme">
                         <label class="form-check-label" for="dark-theme"> Enable dark theme <i>(beta)</i></label>
@@ -215,6 +211,15 @@
                       <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="show-debug-panel" name="show-debug-panel">
                         <label class="form-check-label" for="show-debug-panel"> Show debug log information</label>
+                      </div>
+                      <div class="form-group" style="margin-top:10px;">
+                        <label for="zoom-step-select">Scroll Wheel Zoom Step</label> <br />
+                        <select class="form-control" id="zoom-step-select" name="zoom-step-select" onchange="config_zoomStep=parseFloat(this.value);_config_set('zoomStep',this.value);">
+                          <option value="0.02">Fine (2% – default)</option>
+                          <option value="0.05">Medium (5%)</option>
+                          <option value="0.10">Coarse (10%)</option>
+                          <option value="0.20">Large (20%)</option>
+                        </select>
                       </div>
                     </div>
 
@@ -249,6 +254,10 @@
 
         </div>
         <div id="canvas_container"></div>
+        <div id="rubber-zone-bar">
+            <label for="dRubberVal" style="margin:0;white-space:nowrap;">Rubber Zone Value:</label>
+            <input type="number" id="dRubberVal" name="dRubberVal" value="2" step="0.1" min="0" style="width:80px;padding:2px 6px;border-radius:3px;border:1px solid #888;background:#222;color:#fff;" />
+        </div>
         <div id="debug_box">
             <div id="debug_stream">
             </div>
@@ -284,7 +293,7 @@
                     <a class="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Tool"></a>
                 </li>
                 <li>
-                    <a class="toolbar-toolZone" href="#"></a>
+                    <a class="toolbar-toolZone" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zone Tool"></a>
                 </li>
                 <div id="zones-menu" style="display:none;">
                     <li>
@@ -341,10 +350,20 @@
             <ul>
 
                 <li>
-                    <a class="toolbar-disconnect" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Delete Selected or Undo." data-mode="remove"></a>
+                    <a class="toolbar-delete" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Delete Selected"></a>
                 </li>
                 <li>
-                    <a class="toolbar-redo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Undelete or redo."></a>
+                    <a class="toolbar-undo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Undo"></a>
+                </li>
+                <li>
+                    <a class="toolbar-redo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Redo"></a>
+                </li>
+
+            </ul>
+            <ul>
+
+                <li>
+                    <a class="toolbar-split-walls" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Split Walls at Grid Lines"></a>
                 </li>
 
             </ul>
@@ -371,6 +390,12 @@
                 <li class="divider"></li>
                 <li><a tabindex="-1" href="#" class="toolbar-toolScaleUp">Scale Up</a></li>
                 <li><a tabindex="-1" href="#" class="toolbar-toolScaleDown">Scale Down</a></li>
+                <li class="divider"></li>
+                <li><a tabindex="-1" href="#" class="toolbar-delete">Delete Selected</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-undo">Undo</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-redo">Redo</a></li>
+                <li class="divider"></li>
+                <li><a tabindex="-1" href="#" class="toolbar-split-walls">Split Walls at Grid Lines</a></li>
 
             </ul>
         </div>

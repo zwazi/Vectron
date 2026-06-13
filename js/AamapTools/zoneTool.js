@@ -63,6 +63,7 @@ function zoneTool_removeGuide() {
 function zoneTool_connect() {
     $(".toolbar-toolZone").addClass("toolbar-tool-active");
     zoneTool_radius = vectron_grid_spacing;
+    zoneTool_updateRubberBar();
 }
 
 function zoneTool_disconnect() {
@@ -70,6 +71,19 @@ function zoneTool_disconnect() {
     zoneTool_placingSize = false;
     vectron_toolActive = false;
     $(".toolbar-toolZone").removeClass("toolbar-tool-active");
+    $("#rubber-zone-bar").hide();
+    $("body").removeClass("rubber-zone-active");
+}
+
+function zoneTool_updateRubberBar() {
+    if(zoneTool_type === 3) {
+        $("#rubber-zone-bar").css("display", "flex");
+        $("body").addClass("rubber-zone-active");
+    } else {
+        $("#rubber-zone-bar").hide();
+        $("body").removeClass("rubber-zone-active");
+    }
+    vectron_render();
 }
 
 function zoneTool_guide() {

@@ -7,6 +7,25 @@
   bottom: 0;
 }
 
+#rubber-zone-bar {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 50px;
+  right: 0;
+  background: rgba(40,40,40,0.92);
+  color: #fff;
+  padding: 6px 12px;
+  z-index: 100;
+  font-size: 13px;
+  align-items: center;
+  gap: 10px;
+}
+
+body.rubber-zone-active #canvas_container {
+  top: 36px;
+}
+
 #canvas_container.blur {
     -webkit-filter: blur(2px);
 }
@@ -257,7 +276,7 @@ body.noscroll {
   background-image:url('../images/Zoom/Shrink.png');
 }
 
-.toolbar-disconnect[data-mode="remove"]:after {
+.toolbar-delete:after {
     font-family: 'Glyphicons Halflings';
     content: "\e014";
     font-size: 18px;
@@ -265,7 +284,8 @@ body.noscroll {
     position:relative;
     top:3px;
 }
-.toolbar-disconnect[data-mode="undo"]:after {
+
+.toolbar-undo:after {
     font-family: sans-serif;
     content: "\21b6";
     font-size: 26px;
@@ -281,6 +301,15 @@ body.noscroll {
     
     position:relative;
     top:4px; left:-0px;
+}
+
+.toolbar-split-walls:after {
+    font-family: sans-serif;
+    content: "\2702";
+    font-size: 20px;
+    
+    position:relative;
+    top:4px;
 }
 
 .shepherd-cancel-link {
