@@ -135,12 +135,18 @@ body.noscroll {
   text-decoration:none;
 }
 
-#tool_bar ul li a.active {
-  background-color:#1b1b1b;
-}
-
 #tool_bar ul li a.toolbar-tool-active {
   background-color: rgba(0,0,0,0.3);
+}
+
+#tool_bar ul li a:focus,
+#tool_bar ul li a:active {
+  outline: none;
+}
+
+#gui-tab li a:focus,
+#gui-tab li a:active {
+  outline: none;
 }
 
 #tool_bar ul li a.highlight {
@@ -972,7 +978,13 @@ body.noscroll {
   top: 3px;
 }
 
-/* Grid config flex layout (built by gridConfig_buildUI) */
+/* Axes field in top bar: inline checkbox alignment */
+.tsb-field .form-check-input {
+  margin: 0 2px 0 0;
+  vertical-align: middle;
+  position: static;
+}
+
 .grid-cfg-header {
   display: grid;
   grid-template-columns: 120px 110px 130px;
