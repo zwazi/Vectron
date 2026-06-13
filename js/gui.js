@@ -387,9 +387,13 @@ function mapSettings_addFromUI() {
     }
 
     // Avoid duplicates by name
-    var namePart = entry.slice(0, entry.indexOf(' ')).toUpperCase();
+    var spaceIdx = entry.indexOf(' ');
+    if (spaceIdx < 0) { gui_toast('Invalid setting format. Use: NAME VALUE'); return; }
+    var namePart = entry.slice(0, spaceIdx).toUpperCase();
     for (var i = 0; i < xml_settings.length; i++) {
-        if (xml_settings[i].slice(0, xml_settings[i].indexOf(' ')).toUpperCase() === namePart) {
+        var existingSpace = xml_settings[i].indexOf(' ');
+        var existingName = existingSpace >= 0 ? xml_settings[i].slice(0, existingSpace).toUpperCase() : xml_settings[i].toUpperCase();
+        if (existingName === namePart) {
             gui_toast('Setting "' + namePart + '" already exists. Remove it first.');
             return;
         }

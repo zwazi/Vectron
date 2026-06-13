@@ -533,6 +533,7 @@ function eventHandler_init() {
             xml += '    <Settings>\n';
             for (var si = 0; si < settings.length; si++) {
                 var point = settings[si].indexOf(' ');
+                if (point < 0) continue; // skip malformed entries without a value
                 var sname = settings[si].slice(0, point), svalue = settings[si].slice(point + 1);
                 xml += '      <Setting name="' + sname + '" value="' + svalue + '" />\n';
             }
