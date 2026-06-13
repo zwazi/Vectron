@@ -99,6 +99,102 @@ function _config_set_disable(item)
 }
 
 
+
+// ---- Keybinds ----
+var vectron_defaultKeybinds = {
+    select: '1',
+    navigation: '2',
+    wall: '3',
+    zone: '4',
+    spawn: '5',
+    snap: '6',
+    split: '7',
+    join: '8',
+    info: '9'
+};
+var vectron_keybinds = {};
+
+function keybinds_load() {
+    var saved = _config_get('keybinds');
+    if (saved) {
+        try { vectron_keybinds = JSON.parse(saved); } catch(e) {}
+    }
+    // fill in any missing defaults
+    for (var k in vectron_defaultKeybinds) {
+        if (!vectron_keybinds[k]) vectron_keybinds[k] = vectron_defaultKeybinds[k];
+    }
+}
+
+function keybinds_save() {
+    _config_set('keybinds', JSON.stringify(vectron_keybinds));
+}
+
+function keybinds_apply() {
+    // unbind all previously managed keybinds then re-bind
+    var allKeys = [];
+    for (var k in vectron_defaultKeybinds) allKeys.push(vectron_defaultKeybinds[k]);
+    for (var k in vectron_keybinds)        allKeys.push(vectron_keybinds[k]);
+    // unbind all tool keys
+    allKeys.forEach(function(key) {
+        try { Mousetrap.unbind(key); } catch(e) {}
+    });
+
+    function bindKey(key, fn) {
+        if (!key) return;
+        Mousetrap.bind(key, function(e) {
+            if (!aamap_active) return;
+            fn();
+        }, 'keydown');
+    }
+
+    bindKey(vectron_keybinds.select,     function(){ vectron_connectTool('select'); });
+    bindKey(vectron_keybinds.navigation, function(){ vectron_connectTool('navigation'); });
+    bindKey(vectron_keybinds.wall,       function(){ vectron_connectTool('wall'); });
+    bindKey(vectron_keybinds.zone,       function(){ if(vectron_currentTool!='zone') vectron_connectTool('zone'); });
+    bindKey(vectron_keybinds.spawn,      function(){ vectron_connectTool('spawn'); });
+    bindKey(vectron_keybinds.snap,       function(){
+        cursor_snap = !cursor_snap;
+        if(cursor_snap){
+            $('.toolbar-toolUnlock-list').hide();
+            $('.toolbar-toolLock-list').show();
+        } else {
+            $('.toolbar-toolLock-list').hide();
+            $('.toolbar-toolUnlock-list').show();
+        }
+    });
+    bindKey(vectron_keybinds.split,      function(){ vectron_connectTool('split'); });
+    bindKey(vectron_keybinds.join,       function(){ vectron_connectTool('join'); });
+    bindKey(vectron_keybinds.info,       function(){
+        if(!gui_active) { gui_show(); $('.toolbar-gui-open').hide(); $('.toolbar-gui-close').show(); }
+        $('a[href="#gui-about"]').click();
+    });
+
+    keybinds_updateOverlays();
+}
+
+function keybinds_updateOverlays() {
+    // update small key-label overlays on toolbar buttons
+    var map = {
+        select:     '.toolbar-toolSelect',
+        navigation: '.toolbar-toolNavigation',
+        wall:       '.toolbar-toolWall',
+        zone:       '.toolbar-toolZone',
+        spawn:      '.toolbar-toolSpawn',
+        snap:       '.toolbar-toolLock, .toolbar-toolUnlock',
+        split:      '.toolbar-toolSplit',
+        join:       '.toolbar-toolJoin',
+        info:       '.toolbar-toolInfo'
+    };
+    for (var action in map) {
+        var key = vectron_keybinds[action] || '';
+        $(map[action]).each(function() {
+            $(this).find('.keybind-overlay').remove();
+            if (key) {
+                $(this).append('<span class="keybind-overlay">' + key + '</span>');
+            }
+        });
+    }
+}
 
 function config_load()
 {
@@ -118,6 +214,10 @@ function config_load()
         var sel = document.getElementById("zoom-step-select");
         if(sel) sel.value = String(savedZoomStep);
     }
+
+    keybinds_load();
+    keybinds_apply();
+    keybinds_buildUI();
 }
 
 
@@ -190,4 +290,60 @@ function hide_debug(noset)
     
     document.getElementById("show-debug-panel").checked = false;
     if(!noset) _config_set_disable("showDebug");
+}
+
+function keybinds_buildUI() {
+    var container = document.getElementById('keybinds-config');
+    if (!container) return;
+    container.innerHTML = '';
+
+    var labels = {
+        select: 'Select', navigation: 'Navigation', wall: 'Wall',
+        zone: 'Zone', spawn: 'Spawn', snap: 'Snap', split: 'Split', join: 'Join', info: 'Info'
+    };
+
+    Object.keys(labels).forEach(function(action) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;margin-bottom:6px;';
+
+        var lbl = document.createElement('label');
+        lbl.textContent = labels[action];
+        lbl.style.cssText = 'width:90px;margin:0;';
+
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.maxLength = 3;
+        inp.value = vectron_keybinds[action] || '';
+        inp.style.cssText = 'width:60px;padding:2px 4px;font-family:monospace;';
+        inp.dataset.action = action;
+
+        var btn = document.createElement('button');
+        btn.textContent = 'Reset';
+        btn.className = 'btn btn-xs btn-default';
+        btn.style.marginLeft = '6px';
+        btn.onclick = (function(a, i) {
+            return function() {
+                i.value = vectron_defaultKeybinds[a] || '';
+            };
+        })(action, inp);
+
+        row.appendChild(lbl);
+        row.appendChild(inp);
+        row.appendChild(btn);
+        container.appendChild(row);
+    });
+
+    var saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Apply Keybinds';
+    saveBtn.className = 'btn btn-sm btn-primary';
+    saveBtn.style.marginTop = '8px';
+    saveBtn.onclick = function() {
+        var inputs = container.querySelectorAll('input[data-action]');
+        inputs.forEach(function(inp) {
+            vectron_keybinds[inp.dataset.action] = inp.value.trim() || '';
+        });
+        keybinds_save();
+        keybinds_apply();
+    };
+    container.appendChild(saveBtn);
 }
