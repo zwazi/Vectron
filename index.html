@@ -52,13 +52,13 @@
     <body class="noscroll">
         <div class="info" style="display:none">
             <b>cursor</b>
-            <span class="var">x: <span id="cursor-x">0</span></span>
-            <span class="var">y: <span id="cursor-y">0</span></span>
+            <span class="var">x:&nbsp;<span id="cursor-x">0</span></span>
+            <span class="var">y:&nbsp;<span id="cursor-y">0</span></span>
             <b>zoom:</b><span id="zoom">0</span>%
             <b>grid:</b><span id="spacing">0</span>
             <b>anchor</b>
-            <span class="var">x: <span id="anchor-x">0</span></span>
-            <span class="var">y: <span id="anchor-y">0</span></span>
+            <span class="var">x:&nbsp;<span id="anchor-x">0</span></span>
+            <span class="var">y:&nbsp;<span id="anchor-y">0</span></span>
         </div>
 
         <div id="control_box">
@@ -203,7 +203,7 @@
                     <div class="tab-pane fade" id="gui-config">
                       <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="dark-theme" name="dark-theme">
-                        <label class="form-check-label" for="dark-theme"> Enable dark theme <i>(beta)</i></label>
+                        <label class="form-check-label" for="dark-theme"> Enable dark theme</label>
                       </div>
                       <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="show-info-bar" name="show-info-bar">
@@ -266,6 +266,10 @@
         <div id="rubber-zone-bar">
             <label for="dRubberVal" style="margin:0;white-space:nowrap;">Rubber Zone Value:</label>
             <input type="number" id="dRubberVal" name="dRubberVal" value="2" step="0.1" min="0" style="width:80px;padding:2px 6px;border-radius:3px;border:1px solid #888;background:#222;color:#fff;" />
+        </div>
+        <div id="wall-height-bar">
+            <label for="dWallHeight" style="margin:0;white-space:nowrap;">Wall Height:</label>
+            <input type="number" id="dWallHeight" name="dWallHeight" value="4" step="1" min="1" max="50" style="width:70px;padding:2px 6px;border-radius:3px;border:1px solid #888;background:#222;color:#fff;" />
         </div>
         <div id="debug_box">
             <div id="debug_stream">
@@ -356,6 +360,17 @@
                     <a class="toolbar-toolXml" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="XML Editor"></a>
                 </li>
             </ul>
+            <ul>
+                <li>
+                    <a class="toolbar-newMap" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="New Map"></a>
+                </li>
+                <li>
+                    <a class="toolbar-import" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Import Map"></a>
+                </li>
+                <li>
+                    <a class="toolbar-export" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Export Map"></a>
+                </li>
+            </ul>
             <ul id="toolbar-bottom-ul">
                 <li>
                     <a class="toolbar-gui-open" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Settings"></a>
@@ -395,6 +410,7 @@
                     <li id="xml-tab-selected"><a href="#" data-tab="selected">Selection <span id="xml-tab-sel-count"></span></a></li>
                 </ul>
                 <textarea id="xml-editor-content" spellcheck="false"></textarea>
+                <div id="xml-editor-error" style="color:#c00;font-size:12px;padding:4px 0;display:none;"></div>
                 <div class="xml-editor-actions">
                     <button id="xml-editor-apply" class="btn btn-primary">Apply Changes</button>
                     <button id="xml-editor-close" class="btn btn-default">Close</button>
@@ -405,6 +421,7 @@
             <div id="action-history-header">Action History <span id="action-history-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
             <ul id="action-history-list"></ul>
         </div>
+        <input type="file" id="toolbar-files" name="file" style="display:none;" />
 
     </body>
 </html>

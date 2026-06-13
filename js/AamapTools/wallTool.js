@@ -37,6 +37,7 @@ var wallTool_currentObj = null;
 
 function wallTool_connect() {
     $(".toolbar-toolWall").addClass("toolbar-tool-active");
+    $("#wall-height-bar").css("display", "flex");
 }
 
 function wallTool_disconnect() {
@@ -47,10 +48,16 @@ function wallTool_disconnect() {
     }
     vectron_toolActive = false;
     $(".toolbar-toolWall").removeClass("toolbar-tool-active");
+    $("#wall-height-bar").hide();
 }
 
 function wallTool_start() {
     wallTool_currentObj = new Wall();
+    // Read height from the wall height bar
+    var h = parseInt($("#dWallHeight").val());
+    if(isNaN(h) || h < 1) h = 1;
+    if(h > 50) h = 50;
+    wallTool_currentObj.height = h;
     wallTool_currentObj.points.push(
         new WallPoint(
             aamap_mapX(cursor_realX),
