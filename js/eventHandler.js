@@ -239,6 +239,7 @@ function eventHandler_init() {
         vectron_connectTool("zone");
         zoneTool_type = 0;
         zoneTool_guide();
+        zoneTool_updateRubberBar();
         gui_writeLog('DeathZone selected.');
         $("#zones-menu").hide();
     });
@@ -247,6 +248,7 @@ function eventHandler_init() {
         vectron_connectTool("zone");
         zoneTool_type = 1;
         zoneTool_guide();
+        zoneTool_updateRubberBar();
         gui_writeLog('WinZone selected.');
         $("#zones-menu").hide();
     });
@@ -255,6 +257,7 @@ function eventHandler_init() {
         vectron_connectTool("zone");
         zoneTool_type = 2;
         zoneTool_guide();
+        zoneTool_updateRubberBar();
         gui_writeLog('TargetZone selected.');
         $("#zones-menu").hide();
     });
@@ -263,6 +266,7 @@ function eventHandler_init() {
         vectron_connectTool("zone");
         zoneTool_type = 4;
         zoneTool_guide();
+        zoneTool_updateRubberBar();
         gui_writeLog('FortressZone selected.');
         $("#zones-menu").hide();
     });
@@ -271,6 +275,7 @@ function eventHandler_init() {
         vectron_connectTool("zone");
         zoneTool_type = 3;
         zoneTool_guide();
+        zoneTool_updateRubberBar();
         gui_writeLog('RubberZone selected.');
         $("#zones-menu").hide();
     });
@@ -350,7 +355,7 @@ function eventHandler_init() {
 
 
 
-    $(".toolbar-disconnect").mouseup(function(e) {
+    $(".toolbar-delete").mouseup(function(e) {
         if(vectron_currentTool == "select" && !vectron_toolActive) {
             selectTool_delete();
         } else if(vectron_currentTool == "wall" && vectron_toolActive) {
@@ -370,19 +375,23 @@ function eventHandler_init() {
             spawnTool_disconnect();
             vectron_currentTool = "";
             vectron_connectTool("spawn");
-        } else {
-            aamap_undo();
-            vectron_render();
         }
         $("#zones-menu").hide();
     });
-    
-    $(".toolbar-disconnect").mouseover(function(e) {
-        eventHandler_updateDisconnect();
+
+    $(".toolbar-undo").mouseup(function(e) {
+        aamap_undo();
+        vectron_render();
+        $("#zones-menu").hide();
     });
 
     $(".toolbar-redo").mouseup(function(e) {
         aamap_redo();
+    });
+
+    $(".toolbar-split-walls").mouseup(function(e) {
+        wallTool_splitByGrid();
+        $("#zones-menu").hide();
     });
 
     $("#canvas_container").mouseleave(function(e) {
@@ -528,6 +537,7 @@ function eventHandler_init() {
     var prev_vectron_panX = 0, prev_vectron_panY = 0;
     var zoom_mouse_x = 0, zoom_mouse_y = 0;
     var __zoom_timeout;
+    var __zoom_raf;
     if(!("onwheel" in $("#canvas_container")[0]))
     {
         $("#canvas_container")[0].addEventListener("mousewheel",function(event)
@@ -554,28 +564,33 @@ function eventHandler_init() {
                 zoom_mouse_x = cursor_pageX;
                 zoom_mouse_y = cursor_pageY;
             }
+            var zoomFactor = 1 + config_zoomStep;
             if(event.deltaY > 0)
             {
                 if(vectron_zoom > 0.01)
-                    vectron_zoom *= 0.98;
+                    vectron_zoom /= zoomFactor;
             }
             else
             {
-                vectron_zoom /= 0.98;
+                vectron_zoom *= zoomFactor;
             }
 
-            var vs = ((vectron_zoom)-prev_vectron_zoom)*(1/vectron_zoom);
-            vectron_screen.setViewBox(
-                zoom_mouse_x*vs, zoom_mouse_y*vs,
-                vectron_width-(vectron_width*vs), vectron_height-(vectron_height*vs)
-            );
+            // Keep the point under the mouse cursor fixed while zooming
+            vectron_panX = prev_vectron_panX + (zoom_mouse_x - vectron_width/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
+            vectron_panY = prev_vectron_panY - (zoom_mouse_y - vectron_height/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
+
+            // Smooth render using requestAnimationFrame
+            if(__zoom_raf) cancelAnimationFrame(__zoom_raf);
+            __zoom_raf = requestAnimationFrame(function()
+            {
+                vectron_render();
+                __zoom_raf = null;
+            });
+
             clearTimeout(__zoom_timeout);
             __zoom_timeout = setTimeout(function()
             {
-                vectron_panX = prev_vectron_panX + (zoom_mouse_x - vectron_width/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
-                vectron_panY = prev_vectron_panY - (zoom_mouse_y - vectron_height/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
                 prev_vectron_zoom = 0;
-                vectron_render();
             }, 150);
         }
     });
@@ -646,6 +661,7 @@ function eventHandler_init() {
            gui_writeLog('Zone Tool Toggled: '
                 + zoneTool_typeArray[zoneTool_type][0]);
             zoneTool_guide();
+            zoneTool_updateRubberBar();
         }
     });
 
@@ -786,22 +802,7 @@ function eventHandler_init() {
 
 function eventHandler_updateDisconnect()
 {
-    if( vectron_currentTool == "select" && !vectron_toolActive )
-    {
-        $(".toolbar-disconnect").attr("data-mode", "remove");
-    }
-    else if( vectron_currentTool == "wall" && vectron_toolActive )
-    {
-        $(".toolbar-disconnect").attr("data-mode", "remove");
-    }
-    else if( vectron_currentTool == "spawn" && vectron_toolActive )
-    {
-        $(".toolbar-disconnect").attr("data-mode", "remove");
-    }
-    else 
-    {
-        $(".toolbar-disconnect").attr("data-mode", "undo");
-    }
+    // No longer needed - delete and undo are separate buttons.
 }
 
 var __resize_timeout;

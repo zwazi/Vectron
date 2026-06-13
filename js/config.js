@@ -29,6 +29,7 @@ var config_isDark = false;
 var config_scrollWheelZoom = true;
 var config_snapToPosition = true;
 var config_autoAdjustGridSpacing = true;
+var config_zoomStep = 0.02; // scroll wheel zoom step (fraction): 0.02 = finest
 
 // default values:
 function _config_check_default(item)
@@ -38,6 +39,7 @@ function _config_check_default(item)
         case "darkTheme": return "true";
         case "showInfoBar": return "true";
         case "showDebug": return "false";
+        case "zoomStep": return "0.02";
     }
 }
 
@@ -109,6 +111,13 @@ function config_load()
     
     if(!_config_check("showDebug"))
         hide_debug(true);
+
+    var savedZoomStep = parseFloat(_config_get("zoomStep"));
+    if(!isNaN(savedZoomStep) && savedZoomStep > 0) {
+        config_zoomStep = savedZoomStep;
+        var sel = document.getElementById("zoom-step-select");
+        if(sel) sel.value = String(savedZoomStep);
+    }
 }
 
 

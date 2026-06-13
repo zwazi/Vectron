@@ -109,10 +109,12 @@ function selectTool_start() {
         selectTool_moveStartX = aamap_mapX(cursor_realX);
         selectTool_moveStartY = aamap_mapY(cursor_realY); 
 
-        selectTool_moveStartRealX = cursor_neverSnappedX;
-        selectTool_moveStartRealY = cursor_neverSnappedY;
-        selectTool_moveLastRealX = selectTool_moveStartRealX;
-        selectTool_moveLastRealY = selectTool_moveStartRealY;
+        var startSnapX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
+        var startSnapY = cursor_snap ? cursor_realY : cursor_neverSnappedY;
+        selectTool_moveStartRealX = startSnapX;
+        selectTool_moveStartRealY = startSnapY;
+        selectTool_moveLastRealX = startSnapX;
+        selectTool_moveLastRealY = startSnapY;
         return;
     }
 
@@ -133,11 +135,13 @@ function selectTool_start() {
 function selectTool_progress() {
     if(selectTool_hoveredSet != null) {
         gui_writeLog("in progress of moving, dont select!");
-        var dx = selectTool_moveLastRealX - cursor_neverSnappedX;
-        var dy = selectTool_moveLastRealY - cursor_neverSnappedY;
+        var curX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
+        var curY = cursor_snap ? cursor_realY : cursor_neverSnappedY;
+        var dx = selectTool_moveLastRealX - curX;
+        var dy = selectTool_moveLastRealY - curY;
 
-        selectTool_moveLastRealX = cursor_neverSnappedX;
-        selectTool_moveLastRealY = cursor_neverSnappedY;
+        selectTool_moveLastRealX = curX;
+        selectTool_moveLastRealY = curY;
 
         selectTool_selectedObjs.forEach(function(e) {
             e.obj.translate(-dx, -dy);
@@ -510,7 +514,7 @@ function selectTool_addHoverSet(aamapObject) {
 }
 
 function selectTool_addHoverSetSelected(aamapObject) {
-    aamapObject.glowObj = aamapObject.obj.glow({color: "#375ffc", width:2});
+    aamapObject.glowObj = aamapObject.obj.glow({color: config_isDark ? "#77bbff" : "#375ffc", width: config_isDark ? 5 : 2});
     var set = vectron_screen.set().push(aamapObject.obj, aamapObject.glowObj);
     selectTool_sets.push(set);
     set.hoverset(vectron_screen, selectTool_hoverInSelected, selectTool_hoverOutSelected);
