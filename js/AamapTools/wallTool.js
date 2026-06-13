@@ -100,3 +100,107 @@ function wallTool_complete() {
     vectron_toolActive = false;
     eventHandler_updateDisconnect();
 }
+
+/**
+ * Splits all walls at grid line intersections based on the current grid spacing.
+ */
+function wallTool_splitByGrid() {
+    var gs = vectron_grid_spacing;
+    if(gs <= 0) {
+        alert("Grid must be enabled to split walls.");
+        return;
+    }
+
+    var newObjects = [];
+    var toRemove = [];
+
+    for(var i = 0; i < aamap_objects.length; i++) {
+        var obj = aamap_objects[i];
+        if(!(obj instanceof Wall)) {
+            newObjects.push(obj);
+            continue;
+        }
+
+        toRemove.push(obj);
+        var currentWallPoints = [obj.points[0]];
+
+        for(var j = 0; j < obj.points.length - 1; j++) {
+            var p1 = obj.points[j];
+            var p2 = obj.points[j + 1];
+
+            // Find all grid intersections along this segment
+            var intersections = [];
+
+            var x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+            var dx = x2 - x1, dy = y2 - y1;
+
+            // Vertical grid lines
+            if(Math.abs(dx) > 1e-9) {
+                var startGx = Math.ceil(Math.min(x1, x2) / gs);
+                var endGx = Math.floor(Math.max(x1, x2) / gs);
+                for(var gx = startGx; gx <= endGx; gx++) {
+                    var gxVal = gx * gs;
+                    if(Math.abs(gxVal - x1) < 1e-9 || Math.abs(gxVal - x2) < 1e-9) continue;
+                    var t = (gxVal - x1) / dx;
+                    if(t > 1e-9 && t < 1 - 1e-9) {
+                        intersections.push({t: t, x: gxVal, y: y1 + t * dy});
+                    }
+                }
+            }
+
+            // Horizontal grid lines
+            if(Math.abs(dy) > 1e-9) {
+                var startGy = Math.ceil(Math.min(y1, y2) / gs);
+                var endGy = Math.floor(Math.max(y1, y2) / gs);
+                for(var gy = startGy; gy <= endGy; gy++) {
+                    var gyVal = gy * gs;
+                    if(Math.abs(gyVal - y1) < 1e-9 || Math.abs(gyVal - y2) < 1e-9) continue;
+                    var t2 = (gyVal - y1) / dy;
+                    if(t2 > 1e-9 && t2 < 1 - 1e-9) {
+                        intersections.push({t: t2, x: x1 + t2 * dx, y: gyVal});
+                    }
+                }
+            }
+
+            // Sort intersections by parameter t
+            intersections.sort(function(a, b) { return a.t - b.t; });
+
+            // Remove duplicate intersections
+            var unique = [];
+            for(var k = 0; k < intersections.length; k++) {
+                if(unique.length === 0 || Math.abs(intersections[k].t - unique[unique.length-1].t) > 1e-9) {
+                    unique.push(intersections[k]);
+                }
+            }
+
+            // Add intersection points to the current segment
+            for(var k = 0; k < unique.length; k++) {
+                currentWallPoints.push(new WallPoint(
+                    Math.round(unique[k].x * 1e6) / 1e6,
+                    Math.round(unique[k].y * 1e6) / 1e6
+                ));
+
+                // Start a new wall at each intersection
+                var splitWall = new Wall();
+                splitWall.points = currentWallPoints.slice();
+                splitWall.height = obj.height;
+                newObjects.push(splitWall);
+                currentWallPoints = [currentWallPoints[currentWallPoints.length - 1]];
+            }
+
+            currentWallPoints.push(p2);
+        }
+
+        // Finish the last wall segment
+        if(currentWallPoints.length >= 2) {
+            var finalWall = new Wall();
+            finalWall.points = currentWallPoints.slice();
+            finalWall.height = obj.height;
+            newObjects.push(finalWall);
+        }
+    }
+
+    aamap_objects = newObjects;
+    vectron_render();
+    gui_writeLog("Walls split at grid lines.");
+}
