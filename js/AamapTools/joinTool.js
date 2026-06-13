@@ -224,7 +224,21 @@ function joinTool_click() {
     if (idxA >= 0) aamap_objects.splice(idxA, 1);
     var idxB = aamap_objects.indexOf(wall);
     if (idxB >= 0) aamap_objects.splice(idxB, 1);
-    aamap_add(merged);
+    aamap_objects.push(merged);
+
+    var origA = joinTool_firstWall, origB = wall, wM = merged;
+    aamap_recordAction({
+        undo: function() {
+            _aamap_removeObj(wM);
+            aamap_objects.push(origA); aamap_objects.push(origB);
+            vectron_render();
+        },
+        redo: function() {
+            _aamap_removeObj(origA); _aamap_removeObj(origB);
+            aamap_objects.push(wM);
+            vectron_render();
+        }
+    });
 
     joinTool_firstWall = null;
     vectron_toolActive = false;

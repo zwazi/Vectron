@@ -136,7 +136,6 @@ function vectron_connectTool(toolName) {
         //connect tool and set currenttool
         vectron_currentTool = toolName;
         gui_writeLog(toolName + " connected.");
-        eventHandler_updateDisconnect();
         return true;
     }
     return false;

@@ -259,9 +259,8 @@ function disable_dark_theme(noset)
 
 function show_info_bar(noset)
 {
-    document.getElementsByClassName("info")[0].style.display = "";
-    //marginRight
-    document.getElementById("canvas_container").style.right = "100px";
+    document.getElementsByClassName("info")[0].style.display = "flex";
+    document.getElementById("canvas_container").style.bottom = "26px";
     vectron_render();
     
     document.getElementById("show-info-bar").checked = true;
@@ -270,7 +269,7 @@ function show_info_bar(noset)
 function hide_info_bar(noset)
 {
     document.getElementsByClassName("info")[0].style.display = "none";
-    document.getElementById("canvas_container").style.right = "";
+    document.getElementById("canvas_container").style.bottom = "";
     vectron_render();
     
     document.getElementById("show-info-bar").checked = false;
@@ -279,14 +278,14 @@ function hide_info_bar(noset)
 
 function show_debug(noset)
 {
-    document.getElementById("debug_box").className = "";
+    document.getElementById("debug_box").style.display = "";
     
     document.getElementById("show-debug-panel").checked = true;
     if(!noset) _config_set_enable("showDebug");
 }
 function hide_debug(noset)
 {
-    document.getElementById("debug_box").className = "nodbug";
+    document.getElementById("debug_box").style.display = "none";
     
     document.getElementById("show-debug-panel").checked = false;
     if(!noset) _config_set_disable("showDebug");

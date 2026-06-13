@@ -204,11 +204,56 @@ function splitTool_click() {
         var t = pt.t;
 
         if (t < SPLIT_ENDPOINT_TOLERANCE || t > 1 - SPLIT_ENDPOINT_TOLERANCE) {
-            gui_writeLog("Split Tool: point is at an endpoint; split cancelled.");
-            splitTool_selectedWall = null;
-            vectron_toolActive = false;
-            splitTool_clearHighlight();
-            splitTool_clearGuide();
+            // Check if we're near an existing intermediate vertex
+            var vertexIndex = (t < SPLIT_ENDPOINT_TOLERANCE) ? seg : seg + 1;
+
+            if (vertexIndex > 0 && vertexIndex < wall.points.length - 1) {
+                // Split at this existing intermediate vertex
+                var wallA = new Wall();
+                wallA.height = wall.height;
+                for (var i = 0; i <= vertexIndex; i++) {
+                    wallA.points.push(new WallPoint(wall.points[i].x, wall.points[i].y));
+                }
+
+                var wallB = new Wall();
+                wallB.height = wall.height;
+                for (var i = vertexIndex; i < wall.points.length; i++) {
+                    wallB.points.push(new WallPoint(wall.points[i].x, wall.points[i].y));
+                }
+
+                var idx = aamap_objects.indexOf(wall);
+                if (idx >= 0) aamap_objects.splice(idx, 1);
+                aamap_objects.push(wallA);
+                aamap_objects.push(wallB);
+
+                var origWall = wall, wA = wallA, wB = wallB;
+                aamap_recordAction({
+                    undo: function() {
+                        _aamap_removeObj(wA); _aamap_removeObj(wB);
+                        aamap_objects.push(origWall);
+                        vectron_render();
+                    },
+                    redo: function() {
+                        _aamap_removeObj(origWall);
+                        aamap_objects.push(wA); aamap_objects.push(wB);
+                        vectron_render();
+                    }
+                });
+
+                splitTool_selectedWall = null;
+                splitTool_hoveredWall = null;
+                vectron_toolActive = false;
+                splitTool_clearHighlight();
+                splitTool_clearGuide();
+                vectron_render();
+                gui_writeLog("Split Tool: wall split at vertex " + vertexIndex + ".");
+            } else {
+                gui_writeLog("Split Tool: point is at an endpoint; split cancelled.");
+                splitTool_selectedWall = null;
+                vectron_toolActive = false;
+                splitTool_clearHighlight();
+                splitTool_clearGuide();
+            }
             return;
         }
 
@@ -234,8 +279,22 @@ function splitTool_click() {
         // Remove original wall and add the two new walls
         var idx = aamap_objects.indexOf(wall);
         if (idx >= 0) aamap_objects.splice(idx, 1);
-        aamap_add(wallA);
-        aamap_add(wallB);
+        aamap_objects.push(wallA);
+        aamap_objects.push(wallB);
+
+        var origWall = wall, wA = wallA, wB = wallB;
+        aamap_recordAction({
+            undo: function() {
+                _aamap_removeObj(wA); _aamap_removeObj(wB);
+                aamap_objects.push(origWall);
+                vectron_render();
+            },
+            redo: function() {
+                _aamap_removeObj(origWall);
+                aamap_objects.push(wA); aamap_objects.push(wB);
+                vectron_render();
+            }
+        });
 
         splitTool_selectedWall = null;
         splitTool_hoveredWall = null;

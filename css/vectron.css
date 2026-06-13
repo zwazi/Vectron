@@ -68,12 +68,7 @@ body.noscroll {
   border-left:1px solid #1b1b1b;
   background:rgba(0, 0, 0, .8);
   color:#f5f5f5;
-}
-#debug_box.nodbug
-{
-	bottom: -11px;
-	width:100px;
-	height:30px;
+  display:none;
 }
 
 #debug_stream {
@@ -88,21 +83,31 @@ body.noscroll {
 }
 
 .info {
-	padding: 10px;
+	padding: 4px 12px;
 	font-size: 12px;
 	color: #eee;
 	background-color: #333;
 	position: absolute;
-	top: 0px;
-	bottom: 0px;
+	bottom: 0;
+	left: 50px;
 	right: 0;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 16px;
+	height: 26px;
+	z-index: 10;
+	box-sizing: border-box;
+}
+.info b {
+	margin-right: 2px;
 }
 .info .var {
-	display: block;
-	overflow: hidden;
-	width: 80px;
-	word-break: break-all;
-	height: 16px;
+	display: inline;
+	overflow: visible;
+	word-break: normal;
+	height: auto;
+	white-space: nowrap;
 }
 
 #tool_bar {
@@ -281,13 +286,13 @@ body.noscroll {
     top:4px; left:-0px;
 }
 
-.toolbar-split-walls:after {
+/* Split Tool icon */
+.toolbar-toolSplit:after {
     font-family: sans-serif;
     content: "\2702";
-    font-size: 20px;
-    
+    font-size: 18px;
     position:relative;
-    top:4px;
+    top:3px;
 }
 
 .shepherd-cancel-link {
@@ -448,3 +453,64 @@ body.noscroll {
   user-select: none;
 }
 
+/* Settings modal: auto-size, no mandatory scroll when there's room */
+#control_box #gui-tab-content {
+  max-height: calc(80vh - 220px);
+  overflow-y: auto;
+}
+
+/* XML editor toolbar button */
+.toolbar-toolXml:after {
+  font-family: monospace;
+  content: "<>";
+  font-size: 13px;
+  position: relative;
+  top: 5px;
+  letter-spacing: -1px;
+}
+
+/* XML editor modal */
+#xml-editor-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 50;
+  background: rgba(0,0,0,0.45);
+  align-items: center;
+  justify-content: center;
+}
+#xml-editor-overlay.visible {
+  display: flex;
+}
+#xml-editor-box {
+  background: #fff;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  padding: 20px;
+  width: 80%;
+  max-width: 860px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+#xml-editor-box h4 {
+  margin: 0 0 10px;
+}
+#xml-editor-content {
+  flex: 1;
+  min-height: 300px;
+  max-height: calc(85vh - 140px);
+  font-family: monospace;
+  font-size: 12px;
+  resize: vertical;
+  border: 1px solid #ccc;
+  padding: 8px;
+  white-space: pre;
+  overflow: auto;
+}
+#xml-editor-box .xml-editor-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
