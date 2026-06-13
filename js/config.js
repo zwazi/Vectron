@@ -320,7 +320,8 @@ function hide_debug(noset)
     if(!noset) _config_set_disable("showDebug");
 }
 
-function keybinds_buildUI() {    var container = document.getElementById('keybinds-config');
+function keybinds_buildUI() {
+    var container = document.getElementById('keybinds-config');
     if (!container) return;
     container.innerHTML = '';
 
