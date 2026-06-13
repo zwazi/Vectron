@@ -88,12 +88,16 @@ body {
 	border-color: #555;
 	color: #eee;
 }
+#xml-editor-header {
+	background: #1a1a1a;
+	border-color: #444;
+	color: #eee;
+}
 #xml-editor-content {
 	background: #1a1a1a;
 	color: #eee;
 	border-color: #444;
 }
-
 #xml-editor-tabs > li > a {
 	background: #333;
 	border-color: #555;

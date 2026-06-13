@@ -350,40 +350,47 @@ function aamap_drawGrid() {
         else regularArray.push("M", gridRight, i, "L", gridLeft, i);
     }
 
-    // Draw regular grid lines
-    var gridColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
-    var regularStroke = (vectron_zoom*vectron_grid_spacing > 8) ? 2 : 1;
+    // Draw regular grid lines — use configurable color/thickness
+    var defaultNarrowColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
+    var defaultTenthColor  = config_isDark ? '#444'    : '#fff';
+    var narrowColor  = config_gridNarrowColor  || defaultNarrowColor;
+    var tenthColor   = config_gridTenthColor   || defaultTenthColor;
+    var axisXColor   = config_gridAxisXColor   || '#2244cc';
+    var axisYColor   = config_gridAxisYColor   || '#cc2222';
+
+    var baseStroke    = (vectron_zoom*vectron_grid_spacing > 8) ? 2 : 1;
+    var narrowStroke  = config_gridNarrowThickness  > 0 ? config_gridNarrowThickness  : baseStroke;
+    var tenthStroke   = config_gridTenthThickness   > 0 ? config_gridTenthThickness   : baseStroke * 2;
+    var originStroke  = config_gridOriginThickness  > 0 ? config_gridOriginThickness  : baseStroke;
 
     aamap_grid = vectron_screen.set();
 
     if(regularArray.length > 0) {
         var reg = vectron_screen.path(regularArray)
-            .attr({stroke: gridColor, "stroke-width": regularStroke});
+            .attr({stroke: narrowColor, "stroke-width": narrowStroke});
         reg.node.style.shapeRendering = "crispedges";
         aamap_grid.push(reg);
     }
 
-    // Draw every-10th lines (2x the narrow line width)
-    var TENTH_LINE_MULTIPLIER = 2;
     if(tenthArray.length > 0) {
         var tenth = vectron_screen.path(tenthArray)
-            .attr({stroke: config_isDark ? "#444" : "#fff", "stroke-width": regularStroke * TENTH_LINE_MULTIPLIER});
+            .attr({stroke: tenthColor, "stroke-width": tenthStroke});
         tenth.node.style.shapeRendering = "crispedges";
         aamap_grid.push(tenth);
     }
 
-    // Draw Y-axis (x=0) in red (same width as narrow lines)
+    // Draw Y-axis (x=0) — vertical line
     if(axisYArray.length > 0) {
         var axY = vectron_screen.path(axisYArray)
-            .attr({stroke: "#cc2222", "stroke-width": regularStroke});
+            .attr({stroke: axisYColor, "stroke-width": originStroke});
         axY.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axY);
     }
 
-    // Draw X-axis (y=0) in blue (same width as narrow lines)
+    // Draw X-axis (y=0) — horizontal line
     if(axisXArray.length > 0) {
         var axX = vectron_screen.path(axisXArray)
-            .attr({stroke: "#2244cc", "stroke-width": regularStroke});
+            .attr({stroke: axisXColor, "stroke-width": originStroke});
         axX.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axX);
     }
