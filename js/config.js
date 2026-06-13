@@ -36,9 +36,10 @@ var config_gridNarrowColor     = '';
 var config_gridTenthColor      = '';
 var config_gridAxisXColor      = '';
 var config_gridAxisYColor      = '';
-var config_gridNarrowThickness = 0; // 0 = auto
-var config_gridTenthThickness  = 0; // 0 = auto (2× narrow)
-var config_gridOriginThickness = 0; // 0 = auto (same as narrow)
+var config_gridNarrowThickness = 0; // 0 = use default (1)
+var config_gridTenthThickness  = 0; // 0 = use default (0.5)
+var config_gridAxisXThickness  = 0; // 0 = use default (1)
+var config_gridAxisYThickness  = 0; // 0 = use default (1)
 
 // default values:
 function _config_check_default(item)
@@ -120,8 +121,7 @@ var vectron_defaultKeybinds = {
     snap: '6',
     split: '7',
     join: '8',
-    wallVertexMove: '0',
-    info: '9'
+    wallVertexMove: '0'
 };
 var vectron_keybinds = {};
 
@@ -176,10 +176,6 @@ function keybinds_apply() {
     bindKey(vectron_keybinds.split,           function(){ vectron_connectTool('split'); });
     bindKey(vectron_keybinds.join,            function(){ vectron_connectTool('join'); });
     bindKey(vectron_keybinds.wallVertexMove,  function(){ vectron_connectTool('wallVertexMove'); });
-    bindKey(vectron_keybinds.info,       function(){
-        if(!gui_active) { gui_show(); $('.toolbar-gui-open').hide(); $('.toolbar-gui-close').show(); }
-        $('a[href="#gui-about"]').click();
-    });
 
     keybinds_updateOverlays();
 }
@@ -195,8 +191,7 @@ function keybinds_updateOverlays() {
         snap:           '.toolbar-toolLock, .toolbar-toolUnlock',
         split:          '.toolbar-toolSplit',
         join:           '.toolbar-toolJoin',
-        wallVertexMove: '.toolbar-toolWallVertexMove',
-        info:           '.toolbar-toolInfo'
+        wallVertexMove: '.toolbar-toolWallVertexMove'
     };
     for (var action in map) {
         var key = vectron_keybinds[action] || '';
@@ -241,7 +236,8 @@ function config_load()
     config_gridAxisYColor      = _config_get('gridAxisYColor')      || '';
     config_gridNarrowThickness = parseFloat(_config_get('gridNarrowThickness')) || 0;
     config_gridTenthThickness  = parseFloat(_config_get('gridTenthThickness'))  || 0;
-    config_gridOriginThickness = parseFloat(_config_get('gridOriginThickness')) || 0;
+    config_gridAxisXThickness  = parseFloat(_config_get('gridAxisXThickness'))  || 0;
+    config_gridAxisYThickness  = parseFloat(_config_get('gridAxisYThickness'))  || 0;
 
     keybinds_load();
     keybinds_apply();
@@ -328,7 +324,7 @@ function keybinds_buildUI() {
     var labels = {
         select: 'Select', navigation: 'Navigation', wall: 'Wall',
         zone: 'Zone', spawn: 'Spawn', snap: 'Snap',
-        split: 'Split', join: 'Join', wallVertexMove: 'Vertex Move', info: 'Info'
+        split: 'Split', join: 'Join', wallVertexMove: 'Vertex Move'
     };
 
     var grid = document.createElement('div');
@@ -356,11 +352,24 @@ function keybinds_buildUI() {
         btn.setAttribute('aria-label', 'Reset keybind for ' + labels[action]);
         btn.className = 'btn btn-xs btn-default';
         btn.style.marginLeft = '4px';
-        btn.onclick = (function(a, i) {
+
+        // Only show reset button if current value differs from default
+        var defVal = vectron_defaultKeybinds[action] || '';
+        btn.style.display = (inp.value !== defVal) ? '' : 'none';
+
+        btn.onclick = (function(a, i, b) {
             return function() {
                 i.value = vectron_defaultKeybinds[a] || '';
+                b.style.display = 'none';
             };
-        })(action, inp);
+        })(action, inp, btn);
+
+        inp.addEventListener('input', (function(a, i, b) {
+            return function() {
+                var def = vectron_defaultKeybinds[a] || '';
+                b.style.display = (i.value !== def) ? '' : 'none';
+            };
+        })(action, inp, btn));
 
         row.appendChild(lbl);
         row.appendChild(inp);
@@ -380,6 +389,7 @@ function keybinds_buildUI() {
         });
         keybinds_save();
         keybinds_apply();
+        keybinds_buildUI(); // refresh to update reset button visibility
     };
     container.appendChild(saveBtn);
 }
@@ -389,21 +399,24 @@ function gridConfig_buildUI() {
     if(!container) return;
     container.innerHTML = '';
 
+    // Default values for comparison
     var defaultNarrowLight = '#d6d6ec', defaultNarrowDark = '#1a1a1a';
-    var defaultTenthLight  = '#fff',    defaultTenthDark  = '#444';
     var defaultAxisX = '#2244cc', defaultAxisY = '#cc2222';
+    var defaultThickNarrow = 1, defaultThickTenth = 0.5, defaultThickX = 1, defaultThickY = 1;
+
+    // Default 10th line color = same as narrow line color
+    function getDefaultNarrowColor() { return config_isDark ? defaultNarrowDark : defaultNarrowLight; }
+    function getDefaultTenthColor()  { return getDefaultNarrowColor(); }
 
     var rows = [
         { label: 'Narrow lines', colorKey: 'gridNarrowColor', thickKey: 'gridNarrowThickness',
-          defaultColor: function(){ return config_isDark ? defaultNarrowDark : defaultNarrowLight; } },
+          defaultColor: getDefaultNarrowColor, defaultThick: defaultThickNarrow },
         { label: 'Every 10th line', colorKey: 'gridTenthColor', thickKey: 'gridTenthThickness',
-          defaultColor: function(){ return config_isDark ? defaultTenthDark : defaultTenthLight; } },
-        { label: 'X axis (y=0)', colorKey: 'gridAxisXColor', thickKey: null,
-          defaultColor: function(){ return defaultAxisX; } },
-        { label: 'Y axis (x=0)', colorKey: 'gridAxisYColor', thickKey: null,
-          defaultColor: function(){ return defaultAxisY; } },
-        { label: 'Origin thickness', colorKey: null, thickKey: 'gridOriginThickness',
-          defaultColor: null },
+          defaultColor: getDefaultTenthColor, defaultThick: defaultThickTenth },
+        { label: 'X axis (y=0)', colorKey: 'gridAxisXColor', thickKey: 'gridAxisXThickness',
+          defaultColor: function(){ return defaultAxisX; }, defaultThick: defaultThickX },
+        { label: 'Y axis (x=0)', colorKey: 'gridAxisYColor', thickKey: 'gridAxisYThickness',
+          defaultColor: function(){ return defaultAxisY; }, defaultThick: defaultThickY },
     ];
 
     var table = document.createElement('table');
@@ -412,7 +425,7 @@ function gridConfig_buildUI() {
     ['Line Type','Color','Thickness (px)'].forEach(function(h) {
         var th = document.createElement('th');
         th.textContent = h;
-        th.style.cssText = 'text-align:left;padding:2px 4px;border-bottom:1px solid #ccc;';
+        th.style.cssText = 'text-align:left;padding:2px 4px;border-bottom:1px solid #666;';
         thead.appendChild(th);
     });
     table.appendChild(thead);
@@ -425,64 +438,98 @@ function gridConfig_buildUI() {
         tdLabel.style.cssText = 'padding:3px 4px;';
         tr.appendChild(tdLabel);
 
+        // Color cell
         var tdColor = document.createElement('td');
         tdColor.style.cssText = 'padding:3px 4px;';
-        if(row.colorKey) {
-            var colorInp = document.createElement('input');
-            colorInp.type = 'color';
-            colorInp.id = 'cfg-' + row.colorKey;
-            var saved = _config_get(row.colorKey);
-            colorInp.value = saved || row.defaultColor();
-            colorInp.style.cssText = 'width:44px;height:22px;padding:0;border:none;cursor:pointer;';
-            colorInp.onchange = (function(key, inp, defFn) {
-                return function() {
-                    var val = inp.value;
-                    window['config_' + key] = (val === defFn()) ? '' : val;
-                    _config_set(key, val);
-                    vectron_render();
-                };
-            })(row.colorKey, colorInp, row.defaultColor);
+        var colorInp = document.createElement('input');
+        colorInp.type = 'color';
+        colorInp.id = 'cfg-' + row.colorKey;
+        var savedColor = _config_get(row.colorKey);
+        colorInp.value = savedColor || row.defaultColor();
+        colorInp.style.cssText = 'width:44px;height:22px;padding:0;border:none;cursor:pointer;';
 
-            var resetBtn = document.createElement('button');
-            resetBtn.textContent = '↺';
-            resetBtn.title = 'Reset to default';
-            resetBtn.className = 'btn btn-xs btn-default';
-            resetBtn.style.marginLeft = '4px';
-            resetBtn.onclick = (function(key, inp, defFn) {
-                return function() {
-                    window['config_' + key] = '';
-                    _config_set(key, '');
-                    inp.value = defFn();
-                    vectron_render();
-                };
-            })(row.colorKey, colorInp, row.defaultColor);
+        var colorResetBtn = document.createElement('button');
+        colorResetBtn.textContent = '↺';
+        colorResetBtn.title = 'Reset to default';
+        colorResetBtn.className = 'btn btn-xs btn-default';
+        colorResetBtn.style.cssText = 'margin-left:4px;';
 
-            tdColor.appendChild(colorInp);
-            tdColor.appendChild(resetBtn);
+        // Show reset only if different from default
+        function updateColorResetVisibility() {
+            var defVal = row.defaultColor();
+            colorResetBtn.style.display = (colorInp.value !== defVal) ? '' : 'none';
         }
+        updateColorResetVisibility();
+
+        colorInp.onchange = (function(key, inp, defFn, resetBtn) {
+            return function() {
+                var val = inp.value;
+                window['config_' + key] = (val === defFn()) ? '' : val;
+                _config_set(key, val);
+                resetBtn.style.display = (val !== defFn()) ? '' : 'none';
+                vectron_render();
+            };
+        })(row.colorKey, colorInp, row.defaultColor, colorResetBtn);
+
+        colorResetBtn.onclick = (function(key, inp, defFn, resetBtn) {
+            return function() {
+                window['config_' + key] = '';
+                _config_set(key, '');
+                inp.value = defFn();
+                resetBtn.style.display = 'none';
+                vectron_render();
+            };
+        })(row.colorKey, colorInp, row.defaultColor, colorResetBtn);
+
+        tdColor.appendChild(colorInp);
+        tdColor.appendChild(colorResetBtn);
         tr.appendChild(tdColor);
 
+        // Thickness cell
         var tdThick = document.createElement('td');
         tdThick.style.cssText = 'padding:3px 4px;';
-        if(row.thickKey) {
-            var thickInp = document.createElement('input');
-            thickInp.type = 'number';
-            thickInp.id = 'cfg-' + row.thickKey;
-            thickInp.min = '0'; thickInp.max = '10'; thickInp.step = '0.5';
-            thickInp.value = parseFloat(_config_get(row.thickKey)) || 0;
-            thickInp.placeholder = 'auto';
-            thickInp.style.cssText = 'width:64px;';
-            thickInp.title = '0 = auto';
-            thickInp.onchange = (function(key, inp) {
-                return function() {
-                    var v = parseFloat(inp.value) || 0;
-                    window['config_' + key] = v;
-                    _config_set(key, String(v));
-                    vectron_render();
-                };
-            })(row.thickKey, thickInp);
-            tdThick.appendChild(thickInp);
+        var thickInp = document.createElement('input');
+        thickInp.type = 'number';
+        thickInp.id = 'cfg-' + row.thickKey;
+        thickInp.min = '0.1'; thickInp.max = '10'; thickInp.step = '0.5';
+        var savedThick = parseFloat(_config_get(row.thickKey));
+        thickInp.value = (savedThick > 0) ? savedThick : row.defaultThick;
+        thickInp.style.cssText = 'width:64px;';
+
+        var thickResetBtn = document.createElement('button');
+        thickResetBtn.textContent = '↺';
+        thickResetBtn.title = 'Reset to default';
+        thickResetBtn.className = 'btn btn-xs btn-default';
+        thickResetBtn.style.cssText = 'margin-left:4px;';
+
+        function updateThickResetVisibility() {
+            thickResetBtn.style.display = (parseFloat(thickInp.value) !== row.defaultThick) ? '' : 'none';
         }
+        updateThickResetVisibility();
+
+        thickInp.onchange = (function(key, inp, defThick, resetBtn) {
+            return function() {
+                var v = parseFloat(inp.value);
+                if(isNaN(v) || v <= 0) { v = defThick; inp.value = defThick; }
+                window['config_' + key] = (v === defThick) ? 0 : v;
+                _config_set(key, String(v));
+                resetBtn.style.display = (v !== defThick) ? '' : 'none';
+                vectron_render();
+            };
+        })(row.thickKey, thickInp, row.defaultThick, thickResetBtn);
+
+        thickResetBtn.onclick = (function(key, inp, defThick, resetBtn) {
+            return function() {
+                window['config_' + key] = 0;
+                _config_set(key, String(defThick));
+                inp.value = defThick;
+                resetBtn.style.display = 'none';
+                vectron_render();
+            };
+        })(row.thickKey, thickInp, row.defaultThick, thickResetBtn);
+
+        tdThick.appendChild(thickInp);
+        tdThick.appendChild(thickResetBtn);
         tr.appendChild(tdThick);
 
         table.appendChild(tr);

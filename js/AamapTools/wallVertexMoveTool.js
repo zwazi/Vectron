@@ -30,12 +30,18 @@ var wallVertexMoveTool_dragPtIdx = -1;
 var wallVertexMoveTool_origX = 0;
 var wallVertexMoveTool_origY = 0;
 
+/** Currently selected (clicked but not dragging) vertex for deletion */
+var wallVertexMoveTool_selectedWall = null;
+var wallVertexMoveTool_selectedPtIdx = -1;
+
 /** Pixel threshold for clicking a vertex */
 var wallVertexMoveTool_threshold = 10;
 
 function wallVertexMoveTool_connect() {
     $(".toolbar-toolWallVertexMove").addClass("toolbar-tool-active");
     cursor_active = true;
+    wallVertexMoveTool_selectedWall = null;
+    wallVertexMoveTool_selectedPtIdx = -1;
     wallVertexMoveTool_drawDots();
 }
 
@@ -46,6 +52,8 @@ function wallVertexMoveTool_disconnect() {
     }
     wallVertexMoveTool_dragWall = null;
     wallVertexMoveTool_dragPtIdx = -1;
+    wallVertexMoveTool_selectedWall = null;
+    wallVertexMoveTool_selectedPtIdx = -1;
     vectron_toolActive = false;
     $(".toolbar-toolWallVertexMove").removeClass("toolbar-tool-active");
 }
@@ -61,8 +69,15 @@ function wallVertexMoveTool_drawDots() {
             for(var j = 0; j < obj.points.length; j++) {
                 var rx = aamap_realX(obj.points[j].x);
                 var ry = aamap_realY(obj.points[j].y);
-                var dot = vectron_screen.circle(rx, ry, 5)
-                    .attr({fill: "#ffdd00", stroke: "#ff8800", "fill-opacity": 0.85, "stroke-width": 1.5, cursor: "pointer"});
+                var isSelected = (obj === wallVertexMoveTool_selectedWall && j === wallVertexMoveTool_selectedPtIdx);
+                var dot = vectron_screen.circle(rx, ry, isSelected ? 7 : 5)
+                    .attr({
+                        fill: isSelected ? "#ff4444" : "#ffdd00",
+                        stroke: isSelected ? "#ff0000" : "#ff8800",
+                        "fill-opacity": 0.9,
+                        "stroke-width": isSelected ? 2 : 1.5,
+                        cursor: "pointer"
+                    });
                 wallVertexMoveTool_dots.push(dot);
             }
         }
@@ -94,13 +109,64 @@ function wallVertexMoveTool_findVertex(realX, realY) {
 
 function wallVertexMoveTool_start() {
     var hit = wallVertexMoveTool_findVertex(cursor_neverSnappedX, cursor_neverSnappedY);
-    if(hit == null) return;
+    if(hit == null) {
+        // Clicked empty space — deselect
+        wallVertexMoveTool_selectedWall = null;
+        wallVertexMoveTool_selectedPtIdx = -1;
+        wallVertexMoveTool_drawDots();
+        return;
+    }
 
+    // Select this vertex (for potential deletion)
+    wallVertexMoveTool_selectedWall = hit.wall;
+    wallVertexMoveTool_selectedPtIdx = hit.ptIdx;
+
+    // Also begin drag
     wallVertexMoveTool_dragWall = hit.wall;
     wallVertexMoveTool_dragPtIdx = hit.ptIdx;
     wallVertexMoveTool_origX = hit.wall.points[hit.ptIdx].x;
     wallVertexMoveTool_origY = hit.wall.points[hit.ptIdx].y;
     vectron_toolActive = true;
+    wallVertexMoveTool_drawDots();
+}
+
+/**
+ * Delete the currently selected vertex.
+ * If the wall has only 2 points, remove the entire wall.
+ * If the wall has 3+ points, remove the point.
+ */
+function wallVertexMoveTool_deleteSelected() {
+    if(wallVertexMoveTool_selectedWall == null || wallVertexMoveTool_selectedPtIdx < 0) return;
+
+    var wall = wallVertexMoveTool_selectedWall;
+    var ptIdx = wallVertexMoveTool_selectedPtIdx;
+
+    wallVertexMoveTool_selectedWall = null;
+    wallVertexMoveTool_selectedPtIdx = -1;
+
+    if(wall.points.length <= 2) {
+        // Remove entire wall
+        var removedWall = wall;
+        _aamap_removeObj(removedWall);
+        aamap_recordAction({
+            label: "Delete vertex (wall removed)",
+            undo: function() { aamap_objects.push(removedWall); vectron_render(); wallVertexMoveTool_drawDots(); },
+            redo: function() { _aamap_removeObj(removedWall); vectron_render(); wallVertexMoveTool_drawDots(); }
+        });
+    } else {
+        // Remove just the point
+        var removedPt = wall.points[ptIdx];
+        wall.points.splice(ptIdx, 1);
+        wall.render();
+        aamap_recordAction({
+            label: "Delete vertex",
+            undo: function() { wall.points.splice(ptIdx, 0, removedPt); wall.render(); vectron_render(); wallVertexMoveTool_drawDots(); },
+            redo: function() { wall.points.splice(ptIdx, 1); wall.render(); vectron_render(); wallVertexMoveTool_drawDots(); }
+        });
+    }
+
+    vectron_render();
+    wallVertexMoveTool_drawDots();
 }
 
 function wallVertexMoveTool_progress() {

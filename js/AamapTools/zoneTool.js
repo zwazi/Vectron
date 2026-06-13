@@ -64,6 +64,8 @@ function zoneTool_connect() {
     $(".toolbar-toolZone").addClass("toolbar-tool-active");
     zoneTool_radius = vectron_grid_spacing;
     zoneTool_updateRubberBar();
+    $("#zone-tool-window").show();
+    zoneTool_updateWindowActiveType();
 }
 
 function zoneTool_disconnect() {
@@ -72,15 +74,21 @@ function zoneTool_disconnect() {
     vectron_toolActive = false;
     $(".toolbar-toolZone").removeClass("toolbar-tool-active");
     $("#rubber-zone-bar").hide();
+    $("#zone-tool-window").hide();
 }
 
 function zoneTool_updateRubberBar() {
     if(zoneTool_type === 3) {
-        $("#rubber-zone-bar").css("display", "flex");
+        $("#zone-rubber-setting").show();
     } else {
-        $("#rubber-zone-bar").hide();
+        $("#zone-rubber-setting").hide();
     }
     vectron_render();
+}
+
+function zoneTool_updateWindowActiveType() {
+    $(".zone-type-btn").removeClass("active-zone-type");
+    $(".zone-type-btn[data-type='" + zoneTool_type + "']").addClass("active-zone-type");
 }
 
 function zoneTool_guide() {
@@ -107,6 +115,24 @@ function zoneTool_guide() {
 
 
 function zoneTool_complete() {
+    // Quick placement: place zone at cursor with preset radius in one click
+    if ($("#zone-quick-placement-toggle").is(":checked")) {
+        var quickR = parseFloat($("#zone-quick-size").val());
+        if (isNaN(quickR) || quickR <= 0) quickR = 32;
+        var cx = aamap_mapX(cursor_realX);
+        var cy = aamap_mapY(cursor_realY);
+        var newZone = new Zone(cx, cy, quickR, 0, zoneTool_type);
+        aamap_add(newZone);
+        aamap_recordAction({
+            label: "Add zone",
+            undo: function() { _aamap_removeObj(newZone); vectron_render(); },
+            redo: function() { aamap_objects.push(newZone); vectron_render(); }
+        });
+        zoneTool_removeGuide();
+        vectron_render();
+        return;
+    }
+
     if (!zoneTool_placingSize) {
         zoneTool_centerRealX = cursor_realX;
         zoneTool_centerRealY = cursor_realY;

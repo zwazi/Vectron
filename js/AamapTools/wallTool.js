@@ -37,7 +37,8 @@ var wallTool_currentObj = null;
 
 function wallTool_connect() {
     $(".toolbar-toolWall").addClass("toolbar-tool-active");
-    $("#wall-height-bar").css("display", "flex");
+    $("#wall-tool-window").show();
+    wallTool_updatePointsList();
 }
 
 function wallTool_disconnect() {
@@ -48,12 +49,87 @@ function wallTool_disconnect() {
     }
     vectron_toolActive = false;
     $(".toolbar-toolWall").removeClass("toolbar-tool-active");
-    $("#wall-height-bar").hide();
+    $("#wall-tool-window").hide();
+}
+
+/** Update the points/walls list in the wall tool popover */
+function wallTool_updatePointsList() {
+    var wall = wallTool_currentObj;
+    var listEl = document.getElementById('wall-tool-points-list');
+    var section = document.getElementById('wall-tool-points-section');
+    var finishBtn = document.getElementById('wall-tool-finish');
+    if (!listEl) return;
+
+    if (!wall || wall.points.length === 0) {
+        section.style.display = 'none';
+        finishBtn.style.display = 'none';
+        listEl.innerHTML = '';
+        return;
+    }
+
+    section.style.display = '';
+    finishBtn.style.display = (wall.points.length >= 2) ? '' : 'none';
+    listEl.innerHTML = '';
+
+    for (var i = 0; i < wall.points.length; i++) {
+        (function(idx) {
+            var pt = wall.points[idx];
+            var div = document.createElement('div');
+            div.className = 'wtp-point';
+
+            var lbl = document.createElement('span');
+            lbl.textContent = (idx + 1) + ':';
+            lbl.style.cssText = 'min-width:18px;font-weight:bold;font-size:11px;';
+
+            var xIn = document.createElement('input');
+            xIn.type = 'number';
+            xIn.value = Math.round(pt.x * 100) / 100;
+            xIn.step = '1';
+            xIn.title = 'X';
+
+            var yIn = document.createElement('input');
+            yIn.type = 'number';
+            yIn.value = Math.round(pt.y * 100) / 100;
+            yIn.step = '1';
+            yIn.title = 'Y';
+
+            function applyCoords() {
+                var nx = parseFloat(xIn.value);
+                var ny = parseFloat(yIn.value);
+                if(!isNaN(nx)) wall.points[idx].x = nx;
+                if(!isNaN(ny)) wall.points[idx].y = ny;
+                wall.render();
+                vectron_render();
+            }
+            xIn.addEventListener('change', applyCoords);
+            yIn.addEventListener('change', applyCoords);
+
+            div.appendChild(lbl);
+            div.appendChild(document.createTextNode('x:'));
+            div.appendChild(xIn);
+            div.appendChild(document.createTextNode(' y:'));
+            div.appendChild(yIn);
+            listEl.appendChild(div);
+
+            // Show wall segment length after each point except last
+            if (idx < wall.points.length - 1) {
+                var next = wall.points[idx + 1];
+                var dx = next.x - pt.x;
+                var dy = next.y - pt.y;
+                var len = Math.sqrt(dx * dx + dy * dy);
+                var wallDiv = document.createElement('div');
+                wallDiv.className = 'wtp-wall';
+                wallDiv.style.cssText = 'color:#aaa;font-size:10px;padding-left:20px;';
+                wallDiv.textContent = '→ wall ' + (idx + 1) + '-' + (idx + 2) + ': ' + len.toFixed(2);
+                listEl.appendChild(wallDiv);
+            }
+        })(i);
+    }
 }
 
 function wallTool_start() {
     wallTool_currentObj = new Wall();
-    // Read height from the wall height bar
+    // Read height from the wall tool window
     var h = parseInt($("#dWallHeight").val());
     if(isNaN(h) || h < 1) h = 1;
     if(h > 50) h = 50;
@@ -66,6 +142,7 @@ function wallTool_start() {
 
     wallTool_currentObj.render();
     vectron_toolActive = true;
+    wallTool_updatePointsList();
 }
 
 function wallTool_progress() {
@@ -80,6 +157,7 @@ function wallTool_progress() {
     }
     wallTool_currentObj.points.push( new WallPoint(newX, newY) );
     wallTool_currentObj.render();
+    wallTool_updatePointsList();
 }
 
 function wallTool_complete() {
@@ -90,6 +168,7 @@ function wallTool_complete() {
         wallTool_currentObj = null;
         vectron_toolActive = false;
         gui_writeLog("Wall canceled, < 2 points");
+        wallTool_updatePointsList();
         return;
     } else {
         var last = wallTool_currentObj.points[wallTool_currentObj.points.length-1];
@@ -109,6 +188,7 @@ function wallTool_complete() {
     });
     wallTool_currentObj = null;
     vectron_toolActive = false;
+    wallTool_updatePointsList();
 }
 
 /**

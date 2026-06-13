@@ -352,16 +352,16 @@ function aamap_drawGrid() {
 
     // Draw regular grid lines — use configurable color/thickness
     var defaultNarrowColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
-    var defaultTenthColor  = config_isDark ? '#444'    : '#fff';
+    var defaultTenthColor  = config_isDark ? '#1a1a1a' : '#d6d6ec'; // default same as narrow
     var narrowColor  = config_gridNarrowColor  || defaultNarrowColor;
     var tenthColor   = config_gridTenthColor   || defaultTenthColor;
     var axisXColor   = config_gridAxisXColor   || '#2244cc';
     var axisYColor   = config_gridAxisYColor   || '#cc2222';
 
-    var baseStroke    = (vectron_zoom*vectron_grid_spacing > 8) ? 2 : 1;
-    var narrowStroke  = config_gridNarrowThickness  > 0 ? config_gridNarrowThickness  : baseStroke;
-    var tenthStroke   = config_gridTenthThickness   > 0 ? config_gridTenthThickness   : baseStroke * 2;
-    var originStroke  = config_gridOriginThickness  > 0 ? config_gridOriginThickness  : baseStroke;
+    var narrowStroke  = config_gridNarrowThickness  > 0 ? config_gridNarrowThickness  : 1;
+    var tenthStroke   = config_gridTenthThickness   > 0 ? config_gridTenthThickness   : 0.5;
+    var axisXStroke   = config_gridAxisXThickness   > 0 ? config_gridAxisXThickness   : 1;
+    var axisYStroke   = config_gridAxisYThickness   > 0 ? config_gridAxisYThickness   : 1;
 
     aamap_grid = vectron_screen.set();
 
@@ -382,7 +382,7 @@ function aamap_drawGrid() {
     // Draw Y-axis (x=0) — vertical line
     if(axisYArray.length > 0) {
         var axY = vectron_screen.path(axisYArray)
-            .attr({stroke: axisYColor, "stroke-width": originStroke});
+            .attr({stroke: axisYColor, "stroke-width": axisYStroke});
         axY.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axY);
     }
@@ -390,7 +390,7 @@ function aamap_drawGrid() {
     // Draw X-axis (y=0) — horizontal line
     if(axisXArray.length > 0) {
         var axX = vectron_screen.path(axisXArray)
-            .attr({stroke: axisXColor, "stroke-width": originStroke});
+            .attr({stroke: axisXColor, "stroke-width": axisXStroke});
         axX.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axX);
     }

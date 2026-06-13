@@ -9,20 +9,6 @@
 
 #rubber-zone-bar {
   display: none;
-  position: absolute;
-  left: 50px;
-  top: 160px; /* next to the zone tool area */
-  background: rgba(30,30,30,0.97);
-  color: #fff;
-  padding: 6px 12px;
-  z-index: 200;
-  font-size: 13px;
-  align-items: center;
-  gap: 10px;
-  border-radius: 4px;
-  border: 1px solid #555;
-  box-shadow: 2px 2px 6px rgba(0,0,0,0.5);
-  white-space: nowrap;
 }
 
 #canvas_container.blur {
@@ -682,23 +668,79 @@ body.noscroll {
   user-select: none;
 }
 
-/* Wall height popover bar */
+/* Wall height popover bar (hidden - replaced by wall-tool-window) */
 #wall-height-bar {
   display: none;
+}
+
+/* Wall Tool and Zone Tool floating windows */
+#wall-tool-window,
+#zone-tool-window {
   position: absolute;
-  left: 50px;
-  top: 100px;
-  background: rgba(30,30,30,0.97);
-  color: #fff;
-  padding: 6px 12px;
-  z-index: 200;
+  right: 16px;
+  top: 16px;
+  min-width: 220px;
+  max-width: 340px;
+  background: rgba(245,245,245,0.98);
+  color: #222;
+  border: 1px solid #bbb;
+  border-radius: 5px;
+  box-shadow: 2px 4px 12px rgba(0,0,0,0.25);
+  z-index: 300;
   font-size: 13px;
+  resize: both;
+  overflow: auto;
+}
+
+#wall-tool-header,
+#zone-tool-header {
+  background: rgba(220,220,220,0.98);
+  padding: 5px 10px;
+  cursor: move;
+  user-select: none;
+  font-weight: bold;
+  border-bottom: 1px solid #bbb;
+  border-radius: 5px 5px 0 0;
+  color: #222;
+}
+
+#wall-tool-body,
+#zone-tool-body {
+  padding: 10px;
+}
+
+.wall-tool-section {
+  margin-bottom: 8px;
+}
+
+#wall-tool-points-list {
+  background: rgba(0,0,0,0.04);
+  border-radius: 3px;
+  padding: 4px;
+}
+
+#wall-tool-points-list .wtp-point,
+#wall-tool-points-list .wtp-wall {
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.07);
+  display: flex;
   align-items: center;
-  gap: 10px;
-  border-radius: 4px;
-  border: 1px solid #555;
-  box-shadow: 2px 2px 6px rgba(0,0,0,0.5);
-  white-space: nowrap;
+  gap: 4px;
+}
+
+#wall-tool-points-list input {
+  width: 52px;
+  background: #fff;
+  color: #222;
+  border: 1px solid #bbb;
+  border-radius: 2px;
+  font-size: 11px;
+  padding: 1px 3px;
+}
+
+.zone-type-btn.active-zone-type {
+  outline: 2px solid #333;
+  box-shadow: 0 0 4px rgba(0,0,0,0.4);
 }
 
 /* Action history clickable items */
@@ -711,14 +753,20 @@ body.noscroll {
 /* Toolbar new map / import / export — use image files */
 .toolbar-newMap {
   background-image: url('../images/ObjectTools/file.png');
+  background-size: 20px 20px;
+  background-position: center;
   filter: invert(1);
 }
 .toolbar-import {
   background-image: url('../images/ObjectTools/import.png');
+  background-size: 20px 20px;
+  background-position: center;
   filter: invert(1);
 }
 .toolbar-export {
   background-image: url('../images/ObjectTools/export.png');
+  background-size: 20px 20px;
+  background-position: center;
   filter: invert(1);
 }
 

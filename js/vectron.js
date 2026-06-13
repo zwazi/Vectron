@@ -144,7 +144,18 @@ function vectron_disconnectTool() {
 }
 
 function vectron_connectTool(toolName) {
-    if(vectron_tools.indexOf(toolName) >= 0 && (vectron_currentTool != toolName) && vectron_disconnectTool()) {
+    if(vectron_tools.indexOf(toolName) >= 0 && vectron_disconnectTool()) {
+        if(vectron_currentTool === toolName) {
+            // Already on this tool - clicking again deselects (switches to select)
+            if(toolName !== "select") {
+                window[toolName + "Tool_disconnect"]();
+                vectron_currentTool = "";
+                window["selectTool_connect"]();
+                vectron_currentTool = "select";
+                gui_writeLog("select connected.");
+            }
+            return true;
+        }
         window[toolName + "Tool_connect"]();
         //connect tool and set currenttool
         vectron_currentTool = toolName;
