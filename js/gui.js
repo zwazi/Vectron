@@ -26,9 +26,49 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 var gui_active = false;
 
+/** Clamp a window position so it stays fully within the viewport. */
+function gui_clampToScreen(win, px, py) {
+    var w = win.offsetWidth || 0;
+    var h = win.offsetHeight || 0;
+    var maxX = Math.max(0, window.innerWidth  - w);
+    var maxY = Math.max(0, window.innerHeight - h);
+    return [Math.max(0, Math.min(px, maxX)), Math.max(0, Math.min(py, maxY))];
+}
+
 function gui_init() {
     gui_writeLog("Welcome to Vectron.")
     actionHistory_init();
+    controlBox_initDrag();
+}
+
+function controlBox_initDrag() {
+    var box = document.getElementById('control_box');
+    var handle = box ? box.querySelector('h1') : null;
+    if (!box || !handle) return;
+    var isDragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+    handle.addEventListener('mousedown', function(e) {
+        // Switch from margin:auto centering to explicit positioning on first drag
+        var rect = box.getBoundingClientRect();
+        if (!box.style.left || box.style.left === '' || box.style.margin !== '0px') {
+            box.style.left  = rect.left + 'px';
+            box.style.top   = rect.top  + 'px';
+            box.style.right  = 'auto';
+            box.style.margin = '0';
+        }
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        origLeft = box.offsetLeft;
+        origTop  = box.offsetTop;
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        var clamped = gui_clampToScreen(box, origLeft + e.clientX - startX, origTop + e.clientY - startY);
+        box.style.left = clamped[0] + 'px';
+        box.style.top  = clamped[1] + 'px';
+    });
+    document.addEventListener('mouseup', function() { isDragging = false; });
 }
 
 function actionHistory_init() {
@@ -45,8 +85,9 @@ function actionHistory_init() {
     });
     document.addEventListener("mousemove", function(e) {
         if(isDragging) {
-            win.style.left = (e.clientX - dragOffX) + "px";
-            win.style.top  = (e.clientY - dragOffY) + "px";
+            var clamped = gui_clampToScreen(win, e.clientX - dragOffX, e.clientY - dragOffY);
+            win.style.left = clamped[0] + "px";
+            win.style.top  = clamped[1] + "px";
         }
     });
     document.addEventListener("mouseup", function() { isDragging = false; });

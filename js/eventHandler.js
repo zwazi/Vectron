@@ -272,7 +272,9 @@ function eventHandler_init() {
     });
 
     $("#zone-base .toolbar-toolZone").mouseup(function(e) {
-        $("#zones-menu").toggle(200, "swing");
+        vectron_connectTool("zone");
+        gui_writeLog('ZoneTool Connected.');
+        $("#zones-menu").hide();
     });
 
     $(".toolbar-toolZone-death").mouseup(function(e) {
@@ -350,7 +352,7 @@ function eventHandler_init() {
     // Finish wall button
     $("#wall-tool-finish").on("click", function() {
         if (vectron_currentTool === "wall" && vectron_toolActive && wallTool_currentObj && wallTool_currentObj.points.length >= 2) {
-            wallTool_complete();
+            wallTool_finishWall();
         }
     });
 
@@ -372,10 +374,9 @@ function eventHandler_init() {
         });
         document.addEventListener('mousemove', function(e) {
             if (!dragging) return;
-            var px = e.clientX - ox;
-            var py = e.clientY - oy;
-            win.style.left = px + 'px';
-            win.style.top = py + 'px';
+            var clamped = gui_clampToScreen(win, e.clientX - ox, e.clientY - oy);
+            win.style.left = clamped[0] + 'px';
+            win.style.top  = clamped[1] + 'px';
         });
         document.addEventListener('mouseup', function() { dragging = false; });
         document.getElementById('wall-tool-close').addEventListener('click', function() {
@@ -401,8 +402,9 @@ function eventHandler_init() {
         });
         document.addEventListener('mousemove', function(e) {
             if (!dragging) return;
-            win.style.left = (e.clientX - ox) + 'px';
-            win.style.top = (e.clientY - oy) + 'px';
+            var clamped = gui_clampToScreen(win, e.clientX - ox, e.clientY - oy);
+            win.style.left = clamped[0] + 'px';
+            win.style.top  = clamped[1] + 'px';
         });
         document.addEventListener('mouseup', function() { dragging = false; });
         document.getElementById('zone-tool-close').addEventListener('click', function() {
@@ -643,8 +645,9 @@ function eventHandler_init() {
         });
         document.addEventListener('mousemove', function(e) {
             if(!isDragging) return;
-            box.style.left = (origLeft + e.clientX - startX) + 'px';
-            box.style.top  = (origTop  + e.clientY - startY) + 'px';
+            var clamped = gui_clampToScreen(box, origLeft + e.clientX - startX, origTop + e.clientY - startY);
+            box.style.left = clamped[0] + 'px';
+            box.style.top  = clamped[1] + 'px';
         });
         document.addEventListener('mouseup', function() { isDragging = false; });
     })();
@@ -1171,6 +1174,23 @@ function eventHandler_init() {
                 spawnTool_disconnect();
                 vectron_currentTool = "";
                 vectron_connectTool("spawn");
+            } else if(vectron_currentTool == "split") {
+                // Cancel selected wall, stay on split tool
+                splitTool_selectedWall = null;
+                splitTool_hoveredWall = null;
+                vectron_toolActive = false;
+                splitTool_clearHighlight();
+                splitTool_clearGuide();
+                vectron_render();
+                gui_writeLog("Split Tool: selection cancelled.");
+            } else if(vectron_currentTool == "join") {
+                // Cancel selected wall, stay on join tool
+                joinTool_firstWall = null;
+                vectron_toolActive = false;
+                joinTool_clearHighlightA();
+                joinTool_clearHighlightB();
+                vectron_render();
+                gui_writeLog("Join Tool: selection cancelled.");
             }
             return false;
         }

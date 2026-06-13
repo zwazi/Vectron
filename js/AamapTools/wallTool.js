@@ -192,6 +192,36 @@ function wallTool_complete() {
 }
 
 /**
+ * Finish the current wall WITHOUT adding a new point.
+ * Used by the "Finish Wall" button click — as opposed to wallTool_complete()
+ * which is invoked by a double-click and intentionally adds the cursor position
+ * as a final point before closing.
+ */
+function wallTool_finishWall() {
+    if(wallTool_currentObj == null) return;
+    if(wallTool_currentObj.points.length < 2) {
+        wallTool_currentObj.obj.remove();
+        wallTool_currentObj.guideObj.remove();
+        wallTool_currentObj = null;
+        vectron_toolActive = false;
+        gui_writeLog("Wall canceled, < 2 points");
+        wallTool_updatePointsList();
+        return;
+    }
+    wallTool_currentObj.guideObj.remove();
+    var completedWall = wallTool_currentObj;
+    aamap_add(completedWall);
+    aamap_recordAction({
+        label: "Add wall",
+        undo: function() { _aamap_removeObj(completedWall); vectron_render(); },
+        redo: function() { aamap_objects.push(completedWall); vectron_render(); }
+    });
+    wallTool_currentObj = null;
+    vectron_toolActive = false;
+    wallTool_updatePointsList();
+}
+
+/**
  * Splits all walls at grid line intersections based on the current grid spacing.
  */
 function wallTool_splitByGrid() {
