@@ -346,7 +346,8 @@ function keybinds_buildUI() {
         inp.type = 'text';
         inp.maxLength = 3;
         inp.value = vectron_keybinds[action] || '';
-        inp.style.cssText = 'width:50px;padding:2px 4px;font-family:monospace;';
+        inp.className = 'form-control';
+        inp.style.cssText = 'width:50px;font-family:monospace;display:inline-block;';
         inp.dataset.action = action;
 
         var btn = document.createElement('button');

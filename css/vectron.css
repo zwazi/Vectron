@@ -406,8 +406,6 @@ body.noscroll {
 #contextMenu {
   position: absolute;
   display:none;
-  max-height: 100vh;
-  overflow-y: auto;
 }
 
 /* Split Tool icon */
@@ -429,12 +427,11 @@ body.noscroll {
 }
 
 /* Join Tool icon */
+.toolbar-toolJoin {
+  background-image: url('../images/ObjectTools/JoinTool.svg');
+}
 .toolbar-toolJoin:after {
-    font-family: sans-serif;
-    content: "\26D3";
-    font-size: 18px;
-    position:relative;
-    top:3px;
+    content: none;
 }
 
 /* Info/About button */
@@ -485,13 +482,11 @@ body.noscroll {
 }
 
 /* XML editor toolbar button */
+.toolbar-toolXml {
+  background-image: url('../images/ObjectTools/XmlTool.svg');
+}
 .toolbar-toolXml:after {
-  font-family: monospace;
-  content: "<>";
-  font-size: 13px;
-  position: relative;
-  top: 5px;
-  letter-spacing: -1px;
+  content: none;
 }
 
 /* Action History Window */
@@ -716,12 +711,15 @@ body.noscroll {
 /* Toolbar new map / import / export — use image files */
 .toolbar-newMap {
   background-image: url('../images/ObjectTools/file.png');
+  filter: invert(1);
 }
 .toolbar-import {
   background-image: url('../images/ObjectTools/import.png');
+  filter: invert(1);
 }
 .toolbar-export {
   background-image: url('../images/ObjectTools/export.png');
+  filter: invert(1);
 }
 
 /* Context menu: standardized item size/spacing (matching copy/paste style) */
@@ -768,6 +766,11 @@ body.noscroll {
 }
 #contextMenu .dropdown-submenu:hover > .cm-submenu {
   display: block;
+}
+/* Flip submenu to left when context menu is near right edge */
+#contextMenu.submenu-left .cm-submenu {
+  left: auto;
+  right: 100%;
 }
 
 /* New-map confirmation popover */
