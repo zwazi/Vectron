@@ -129,7 +129,7 @@ function eventHandler_init() {
         aamap_save(mapName, mapAuthor, mapCategory, mapVersion, mapDtd, mapAxes, mapSets);
     });
 
-    $("#gui-close").mouseup(function(e) {
+    $(document).on("click", "#control-box-close", function(e) {
         if(gui_active) {
             gui_hide();
             $(".toolbar-gui-close").hide();
@@ -199,38 +199,69 @@ function eventHandler_init() {
     // Map Adjustments
     $("#scale_map").mouseup(function(e)
     {
-        aamap_scale(parseFloat($("#map_scale").val()));
+        var factor = parseFloat($("#map_scale").val());
+        if(isNaN(factor) || factor === 0) return;
+        var affectedObjs = aamap_objects.slice();
+        aamap_scale(factor);
         aamap_panCenter();
+        aamap_recordAction({
+            label: "Scale map",
+            undo: function() { affectedObjs.forEach(function(o){ o.scale(1/factor); }); aamap_panCenter(); },
+            redo: function() { affectedObjs.forEach(function(o){ o.scale(factor); }); aamap_panCenter(); }
+        });
     });
 
     $("#map_rotate_left").mouseup(function(e)
     {
+        var affectedObjs = aamap_objects.slice();
         aamap_rotateSimple(-1);
         aamap_panCenter();
+        aamap_recordAction({
+            label: "Rotate map left",
+            undo: function() { affectedObjs.forEach(function(o){ o.rotateSimple(1); }); aamap_panCenter(); },
+            redo: function() { affectedObjs.forEach(function(o){ o.rotateSimple(-1); }); aamap_panCenter(); }
+        });
     });
     $("#map_rotate_right").mouseup(function(e)
     {
+        var affectedObjs = aamap_objects.slice();
         aamap_rotateSimple(1);
         aamap_panCenter();
+        aamap_recordAction({
+            label: "Rotate map right",
+            undo: function() { affectedObjs.forEach(function(o){ o.rotateSimple(-1); }); aamap_panCenter(); },
+            redo: function() { affectedObjs.forEach(function(o){ o.rotateSimple(1); }); aamap_panCenter(); }
+        });
     });
     
     $("#rotate_map").mouseup(function(e)
     {
         var ang = parseFloat($("#map_rot_angle").val());
         if(isNaN(ang)) { alert("invalid value!"); return; }
-        aamap_rotate(ang*Math.PI/180);
+        var rad = ang * Math.PI / 180;
+        var affectedObjs = aamap_objects.slice();
+        aamap_rotate(rad);
         aamap_panCenter();
+        aamap_recordAction({
+            label: "Rotate map " + ang + "°",
+            undo: function() { affectedObjs.forEach(function(o){ o.rotate(-rad); }); aamap_panCenter(); },
+            redo: function() { affectedObjs.forEach(function(o){ o.rotate(rad); }); aamap_panCenter(); }
+        });
     });
 
     $("#move_map").mouseup(function(e)
     {
         var x = parseFloat($("#map_move_x").val());
         var y = parseFloat($("#map_move_y").val());
-        for(var i=aamap_objects.length-1;i>=0;--i)
-        {
-            aamap_objects[i].move(x, y);
-        }
+        if(isNaN(x) || isNaN(y)) return;
+        var affectedObjs = aamap_objects.slice();
+        affectedObjs.forEach(function(o){ o.move(x, y); });
         aamap_panCenter();
+        aamap_recordAction({
+            label: "Move map",
+            undo: function() { affectedObjs.forEach(function(o){ o.move(-x, -y); }); aamap_panCenter(); },
+            redo: function() { affectedObjs.forEach(function(o){ o.move(x, y); }); aamap_panCenter(); }
+        });
     });
 
 

@@ -131,6 +131,12 @@ body {
 	border-color: #555;
 }
 
+#control-box-header {
+	background: #1a1a1a;
+	border-bottom-color: #444;
+	color: #eee;
+}
+
 #control_box .tab-pane {
 	background: #1a1a1a;
 	border-color: #444;
@@ -152,7 +158,8 @@ body {
 
 #control_box h1,
 #control_box h5,
-#control_box label {
+#control_box label,
+.cfg-section-label {
 	color: #ddd;
 }
 

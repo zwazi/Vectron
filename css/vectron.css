@@ -317,8 +317,7 @@ body.noscroll {
   z-index:5;
   left:0;
   right:0;margin:auto auto;
-  padding:30px;
-  text-align:right;
+  text-align:left;
   display:none;
   resize: both;
   overflow: auto;
@@ -327,9 +326,30 @@ body.noscroll {
   box-sizing: border-box;
 }
 
-#control_box > h1 {
+#control-box-header {
+  background: #333;
+  color: #eee;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: bold;
   cursor: move;
   user-select: none;
+  border-bottom: 1px solid #555;
+}
+
+#control-box-header #control-box-close {
+  float: right;
+  cursor: pointer;
+  font-weight: bold;
+  opacity: 0.7;
+}
+
+#control-box-header #control-box-close:hover {
+  opacity: 1;
+}
+
+#control_box > #gui-content {
+  padding: 20px;
 }
 
 @media only screen and (max-height: 800px)
@@ -351,7 +371,7 @@ body.noscroll {
 
 #control_box #gui-content {
   text-align:left;
-  margin-bottom:20px;
+  margin-bottom:10px;
 }
 
 @media only screen and (max-height: 530px)
@@ -365,8 +385,6 @@ body.noscroll {
 {
   #control_box { top:-20px; height:auto }
 }
-
-#control_box h1 { text-align:left; }
 
 #control_box .tab-pane {
   background:#f5f5f5;
@@ -384,8 +402,6 @@ body.noscroll {
   font-weight:bold;
   cursor:pointer;
 }
-
-#control_box h1 { margin:0; margin-bottom:25px; }
 
 #control_box table { background:#FFF; margin-bottom:0; border-radius:3px; }
 
@@ -687,7 +703,7 @@ body.noscroll {
 #wall-tool-window,
 #zone-tool-window {
   position: absolute;
-  right: 16px;
+  left: 66px;
   top: 16px;
   min-width: 220px;
   max-width: 340px;
@@ -856,3 +872,34 @@ body.noscroll {
 }
 
 /* Dark theme overrides for new popover and XML header */
+
+/* Configure tab section labels and dividers */
+.cfg-section-label {
+  font-weight: bold;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #666;
+  margin: 0 0 4px 0;
+}
+.cfg-divider {
+  margin: 10px 0;
+  border-color: #ddd;
+}
+.cfg-checkbox {
+  margin: 2px 0;
+}
+.cfg-checkbox label {
+  font-weight: normal;
+  cursor: pointer;
+}
+.cfg-form-group {
+  margin-bottom: 0;
+}
+.cfg-form-group label {
+  font-size: 13px;
+}
+.cfg-form-group .form-control {
+  margin-top: 4px;
+  max-width: 260px;
+}
