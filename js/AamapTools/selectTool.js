@@ -50,6 +50,7 @@ var shouldAddToSelected = false;
 
 
 var selectTool_clickedAlreadySelected = false;
+var selectTool_guideObj = null;
 var selectTool_selectedObjs = [];
 
 var selectTool_sets = [];
