@@ -232,6 +232,7 @@ function selectTool_complete() {
         shouldAddToSelected = false;
 
         vectron_toolActive = false;
+        if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
         return;
     }
 
