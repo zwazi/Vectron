@@ -761,6 +761,7 @@ function eventHandler_init() {
     Mousetrap.bind('mod+shift+z', function(e) {
         if(!aamap_active) return;
         aamap_redo();
+        vectron_render();
         return false;
     });
 

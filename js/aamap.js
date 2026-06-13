@@ -160,7 +160,7 @@ function aamap_fitToScreen() {
     var map_height = max_y - min_y;
 
     if(map_width > 0 || map_height > 0) {
-        var padding = 0.85;
+        var padding = 0.85; // use 85% of the canvas (15% margin around the map)
         vectron_zoom = Math.min(
             map_width > 0 ? (vectron_width * padding) / map_width : Infinity,
             map_height > 0 ? (vectron_height * padding) / map_height : Infinity
