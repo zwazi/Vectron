@@ -250,7 +250,7 @@ function selectTool_delete() {
     // Mark as deselected and remove Raphael elements directly
     deletedObjs.forEach(function(e) {
         e.isSelected = false;
-        if (e.obj) { e.obj.remove(); e.obj = null; }
+        if (e.obj) e.obj.remove();
         if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
     });
     aamap_objects = aamap_objects.diff(deletedObjs);
@@ -263,7 +263,7 @@ function selectTool_delete() {
         redo: function() {
             aamap_objects = aamap_objects.diff(deletedObjs);
             deletedObjs.forEach(function(e) {
-                if (e.obj) { e.obj.remove(); e.obj = null; }
+                if (e.obj) e.obj.remove();
                 if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
             });
             vectron_render();
