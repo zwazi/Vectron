@@ -42,31 +42,31 @@ function aamap_save(name, author, category, version, dtd, axes, settings) {
     xml += '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>'+"\n";
     xml += '<!DOCTYPE Resource SYSTEM "' + dtd + '">'+"\n";
     xml += '<Resource type="aamap" name="'+ name +'" version="'+ version +'" author="'+ author +'" category="'+ category +'">'+"\n";
-    xml += '<Map version="0.2.8">'+"\n";
+    xml += '  <Map version="0.2.8">'+"\n";
         if(settings.length > 0)
         {
-            xml += "<Settings>\n";
+            xml += "  <Settings>\n";
             for(var i = 0, ii = settings.length; i < ii; i++)
             {
                 var point = settings[i].indexOf(" ");
                 var setting = settings[i].slice(0,point), value = settings[i].slice(point+1);
-                xml += "<Setting name=\""+setting+"\" value=\""+value+"\" />\n";
+                xml += "    <Setting name=\""+setting+"\" value=\""+value+"\" />\n";
             }
-            xml += "</Settings>\n";
+            xml += "  </Settings>\n";
         }
-            xml += '<World>'+"\n";
-                xml += '<Field>'+"\n";
-                if($("#map_axes_forced")[0].checked)
-                {
-                    xml += '<Axes number="'+axes+'"/>'+"\n";
-                }
-                            for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
-                                xml += aamap_objects[i].getXML();
-                                xml += "\n";
-                            }
-                xml += '</Field>'+"\n";
-            xml += '</World>'+"\n";
-        xml += '</Map>'+"\n";
+        xml += '    <World>'+"\n";
+        xml += '      <Field>'+"\n";
+        if($("#map_axes_forced")[0].checked)
+        {
+            xml += '        <Axes number="'+axes+'"/>'+"\n";
+        }
+        for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
+            xml += aamap_objects[i].getXML();
+            xml += "\n";
+        }
+        xml += '      </Field>'+"\n";
+        xml += '    </World>'+"\n";
+    xml += '  </Map>'+"\n";
     xml += '</Resource>'+"\n";
     xml += "<!-- Exported from Vectron 1.1 -->";
 
@@ -376,9 +376,6 @@ function aamap_drawGrid() {
         axX.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axX);
     }
-
-    // Store bbox for compatibility with panning code
-    aamap_grid.bbox = aamap_grid.getBBox();
 }
 
 var entityMap = {

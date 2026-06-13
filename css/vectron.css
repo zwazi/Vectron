@@ -192,12 +192,23 @@ body.noscroll {
   cursor:pointer;
 }
 
+/* Settings cog icon for toolbar */
+.toolbar-gui-open:after,
+.toolbar-gui-close:after {
+    font-family: 'Glyphicons Halflings';
+    content: "\e019";
+    font-size: 16px;
+    position: relative;
+    top: 3px;
+}
+
+/* Remove old background images for gui open/close buttons */
 .toolbar-gui-open {
-  background-image:url('../images/GUI/GuiOpen.png');
+  background-image: none;
 }
 
 .toolbar-gui-close {
-  background-image:url('../images/GUI/GuiClose.png');
+  background-image: none;
 }
 
 .toolbar-toolSelect {
@@ -441,9 +452,13 @@ body.noscroll {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 10px 10px;
-  padding-bottom: 14px;
+  padding: 0 10px;
+  padding-bottom: 8px;
   margin: 0;
+}
+
+#toolbar-bottom-ul li:first-child {
+  margin-bottom: 6px;
 }
 
 /* Keybind overlay badge on toolbar buttons */
@@ -552,24 +567,39 @@ body.noscroll {
   border: 1px solid #aaa;
   border-radius: 4px;
   padding: 20px;
-  width: 80%;
-  max-width: 860px;
-  max-height: 85vh;
+  width: min(90vw, 1050px);
+  min-width: 600px;
+  max-height: 88vh;
+  height: 88vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 24px rgba(0,0,0,0.3);
 }
 #xml-editor-box h4 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
+}
+#xml-editor-tabs {
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 0;
+}
+#xml-editor-tabs li.active > a,
+#xml-editor-tabs li.active > a:hover {
+  background: #fff;
+  border-bottom-color: #fff;
+}
+#xml-editor-tabs li.disabled > a {
+  color: #aaa;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 #xml-editor-content {
   flex: 1;
-  min-height: 300px;
-  max-height: calc(85vh - 140px);
+  min-height: 200px;
   font-family: monospace;
   font-size: 12px;
-  resize: vertical;
+  resize: none;
   border: 1px solid #ccc;
+  border-top: none;
   padding: 8px;
   white-space: pre;
   overflow: auto;

@@ -159,14 +159,21 @@ function eventHandler_init() {
     $("#show-action-history").change(function(box)
     {
         if($("#show-action-history").is(':checked'))
+        {
             actionHistory_show();
+            _config_set_enable("showActionHistory");
+        }
         else
+        {
             actionHistory_hide();
+            _config_set_disable("showActionHistory");
+        }
     });
 
     $(document).on("click", "#action-history-close", function() {
         actionHistory_hide();
         $("#show-action-history").prop("checked", false);
+        _config_set_disable("showActionHistory");
     });
 
     // Map Adjustments
@@ -327,11 +334,11 @@ function eventHandler_init() {
         var xml = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>\n';
         xml += '<!DOCTYPE Resource SYSTEM "' + (xml_dtd || 'sty.dtd') + '">\n';
         xml += '<Resource type="aamap" name="' + (xml_name || '') + '" version="' + (xml_version || '') + '" author="' + (xml_author || '') + '" category="' + (xml_category || '') + '">\n';
-        xml += '<Map version="0.2.8">\n<World>\n<Field>\n';
+        xml += '  <Map version="0.2.8">\n    <World>\n      <Field>\n';
         for (var i = 0; i < aamap_objects.length; i++) {
-            xml += '  ' + aamap_objects[i].getXML() + '\n';
+            xml += aamap_objects[i].getXML() + '\n';
         }
-        xml += '</Field>\n</World>\n</Map>\n</Resource>\n';
+        xml += '      </Field>\n    </World>\n  </Map>\n</Resource>\n';
         return xml;
     }
 
@@ -339,7 +346,7 @@ function eventHandler_init() {
         var objs = selectTool_selectedObjs;
         var xml = '<Field>\n';
         for (var i = 0; i < objs.length; i++) {
-            xml += '  ' + objs[i].getXML() + '\n';
+            xml += objs[i].getXML() + '\n';
         }
         xml += '</Field>';
         return xml;
@@ -348,20 +355,35 @@ function eventHandler_init() {
     var xmlEditor_mode = 'full'; // 'full' or 'selected'
     var xmlEditor_selectedSnapshot = [];
 
-    function xmlEditor_open(selectedOnly) {
-        xmlEditor_mode = selectedOnly ? 'selected' : 'full';
+    function xmlEditor_switchTab(mode) {
+        xmlEditor_mode = mode;
         xmlEditor_selectedSnapshot = selectTool_selectedObjs.slice();
-        var content, title;
-        if (selectedOnly && selectTool_selectedObjs.length > 0) {
-            content = xmlEditor_getSelectedXML();
-            title = '(' + selectTool_selectedObjs.length + ' object(s) selected)';
+        if (mode === 'selected' && selectTool_selectedObjs.length > 0) {
+            $('#xml-editor-content').val(xmlEditor_getSelectedXML());
+            $('#xml-tab-sel-count').text('(' + selectTool_selectedObjs.length + ')');
         } else {
-            content = xmlEditor_getFullXML();
-            title = '(full map)';
             xmlEditor_mode = 'full';
+            $('#xml-editor-content').val(xmlEditor_getFullXML());
         }
-        $('#xml-editor-content').val(content);
-        $('#xml-editor-title').text(title);
+        $('#xml-editor-tabs li').removeClass('active');
+        $('#xml-tab-' + xmlEditor_mode).addClass('active');
+        // Disable selection tab if nothing selected
+        if (selectTool_selectedObjs.length === 0) {
+            $('#xml-tab-selected').addClass('disabled');
+        } else {
+            $('#xml-tab-selected').removeClass('disabled');
+        }
+    }
+
+    function xmlEditor_open(preferSelected) {
+        var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
+        $('#xml-tab-sel-count').text(hasSelected ? '(' + selectTool_selectedObjs.length + ')' : '');
+        if (hasSelected) {
+            $('#xml-tab-selected').removeClass('disabled');
+        } else {
+            $('#xml-tab-selected').addClass('disabled');
+        }
+        xmlEditor_switchTab((preferSelected && hasSelected) ? 'selected' : 'full');
         $('#xml-editor-overlay').addClass('visible');
         aamap_active = false;
     }
@@ -394,7 +416,8 @@ function eventHandler_init() {
     }
 
     $(".toolbar-toolXml").mouseup(function(e) {
-        xmlEditor_open(false);
+        var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
+        xmlEditor_open(hasSelected);
         $("#zones-menu").hide();
     });
 
@@ -410,6 +433,13 @@ function eventHandler_init() {
         if ($(e.target).is("#xml-editor-overlay")) {
             xmlEditor_close();
         }
+    });
+
+    $(document).on('click', '#xml-editor-tabs a', function(e) {
+        e.preventDefault();
+        var tab = $(this).data('tab');
+        if ($(this).closest('li').hasClass('disabled')) return;
+        xmlEditor_switchTab(tab);
     });
 
     $("#contextMenu-view-xml").mouseup(function(e) {
@@ -653,12 +683,6 @@ function eventHandler_init() {
             var xdir = eventHandler_middleClickX - cursor_pageX;
             var ydir = eventHandler_middleClickY - cursor_pageY;
             vectron_screen.setViewBox(xdir, ydir, vectron_width, vectron_height);
-            var bbox = aamap_grid.getBBox();
-            var adj = vectron_zoom*vectron_grid_spacing;
-            aamap_grid.translate(
-                (Math.round(xdir/adj)*adj)-(bbox.x-(aamap_grid.bbox.x)),
-                (Math.round(ydir/adj)*adj)-(bbox.y-(aamap_grid.bbox.y))
-            );
             return;
         }
 
@@ -700,6 +724,8 @@ function eventHandler_init() {
     var zoom_mouse_x = 0, zoom_mouse_y = 0;
     var __zoom_timeout;
     var __zoom_raf;
+    var __zoom_last_rendered_zoom = 1;
+    var __zoom_canvas = document.getElementById('canvas_container');
     if(!("onwheel" in $("#canvas_container")[0]))
     {
         $("#canvas_container")[0].addEventListener("mousewheel",function(event)
@@ -721,6 +747,7 @@ function eventHandler_init() {
             if(prev_vectron_zoom == 0)
             {
                 prev_vectron_zoom = vectron_zoom;
+                __zoom_last_rendered_zoom = vectron_zoom;
                 prev_vectron_panX = vectron_panX;
                 prev_vectron_panY = vectron_panY;
                 zoom_mouse_x = cursor_pageX;
@@ -741,10 +768,17 @@ function eventHandler_init() {
             vectron_panX = prev_vectron_panX + (zoom_mouse_x - vectron_width/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
             vectron_panY = prev_vectron_panY - (zoom_mouse_y - vectron_height/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
 
-            // Smooth render using requestAnimationFrame
+            // Apply instant CSS scale transform for immediate visual feedback before the RAF renders
+            var cssScale = vectron_zoom / __zoom_last_rendered_zoom;
+            __zoom_canvas.style.transformOrigin = zoom_mouse_x + 'px ' + zoom_mouse_y + 'px';
+            __zoom_canvas.style.transform = 'scale(' + cssScale + ')';
+
+            // Proper render using requestAnimationFrame (removes CSS transform and redraws correctly)
             if(__zoom_raf) cancelAnimationFrame(__zoom_raf);
             __zoom_raf = requestAnimationFrame(function()
             {
+                __zoom_canvas.style.transform = '';
+                __zoom_last_rendered_zoom = vectron_zoom;
                 vectron_render();
                 __zoom_raf = null;
             });
@@ -916,6 +950,18 @@ function eventHandler_init() {
         if(!aamap_active) return;
 
         aamap_panCenter();
+    });
+
+    Mousetrap.bind('mod+c', function(e) {
+        if(!aamap_active) return;
+        selectTool_copy();
+        return false;
+    });
+
+    Mousetrap.bind('mod+v', function(e) {
+        if(!aamap_active) return;
+        selectTool_paste();
+        return false;
     });
 
     Mousetrap.bind('mod+z', function(e) {

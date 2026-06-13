@@ -196,9 +196,7 @@ function Spawn() {
     }
 
     this.getXML = function() {
-        //<Spawn x="" y="" xdir="" ydir=""/>
-        //<Zone effect=""><ShapeCircle radius="" growth=""><Point x="" y=""/></ShapeCircle></Zone>
-        return '<Spawn x="'+ (Math.round(this.x * 1e6)/1e6) +'" y="'+ (Math.round(this.y * 1e6)/1e6) +'" xdir="'+ (Math.round(this.xDir * 1e6)/1e6) +'" ydir="'+ (Math.round(this.yDir * 1e6)/1e6) +'"/>';
+        return '  <Spawn x="'+ (Math.round(this.x * 1e6)/1e6) +'" y="'+ (Math.round(this.y * 1e6)/1e6) +'" xdir="'+ (Math.round(this.xDir * 1e6)/1e6) +'" ydir="'+ (Math.round(this.yDir * 1e6)/1e6) +'"/>';
     }
 
     this.outputFriendlyXML = function() {
