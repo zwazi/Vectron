@@ -49,7 +49,7 @@ function controlBox_initDrag() {
     handle.addEventListener('mousedown', function(e) {
         // Switch from margin:auto centering to explicit positioning on first drag
         var rect = box.getBoundingClientRect();
-        if (box.style.left === '0px' || box.style.margin !== '0px') {
+        if (!box.style.left || box.style.left === '' || box.style.margin !== '0px') {
             box.style.left  = rect.left + 'px';
             box.style.top   = rect.top  + 'px';
             box.style.right  = 'auto';
