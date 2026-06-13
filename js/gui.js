@@ -57,22 +57,41 @@ function actionHistory_update() {
     if(!list || document.getElementById("action-history-window").style.display === "none") return;
     list.innerHTML = "";
 
-    function makeItem(label, cls) {
+    function makeItem(label, cls, clickFn) {
         var li = document.createElement("li");
         li.textContent = label || "(unnamed action)";
         li.className = cls;
+        if(clickFn) {
+            li.style.cursor = "pointer";
+            li.addEventListener("click", clickFn);
+        }
         return li;
     }
 
     for(var i = 0; i < aamap_undoStack.length; i++) {
-        list.appendChild(makeItem(aamap_undoStack[i].label, "ah-undo"));
+        (function(idx) {
+            var stepsToUndo = aamap_undoStack.length - 1 - idx;
+            var li = makeItem(aamap_undoStack[idx].label, "ah-undo", stepsToUndo === 0 ? null : function() {
+                for(var s = 0; s < stepsToUndo; s++) aamap_undo();
+                vectron_render();
+            });
+            list.appendChild(li);
+        })(i);
     }
     var cur = document.createElement("li");
     cur.className = "ah-current";
     cur.textContent = "▶ current position";
     list.appendChild(cur);
+    // redo items: redoStack[length-1] is first after current, redoStack[0] is last
     for(var j = aamap_redoStack.length - 1; j >= 0; j--) {
-        list.appendChild(makeItem(aamap_redoStack[j].label, "ah-redo"));
+        (function(redoIdx, displayPos) {
+            var stepsToRedo = displayPos + 1; // number of redos needed
+            var li = makeItem(aamap_redoStack[redoIdx].label, "ah-redo", function() {
+                for(var s = 0; s < stepsToRedo; s++) aamap_redo();
+                vectron_render();
+            });
+            list.appendChild(li);
+        })(j, aamap_redoStack.length - 1 - j);
     }
     // Scroll to current position marker
     cur.scrollIntoView({block: "nearest"});
@@ -92,6 +111,22 @@ function gui_writeLog(message) {
     $('#debug_stream').append('<span>' + message + '</span');
     var element = document.getElementById("debug_stream");
     element.scrollTop = element.scrollHeight;
+}
+
+var _toast_timeout = null;
+function gui_toast(message) {
+    var toast = document.getElementById("vt-toast");
+    if(!toast) {
+        toast = document.createElement("div");
+        toast.id = "vt-toast";
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = "vt-toast-show";
+    if(_toast_timeout) clearTimeout(_toast_timeout);
+    _toast_timeout = setTimeout(function() {
+        toast.className = "";
+    }, 2200);
 }
 
 function gui_clearLog() {

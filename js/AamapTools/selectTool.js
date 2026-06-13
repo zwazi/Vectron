@@ -556,7 +556,8 @@ function selectTool_circIntersectsRect(p1, r, x0, y0, x1, y1) {
 }
 
 function selectTool_addInvisibleGlow(aamapObject) {
-    aamapObject.glowObj = aamapObject.obj.glow({color: config_isDark?"#000000":"#FFFFFF", width:2});
+    var hitWidth = Math.min(Math.max(8, Math.round(12 / vectron_zoom)), 60);
+    aamapObject.glowObj = aamapObject.obj.glow({color: config_isDark?"#000000":"#FFFFFF", width: hitWidth, opacity: 0.01});
 }
 
 function selectTool_removeInvisibleGlow(aamapObject) {
@@ -572,7 +573,8 @@ function selectTool_addHoverSet(aamapObject) {
 }
 
 function selectTool_addHoverSetSelected(aamapObject) {
-    aamapObject.glowObj = aamapObject.obj.glow({color: config_isDark ? "#77bbff" : "#375ffc", width: config_isDark ? 5 : 2});
+    var hitWidth = Math.min(Math.max(10, Math.round(16 / vectron_zoom)), 80);
+    aamapObject.glowObj = aamapObject.obj.glow({color: config_isDark ? "#77bbff" : "#375ffc", width: hitWidth, opacity: config_isDark ? 0.4 : 0.25});
     var set = vectron_screen.set().push(aamapObject.obj, aamapObject.glowObj);
     selectTool_sets.push(set);
     set.hoverset(vectron_screen, selectTool_hoverInSelected, selectTool_hoverOutSelected);
