@@ -49,9 +49,11 @@ function eventHandler_init() {
                 e.pageY,
         });
         $contextMenu.fadeIn(150);
-        // Flip submenu to the left if not enough space to the right
+        // Flip submenu to the left if not enough space to the right.
+        // Use the actual submenu element width if available, otherwise fall back to min-width (180px) + padding.
+        var $submenu = $contextMenu.find('.cm-submenu').first();
+        var submenuWidth = ($submenu.length && $submenu.is(':visible')) ? $submenu.outerWidth() : ($submenu.css('min-width') ? parseInt($submenu.css('min-width')) : 180);
         var cmLeft = parseFloat($contextMenu.css('left')) || e.pageX;
-        var submenuWidth = 200;
         if (cmLeft + $contextMenu.outerWidth() + submenuWidth > $("body").width()) {
             $contextMenu.addClass('submenu-left');
         } else {
@@ -415,6 +417,8 @@ function eventHandler_init() {
         var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
         if (xmlEditor_mode === 'selected') {
             if (hasSelected) {
+                // Keep xmlEditor_selectedSnapshot in sync with the current selection so that
+                // xmlEditor_apply() knows which objects to replace when the user clicks Apply.
                 xmlEditor_selectedSnapshot = selectTool_selectedObjs.slice();
                 $('#xml-editor-content').val(xmlEditor_getSelectedXML());
                 $('#xml-tab-sel-count').text('(' + selectTool_selectedObjs.length + ')');
