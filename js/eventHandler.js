@@ -399,21 +399,21 @@ function eventHandler_init() {
 
     function xmlEditor_validateXML(content, isFragment) {
         var parser = new DOMParser();
-        var toValidate = isFragment ? ('<Root>' + content + '</Root>') : content;
-        var doc = parser.parseFromString(toValidate, "text/xml");
-        var err = doc.querySelector("parsererror");
-        return err ? err.textContent : null;
+        // Wrap fragment in a neutral root element for parseability testing
+        var testStr = isFragment ? ('<VectronRoot>' + content + '</VectronRoot>') : content;
+        var doc = parser.parseFromString(testStr, "text/xml");
+        // Return boolean only - never echo user content back to the DOM
+        return doc.querySelector("parsererror") !== null;
     }
 
     function xmlEditor_apply() {
         var content = $('#xml-editor-content').val();
         var errDiv = document.getElementById('xml-editor-error');
 
-        // Validate XML
+        // Validate XML (display fixed message, not user content)
         var isFragment = (xmlEditor_mode === 'selected');
-        var validationError = xmlEditor_validateXML(content, isFragment);
-        if(validationError) {
-            errDiv.textContent = "XML error: " + validationError.split('\n')[0];
+        if(xmlEditor_validateXML(content, isFragment)) {
+            errDiv.textContent = "Invalid XML: please check your syntax and try again.";
             errDiv.style.display = '';
             return;
         }
@@ -422,7 +422,6 @@ function eventHandler_init() {
         // Save old state for undo
         var oldObjects = aamap_objects.slice();
         var oldUndoStack = aamap_undoStack.slice();
-        var oldRedoStack = aamap_redoStack.slice();
 
         if (xmlEditor_mode === 'selected' && xmlEditor_selectedSnapshot.length > 0) {
             aamap_objects = aamap_objects.diff(xmlEditor_selectedSnapshot);
@@ -451,8 +450,8 @@ function eventHandler_init() {
                     if(e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
                 });
                 aamap_objects = oldObjects;
+                // Restore the pre-edit undo stack (aamap_undo already handles pushing to redo)
                 aamap_undoStack = oldUndoStack.slice();
-                aamap_redoStack = oldRedoStack.slice();
                 vectron_render();
                 actionHistory_update();
             },
