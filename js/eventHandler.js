@@ -359,7 +359,7 @@ function eventHandler_init() {
         var win = document.getElementById('wall-tool-window');
         var hdr = document.getElementById('wall-tool-header');
         if (!win || !hdr) return;
-        var dragging = false, ox, oy, sx, sy;
+        var dragging = false, ox, oy;
         hdr.addEventListener('mousedown', function(e) {
             if ($(e.target).is('#wall-tool-close')) return;
             dragging = true;
