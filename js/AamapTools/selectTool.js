@@ -209,6 +209,7 @@ function selectTool_complete() {
         // Record move action for undo/redo
         if (finalDx !== 0 || finalDy !== 0) {
             aamap_recordAction({
+                label: "Move object(s)",
                 undo: function() {
                     movedObjs.forEach(function(e) { e.move(-finalDx, -finalDy); e.render(); });
                     vectron_render();
@@ -256,6 +257,7 @@ function selectTool_delete() {
     aamap_objects = aamap_objects.diff(deletedObjs);
     selectTool_selectedObjs = [];
     aamap_recordAction({
+        label: "Delete object(s)",
         undo: function() {
             deletedObjs.forEach(function(e) { aamap_objects.push(e); });
             vectron_render();
@@ -428,6 +430,7 @@ function selectTool_paste()
 
         // Record paste for undo/redo
         aamap_recordAction({
+            label: "Paste object(s)",
             undo: function() {
                 aamap_objects = aamap_objects.diff(pastedObjs);
                 pastedObjs.forEach(function(e) {

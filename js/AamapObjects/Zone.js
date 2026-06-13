@@ -114,8 +114,8 @@ function Zone(x, y, radius, growth, type, option) {
     }
 
     this.move = function(dx, dy) {
-        this.x += dx;
-        this.y += dy;
+        this.x = Math.round((this.x + dx) * 1e6) / 1e6;
+        this.y = Math.round((this.y + dy) * 1e6) / 1e6;
     }
 
     this.getSpecial = function(x)
@@ -132,7 +132,7 @@ function Zone(x, y, radius, growth, type, option) {
 
     this.getXML = function() {
         //<Zone effect=""><ShapeCircle radius="" growth=""><Point x="" y=""/></ShapeCircle></Zone>
-        return '<Zone effect="' + zoneTool_typeArray[this.type][0] +'"'+this.getSpecial(0)+'><ShapeCircle radius=" '+ this.radius +' " growth="'+this.growth+'"><Point x="' + this.x + '" y="' + this.y + '"/></ShapeCircle></Zone>';
+        return '<Zone effect="' + zoneTool_typeArray[this.type][0] +'"'+this.getSpecial(0)+'><ShapeCircle radius=" '+ (Math.round(this.radius * 1e6)/1e6) +' " growth="'+(Math.round(this.growth * 1e6)/1e6)+'"><Point x="' + (Math.round(this.x * 1e6)/1e6) + '" y="' + (Math.round(this.y * 1e6)/1e6) + '"/></ShapeCircle></Zone>';
     }
 
     this.outputFriendlyXML = function() {

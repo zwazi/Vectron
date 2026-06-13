@@ -191,14 +191,14 @@ function Spawn() {
     }
 
     this.move = function(dx, dy) {
-        this.x += dx;
-        this.y += dy;
+        this.x = Math.round((this.x + dx) * 1e6) / 1e6;
+        this.y = Math.round((this.y + dy) * 1e6) / 1e6;
     }
 
     this.getXML = function() {
         //<Spawn x="" y="" xdir="" ydir=""/>
         //<Zone effect=""><ShapeCircle radius="" growth=""><Point x="" y=""/></ShapeCircle></Zone>
-        return '<Spawn x="'+ this.x +'" y="'+ this.y +'" xdir="'+ this.xDir +'" ydir="'+ this.yDir +'"/>';
+        return '<Spawn x="'+ (Math.round(this.x * 1e6)/1e6) +'" y="'+ (Math.round(this.y * 1e6)/1e6) +'" xdir="'+ (Math.round(this.xDir * 1e6)/1e6) +'" ydir="'+ (Math.round(this.yDir * 1e6)/1e6) +'"/>';
     }
 
     this.outputFriendlyXML = function() {

@@ -96,6 +96,7 @@ function wallTool_complete() {
     var completedWall = wallTool_currentObj;
     aamap_add(completedWall);
     aamap_recordAction({
+        label: "Add wall",
         undo: function() { _aamap_removeObj(completedWall); vectron_render(); },
         redo: function() { aamap_objects.push(completedWall); vectron_render(); }
     });
