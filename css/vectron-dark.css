@@ -26,6 +26,10 @@
   padding: 1px;
 }
 
+.grid-cfg-header {
+  color: #666;
+}
+
 body {
 	background-color: #000;
 }

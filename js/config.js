@@ -420,7 +420,7 @@ function gridConfig_buildUI() {
 
     // Header row
     var headerDiv = document.createElement('div');
-    headerDiv.style.cssText = 'display:grid;grid-template-columns:120px 110px 130px;gap:4px 8px;align-items:center;margin-bottom:4px;font-size:11px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:0.04em;';
+    headerDiv.className = 'grid-cfg-header';
     ['Line Type','Color','Thickness (px)'].forEach(function(h) {
         var span = document.createElement('span');
         span.textContent = h;
@@ -430,17 +430,17 @@ function gridConfig_buildUI() {
 
     rows.forEach(function(row) {
         var rowDiv = document.createElement('div');
-        rowDiv.style.cssText = 'display:grid;grid-template-columns:120px 110px 130px;gap:4px 8px;align-items:center;margin-bottom:6px;';
+        rowDiv.className = 'grid-cfg-row';
 
         // Label cell
         var labelSpan = document.createElement('span');
         labelSpan.textContent = row.label;
-        labelSpan.style.cssText = 'font-size:12px;';
+        labelSpan.className = 'grid-cfg-label';
         rowDiv.appendChild(labelSpan);
 
         // Color cell
         var colorCell = document.createElement('div');
-        colorCell.style.cssText = 'display:flex;align-items:center;gap:4px;';
+        colorCell.className = 'grid-cfg-cell';
 
         var colorInp = document.createElement('input');
         colorInp.type = 'color';
@@ -485,7 +485,7 @@ function gridConfig_buildUI() {
 
         // Thickness cell
         var thickCell = document.createElement('div');
-        thickCell.style.cssText = 'display:flex;align-items:center;gap:4px;';
+        thickCell.className = 'grid-cfg-cell';
 
         var thickInp = document.createElement('input');
         thickInp.type = 'number';

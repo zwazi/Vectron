@@ -972,6 +972,35 @@ body.noscroll {
   top: 3px;
 }
 
+/* Grid config flex layout (built by gridConfig_buildUI) */
+.grid-cfg-header {
+  display: grid;
+  grid-template-columns: 120px 110px 130px;
+  gap: 4px 8px;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.grid-cfg-row {
+  display: grid;
+  grid-template-columns: 120px 110px 130px;
+  gap: 4px 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.grid-cfg-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.grid-cfg-label {
+  font-size: 12px;
+}
+
 .cfg-form-group .form-control {
   margin-top: 4px;
   max-width: 260px;
