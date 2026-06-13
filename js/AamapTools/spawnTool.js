@@ -43,8 +43,13 @@ function spawnTool_start() {
 
 function spawnTool_complete() {
     spawnTool_currentObj.guideObj.remove();
-    aamap_add(spawnTool_currentObj);
-    spawnTool_currentObj.render();
+    var completedSpawn = spawnTool_currentObj;
+    aamap_add(completedSpawn);
+    completedSpawn.render();
+    aamap_recordAction({
+        undo: function() { _aamap_removeObj(completedSpawn); vectron_render(); },
+        redo: function() { aamap_objects.push(completedSpawn); vectron_render(); }
+    });
     spawnTool_currentObj = null;
     vectron_toolActive = false;
 }
