@@ -113,6 +113,18 @@ body {
 	color: #666;
 }
 
+/* XML editor action buttons */
+#xml-editor-box .btn-default {
+	background-color: #333;
+	border-color: #555;
+	color: #eee;
+}
+#xml-editor-box .btn-default:hover {
+	background-color: #444;
+	border-color: #666;
+	color: #fff;
+}
+
 #control_box {
 	background: #222;
 	color: #eee;
@@ -152,6 +164,160 @@ body {
 	background: #2a2a2a;
 	color: #eee;
 	border-color: #555;
+}
+
+/* Buttons in settings menu */
+#control_box .btn-default,
+#control_box .btn-xs {
+	background-color: #333;
+	border-color: #555;
+	color: #eee;
+}
+#control_box .btn-default:hover,
+#control_box .btn-default:focus,
+#control_box .btn-xs:hover,
+#control_box .btn-xs:focus {
+	background-color: #444;
+	border-color: #666;
+	color: #fff;
+}
+
+/* Checkboxes in settings menu */
+#control_box input[type="checkbox"] {
+	accent-color: #4a9eff;
+}
+
+/* Help dropdown menu in settings nav */
+#control_box .dropdown-menu {
+	background-color: #2a2a2a;
+	border-color: #555;
+}
+#control_box .dropdown-menu > li > a {
+	color: #ddd;
+}
+#control_box .dropdown-menu > li > a:hover,
+#control_box .dropdown-menu > li > a:focus {
+	background-color: #3a3a3a;
+	color: #fff;
+}
+#control_box .dropdown-menu .divider {
+	background-color: #444;
+}
+#control_box .caret {
+	border-top-color: #ccc;
+}
+#control_box .nav-tabs .dropdown-toggle .caret {
+	border-top-color: #ccc;
+}
+
+/* Grid line appearance section */
+#grid-config table {
+	color: #eee;
+	border-collapse: collapse;
+}
+#grid-config th {
+	border-color: #555 !important;
+	color: #ddd;
+}
+#grid-config td {
+	border-color: #444;
+}
+
+/* Scrollbars (webkit) */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+::-webkit-scrollbar-track {
+	background: #222;
+}
+::-webkit-scrollbar-thumb {
+	background: #555;
+	border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #777;
+}
+/* Firefox scrollbar */
+* {
+	scrollbar-color: #555 #222;
+	scrollbar-width: thin;
+}
+
+/* Context menu dark mode */
+#contextMenu .dropdown-menu {
+	background-color: #222;
+	border-color: #555;
+}
+#contextMenu .dropdown-menu > li > a {
+	color: #eee;
+}
+#contextMenu .dropdown-menu > li > a:hover,
+#contextMenu .dropdown-menu > li > a:focus {
+	background-color: #333;
+	color: #fff;
+}
+#contextMenu .dropdown-menu .divider {
+	background-color: #444;
+}
+
+/* Shepherd tutorial dark mode */
+.shepherd-element.shepherd-theme-arrows .shepherd-content {
+	background: #222;
+	color: #ddd;
+}
+.shepherd-element.shepherd-theme-arrows .shepherd-content header {
+	background: #1a1a1a;
+	border-bottom: 1px solid #444;
+}
+.shepherd-element.shepherd-theme-arrows .shepherd-content header h3 {
+	color: #eee;
+}
+/* Shepherd arrow colors to match dark background */
+.shepherd-element.shepherd-theme-arrows.shepherd-element-attached-bottom.shepherd-element-attached-center .shepherd-content:before {
+	border-top-color: #222;
+}
+.shepherd-element.shepherd-theme-arrows.shepherd-element-attached-top.shepherd-element-attached-center .shepherd-content:before {
+	border-bottom-color: #222;
+}
+.shepherd-element.shepherd-theme-arrows.shepherd-element-attached-right.shepherd-element-attached-middle .shepherd-content:before {
+	border-left-color: #222;
+}
+.shepherd-element.shepherd-theme-arrows.shepherd-element-attached-left.shepherd-element-attached-middle .shepherd-content:before {
+	border-right-color: #222;
+}
+.shepherd-element.shepherd-theme-arrows.shepherd-element-attached-top.shepherd-element-attached-left.shepherd-target-attached-bottom .shepherd-content:before {
+	border-bottom-color: #222;
+}
+.shepherd-element.shepherd-theme-arrows.shepherd-element-attached-top.shepherd-element-attached-right.shepherd-target-attached-bottom .shepherd-content:before {
+	border-bottom-color: #222;
+}
+.shepherd-element.shepherd-theme-arrows.shepherd-element-attached-bottom.shepherd-element-attached-left.shepherd-target-attached-top .shepherd-content:before {
+	border-top-color: #222;
+}
+.shepherd-element.shepherd-theme-arrows.shepherd-element-attached-bottom.shepherd-element-attached-right.shepherd-target-attached-top .shepherd-content:before {
+	border-top-color: #222;
+}
+/* Shepherd buttons */
+.shepherd-element .shepherd-content footer .shepherd-buttons li .shepherd-button {
+	background-color: #444;
+	color: #eee;
+	border: 1px solid #555;
+}
+.shepherd-element .shepherd-content footer .shepherd-buttons li .shepherd-button:hover {
+	background-color: #555;
+	color: #fff;
+}
+.shepherd-element .shepherd-content footer .shepherd-buttons li .shepherd-button-secondary {
+	background-color: #333;
+	color: #ccc;
+	border: 1px solid #555;
+}
+.shepherd-element .shepherd-cancel-link {
+	color: #aaa;
+}
+.shepherd-element .shepherd-cancel-link:hover {
+	color: #fff;
 }
 
 #xml-editor-error {
