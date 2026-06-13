@@ -72,8 +72,8 @@ function vectron_init() {
         success: function(data) {
             xml_process(data);
         },
-        error: function() {
-            gui_writeLog("Could not load startup map.");
+        error: function(xhr, status, err) {
+            gui_writeLog("Could not load startup map. (" + (xhr.status || status) + ")");
         }
     });
 
