@@ -88,6 +88,11 @@ function aamap_render() {
     {
         selectTool_progress();
     }
+    else if( vectron_currentTool == "wallVertexMove" )
+    {
+        wallVertexMoveTool_dots = null; // cleared by screen.clear()
+        wallVertexMoveTool_drawDots();
+    }
 }
 
 function aamap_panCenter() {

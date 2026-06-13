@@ -82,6 +82,7 @@ function vectron_render() {
     }
 
     vectron_screen.clear();
+    aamap_grid = null;
     vectron_width = $("#canvas_container").width();
     vectron_height = $("#canvas_container").height();
     vectron_screen.setSize(vectron_width, vectron_height);
