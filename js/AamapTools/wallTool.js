@@ -36,7 +36,7 @@ function WallPoint(x, y) {
 var wallTool_currentObj = null;
 
 function wallTool_connect() {
-    $(".toolbar-toolWall").css("background-color", "rgba(0,0,0,0.3)");
+    $(".toolbar-toolWall").addClass("toolbar-tool-active");
 }
 
 function wallTool_disconnect() {
@@ -46,7 +46,7 @@ function wallTool_disconnect() {
         wallTool_currentObj = null;
     }
     vectron_toolActive = false;
-    $(".toolbar-toolWall").attr("style", "");
+    $(".toolbar-toolWall").removeClass("toolbar-tool-active");
 }
 
 function wallTool_start() {

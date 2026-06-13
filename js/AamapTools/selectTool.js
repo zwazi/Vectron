@@ -58,7 +58,7 @@ var selectTool_hoveredSet = null;
 var selectTool_hoveredAamapObj = null;
 
 function selectTool_connect() {
-    $(".toolbar-toolSelect").css("background-color", "rgba(0,0,0,0.3)");
+    $(".toolbar-toolSelect").addClass("toolbar-tool-active");
     cursor_active = false;
     // add drag to all objects
     for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
@@ -78,7 +78,7 @@ function selectTool_disconnect() {
         if(selectTool_sets[i]) selectTool_sets[i].unhover();
         selectTool_removeInvisibleGlow(aamap_objects[i]);
     }
-    $(".toolbar-toolSelect").attr("style", "");
+    $(".toolbar-toolSelect").removeClass("toolbar-tool-active");
     vectron_toolActive = false;
 }
 
