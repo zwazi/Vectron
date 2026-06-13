@@ -147,6 +147,7 @@ function zoneTool_complete() {
     var newZone = new Zone(newX, newY, radius, 0, zoneTool_type);
     aamap_add(newZone);
     aamap_recordAction({
+        label: "Add zone",
         undo: function() { _aamap_removeObj(newZone); vectron_render(); },
         redo: function() { aamap_objects.push(newZone); vectron_render(); }
     });

@@ -146,17 +146,15 @@ function Wall() {
 
     this.move = function(dx, dy) {
         for(var i = 0, ii = this.points.length; i < ii; i++) {
-            this.points[i].x += dx;
-            this.points[i].y += dy;
-            gui_writeLog(this.points[i].x);
-            gui_writeLog(this.points[i].y);
+            this.points[i].x = Math.round((this.points[i].x + dx) * 1e6) / 1e6;
+            this.points[i].y = Math.round((this.points[i].y + dy) * 1e6) / 1e6;
         }
     }
 
     this.getXML = function() {
         var xml = '<Wall height="'+this.height+'">';
         for(var i = 0, ii = this.points.length; i < ii; i++) {
-            xml += '<Point x="' + this.points[i].x + '" y="'+ this.points[i].y + '"/>';
+            xml += '<Point x="' + (Math.round(this.points[i].x * 1e6) / 1e6) + '" y="'+ (Math.round(this.points[i].y * 1e6) / 1e6) + '"/>';
         }
         xml += '</Wall>';
         return xml;
