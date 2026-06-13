@@ -1,0 +1,376 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Vectron</title>
+
+        <!-- Bootstrap -->
+        <link href="./css/bootstrap.min.css" rel="stylesheet">
+        <link href="./css/bootstrap-extra.css" rel="stylesheet">
+        <link href="./css/vectron.css" rel="stylesheet">
+        <link id="theme" rel="stylesheet">
+        <link href="./css/shepherd-theme-arrows.css" rel="stylesheet">
+        <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400,300,700,600' rel='stylesheet' type='text/css'>
+        <script type="text/javascript" src="./js/libs/jquery.js"></script>
+        <script type="text/javascript" src="./js/libs/raphael-min.js"></script>
+        <script type="text/javascript" src="./js/libs/raphael.set.hoverset.js"></script>
+        <script type="text/javascript" src="./js/libs/mousetrap.min.js"></script>
+        <script type="text/javascript" src="./js/libs/marknote.js"></script>
+
+        <script type="text/javascript" src="./js/AamapObjects/Spawn.js"></script>
+        <script type="text/javascript" src="./js/AamapObjects/Wall.js"></script>
+        <script type="text/javascript" src="./js/AamapObjects/Zone.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/spawnTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/wallTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/zoneTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/navigationTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/selectTool.js"></script>
+
+        <script type="text/javascript" src="./js/xml.js"></script>
+        <script type="text/javascript" src="./js/aamap.js"></script>
+        <script type="text/javascript" src="./js/cursor.js"></script>
+        <script type="text/javascript" src="./js/eventHandler.js"></script>
+        <script type="text/javascript" src="./js/gui.js"></script>
+        <script type="text/javascript" src="./js/config.js"></script>
+        <script type="text/javascript" src="./js/vectron.js"></script>
+
+        <script type="text/javascript">
+            var targetVersion = 1.110;
+            if(window.vtVersion != targetVersion) location.reload(true);
+        </script>
+
+        <script type="text/javascript" src="./js/libs/tether.js"></script>
+        <script type="text/javascript" src="./js/libs/shepherd.js"></script>
+
+        <script type="text/javascript">
+            $('[data-toggle="tooltip"]').tooltip();
+        </script>
+
+    </head>
+    <body class="noscroll">
+        <div class="info" style="display:none">
+            <b>cursor</b><br />
+            <span class="var">x: <span id="cursor-x">0</span></span>
+            <span class="var">y: <span id="cursor-y">0</span></span>
+            <br />
+            <span class="var">zoom: <span id="zoom">0</span>%</span>
+            <span class="var">grid: <span id="spacing">0</span></span>
+            <br />
+            <b>map anchor</b><br />
+            <span class="var">x: <span id="anchor-x">0</span></span>
+            <span class="var">y: <span id="anchor-y">0</span></span>
+        </div>
+
+        <div id="control_box">
+            <h1>Vectron <small>Map editor</small></h1>
+            <div id="gui-content">
+                <ul id="gui-tab" class="nav nav-tabs">
+                    <li class="active"><a href="#gui-general" data-toggle="tab">General</a></li>
+                    <li><a href="#gui-settings" data-toggle="tab">Map Settings</a></li>
+                    <li><a href="#gui-adjustment" data-toggle="tab">Adjust Map</a></li>
+                    <li><a href="#gui-config" data-toggle="tab">Configure</a></li>
+                    <li class="dropdown">
+                        <a href="#" id="gui-dropdown" class="dropdown-toggle" data-toggle="dropdown">Help <b class="caret"></b></a>
+                        <ul class="dropdown-menu" role="menu" aria-labelledby="gui-dropdown">
+                            <li><a href="#" id="start-tour">Show Guide</a></li>
+                            <li><a href="#gui-wt" tabindex="-1" data-toggle="tab">Wall Tool</a></li>
+                            <li><a href="#gui-zt" tabindex="-1" data-toggle="tab">Zone Tool</a></li>
+                            <li role="presentation" class="divider"></li>
+                            <li><a href="#gui-about" tabindex="-1" data-toggle="tab">About</a></li>
+                        </ul>
+                    </li>
+                </ul>
+                <div id="gui-tab-content" class="tab-content" style="max-height:300px;overflow:scroll">
+
+                    <div class="tab-pane fade in active" id="gui-general">
+                        <h5>Load Map</h5>
+                        <input type="file" id="files" name="file" />
+                        <div id="progress_bar"><div class="percent">0%</div></div>
+                        <form role="form">
+                          <div class="form-group" title="What should this map be called?">
+                            <label for="map_name">Map Name</label> (What should this map be called)
+                            <input type="text" class="form-control" id="map_name">
+                          </div>
+                          <div class="form-group" title="Who created this map?">
+                            <label for="map_author">Author</label> (Who created this map)
+                            <input type="text" class="form-control" id="map_author">
+                          </div>
+                          <div class="form-group" title="Where is this map for? (examples: racing, sumo)">
+                            <label for="map_category">Category</label> (What the map is for; examples: racing, sumo)
+                            <input type="text" class="form-control" id="map_category" default="maps">
+                          </div>
+                          <div class="form-group" title="The current revision of the map. Clients and servers will automatically download and cache maps and they do NOT re-download the same file even after you update it. It doesn't matter what it's set to, but it should therefore be changed every time you update the map.">
+                            <label for="map_version">Revision</label> (The version of this map - hover for an explanation of why.)
+                            <input type="text" class="form-control" id="map_version">
+                          </div>
+                          <br />
+                          <div class="form-group" title="What this map is verified against.">
+                            <label for="map_dtd">DTD</label> (The file this map is verified against.)
+                            <input type="text" class="form-control" id="map_dtd" default="sty.dtd" list="dtds">
+                            <datalist id="dtds">
+                              <option value="sty.dtd"/>
+                              <option value="Loverboy/map-0.2.9_styctap_v1.5.dtd"/>
+                              <option value="map-0.3.1-a.dtd"/>
+                            </datalist>
+                          </div>
+                        </form>
+                    </div>
+
+                    <div class="tab-pane fade" id="gui-settings">
+                      <div class="form-group" title="The directions you turn in-game.">
+                        <label for="map_axes">Map Axes</label> (the directions turned in game. <i>axes = 360 / angle</i>) <br />
+                        <div class="input-group">
+                          <span class="input-group-addon">
+                            <input class="form-check-input" id="map_axes_forced" type="checkbox" title="Force the axes in the map?" />
+                          </span>
+                          <input type="number" class="form-control" id="map_axes" name="map_axes" min=2 max=360 default=4 />
+                        </div>
+                      </div>
+                      <div class="form-group" title="Settings. This is NOT the place to stick all of your configuration files; rather any settings that must be for whatever reason tied with the map.">
+                        <label for="map_settings">The settings included in the map</label> <br />
+                        <textarea class="form-control" style="font-size:10pt;font-family:monospace;width:100%" rows=7 id="map_settings" name="map_settings"></textarea>
+                      </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="gui-adjustment">
+                      <div class="form-group" title="Scale your map by multiplying everything by this value.">
+                        <label for="map_scale">Scale Map</label> <br />
+                        <input type="text" style="display:inline-block;width:84%" class="form-control" id="map_scale" name="map_scale" value="1" />
+                        <button id="scale_map" style="width:14%" class="btn btn-default">Scale</button>
+                      </div>
+                      <div class="form-group">
+                        <label for="map_scale">Rotate Map</label> <br />
+                        <style>
+                          .rotate-left
+                          {
+                            -webkit-transform: scaleX(-1);
+                            -moz-transform: scaleX(-1);
+                            -ms-transform: scaleX(-1);
+                            transform: scaleX(-1);
+                          }
+                        </style>
+                        <button id="map_rotate_left" class="btn btn-default" title="Rotate left"><span class="glyphicon glyphicon-repeat rotate-left"></span></button>
+                        <button id="map_rotate_right" class="btn btn-default" title="Rotate right"><span class="glyphicon glyphicon-repeat rotate-right"></span></button>
+                        or custom relative angle:
+                        <input type="text" style="display:inline-block;width:31.8%" class="form-control" id="map_rot_angle" name="map_rot_angle" value="0" />
+                        <button id="rotate_map" style="width:14%" class="btn btn-default">Rotate</button>
+                      </div>
+                      <div class="form-group">
+                        <label>Move <small>(translate)</small> Map</label> <br />
+                        x=<input type="text" style="display:inline-block;width:38%" class="form-control" id="map_move_x" name="map_move_x" value="0" />;
+                        y=<input type="text" style="display:inline-block;width:38%" class="form-control" id="map_move_y" name="map_move_y" value="0" />
+                        <button id="move_map" style="width:14%" class="btn btn-default">Move</button>
+                      </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="gui-wt">
+                        <h4 class="gui-tool-name">Wall Tool</h4>
+                        <table class="table table-bordered">
+                            <tbody>
+                                <tr>
+                                    <td><strong>Click</strong></td>
+                                    <td>Place WallPoint</td>
+                                    <td>Start new Wall</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Double Click</strong></td>
+                                    <td>Place EndPoint</td>
+                                    <td>End Wall</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="tab-pane fade" id="gui-zt">
+                        <h4 class="gui-tool-name">Zone Tool</h4>
+                        <table class="table table-bordered">
+                            <tbody>
+                                <tr>
+                                    <td><strong>+/-</strong></td>
+                                    <td>Increase Zone Radius</td>
+                                    <td>Decrease Zone Radius</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Click</strong></td>
+                                    <td>Place new Zone</td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+
+                    <div class="tab-pane fade" id="gui-config">
+                      <div class="form-group">
+                        <label for="map_scale">Default Rubber Zone Value</label> <br />
+                        <input type="text" style="display:inline-block" class="form-control" id="dRubberVal" name="dRubberVal" value="2" />
+                      </div>
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="dark-theme" name="dark-theme">
+                        <label class="form-check-label" for="dark-theme"> Enable dark theme <i>(beta)</i></label>
+                      </div>
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="show-info-bar" name="show-info-bar">
+                        <label class="form-check-label" for="show-info-bar"> Show info bar</label>
+                      </div>
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="show-debug-panel" name="show-debug-panel">
+                        <label class="form-check-label" for="show-debug-panel"> Show debug log information</label>
+                      </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="gui-about">
+                        <h3>Vectron 1.1</h3>
+                        <p>
+                          A map editor for Armagetron Advanced.
+                          It was originally written in 2008 by Carlo Veneziano, then re-written 2010 as a Flash-based map editor, then re-written in 2014 by Tristan in Javascript.
+                          (David Dubois is also credited.)
+                        </p>
+                        <p>
+                          The project was pretty much inactive until around 2017, when someone requested it be added to my (Armanelgtron) site.
+                          However, it still essentially remained with very few changes until 2021 when I finally decided to attempt to fix some annoyances and improve upon it.
+                        </p>
+                        <br />
+                          Source code available at <a target=_blank href="https://gitlab.com/Armanelgtron/Vectron/">https://gitlab.com/Armanelgtron/Vectron/</a>.
+                        <p>
+                          This program comes with ABSOLUTELY NO WARRANTY, see <a href="https://www.gnu.org/licenses/gpl-3.0.html#section15" target=_blank>here</a>.
+                          This is free software, and you are welcome to redistribute it under <a href="https://www.gnu.org/licenses/gpl-3.0.html#terms" target=_blank>certain conditions</a>.
+                        </p>
+                        <br />
+                          If you encounter any bugs or think something should be added, please <a href="https://gitlab.com/Armanelgtron/Vectron/-/issues">submit an issue</a> or <a href="mailto:armanelgtron@gmail.com">send an e-mail</a>.
+                        <br />
+                        <br />
+                    </div>
+
+                </div>
+            </div>
+
+            <button type="button" id="gui-export" data-loading-text="Saving..." class="btn btn-primary">Export</button>
+            <button id="gui-close" type="button" class="btn btn-default">Close</button>
+
+        </div>
+        <div id="canvas_container"></div>
+        <div id="debug_box">
+            <div id="debug_stream">
+            </div>
+            <div id="branding_box">
+                <h4 id="branding">Vectron <small> 1.1</small></h4>
+                <small><small><a href="#" onclick="$('.toolbar-gui-open').mouseup();$('#control_box').children().find('a[href*=#gui-about]').click()">About</a></small></small>
+            </div>
+        </div>
+        <div id="tool_bar">
+            <ul>
+                <li>
+                    <a class="toolbar-gui-open" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Settings and Controls"></a>
+                    <a class="toolbar-gui-close" href="#" rel="tooltip" data-trigger="hover" data-placement="right" style="display:none;" data-original-title="Settings and Controls"></a>
+                </li>
+            </ul>
+
+            <ul>
+                <li>
+                    <a class="toolbar-toolSelect" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Select Tool"></a>
+                </li>
+                <li>
+                    <a class="toolbar-toolNavigation" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Navigation Tool"><span class="glyphicon glyphicon-move" style="font-size:15px;position:relative;left:0px;top:8px;"></span></a>
+                </li>
+            </ul>
+
+           <!-- <ul>
+                <li>
+                    <a class="toolimg" id="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Tool"></a>
+                </li>
+            </ul>-->
+            <ul id="zone-base" class="single-item">
+            	<li>
+                    <a class="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Tool"></a>
+                </li>
+                <li>
+                    <a class="toolbar-toolZone" href="#"></a>
+                </li>
+                <div id="zones-menu" style="display:none;">
+                    <li>
+                        <a class="toolbar-toolZone-death" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Death"></a>
+                    </li>
+                    <li>
+                        <a class="toolbar-toolZone-win" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Win"></a>
+                    </li>
+                    <li>
+                        <a class="toolbar-toolZone-target" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Target"></a>
+                    </li>
+                    <li>
+                        <a class="toolbar-toolZone-fortress" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Fortress"></a>
+                    </li>
+                    <li>
+                        <a class="toolzoneimg toolbar-toolZone-rubber" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Rubber"></a>
+                    </li>
+                </div>
+           <!-- </ul>
+            <ul>-->
+                <li>
+                    <a class="toolbar-toolSpawn" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Spawn tool"></a>
+                </li>
+            </ul>
+            <ul>
+                <li class="toolbar-toolLock-list">
+                    <a class="toolbar-toolLock" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Snap-locked"></a>
+                </li>
+                <li class="toolbar-toolUnlock-list">
+                    <a class="toolbar-toolUnlock" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Snap-unlocked"></a>
+                </li>
+                <li>
+                    <a class="toolbar-toolZoomIn" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zoom In"></a>
+                </li>
+                <li>
+                    <a class="toolbar-toolZoomOut" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zoom Out"></a>
+                </li>
+             </ul>
+             <!-- <ul>
+                <li>
+                    <a class="toolbar-toolScaleUp" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Scale Up"></a>
+                </li>
+                <li>
+                    <a class="toolbar-toolScaleDown" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Scale Down"></a>
+                </li>
+
+            </ul> -->
+            <ul>
+
+                <li>
+                    <a class="toolbar-disconnect" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Delete Selected or Undo." data-mode="remove"></a>
+                </li>
+                <li>
+                    <a class="toolbar-redo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Undelete or redo."></a>
+                </li>
+
+            </ul>
+        </div>
+
+        <div id="contextMenu" class="dropdown clearfix">
+            <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu" style="display:block;position:static;margin-bottom:5px;">
+                <li><a tabindex="-1" href="#" class="toolbar-gui-open">Toggle GUI</a></li>
+                <li class="divider"></li>
+                <li><a tabindex="-1" href="#" class="toolbar-copy">Copy</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-paste">Paste</a></li>
+                <li class="divider"></li>
+                <li><a tabindex="-1" href="#" class="toolbar-toolSelect">Select Tool</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-toolWall">Wall Tool</a></li>
+
+                <li><a tabindex="-1" href="#" class="toolbar-toolZone">Zone Tool</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-toolSpawn">Spawn Tool</a></li>
+                <li class="divider"></li>
+                <li><a tabindex="-1" href="#" class="toolbar-toolLock">Toggle Snap-to-grid</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-toolZoomIn">Zoom In</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-toolZoomOut">Zoom Out</a></li>
+                <li class="divider"></li>
+                <li><a tabindex="-1" href="#" class="toolbar-toolScaleUp">Scale Up</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-toolScaleDown">Scale Down</a></li>
+
+            </ul>
+        </div>
+
+        <script type="text/javascript" src="./js/libs/bootstrap.min.js"></script>
+        <script type="text/javascript" src="./js/tour.js"></script>
+        <script>
+        $('[rel=tooltip]').tooltip();
+        </script>
+    </body>
+</html>
