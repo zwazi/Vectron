@@ -138,13 +138,13 @@ function joinTool_findJoin(wallA, wallB) {
     if (joinTool_ptEq(aLast, bLast))
         return { reverseA: false, reverseB: true };
 
-    // A.first connects B.last  →  rev(A) + B  (equivalent to B + A with no reversal)
-    if (joinTool_ptEq(aFirst, bLast))
-        return { reverseA: true, reverseB: false };
-
-    // A.first connects B.first →  rev(A) + B (after reversing A, A.last == A.first_orig == B.first)
+    // A.first connects B.first →  rev(A) + B
     if (joinTool_ptEq(aFirst, bFirst))
         return { reverseA: true, reverseB: false };
+
+    // A.first connects B.last  →  B + A  (swap concat order so junction removed correctly)
+    if (joinTool_ptEq(aFirst, bLast))
+        return { reverseA: false, reverseB: false, swap: true };
 
     return null;
 }
@@ -208,11 +208,9 @@ function joinTool_click() {
     if (desc.reverseA) ptsA.reverse();
     if (desc.reverseB) ptsB.reverse();
 
-    // When A.first connects B.first we actually want rev(A) + B,
-    // but after reverseA is applied ptsA is already reversed, so A.last now connects B.first — standard join.
-    // Special-case swapOrder means we needed rev(A) + B where A.first==B.first:
-    // after reversing A: aLast_new == aFirst_old == bFirst → just concat.
-    var combined = ptsA.concat(ptsB.slice(1));
+    // When aFirst == bLast, we join as B + A so that the shared endpoint
+    // is correctly at the junction (ptsB.last == ptsA.first, remove ptsA[0]).
+    var combined = desc.swap ? ptsB.concat(ptsA.slice(1)) : ptsA.concat(ptsB.slice(1));
 
     var merged = new Wall();
     merged.height = joinTool_firstWall.height;
@@ -228,6 +226,7 @@ function joinTool_click() {
 
     var origA = joinTool_firstWall, origB = wall, wM = merged;
     aamap_recordAction({
+        label: "Join walls",
         undo: function() {
             _aamap_removeObj(wM);
             aamap_objects.push(origA); aamap_objects.push(origB);
