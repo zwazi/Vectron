@@ -333,6 +333,7 @@ function keybinds_buildUI() {
         var btn = document.createElement('button');
         btn.textContent = '↺';
         btn.title = 'Reset';
+        btn.setAttribute('aria-label', 'Reset keybind for ' + labels[action]);
         btn.className = 'btn btn-xs btn-default';
         btn.style.marginLeft = '4px';
         btn.onclick = (function(a, i) {

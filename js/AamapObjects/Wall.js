@@ -154,9 +154,9 @@ function Wall() {
     this.getXML = function() {
         var xml = '<Wall height="'+this.height+'">\n';
         for(var i = 0, ii = this.points.length; i < ii; i++) {
-            xml += '    <Point x="' + (Math.round(this.points[i].x * 1e6) / 1e6) + '" y="'+ (Math.round(this.points[i].y * 1e6) / 1e6) + '"/>\n';
+            xml += '  <Point x="' + (Math.round(this.points[i].x * 1e6) / 1e6) + '" y="'+ (Math.round(this.points[i].y * 1e6) / 1e6) + '"/>\n';
         }
-        xml += '  </Wall>';
+        xml += '</Wall>';
         return xml;
     }
 
