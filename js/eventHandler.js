@@ -330,13 +330,17 @@ function eventHandler_init() {
     });
 
     // XML Editor
+    function xmlEditor_indentLines(str, prefix) {
+        return str.split('\n').map(function(line) { return prefix + line; }).join('\n');
+    }
+
     function xmlEditor_getFullXML() {
         var xml = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>\n';
         xml += '<!DOCTYPE Resource SYSTEM "' + (xml_dtd || 'sty.dtd') + '">\n';
         xml += '<Resource type="aamap" name="' + (xml_name || '') + '" version="' + (xml_version || '') + '" author="' + (xml_author || '') + '" category="' + (xml_category || '') + '">\n';
         xml += '  <Map version="0.2.8">\n    <World>\n      <Field>\n';
         for (var i = 0; i < aamap_objects.length; i++) {
-            xml += aamap_objects[i].getXML() + '\n';
+            xml += xmlEditor_indentLines(aamap_objects[i].getXML(), '        ') + '\n';
         }
         xml += '      </Field>\n    </World>\n  </Map>\n</Resource>\n';
         return xml;
@@ -346,7 +350,7 @@ function eventHandler_init() {
         var objs = selectTool_selectedObjs;
         var xml = '<Field>\n';
         for (var i = 0; i < objs.length; i++) {
-            xml += objs[i].getXML() + '\n';
+            xml += xmlEditor_indentLines(objs[i].getXML(), '  ') + '\n';
         }
         xml += '</Field>';
         return xml;

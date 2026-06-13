@@ -132,10 +132,10 @@ function Zone(x, y, radius, growth, type, option) {
 
     this.getXML = function() {
         return '<Zone effect="' + zoneTool_typeArray[this.type][0] +'"'+this.getSpecial(0)+'>\n' +
-               '    <ShapeCircle radius=" '+ (Math.round(this.radius * 1e6)/1e6) +' " growth="'+(Math.round(this.growth * 1e6)/1e6)+'">\n' +
-               '      <Point x="' + (Math.round(this.x * 1e6)/1e6) + '" y="' + (Math.round(this.y * 1e6)/1e6) + '"/>\n' +
-               '    </ShapeCircle>\n' +
-               '  </Zone>';
+               '  <ShapeCircle radius=" '+ (Math.round(this.radius * 1e6)/1e6) +' " growth="'+(Math.round(this.growth * 1e6)/1e6)+'">\n' +
+               '    <Point x="' + (Math.round(this.x * 1e6)/1e6) + '" y="' + (Math.round(this.y * 1e6)/1e6) + '"/>\n' +
+               '  </ShapeCircle>\n' +
+               '</Zone>';
     }
 
     this.outputFriendlyXML = function() {

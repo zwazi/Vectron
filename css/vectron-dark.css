@@ -93,3 +93,18 @@ body {
 	color: #eee;
 	border-color: #444;
 }
+
+#xml-editor-tabs > li > a {
+	background: #333;
+	border-color: #555;
+	color: #ccc;
+}
+#xml-editor-tabs > li.active > a,
+#xml-editor-tabs > li.active > a:hover {
+	background: #222;
+	border-bottom-color: #222;
+	color: #eee;
+}
+#xml-editor-tabs > li.disabled > a {
+	color: #666;
+}
