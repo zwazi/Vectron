@@ -19,9 +19,9 @@ Originally created by Carlo Veneziano and re-written by Tristan Whitcher.
 - wall drawing: draw points dragging the cursor, filter them by min-distance threshold
   and join them (could use http://jsfiddle.net/pxemt/2/)
 - wall modifiers, ex. cut/divide at point, join walls, etc...
-- set zoom 100% button [mod+1]
-- fit map to screen button [mod+0]
-- history undo/redo [mod+z]/[mod+shift+z]
+- ~~set zoom 100% button [mod+1]~~ ✓
+- ~~fit map to screen button [mod+0]~~ ✓
+- ~~history undo/redo [mod+z]/[mod+shift+z]~~ ✓
 - ...
 
 ---

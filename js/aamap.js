@@ -122,6 +122,54 @@ function aamap_panCenter() {
     vectron_render();
 }
 
+function aamap_fitToScreen() {
+    var ptsx = [], ptsy = [];
+
+    for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
+        var obj = aamap_objects[i];
+        if(obj instanceof Zone || obj instanceof Spawn) {
+            ptsx.push(obj.x);
+            ptsy.push(obj.y);
+        } else if(obj instanceof Wall) {
+            for(var j = 0, jj = obj.points.length; j < jj; j++) {
+                if(obj.points[j] != null) {
+                    ptsx.push(obj.points[j].x);
+                    ptsy.push(obj.points[j].y);
+                }
+            }
+        }
+    }
+
+    if(ptsx.length == 0) {
+        vectron_panX = 0;
+        vectron_panY = 0;
+        vectron_zoom = 1;
+        vectron_render();
+        return;
+    }
+
+    var max_x = Math.max.apply(Math, ptsx);
+    var min_x = Math.min.apply(Math, ptsx);
+    var max_y = Math.max.apply(Math, ptsy);
+    var min_y = Math.min.apply(Math, ptsy);
+
+    vectron_panX = -1*(max_x + min_x)/2;
+    vectron_panY = -1*(max_y + min_y)/2;
+
+    var map_width = max_x - min_x;
+    var map_height = max_y - min_y;
+
+    if(map_width > 0 || map_height > 0) {
+        var padding = 0.85; // use 85% of the canvas (15% margin around the map)
+        vectron_zoom = Math.min(
+            map_width > 0 ? (vectron_width * padding) / map_width : Infinity,
+            map_height > 0 ? (vectron_height * padding) / map_height : Infinity
+        );
+    }
+
+    vectron_render();
+}
+
 function aamap_scale(factor) {
     for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
         aamap_objects[i].scale(factor);
