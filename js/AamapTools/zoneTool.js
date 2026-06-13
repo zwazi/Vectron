@@ -106,6 +106,16 @@ function zoneTool_guide() {
             "stroke": color, "stroke-dasharray": "--..",
             "fill": color, "fill-opacity": "0.2"
         });
+    } else if ($("#zone-quick-placement-toggle").is(":checked")) {
+        var quickR = parseFloat($("#zone-quick-size").val());
+        if (isNaN(quickR) || quickR <= 0) quickR = 32;
+        var screenR = quickR * vectron_zoom;
+        zoneTool_guideObj = vectron_screen.circle(
+            cursor_realX, cursor_realY, screenR
+        ).attr({
+            "stroke": color, "stroke-dasharray": "--..",
+            "fill": color, "fill-opacity": "0.2"
+        });
     } else {
         zoneTool_guideObj = vectron_screen.circle(
             cursor_realX, cursor_realY, ZONE_TOOL_CENTER_MARKER_RADIUS

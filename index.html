@@ -61,7 +61,7 @@
         </div>
 
         <div id="control_box">
-            <h1>Vectron <small>Map editor</small></h1>
+            <div id="control-box-header">Settings <span id="control-box-close" title="Close">✕</span></div>
             <div id="gui-content">
                 <ul id="gui-tab" class="nav nav-tabs">
                     <li class="active"><a href="#gui-general" data-toggle="tab">General</a></li>
@@ -209,24 +209,23 @@
 
 
                     <div class="tab-pane fade" id="gui-config">
-                      <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="dark-theme" name="dark-theme">
-                        <label class="form-check-label" for="dark-theme"> Enable dark theme</label>
+                      <p class="cfg-section-label">Display</p>
+                      <div class="checkbox cfg-checkbox">
+                        <label><input type="checkbox" id="dark-theme" name="dark-theme"> Enable dark theme</label>
                       </div>
-                      <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="show-info-bar" name="show-info-bar">
-                        <label class="form-check-label" for="show-info-bar"> Show info bar</label>
+                      <div class="checkbox cfg-checkbox">
+                        <label><input type="checkbox" id="show-info-bar" name="show-info-bar"> Show info bar</label>
                       </div>
-                      <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="show-debug-panel" name="show-debug-panel">
-                        <label class="form-check-label" for="show-debug-panel"> Show debug log information</label>
+                      <div class="checkbox cfg-checkbox">
+                        <label><input type="checkbox" id="show-debug-panel" name="show-debug-panel"> Show debug log</label>
                       </div>
-                      <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="show-action-history" name="show-action-history">
-                        <label class="form-check-label" for="show-action-history"> Show action history window</label>
+                      <div class="checkbox cfg-checkbox">
+                        <label><input type="checkbox" id="show-action-history" name="show-action-history"> Show action history window</label>
                       </div>
-                      <div class="form-group" style="margin-top:10px;">
-                        <label for="zoom-step-select">Scroll Wheel Zoom Step</label> <br />
+                      <hr class="cfg-divider" />
+                      <p class="cfg-section-label">Behavior</p>
+                      <div class="form-group cfg-form-group">
+                        <label for="zoom-step-select">Scroll Wheel Zoom Step</label>
                         <select class="form-control" id="zoom-step-select" name="zoom-step-select" onchange="config_zoomStep=parseFloat(this.value);_config_set('zoomStep',this.value);">
                           <option value="0.02">Fine (2% – default)</option>
                           <option value="0.05">Medium (5%)</option>
@@ -234,14 +233,12 @@
                           <option value="0.20">Large (20%)</option>
                         </select>
                       </div>
-                       <div class="form-group" style="margin-top:10px;">
-                        <label>Grid Line Appearance</label>
-                        <div id="grid-config"></div>
-                      </div>
-                      <div class="form-group" style="margin-top:10px;">
-                        <label>Keybinds</label>
-                        <div id="keybinds-config"></div>
-                      </div>
+                      <hr class="cfg-divider" />
+                      <p class="cfg-section-label">Grid Line Appearance</p>
+                      <div id="grid-config"></div>
+                      <hr class="cfg-divider" />
+                      <p class="cfg-section-label">Keybinds</p>
+                      <div id="keybinds-config"></div>
                     </div>
 
                     <div class="tab-pane fade" id="gui-about">
@@ -269,8 +266,6 @@
 
                 </div>
             </div>
-
-            <button id="gui-close" type="button" class="btn btn-default">Close</button>
 
         </div>
         <div id="canvas_container"></div>
