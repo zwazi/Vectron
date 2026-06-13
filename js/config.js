@@ -404,7 +404,6 @@ function gridConfig_buildUI() {
     var defaultAxisX = '#2244cc', defaultAxisY = '#cc2222';
     var defaultThickNarrow = 1, defaultThickTenth = 0.5, defaultThickX = 1, defaultThickY = 1;
 
-    // Default 10th line color = same as narrow line color
     function getDefaultNarrowColor() { return config_isDark ? defaultNarrowDark : defaultNarrowLight; }
     function getDefaultTenthColor()  { return getDefaultNarrowColor(); }
 
@@ -419,45 +418,44 @@ function gridConfig_buildUI() {
           defaultColor: function(){ return defaultAxisY; }, defaultThick: defaultThickY },
     ];
 
-    var table = document.createElement('table');
-    table.style.cssText = 'width:100%;font-size:12px;border-collapse:collapse;';
-    var thead = document.createElement('tr');
+    // Header row
+    var headerDiv = document.createElement('div');
+    headerDiv.className = 'grid-cfg-header';
     ['Line Type','Color','Thickness (px)'].forEach(function(h) {
-        var th = document.createElement('th');
-        th.textContent = h;
-        th.style.cssText = 'text-align:left;padding:2px 4px;border-bottom:1px solid #666;';
-        thead.appendChild(th);
+        var span = document.createElement('span');
+        span.textContent = h;
+        headerDiv.appendChild(span);
     });
-    table.appendChild(thead);
+    container.appendChild(headerDiv);
 
     rows.forEach(function(row) {
-        var tr = document.createElement('tr');
+        var rowDiv = document.createElement('div');
+        rowDiv.className = 'grid-cfg-row';
 
-        var tdLabel = document.createElement('td');
-        tdLabel.textContent = row.label;
-        tdLabel.style.cssText = 'padding:3px 4px;';
-        tr.appendChild(tdLabel);
+        // Label cell
+        var labelSpan = document.createElement('span');
+        labelSpan.textContent = row.label;
+        labelSpan.className = 'grid-cfg-label';
+        rowDiv.appendChild(labelSpan);
 
         // Color cell
-        var tdColor = document.createElement('td');
-        tdColor.style.cssText = 'padding:3px 4px;';
+        var colorCell = document.createElement('div');
+        colorCell.className = 'grid-cfg-cell';
+
         var colorInp = document.createElement('input');
         colorInp.type = 'color';
         colorInp.id = 'cfg-' + row.colorKey;
         var savedColor = _config_get(row.colorKey);
         colorInp.value = savedColor || row.defaultColor();
-        colorInp.style.cssText = 'width:44px;height:22px;padding:0;border:none;cursor:pointer;';
+        colorInp.style.cssText = 'width:50px;height:26px;padding:1px 2px;border:1px solid #aaa;border-radius:3px;cursor:pointer;background:transparent;';
 
         var colorResetBtn = document.createElement('button');
         colorResetBtn.textContent = '↺';
         colorResetBtn.title = 'Reset to default';
         colorResetBtn.className = 'btn btn-xs btn-default';
-        colorResetBtn.style.cssText = 'margin-left:4px;';
 
-        // Show reset only if different from default
         function updateColorResetVisibility() {
-            var defVal = row.defaultColor();
-            colorResetBtn.style.display = (colorInp.value !== defVal) ? '' : 'none';
+            colorResetBtn.style.display = (colorInp.value !== row.defaultColor()) ? '' : 'none';
         }
         updateColorResetVisibility();
 
@@ -481,26 +479,27 @@ function gridConfig_buildUI() {
             };
         })(row.colorKey, colorInp, row.defaultColor, colorResetBtn);
 
-        tdColor.appendChild(colorInp);
-        tdColor.appendChild(colorResetBtn);
-        tr.appendChild(tdColor);
+        colorCell.appendChild(colorInp);
+        colorCell.appendChild(colorResetBtn);
+        rowDiv.appendChild(colorCell);
 
         // Thickness cell
-        var tdThick = document.createElement('td');
-        tdThick.style.cssText = 'padding:3px 4px;';
+        var thickCell = document.createElement('div');
+        thickCell.className = 'grid-cfg-cell';
+
         var thickInp = document.createElement('input');
         thickInp.type = 'number';
         thickInp.id = 'cfg-' + row.thickKey;
         thickInp.min = '0.1'; thickInp.max = '10'; thickInp.step = '0.5';
         var savedThick = parseFloat(_config_get(row.thickKey));
         thickInp.value = (savedThick > 0) ? savedThick : row.defaultThick;
-        thickInp.style.cssText = 'width:64px;';
+        thickInp.className = 'form-control';
+        thickInp.style.cssText = 'width:72px;height:26px;padding:2px 6px;display:inline-block;';
 
         var thickResetBtn = document.createElement('button');
         thickResetBtn.textContent = '↺';
         thickResetBtn.title = 'Reset to default';
         thickResetBtn.className = 'btn btn-xs btn-default';
-        thickResetBtn.style.cssText = 'margin-left:4px;';
 
         function updateThickResetVisibility() {
             thickResetBtn.style.display = (parseFloat(thickInp.value) !== row.defaultThick) ? '' : 'none';
@@ -528,12 +527,10 @@ function gridConfig_buildUI() {
             };
         })(row.thickKey, thickInp, row.defaultThick, thickResetBtn);
 
-        tdThick.appendChild(thickInp);
-        tdThick.appendChild(thickResetBtn);
-        tr.appendChild(tdThick);
+        thickCell.appendChild(thickInp);
+        thickCell.appendChild(thickResetBtn);
+        rowDiv.appendChild(thickCell);
 
-        table.appendChild(tr);
+        container.appendChild(rowDiv);
     });
-
-    container.appendChild(table);
 }

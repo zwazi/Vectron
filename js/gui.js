@@ -26,14 +26,17 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 var gui_active = false;
 
-/** Clamp a window position so it stays fully within the viewport and does not overlap the 50px left toolbar. */
+/** Clamp a window position so it stays fully within the viewport, does not overlap the 50px left toolbar, the 36px top settings bar, or the bottom info bar. */
 function gui_clampToScreen(win, px, py) {
     var TOOLBAR_W = 50;
+    var TOP_BAR_H = 36;
+    var infoBar = document.getElementsByClassName("info")[0];
+    var INFO_BAR_H = (infoBar && infoBar.style.display !== "none") ? 26 : 0;
     var w = win.offsetWidth || 0;
     var h = win.offsetHeight || 0;
     var maxX = Math.max(TOOLBAR_W, window.innerWidth  - w);
-    var maxY = Math.max(0, window.innerHeight - h);
-    return [Math.max(TOOLBAR_W, Math.min(px, maxX)), Math.max(0, Math.min(py, maxY))];
+    var maxY = Math.max(TOP_BAR_H, window.innerHeight - h - INFO_BAR_H);
+    return [Math.max(TOOLBAR_W, Math.min(px, maxX)), Math.max(TOP_BAR_H, Math.min(py, maxY))];
 }
 
 function gui_init() {
