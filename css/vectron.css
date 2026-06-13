@@ -270,7 +270,8 @@ body.noscroll {
   background-image:url('../images/Zoom/Shrink.png');
 }
 
-.toolbar-delete:after {
+/* Toolbar-only icon pseudo-elements (scoped so they don't appear in context menu) */
+#tool_bar .toolbar-delete:after {
     font-family: 'Glyphicons Halflings';
     content: "\e014";
     font-size: 18px;
@@ -279,7 +280,7 @@ body.noscroll {
     top:3px;
 }
 
-.toolbar-undo:after {
+#tool_bar .toolbar-undo:after {
     font-family: sans-serif;
     content: "\21b6";
     font-size: 26px;
@@ -288,7 +289,7 @@ body.noscroll {
     top:4px; left:-1px;
 }
 
-.toolbar-redo:after {
+#tool_bar .toolbar-redo:after {
     font-family: sans-serif;
     content: "\21b7";
     font-size: 26px;
@@ -296,7 +297,6 @@ body.noscroll {
     position:relative;
     top:4px; left:-0px;
 }
-
 /* Split Tool icon */
 .toolbar-toolSplit:after {
     font-family: sans-serif;
@@ -549,31 +549,47 @@ body.noscroll {
   margin: 2px 0;
 }
 
-/* XML editor modal */
+/* XML editor floating window */
 #xml-editor-overlay {
   display: none;
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   z-index: 50;
-  background: rgba(0,0,0,0.45);
-  align-items: center;
-  justify-content: center;
+  /* Transparent — clicks pass through to canvas */
+  background: none;
+  pointer-events: none;
 }
 #xml-editor-overlay.visible {
-  display: flex;
+  display: block;
 }
 #xml-editor-box {
+  pointer-events: all;
   background: #fff;
   border: 1px solid #aaa;
   border-radius: 4px;
-  padding: 20px;
-  width: min(90vw, 1050px);
-  min-width: 600px;
-  max-height: 88vh;
-  height: 88vh;
+  width: min(90vw, 900px);
+  min-width: 400px;
+  max-height: 80vh;
+  height: 70vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  position: absolute;
+  top: 60px;
+  left: 200px;
+  resize: both;
+  overflow: hidden;
+}
+#xml-editor-header {
+  background: #333;
+  color: #eee;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: move;
+  user-select: none;
+  border-bottom: 1px solid #555;
+  flex-shrink: 0;
 }
 #xml-editor-box h4 {
   margin: 0 0 8px;
@@ -581,6 +597,8 @@ body.noscroll {
 #xml-editor-tabs {
   border-bottom: 1px solid #ddd;
   margin-bottom: 0;
+  flex-shrink: 0;
+  padding: 0 10px;
 }
 #xml-editor-tabs li.active > a,
 #xml-editor-tabs li.active > a:hover {
@@ -594,7 +612,7 @@ body.noscroll {
 }
 #xml-editor-content {
   flex: 1;
-  min-height: 200px;
+  min-height: 100px;
   font-family: monospace;
   font-size: 12px;
   resize: none;
@@ -605,9 +623,17 @@ body.noscroll {
   overflow: auto;
 }
 #xml-editor-box .xml-editor-actions {
-  margin-top: 10px;
+  margin-top: 8px;
+  padding: 0 10px 8px;
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
+}
+#xml-editor-error {
+  padding: 4px 10px 0;
+  color: #c00;
+  font-size: 12px;
+  display: none;
 }
 
 /* Toast notification */
@@ -636,18 +662,29 @@ body.noscroll {
 .info #anchor-x,
 .info #anchor-y {
   display: inline-block;
-  min-width: 52px;
-  text-align: right;
+  min-width: 40px;
+  text-align: left;
 }
 .info #zoom {
   display: inline-block;
   min-width: 32px;
-  text-align: right;
+  text-align: left;
 }
 .info #spacing {
   display: inline-block;
-  min-width: 28px;
-  text-align: right;
+  min-width: 24px;
+  text-align: left;
+}
+.info-section {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  gap: 4px;
+}
+.info-sep {
+  opacity: 0.35;
+  padding: 0 2px;
+  user-select: none;
 }
 
 /* Wall height popover bar */
@@ -676,29 +713,85 @@ body.noscroll {
   text-decoration: underline;
 }
 
-/* Toolbar new map button */
-.toolbar-newMap:after {
-  font-family: 'Glyphicons Halflings';
-  content: "\2795";
+/* Toolbar new map / import / export — use image files */
+.toolbar-newMap {
+  background-image: url('../images/ObjectTools/file.png');
+}
+.toolbar-import {
+  background-image: url('../images/ObjectTools/import.png');
+}
+.toolbar-export {
+  background-image: url('../images/ObjectTools/export.png');
+}
+
+/* Context menu: standardized item size/spacing (matching copy/paste style) */
+#contextMenu .dropdown-menu > li > a {
+  display: block;
+  padding: 5px 20px;
   font-size: 14px;
-  position: relative;
-  top: 3px;
+  line-height: 1.42857143;
+  color: #333;
+  white-space: nowrap;
+}
+#contextMenu .dropdown-menu > li > a:hover,
+#contextMenu .dropdown-menu > li > a:focus {
+  text-decoration: none;
+  color: #262626;
+  background-color: #f5f5f5;
 }
 
-/* Toolbar import button */
-.toolbar-import:after {
-  font-family: 'Glyphicons Halflings';
-  content: "\e258";
-  font-size: 16px;
-  position: relative;
-  top: 3px;
+/* Keyboard shortcut labels in context menu */
+.cm-shortcut {
+  float: right;
+  opacity: 0.55;
+  font-size: 11px;
+  margin-left: 16px;
+  padding-top: 1px;
 }
 
-/* Toolbar export button */
-.toolbar-export:after {
-  font-family: 'Glyphicons Halflings';
-  content: "\e259";
-  font-size: 16px;
+/* Context menu submenu */
+#contextMenu .dropdown-submenu {
   position: relative;
-  top: 3px;
 }
+#contextMenu .dropdown-submenu > a::after {
+  content: " ▶";
+  font-size: 10px;
+  opacity: 0.6;
+}
+#contextMenu .cm-submenu {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -2px;
+  min-width: 180px;
+  z-index: 1001;
+}
+#contextMenu .dropdown-submenu:hover > .cm-submenu {
+  display: block;
+}
+
+/* New-map confirmation popover */
+#new-map-popover {
+  position: fixed;
+  z-index: 500;
+  background: #fff;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  box-shadow: 2px 4px 12px rgba(0,0,0,0.25);
+  padding: 0;
+  min-width: 210px;
+}
+.new-map-popover-body {
+  padding: 12px 14px 10px;
+}
+.new-map-popover-body p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.new-map-popover-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Dark theme overrides for new popover and XML header */

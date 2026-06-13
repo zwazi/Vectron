@@ -51,14 +51,13 @@
     </head>
     <body class="noscroll">
         <div class="info" style="display:none">
-            <b>cursor</b>
-            <span class="var">x:&nbsp;<span id="cursor-x">0</span></span>
-            <span class="var">y:&nbsp;<span id="cursor-y">0</span></span>
-            <b>zoom:</b><span id="zoom">0</span>%
-            <b>grid:</b><span id="spacing">0</span>
-            <b>anchor</b>
-            <span class="var">x:&nbsp;<span id="anchor-x">0</span></span>
-            <span class="var">y:&nbsp;<span id="anchor-y">0</span></span>
+            <span class="info-section"><b>cursor</b>&nbsp;<span class="var">x:&nbsp;<span id="cursor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="cursor-y">0</span></span></span>
+            <span class="info-sep">|</span>
+            <span class="info-section"><b>zoom:</b>&nbsp;<span id="zoom">0</span>%</span>
+            <span class="info-sep">|</span>
+            <span class="info-section"><b>grid:</b>&nbsp;<span id="spacing">0</span></span>
+            <span class="info-sep">|</span>
+            <span class="info-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span></span>
         </div>
 
         <div id="control_box">
@@ -226,6 +225,10 @@
                           <option value="0.20">Large (20%)</option>
                         </select>
                       </div>
+                       <div class="form-group" style="margin-top:10px;">
+                        <label>Grid Line Appearance</label>
+                        <div id="grid-config"></div>
+                      </div>
                       <div class="form-group" style="margin-top:10px;">
                         <label>Keybinds</label>
                         <div id="keybinds-config"></div>
@@ -258,7 +261,6 @@
                 </div>
             </div>
 
-            <button type="button" id="gui-export" data-loading-text="Saving..." class="btn btn-primary">Export</button>
             <button id="gui-close" type="button" class="btn btn-default">Close</button>
 
         </div>
@@ -279,9 +281,6 @@
             <ul>
                 <li>
                     <a class="toolbar-toolSelect" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Select Tool"></a>
-                </li>
-                <li>
-                    <a class="toolbar-toolNavigation" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Navigation Tool"><span class="glyphicon glyphicon-move" style="font-size:15px;position:relative;left:0px;top:8px;"></span></a>
                 </li>
             </ul>
 
@@ -320,30 +319,7 @@
                 <li class="toolbar-toolUnlock-list">
                     <a class="toolbar-toolUnlock" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Snap-unlocked"></a>
                 </li>
-                <li>
-                    <a class="toolbar-toolZoomIn" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zoom In"></a>
-                </li>
-                <li>
-                    <a class="toolbar-toolZoomOut" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zoom Out"></a>
-                </li>
-                <li>
-                    <a class="toolbar-toolZoom100" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zoom 100% [Ctrl+1]"><span class="glyphicon glyphicon-search" style="font-size:12px;position:relative;left:1px;top:8px;"></span></a>
-                </li>
-                <li>
-                    <a class="toolbar-toolFitScreen" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Fit Map to Screen [Ctrl+0]"><span class="glyphicon glyphicon-fullscreen" style="font-size:14px;position:relative;left:0px;top:8px;"></span></a>
-                </li>
              </ul>
-            <ul>
-                <li>
-                    <a class="toolbar-delete" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Delete Selected"></a>
-                </li>
-                <li>
-                    <a class="toolbar-undo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Undo"></a>
-                </li>
-                <li>
-                    <a class="toolbar-redo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Redo"></a>
-                </li>
-            </ul>
             <ul>
                 <li>
                     <a class="toolbar-toolSplit" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Split Tool"></a>
@@ -384,13 +360,25 @@
 
         <div id="contextMenu" class="dropdown clearfix">
             <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu" style="display:block;position:static;margin-bottom:5px;">
-                <li><a tabindex="-1" href="#" class="toolbar-copy">Copy <span style="float:right;opacity:0.6;font-size:11px;">Ctrl+C</span></a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-paste">Paste <span style="float:right;opacity:0.6;font-size:11px;">Ctrl+V</span></a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-copy">Copy <span class="cm-shortcut">Ctrl+C</span></a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-paste">Paste <span class="cm-shortcut">Ctrl+V</span></a></li>
                 <li class="divider"></li>
-                <li><a tabindex="-1" href="#" class="toolbar-undo">Undo</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-redo">Redo</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-undo">Undo <span class="cm-shortcut">Ctrl+Z</span></a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-redo">Redo <span class="cm-shortcut">Ctrl+Shift+Z</span></a></li>
                 <li class="divider"></li>
-                <li><a tabindex="-1" href="#" class="toolbar-delete">Delete Selected</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-delete">Delete <span class="cm-shortcut">Del</span></a></li>
+                <li class="divider"></li>
+                <li class="dropdown-submenu">
+                    <a tabindex="-1" href="#">Pan/Zoom</a>
+                    <ul class="dropdown-menu cm-submenu">
+                        <li><a tabindex="-1" href="#" id="cm-navigation">Navigation Tool <span class="cm-shortcut">2</span></a></li>
+                        <li class="divider"></li>
+                        <li><a tabindex="-1" href="#" id="cm-zoom-in">Zoom In</a></li>
+                        <li><a tabindex="-1" href="#" id="cm-zoom-out">Zoom Out</a></li>
+                        <li><a tabindex="-1" href="#" id="cm-zoom-100">Zoom 100% <span class="cm-shortcut">Ctrl+1</span></a></li>
+                        <li><a tabindex="-1" href="#" id="cm-fit-screen">Fit to Screen <span class="cm-shortcut">Ctrl+0</span></a></li>
+                    </ul>
+                </li>
                 <li class="divider"></li>
                 <li><a tabindex="-1" href="#" id="contextMenu-view-xml">View XML</a></li>
             </ul>
@@ -404,16 +392,25 @@
 
         <div id="xml-editor-overlay">
             <div id="xml-editor-box">
-                <h4 style="margin:0 0 8px;">XML Editor</h4>
+                <div id="xml-editor-header">XML Editor <span id="xml-editor-close-x" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
                 <ul class="nav nav-tabs" id="xml-editor-tabs" style="margin-bottom:0;border-bottom:none;">
                     <li id="xml-tab-full"><a href="#" data-tab="full">Full Map</a></li>
                     <li id="xml-tab-selected"><a href="#" data-tab="selected">Selection <span id="xml-tab-sel-count"></span></a></li>
                 </ul>
                 <textarea id="xml-editor-content" spellcheck="false"></textarea>
-                <div id="xml-editor-error" style="color:#c00;font-size:12px;padding:4px 0;display:none;"></div>
+                <div id="xml-editor-error" style="display:none;"></div>
                 <div class="xml-editor-actions">
                     <button id="xml-editor-apply" class="btn btn-primary">Apply Changes</button>
                     <button id="xml-editor-close" class="btn btn-default">Close</button>
+                </div>
+            </div>
+        </div>
+        <div id="new-map-popover" style="display:none;">
+            <div class="new-map-popover-body">
+                <p>Create a new blank map?<br><small>Unsaved changes will be lost.</small></p>
+                <div class="new-map-popover-actions">
+                    <button id="new-map-confirm" class="btn btn-sm btn-danger">Create</button>
+                    <button id="new-map-cancel" class="btn btn-sm btn-default">Cancel</button>
                 </div>
             </div>
         </div>
