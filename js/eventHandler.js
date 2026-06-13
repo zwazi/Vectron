@@ -398,12 +398,18 @@ function eventHandler_init() {
     }
 
     function xmlEditor_validateXML(content, isFragment) {
-        var parser = new DOMParser();
-        // Wrap fragment in a neutral root element for parseability testing
-        var testStr = isFragment ? ('<VectronRoot>' + content + '</VectronRoot>') : content;
-        var doc = parser.parseFromString(testStr, "text/xml");
-        // Return boolean only - never echo user content back to the DOM
-        return doc.querySelector("parsererror") !== null;
+        // Use jQuery's parseXML which throws on invalid XML.
+        // For fragments, wrap in a neutral root so multiple top-level elements are accepted.
+        try {
+            if(isFragment) {
+                $.parseXML('<VectronRoot>' + content + '</VectronRoot>');
+            } else {
+                $.parseXML(content);
+            }
+            return false; // valid
+        } catch(e) {
+            return true; // invalid
+        }
     }
 
     function xmlEditor_apply() {
@@ -421,7 +427,6 @@ function eventHandler_init() {
 
         // Save old state for undo
         var oldObjects = aamap_objects.slice();
-        var oldUndoStack = aamap_undoStack.slice();
 
         if (xmlEditor_mode === 'selected' && xmlEditor_selectedSnapshot.length > 0) {
             aamap_objects = aamap_objects.diff(xmlEditor_selectedSnapshot);
@@ -439,8 +444,7 @@ function eventHandler_init() {
 
         var newObjects = aamap_objects.slice();
 
-        // Restore old stacks and record XML edit as an undoable action
-        aamap_undoStack = oldUndoStack;
+        // Record XML edit as an undoable action
         aamap_redoStack = [];
         aamap_recordAction({
             label: "Edit XML",
@@ -450,8 +454,6 @@ function eventHandler_init() {
                     if(e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
                 });
                 aamap_objects = oldObjects;
-                // Restore the pre-edit undo stack (aamap_undo already handles pushing to redo)
-                aamap_undoStack = oldUndoStack.slice();
                 vectron_render();
                 actionHistory_update();
             },
