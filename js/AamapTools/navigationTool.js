@@ -62,12 +62,6 @@ function navigationTool_progress()
     var xdir = navigationTool_clickX - cursor_pageX;
     var ydir = navigationTool_clickY - cursor_pageY;
     vectron_screen.setViewBox(xdir, ydir, vectron_width, vectron_height);
-    var bbox = aamap_grid.getBBox();
-    var adj = vectron_zoom*vectron_grid_spacing;
-    aamap_grid.translate(
-        (Math.round(xdir/adj)*adj)-(bbox.x-(aamap_grid.bbox.x)),
-        (Math.round(ydir/adj)*adj)-(bbox.y-(aamap_grid.bbox.y))
-    );
 }
 
 function navigationTool_complete()
@@ -102,13 +96,6 @@ var __navigationTool_render_pan = function(urgent)
     var xdir = (__navigationTool_panX - aamap_realX(vectron_panX))/2;
     var ydir = (__navigationTool_panY - aamap_realY(vectron_panY))/2;
     vectron_screen.setViewBox(xdir, ydir, vectron_width, vectron_height);
-
-    var bbox = aamap_grid.getBBox();
-    var adj = vectron_zoom*vectron_grid_spacing;
-    aamap_grid.translate(
-        (Math.round(xdir/adj)*adj)-(bbox.x-(aamap_grid.bbox.x)),
-        (Math.round(ydir/adj)*adj)-(bbox.y-(aamap_grid.bbox.y))
-    );
 
     clearTimeout(__navigationTool_pan_timeout);
     __navigationTool_pan_timeout = setTimeout(function()
