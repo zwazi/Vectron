@@ -24,6 +24,7 @@
         <script type="text/javascript" src="./js/AamapTools/zoneTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/navigationTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/selectTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/wallVertexMoveTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/splitTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/joinTool.js"></script>
 
@@ -212,6 +213,10 @@
                         <input type="checkbox" class="form-check-input" id="show-debug-panel" name="show-debug-panel">
                         <label class="form-check-label" for="show-debug-panel"> Show debug log information</label>
                       </div>
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="show-action-history" name="show-action-history">
+                        <label class="form-check-label" for="show-action-history"> Show action history window</label>
+                      </div>
                       <div class="form-group" style="margin-top:10px;">
                         <label for="zoom-step-select">Scroll Wheel Zoom Step</label> <br />
                         <select class="form-control" id="zoom-step-select" name="zoom-step-select" onchange="config_zoomStep=parseFloat(this.value);_config_set('zoomStep',this.value);">
@@ -290,7 +295,10 @@
             </ul>-->
             <ul id="zone-base" class="single-item">
             	<li>
-                    <a class="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Tool"></a>
+            	   <a class="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Tool"></a>
+            	</li>
+            	<li>
+            	   <a class="toolbar-toolWallVertexMove" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Vertex Move Tool"></a>
                 </li>
                 <li>
                     <a class="toolbar-toolZone" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zone Tool"></a>
@@ -429,5 +437,10 @@
                 </div>
             </div>
         </div>
+        <div id="action-history-window" style="display:none;">
+            <div id="action-history-header">Action History <span id="action-history-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
+            <ul id="action-history-list"></ul>
+        </div>
+
     </body>
 </html>

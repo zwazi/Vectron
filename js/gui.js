@@ -28,6 +28,64 @@ var gui_active = false;
 
 function gui_init() {
     gui_writeLog("Welcome to Vectron.")
+    actionHistory_init();
+}
+
+function actionHistory_init() {
+    // Make the action history window draggable and resizable via JS
+    var win = document.getElementById("action-history-window");
+    if(!win) return;
+    var header = document.getElementById("action-history-header");
+    var isDragging = false, dragOffX = 0, dragOffY = 0;
+    header.addEventListener("mousedown", function(e) {
+        isDragging = true;
+        dragOffX = e.clientX - win.offsetLeft;
+        dragOffY = e.clientY - win.offsetTop;
+        e.preventDefault();
+    });
+    document.addEventListener("mousemove", function(e) {
+        if(isDragging) {
+            win.style.left = (e.clientX - dragOffX) + "px";
+            win.style.top  = (e.clientY - dragOffY) + "px";
+        }
+    });
+    document.addEventListener("mouseup", function() { isDragging = false; });
+}
+
+function actionHistory_update() {
+    var list = document.getElementById("action-history-list");
+    if(!list || document.getElementById("action-history-window").style.display === "none") return;
+    list.innerHTML = "";
+
+    function makeItem(label, cls) {
+        var li = document.createElement("li");
+        li.textContent = label || "(unnamed action)";
+        li.className = cls;
+        return li;
+    }
+
+    for(var i = 0; i < aamap_undoStack.length; i++) {
+        list.appendChild(makeItem(aamap_undoStack[i].label, "ah-undo"));
+    }
+    var cur = document.createElement("li");
+    cur.className = "ah-current";
+    cur.textContent = "▶ current position";
+    list.appendChild(cur);
+    for(var j = aamap_redoStack.length - 1; j >= 0; j--) {
+        list.appendChild(makeItem(aamap_redoStack[j].label, "ah-redo"));
+    }
+    // Scroll to current position marker
+    cur.scrollIntoView({block: "nearest"});
+}
+
+function actionHistory_show() {
+    var win = document.getElementById("action-history-window");
+    win.style.display = "";
+    actionHistory_update();
+}
+
+function actionHistory_hide() {
+    document.getElementById("action-history-window").style.display = "none";
 }
 
 function gui_writeLog(message) {
