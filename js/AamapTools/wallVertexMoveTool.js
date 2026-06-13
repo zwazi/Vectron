@@ -198,28 +198,21 @@ function wallVertexMoveTool_deleteSelected() {
     wallVertexMoveTool_selectedWall = null;
     wallVertexMoveTool_selectedPtIdx = -1;
 
-    // Group indices by wall
-    var wallMap = [];
-    for (var i = 0; i < aamap_objects.length; i++) {
-        wallMap.push({wall: aamap_objects[i], indices: []});
-    }
+    // Group indices by wall (build map only from toDelete entries)
+    var wallMap = new Map();
     for (var i = 0; i < toDelete.length; i++) {
         var v = toDelete[i];
-        for (var k = 0; k < wallMap.length; k++) {
-            if (wallMap[k].wall === v.wall) {
-                wallMap[k].indices.push(v.ptIdx);
-                break;
-            }
+        if (!wallMap.has(v.wall)) {
+            wallMap.set(v.wall, []);
         }
+        wallMap.get(v.wall).push(v.ptIdx);
     }
 
     var removedWalls = [];
     var modifiedWalls = [];
 
-    for (var k = 0; k < wallMap.length; k++) {
-        if (wallMap[k].indices.length === 0) continue;
-        var wall = wallMap[k].wall;
-        var indices = wallMap[k].indices.slice().sort(function(a, b) { return b - a; });
+    wallMap.forEach(function(indices, wall) {
+        indices = indices.slice().sort(function(a, b) { return b - a; });
         var origPoints = wall.points.slice();
         var remainingCount = wall.points.length - indices.length;
 
@@ -233,7 +226,7 @@ function wallVertexMoveTool_deleteSelected() {
             wall.render();
             modifiedWalls.push({wall: wall, origPoints: origPoints, newPoints: wall.points.slice()});
         }
-    }
+    });
 
     aamap_recordAction({
         label: toDelete.length > 1 ? "Delete vertices" : "Delete vertex",
@@ -286,14 +279,14 @@ function wallVertexMoveTool_progress() {
     var dy = curMapY - wallVertexMoveTool_dragStartMapY;
 
     // Move all selected vertices by the same delta from their original positions
-    var renderedWalls = [];
+    var renderedWalls = new Set();
     for (var i = 0; i < wallVertexMoveTool_origPositions.length; i++) {
         var orig = wallVertexMoveTool_origPositions[i];
         orig.wall.points[orig.ptIdx].x = Math.round((orig.x + dx) * 1e6) / 1e6;
         orig.wall.points[orig.ptIdx].y = Math.round((orig.y + dy) * 1e6) / 1e6;
-        if (renderedWalls.indexOf(orig.wall) === -1) {
+        if (!renderedWalls.has(orig.wall)) {
             orig.wall.render();
-            renderedWalls.push(orig.wall);
+            renderedWalls.add(orig.wall);
         }
     }
     wallVertexMoveTool_drawDots();
@@ -357,14 +350,14 @@ function wallVertexMoveTool_complete() {
     });
 
     // Apply final positions
-    var renderedWalls = [];
+    var renderedWalls = new Set();
     for (var i = 0; i < capturedFinal.length; i++) {
         var f = capturedFinal[i];
         f.wall.points[f.ptIdx].x = f.x;
         f.wall.points[f.ptIdx].y = f.y;
-        if (renderedWalls.indexOf(f.wall) === -1) {
+        if (!renderedWalls.has(f.wall)) {
             f.wall.render();
-            renderedWalls.push(f.wall);
+            renderedWalls.add(f.wall);
         }
     }
 
@@ -376,20 +369,20 @@ function wallVertexMoveTool_complete() {
         aamap_recordAction({
             label: capturedOrig.length > 1 ? "Move vertices" : "Move vertex",
             undo: function() {
-                var rw = [];
+                var rw = new Set();
                 capturedOrig.forEach(function(o) {
                     o.wall.points[o.ptIdx].x = o.x;
                     o.wall.points[o.ptIdx].y = o.y;
-                    if (rw.indexOf(o.wall) === -1) { o.wall.render(); rw.push(o.wall); }
+                    if (!rw.has(o.wall)) { o.wall.render(); rw.add(o.wall); }
                 });
                 vectron_render();
             },
             redo: function() {
-                var rw = [];
+                var rw = new Set();
                 capturedFinal.forEach(function(f) {
                     f.wall.points[f.ptIdx].x = f.x;
                     f.wall.points[f.ptIdx].y = f.y;
-                    if (rw.indexOf(f.wall) === -1) { f.wall.render(); rw.push(f.wall); }
+                    if (!rw.has(f.wall)) { f.wall.render(); rw.add(f.wall); }
                 });
                 vectron_render();
             }
