@@ -285,6 +285,24 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
+    $(".toolbar-toolSplit").mouseup(function(e) {
+        vectron_connectTool("split");
+        gui_writeLog('Split Tool Connected.');
+        $("#zones-menu").hide();
+    });
+
+    $(".toolbar-toolJoin").mouseup(function(e) {
+        vectron_connectTool("join");
+        gui_writeLog('Join Tool Connected.');
+        $("#zones-menu").hide();
+    });
+
+    $(".toolbar-toolInfo").mouseup(function(e) {
+        if(!gui_active) { gui_show(); $(".toolbar-gui-open").hide(); $(".toolbar-gui-close").show(); }
+        $('a[href="#gui-about"]').click();
+        $("#zones-menu").hide();
+    });
+
     $(".toolbar-toolUnlock-list .toolbar-toolUnlock").mouseup(function(e) {
         cursor_snap = true;
         $('.toolbar-toolUnlock-list').css('display','none');
@@ -437,6 +455,10 @@ function eventHandler_init() {
                     selectTool_complete();
                 } else if(vectron_currentTool == "navigation" && vectron_toolActive) {
                     navigationTool_complete();
+                } else if(vectron_currentTool == "split") {
+                    splitTool_click();
+                } else if(vectron_currentTool == "join") {
+                    joinTool_click();
                 }
                 break;
             case 2:
@@ -530,6 +552,10 @@ function eventHandler_init() {
             selectTool_progress();
         } else if(vectron_currentTool == "navigation" && vectron_toolActive) {
             navigationTool_progress();
+        } else if(vectron_currentTool == "split") {
+            splitTool_guide();
+        } else if(vectron_currentTool == "join") {
+            joinTool_guide();
         }
 
     });
@@ -705,24 +731,6 @@ function eventHandler_init() {
             }
         }
     });
-
-    Mousetrap.bind('w', function(e) {
-        if(!aamap_active) return;
-
-        if(vectron_currentTool == "wall") {
-            return;
-        } else {
-            vectron_connectTool("wall");
-        }
-    }, 'keydown');
-
-    Mousetrap.bind('z', function(e) {
-        if(!aamap_active) return;
-
-        if(vectron_currentTool != "zone") {
-            vectron_connectTool("zone");
-        }
-    }, 'keydown');
 
     Mousetrap.bind('escape', function(e) {
         if(vectron_currentTool == "zone" && zoneTool_placingSize) {
