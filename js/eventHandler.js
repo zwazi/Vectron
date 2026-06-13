@@ -27,6 +27,9 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 var eventHandler_space = false;
 var eventHandler_shift = false;
 var eventHandler_contextMenu = false;
+var eventHandler_middlePanning = false;
+var eventHandler_middleClickX = 0, eventHandler_middleClickY = 0;
+var eventHandler_middlePanStartX = 0, eventHandler_middlePanStartY = 0;
 
 
 function eventHandler_init() {
@@ -318,6 +321,17 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
+    $(".toolbar-toolZoom100").mouseup(function(e) {
+        vectron_zoom = 1;
+        vectron_render();
+        $("#zones-menu").hide();
+    });
+
+    $(".toolbar-toolFitScreen").mouseup(function(e) {
+        aamap_fitToScreen();
+        $("#zones-menu").hide();
+    });
+
     //Scaling//
 
     // Need better icons for these.
@@ -375,6 +389,14 @@ function eventHandler_init() {
         e.preventDefault();
         if(!aamap_active) return;
 
+        if(eventHandler_middlePanning) {
+            vectron_panX = eventHandler_middlePanStartX + (cursor_pageX - eventHandler_middleClickX) / vectron_zoom;
+            vectron_panY = eventHandler_middlePanStartY + (eventHandler_middleClickY - cursor_pageY) / vectron_zoom;
+            eventHandler_middlePanning = false;
+            vectron_render();
+            return;
+        }
+
         if(vectron_currentTool == "select") {
             if(vectron_toolActive){
                 selectTool_complete();
@@ -408,7 +430,12 @@ function eventHandler_init() {
                 }
                 break;
             case 2:
-                //alert('Middle Mouse button pressed.');
+                if(eventHandler_middlePanning) {
+                    vectron_panX = eventHandler_middlePanStartX + (cursor_pageX - eventHandler_middleClickX) / vectron_zoom;
+                    vectron_panY = eventHandler_middlePanStartY + (eventHandler_middleClickY - cursor_pageY) / vectron_zoom;
+                    eventHandler_middlePanning = false;
+                    vectron_render();
+                }
                 break;
             case 3:
                 break;
@@ -438,7 +465,11 @@ function eventHandler_init() {
                 }
                 break;
             case 2:
-                //alert('Middle Mouse button pressed.');
+                eventHandler_middlePanning = true;
+                eventHandler_middleClickX = cursor_pageX;
+                eventHandler_middleClickY = cursor_pageY;
+                eventHandler_middlePanStartX = vectron_panX;
+                eventHandler_middlePanStartY = vectron_panY;
                 break;
             case 3:
                 //alert('Right Mouse button pressed.');
@@ -454,6 +485,19 @@ function eventHandler_init() {
 
         cursor_pageX = event.pageX - 50;
         cursor_pageY = event.pageY;
+
+        if(eventHandler_middlePanning) {
+            var xdir = eventHandler_middleClickX - cursor_pageX;
+            var ydir = eventHandler_middleClickY - cursor_pageY;
+            vectron_screen.setViewBox(xdir, ydir, vectron_width, vectron_height);
+            var bbox = aamap_grid.getBBox();
+            var adj = vectron_zoom*vectron_grid_spacing;
+            aamap_grid.translate(
+                (Math.round(xdir/adj)*adj)-(bbox.x-(aamap_grid.bbox.x)),
+                (Math.round(ydir/adj)*adj)-(bbox.y-(aamap_grid.bbox.y))
+            );
+            return;
+        }
 
         if(eventHandler_space) {
             navigationTool_progress();
@@ -481,6 +525,8 @@ function eventHandler_init() {
     });
     
     var prev_vectron_zoom = 0;
+    var prev_vectron_panX = 0, prev_vectron_panY = 0;
+    var zoom_mouse_x = 0, zoom_mouse_y = 0;
     var __zoom_timeout;
     if(!("onwheel" in $("#canvas_container")[0]))
     {
@@ -503,6 +549,10 @@ function eventHandler_init() {
             if(prev_vectron_zoom == 0)
             {
                 prev_vectron_zoom = vectron_zoom;
+                prev_vectron_panX = vectron_panX;
+                prev_vectron_panY = vectron_panY;
+                zoom_mouse_x = cursor_pageX;
+                zoom_mouse_y = cursor_pageY;
             }
             if(event.deltaY > 0)
             {
@@ -513,14 +563,20 @@ function eventHandler_init() {
             {
                 vectron_zoom /= 0.98;
             }
-            
+
             var vs = ((vectron_zoom)-prev_vectron_zoom)*(1/vectron_zoom);
             vectron_screen.setViewBox(
-                (vectron_width/2)*vs, (vectron_height/2)*vs,
+                zoom_mouse_x*vs, zoom_mouse_y*vs,
                 vectron_width-(vectron_width*vs), vectron_height-(vectron_height*vs)
             );
             clearTimeout(__zoom_timeout);
-            __zoom_timeout = setTimeout(function(){prev_vectron_zoom=0;vectron_render()},150);
+            __zoom_timeout = setTimeout(function()
+            {
+                vectron_panX = prev_vectron_panX + (zoom_mouse_x - vectron_width/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
+                vectron_panY = prev_vectron_panY - (zoom_mouse_y - vectron_height/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
+                prev_vectron_zoom = 0;
+                vectron_render();
+            }, 150);
         }
     });
 
@@ -693,6 +749,33 @@ function eventHandler_init() {
         if(!aamap_active) return;
 
         aamap_panCenter();
+    });
+
+    Mousetrap.bind('mod+z', function(e) {
+        if(!aamap_active) return;
+        aamap_undo();
+        vectron_render();
+        return false;
+    });
+
+    Mousetrap.bind('mod+shift+z', function(e) {
+        if(!aamap_active) return;
+        aamap_redo();
+        vectron_render();
+        return false;
+    });
+
+    Mousetrap.bind('mod+1', function(e) {
+        if(!aamap_active) return;
+        vectron_zoom = 1;
+        vectron_render();
+        return false;
+    });
+
+    Mousetrap.bind('mod+0', function(e) {
+        if(!aamap_active) return;
+        aamap_fitToScreen();
+        return false;
     });
 
 }
