@@ -87,9 +87,9 @@ function actionHistory_update() {
     // redo items: redoStack[length-1] is first after current, redoStack[0] is last
     for(var j = aamap_redoStack.length - 1; j >= 0; j--) {
         (function(redoIdx, displayPos) {
-            // Redo enough steps so the current position marker ends up ABOVE this item.
-            // displayPos steps puts current just above this item (not including it).
-            var stepsToRedo = displayPos;
+            // Redo enough steps so the current position marker ends up AFTER this item.
+            // displayPos + 1 steps includes the clicked item itself.
+            var stepsToRedo = displayPos + 1;
             var li = makeItem(aamap_redoStack[redoIdx].label, "ah-redo", function() {
                 for(var s = 0; s < stepsToRedo; s++) aamap_redo();
                 vectron_render();
