@@ -241,7 +241,7 @@ function aamap_remove(aamapObject) {
 
 function aamap_undo() {
     gui_writeLog("Undo.");
-    if (aamap_undoStack.length === 0) { alert("Nothing to undo!"); return; }
+    if (aamap_undoStack.length === 0) { gui_toast("Nothing to undo."); return; }
     var action = aamap_undoStack.pop();
     action.undo();
     aamap_redoStack.push(action);
@@ -249,7 +249,7 @@ function aamap_undo() {
 }
 
 function aamap_redo() {
-    if (aamap_redoStack.length === 0) { alert("Nothing to redo!"); return; }
+    if (aamap_redoStack.length === 0) { gui_toast("Nothing to redo."); return; }
     var action = aamap_redoStack.pop();
     action.redo();
     aamap_undoStack.push(action);
@@ -315,33 +315,39 @@ function aamap_drawGrid() {
         return Math.round((pos - mid) / spacing);
     }
 
+    // Extend grid 1 full screen beyond visible area so panning doesn't show blank edges
+    var gridLeft = -vectron_width;
+    var gridRight = 2 * vectron_width;
+    var gridTop = -vectron_height;
+    var gridBottom = 2 * vectron_height;
+
     /**
-     * drawing vertical lines from mid to right and mid to left
+     * drawing vertical lines from mid to right and mid to left (extended 1 screen)
      */
-    for(var i=midWidth; i < vectron_width; i+= gridSpacing) {
+    for(var i=midWidth; i < gridRight; i+= gridSpacing) {
         var idx = gridIndex(i, midWidth, gridSpacing);
-        if(idx === 0) axisYArray.push("M", i, vectron_height, "L", i, 0);
-        else if(idx % 10 === 0) tenthArray.push("M", i, vectron_height, "L", i, 0);
-        else regularArray.push("M", i, vectron_height, "L", i, 0);
+        if(idx === 0) axisYArray.push("M", i, gridBottom, "L", i, gridTop);
+        else if(idx % 10 === 0) tenthArray.push("M", i, gridBottom, "L", i, gridTop);
+        else regularArray.push("M", i, gridBottom, "L", i, gridTop);
     }
-    for(var i=midWidth - gridSpacing; i > 0; i -= gridSpacing) {
+    for(var i=midWidth - gridSpacing; i > gridLeft; i -= gridSpacing) {
         var idx = gridIndex(i, midWidth, gridSpacing);
-        if(idx === 0) axisYArray.push("M", i, vectron_height, "L", i, 0);
-        else if(idx % 10 === 0) tenthArray.push("M", i, vectron_height, "L", i, 0);
-        else regularArray.push("M", i, vectron_height, "L", i, 0);
+        if(idx === 0) axisYArray.push("M", i, gridBottom, "L", i, gridTop);
+        else if(idx % 10 === 0) tenthArray.push("M", i, gridBottom, "L", i, gridTop);
+        else regularArray.push("M", i, gridBottom, "L", i, gridTop);
     }
 
-    for(var i=midHeight; i < vectron_height; i+= gridSpacing) {
+    for(var i=midHeight; i < gridBottom; i+= gridSpacing) {
         var idx = gridIndex(i, midHeight, gridSpacing);
-        if(idx === 0) axisXArray.push("M", vectron_width, i, "L", 0, i);
-        else if(idx % 10 === 0) tenthArray.push("M", vectron_width, i, "L", 0, i);
-        else regularArray.push("M", vectron_width, i, "L", 0, i);
+        if(idx === 0) axisXArray.push("M", gridRight, i, "L", gridLeft, i);
+        else if(idx % 10 === 0) tenthArray.push("M", gridRight, i, "L", gridLeft, i);
+        else regularArray.push("M", gridRight, i, "L", gridLeft, i);
     }
-    for(var i=midHeight - gridSpacing; i > 0; i -= gridSpacing) {
+    for(var i=midHeight - gridSpacing; i > gridTop; i -= gridSpacing) {
         var idx = gridIndex(i, midHeight, gridSpacing);
-        if(idx === 0) axisXArray.push("M", vectron_width, i, "L", 0, i);
-        else if(idx % 10 === 0) tenthArray.push("M", vectron_width, i, "L", 0, i);
-        else regularArray.push("M", vectron_width, i, "L", 0, i);
+        if(idx === 0) axisXArray.push("M", gridRight, i, "L", gridLeft, i);
+        else if(idx % 10 === 0) tenthArray.push("M", gridRight, i, "L", gridLeft, i);
+        else regularArray.push("M", gridRight, i, "L", gridLeft, i);
     }
 
     // Draw regular grid lines
@@ -357,26 +363,26 @@ function aamap_drawGrid() {
         aamap_grid.push(reg);
     }
 
-    // Draw every-10th lines (thicker white/light)
+    // Draw every-10th lines (2x the narrow line width)
     if(tenthArray.length > 0) {
         var tenth = vectron_screen.path(tenthArray)
-            .attr({stroke: config_isDark ? "#444" : "#fff", "stroke-width": regularStroke + 1});
+            .attr({stroke: config_isDark ? "#444" : "#fff", "stroke-width": regularStroke * 2});
         tenth.node.style.shapeRendering = "crispedges";
         aamap_grid.push(tenth);
     }
 
-    // Draw Y-axis (x=0) in red (thicker)
+    // Draw Y-axis (x=0) in red (same width as narrow lines)
     if(axisYArray.length > 0) {
         var axY = vectron_screen.path(axisYArray)
-            .attr({stroke: "#cc2222", "stroke-width": regularStroke + 1});
+            .attr({stroke: "#cc2222", "stroke-width": regularStroke});
         axY.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axY);
     }
 
-    // Draw X-axis (y=0) in blue (thicker)
+    // Draw X-axis (y=0) in blue (same width as narrow lines)
     if(axisXArray.length > 0) {
         var axX = vectron_screen.path(axisXArray)
-            .attr({stroke: "#2244cc", "stroke-width": regularStroke + 1});
+            .attr({stroke: "#2244cc", "stroke-width": regularStroke});
         axX.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axX);
     }
