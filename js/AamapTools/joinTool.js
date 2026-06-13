@@ -142,9 +142,9 @@ function joinTool_findJoin(wallA, wallB) {
     if (joinTool_ptEq(aFirst, bLast))
         return { reverseA: true, reverseB: false };
 
-    // A.first connects B.first →  rev(A) + B
+    // A.first connects B.first →  rev(A) + B (after reversing A, A.last == A.first_orig == B.first)
     if (joinTool_ptEq(aFirst, bFirst))
-        return { reverseA: true, reverseB: false, swapOrder: true };
+        return { reverseA: true, reverseB: false };
 
     return null;
 }
@@ -212,25 +212,18 @@ function joinTool_click() {
     // but after reverseA is applied ptsA is already reversed, so A.last now connects B.first — standard join.
     // Special-case swapOrder means we needed rev(A) + B where A.first==B.first:
     // after reversing A: aLast_new == aFirst_old == bFirst → just concat.
-    var combined;
-    if (desc.swapOrder) {
-        // After reverseA: aLast == bFirst — but we still need to handle same case
-        // reverseA:true, swapOrder:true means: rev(A).last == B.first  (aFirst == bFirst)
-        // After reversing A, new last is aFirst which equals bFirst — standard concat
-        combined = ptsA.concat(ptsB.slice(1));
-    } else {
-        combined = ptsA.concat(ptsB.slice(1));
-    }
+    var combined = ptsA.concat(ptsB.slice(1));
 
     var merged = new Wall();
     merged.height = joinTool_firstWall.height;
     merged.points = combined;
 
-    // Remove both originals
+    // Remove both originals. Remove idxA first; if idxB was after idxA the
+    // splice shifts all later indices down by one, so decrement idxB.
     var idxA = aamap_objects.indexOf(joinTool_firstWall);
     if (idxA >= 0) aamap_objects.splice(idxA, 1);
     var idxB = aamap_objects.indexOf(wall);
-    if (idxB >= 0) aamap_objects.splice(idxB < idxA ? idxB : idxB - 1, 1);
+    if (idxB >= 0) aamap_objects.splice(idxB, 1);
     aamap_add(merged);
 
     joinTool_firstWall = null;

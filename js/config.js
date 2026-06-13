@@ -131,9 +131,9 @@ function keybinds_save() {
 
 function keybinds_apply() {
     // unbind all previously managed keybinds then re-bind
-    var allKeys = [];
-    for (var k in vectron_defaultKeybinds) allKeys.push(vectron_defaultKeybinds[k]);
-    for (var k in vectron_keybinds)        allKeys.push(vectron_keybinds[k]);
+    var allKeys = new Set();
+    for (var k in vectron_defaultKeybinds) allKeys.add(vectron_defaultKeybinds[k]);
+    for (var k in vectron_keybinds)        allKeys.add(vectron_keybinds[k]);
     // unbind all tool keys
     allKeys.forEach(function(key) {
         try { Mousetrap.unbind(key); } catch(e) {}
