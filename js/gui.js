@@ -26,13 +26,14 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 var gui_active = false;
 
-/** Clamp a window position so it stays fully within the viewport. */
+/** Clamp a window position so it stays fully within the viewport and does not overlap the 50px left toolbar. */
 function gui_clampToScreen(win, px, py) {
+    var TOOLBAR_W = 50;
     var w = win.offsetWidth || 0;
     var h = win.offsetHeight || 0;
-    var maxX = Math.max(0, window.innerWidth  - w);
+    var maxX = Math.max(TOOLBAR_W, window.innerWidth  - w);
     var maxY = Math.max(0, window.innerHeight - h);
-    return [Math.max(0, Math.min(px, maxX)), Math.max(0, Math.min(py, maxY))];
+    return [Math.max(TOOLBAR_W, Math.min(px, maxX)), Math.max(0, Math.min(py, maxY))];
 }
 
 function gui_init() {
@@ -43,10 +44,11 @@ function gui_init() {
 
 function controlBox_initDrag() {
     var box = document.getElementById('control_box');
-    var handle = box ? box.querySelector('h1') : null;
+    var handle = box ? box.querySelector('#control-box-header') : null;
     if (!box || !handle) return;
     var isDragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
     handle.addEventListener('mousedown', function(e) {
+        if (e.target.id === 'control-box-close') return;
         // Switch from margin:auto centering to explicit positioning on first drag
         var rect = box.getBoundingClientRect();
         if (!box.style.left || box.style.left === '' || box.style.margin !== '0px') {
