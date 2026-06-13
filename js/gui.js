@@ -43,6 +43,7 @@ function gui_init() {
     gui_writeLog("Welcome to Vectron.")
     actionHistory_init();
     controlBox_initDrag();
+    mapSettings_loadCSVs();
 }
 
 function controlBox_initDrag() {
@@ -204,4 +205,254 @@ function gui_fillInput() {
 
     $("#map_axes").val(xml_axes);
     $("#map_settings").val(xml_settings.join("\n"));
+    mapSettings_renderList();
+}
+
+// ---- Map Settings Search ----
+
+var mapSettings_commands = []; // [{name, desc, defaultVal, versions:[]}]
+
+function mapSettings_parseCSV(text) {
+    var rows = [];
+    var lines = text.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (!line.trim()) continue;
+        var fields = [];
+        var cur = '', inQuote = false;
+        for (var j = 0; j < line.length; j++) {
+            var c = line[j];
+            if (c === '"') {
+                if (inQuote && line[j+1] === '"') { cur += '"'; j++; }
+                else { inQuote = !inQuote; }
+            } else if (c === ',' && !inQuote) {
+                fields.push(cur); cur = '';
+            } else {
+                cur += c;
+            }
+        }
+        fields.push(cur);
+        rows.push(fields);
+    }
+    return rows;
+}
+
+function mapSettings_loadCSVs() {
+    var files = [
+        { url: './js/0.2.8.3.1.csv', version: '0.2.8.3.1' },
+        { url: './js/Trunk.csv',      version: 'Trunk'      },
+        { url: './js/Sty+ct.csv',     version: 'Sty+ct'     }
+    ];
+    var loaded = 0;
+    var combined = {}; // name -> {desc, defaultVal, versions:[]}
+
+    // Set up UI immediately; commands populate asynchronously
+    mapSettings_initUI();
+
+    files.forEach(function(f) {
+        $.ajax({
+            url: f.url,
+            dataType: 'text',
+            success: function(data) {
+                var rows = mapSettings_parseCSV(data);
+                // skip header row
+                for (var i = 1; i < rows.length; i++) {
+                    var row = rows[i];
+                    if (!row[0] || !row[0].trim()) continue;
+                    var name = row[0].trim().toUpperCase();
+                    if (!combined[name]) {
+                        combined[name] = { name: name, desc: (row[1] || '').trim(), defaultVal: (row[2] || '').trim(), versions: [] };
+                    }
+                    if (combined[name].versions.indexOf(f.version) < 0) {
+                        combined[name].versions.push(f.version);
+                    }
+                }
+            },
+            complete: function() {
+                loaded++;
+                if (loaded === files.length) {
+                    mapSettings_commands = Object.keys(combined).sort().map(function(k) { return combined[k]; });
+                }
+            }
+        });
+    });
+}
+
+function mapSettings_initUI() {
+    var searchEl = document.getElementById('map-settings-search');
+    var valueEl  = document.getElementById('map-settings-value');
+    var dropdown = document.getElementById('map-settings-dropdown');
+    var addBtn   = document.getElementById('map-settings-add');
+    if (!searchEl) return;
+
+    function showDropdown(results) {
+        dropdown.innerHTML = '';
+        if (!results.length) { dropdown.style.display = 'none'; return; }
+        results.slice(0, 60).forEach(function(cmd) {
+            var item = document.createElement('div');
+            item.className = 'mss-item';
+            item.style.cssText = 'padding:6px 8px;cursor:pointer;border-bottom:1px solid #eee;';
+
+            var nameRow = document.createElement('div');
+            nameRow.style.cssText = 'font-weight:bold;font-size:11px;font-family:monospace;color:#222;';
+            nameRow.textContent = cmd.name;
+
+            var descRow = document.createElement('div');
+            descRow.style.cssText = 'font-size:10px;color:#555;font-family:sans-serif;white-space:normal;line-height:1.3;margin-top:1px;';
+            descRow.textContent = cmd.desc || '(no description)';
+
+            var metaRow = document.createElement('div');
+            metaRow.style.cssText = 'margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;';
+
+            cmd.versions.forEach(function(v) {
+                var tag = document.createElement('span');
+                tag.style.cssText = 'font-size:9px;background:#ddd;color:#444;border-radius:3px;padding:1px 4px;font-family:sans-serif;';
+                tag.textContent = v;
+                metaRow.appendChild(tag);
+            });
+
+            if (cmd.defaultVal !== '') {
+                var defSpan = document.createElement('span');
+                defSpan.style.cssText = 'font-size:9px;color:#888;font-family:sans-serif;margin-left:2px;';
+                defSpan.textContent = 'default: ' + cmd.defaultVal;
+                metaRow.appendChild(defSpan);
+            }
+
+            item.appendChild(nameRow);
+            item.appendChild(descRow);
+            item.appendChild(metaRow);
+
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                searchEl.value = cmd.name;
+                valueEl.value = cmd.defaultVal;
+                dropdown.style.display = 'none';
+                valueEl.focus();
+            });
+            item.addEventListener('mouseover', function() { item.style.background = '#f0f0ff'; });
+            item.addEventListener('mouseout',  function() { item.style.background = ''; });
+
+            dropdown.appendChild(item);
+        });
+        dropdown.style.display = 'block';
+    }
+
+    searchEl.addEventListener('input', function() {
+        var q = this.value.trim().toLowerCase();
+        if (!q) { dropdown.style.display = 'none'; return; }
+        // If the query looks like "NAME VALUE" (has a space after an all-caps word) skip dropdown
+        if (/^[A-Z_0-9]+\s/.test(this.value.trim())) { dropdown.style.display = 'none'; return; }
+        var results = mapSettings_commands.filter(function(cmd) {
+            return cmd.name.toLowerCase().indexOf(q) >= 0 ||
+                   (cmd.desc && cmd.desc.toLowerCase().indexOf(q) >= 0);
+        });
+        showDropdown(results);
+    });
+
+    searchEl.addEventListener('blur', function() {
+        setTimeout(function() { dropdown.style.display = 'none'; }, 150);
+    });
+
+    searchEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); mapSettings_addFromUI(); }
+        if (e.key === 'Escape') { dropdown.style.display = 'none'; }
+    });
+
+    valueEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); mapSettings_addFromUI(); }
+    });
+
+    addBtn.addEventListener('click', function() { mapSettings_addFromUI(); });
+
+    mapSettings_renderList();
+}
+
+function mapSettings_addFromUI() {
+    var searchEl = document.getElementById('map-settings-search');
+    var valueEl  = document.getElementById('map-settings-value');
+    if (!searchEl) return;
+
+    var raw = searchEl.value.trim();
+    if (!raw) return;
+
+    var entry;
+    // If there's already a space, treat the whole thing as "NAME VALUE"
+    if (raw.indexOf(' ') >= 0) {
+        entry = raw;
+    } else {
+        // Use separate value field
+        var val = valueEl ? valueEl.value.trim() : '';
+        if (!val) { gui_toast('Please enter a value.'); return; }
+        entry = raw + ' ' + val;
+    }
+
+    // Avoid duplicates by name
+    var spaceIdx = entry.indexOf(' ');
+    if (spaceIdx < 0) { gui_toast('Invalid setting format. Use: NAME VALUE'); return; }
+    var namePart = entry.slice(0, spaceIdx).toUpperCase();
+    for (var i = 0; i < xml_settings.length; i++) {
+        var existingSpace = xml_settings[i].indexOf(' ');
+        var existingName = existingSpace >= 0 ? xml_settings[i].slice(0, existingSpace).toUpperCase() : xml_settings[i].toUpperCase();
+        if (existingName === namePart) {
+            gui_toast('Setting "' + namePart + '" already exists. Remove it first.');
+            return;
+        }
+    }
+
+    xml_settings.push(entry);
+    mapSettings_syncTextarea();
+    mapSettings_renderList();
+    searchEl.value = '';
+    if (valueEl) valueEl.value = '';
+    document.getElementById('map-settings-dropdown').style.display = 'none';
+}
+
+function mapSettings_removeEntry(idx) {
+    xml_settings.splice(idx, 1);
+    mapSettings_syncTextarea();
+    mapSettings_renderList();
+}
+
+function mapSettings_syncTextarea() {
+    var ta = document.getElementById('map_settings');
+    if (ta) ta.value = xml_settings.join('\n');
+}
+
+function mapSettings_renderList() {
+    var list = document.getElementById('map-settings-list');
+    var empty = document.getElementById('map-settings-empty');
+    if (!list) return;
+
+    // Remove all entry rows (keep the empty placeholder)
+    var existing = list.querySelectorAll('.mss-entry');
+    existing.forEach(function(el) { el.parentNode.removeChild(el); });
+
+    if (xml_settings.length === 0) {
+        if (empty) empty.style.display = '';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    for (var i = 0; i < xml_settings.length; i++) {
+        (function(idx) {
+            var row = document.createElement('div');
+            row.className = 'mss-entry';
+            row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:2px 2px;border-bottom:1px solid rgba(0,0,0,0.07);';
+
+            var text = document.createElement('span');
+            text.style.cssText = 'flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            text.textContent = xml_settings[idx];
+            text.title = xml_settings[idx];
+
+            var btn = document.createElement('button');
+            btn.textContent = '×';
+            btn.title = 'Remove';
+            btn.style.cssText = 'border:none;background:transparent;color:#c00;font-size:14px;cursor:pointer;padding:0 2px;line-height:1;flex-shrink:0;';
+            btn.addEventListener('click', function() { mapSettings_removeEntry(idx); });
+
+            row.appendChild(text);
+            row.appendChild(btn);
+            list.appendChild(row);
+        })(i);
+    }
 }
