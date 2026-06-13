@@ -92,13 +92,25 @@ function vectron_render() {
     vectron_write_info();
 }
 
+function vectron_format_coord(val) {
+    if(vectron_zoom >= 10) return val.toFixed(2);
+    if(vectron_zoom >= 3)  return val.toFixed(1);
+    return Math.round(val).toString();
+}
+
+function vectron_format_zoom(z) {
+    var pct = z * 100;
+    if(pct < 10) return pct.toFixed(1);
+    return Math.round(pct).toString();
+}
+
 function vectron_write_info()
 {
-    document.getElementById("zoom").innerText = vectron_zoom*100;
+    document.getElementById("zoom").innerText = vectron_format_zoom(vectron_zoom);
     document.getElementById("spacing").innerText = vectron_grid_spacing;
     
-    document.getElementById("anchor-x").innerText = -(vectron_panX);
-    document.getElementById("anchor-y").innerText = -(vectron_panY);
+    document.getElementById("anchor-x").innerText = vectron_format_coord(-(vectron_panX));
+    document.getElementById("anchor-y").innerText = vectron_format_coord(-(vectron_panY));
 }
 
 function vectron_zoom_adjustment()

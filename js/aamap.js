@@ -37,37 +37,41 @@ function aamap_init() {
 
 function aamap_save(name, author, category, version, dtd, axes, settings) {
     var fileName = name + "-" + version + ".aamap.xml";
-    var xml = "";
 
+    function indentLines(str, prefix) {
+        return str.split('\n').map(function(line) { return prefix + line; }).join('\n');
+    }
+
+    var xml = "";
     xml += '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>'+"\n";
     xml += '<!DOCTYPE Resource SYSTEM "' + dtd + '">'+"\n";
     xml += '<Resource type="aamap" name="'+ name +'" version="'+ version +'" author="'+ author +'" category="'+ category +'">'+"\n";
-    xml += '<Map version="0.2.8">'+"\n";
-        if(settings.length > 0)
+    xml += '  <Map version="0.2.8">'+"\n";
+    if(settings.length > 0)
+    {
+        xml += "    <Settings>\n";
+        for(var i = 0, ii = settings.length; i < ii; i++)
         {
-            xml += "<Settings>\n";
-            for(var i = 0, ii = settings.length; i < ii; i++)
-            {
-                var point = settings[i].indexOf(" ");
-                var setting = settings[i].slice(0,point), value = settings[i].slice(point+1);
-                xml += "<Setting name=\""+setting+"\" value=\""+value+"\" />\n";
-            }
-            xml += "</Settings>\n";
+            var point = settings[i].indexOf(" ");
+            var setting = settings[i].slice(0,point), value = settings[i].slice(point+1);
+            xml += "      <Setting name=\""+setting+"\" value=\""+value+"\" />\n";
         }
-            xml += '<World>'+"\n";
-                xml += '<Field>'+"\n";
-                if($("#map_axes_forced")[0].checked)
-                {
-                    xml += '<Axes number="'+axes+'"/>'+"\n";
-                }
-                            for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
-                                xml += aamap_objects[i].getXML();
-                                xml += "\n";
-                            }
-                xml += '</Field>'+"\n";
-            xml += '</World>'+"\n";
-        xml += '</Map>'+"\n";
-    xml += '</Resource>'+"\n";
+        xml += "    </Settings>\n";
+    }
+    xml += '    <World>\n';
+    xml += '      <Field>\n';
+    if($("#map_axes_forced")[0].checked)
+    {
+        xml += '        <Axes number="'+axes+'"/>'+"\n";
+    }
+    for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
+        xml += indentLines(aamap_objects[i].getXML(), '        ');
+        xml += "\n";
+    }
+    xml += '      </Field>\n';
+    xml += '    </World>\n';
+    xml += '  </Map>\n';
+    xml += '</Resource>\n';
     xml += "<!-- Exported from Vectron 1.1 -->";
 
     vectron_saveTextAsFile(xml, fileName);
@@ -376,9 +380,6 @@ function aamap_drawGrid() {
         axX.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axX);
     }
-
-    // Store bbox for compatibility with panning code
-    aamap_grid.bbox = aamap_grid.getBBox();
 }
 
 var entityMap = {
