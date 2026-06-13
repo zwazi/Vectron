@@ -195,7 +195,25 @@ function aamap_rotateSimple(dir)
     vectron_render();
 }
 
-var aamap_redo_objects = [];
+var aamap_undoStack = [];
+var aamap_redoStack = [];
+
+function aamap_recordAction(action) {
+    aamap_undoStack.push(action);
+    aamap_redoStack = [];
+}
+
+function aamap_clearHistory() {
+    aamap_undoStack = [];
+    aamap_redoStack = [];
+}
+
+function _aamap_removeObj(aamapObject) {
+    var idx = aamap_objects.indexOf(aamapObject);
+    if (idx >= 0) aamap_objects.splice(idx, 1);
+    if (aamapObject.obj) aamapObject.obj.remove();
+    if (aamapObject.glowObj) { aamapObject.glowObj.remove(); aamapObject.glowObj = null; }
+}
 
 function aamap_add(aamapObject) {
     aamap_objects.push(aamapObject);
@@ -206,27 +224,23 @@ function aamap_remove(aamapObject) {
     var index = aamap_objects.indexOf(aamapObject);
     if(index > -1) {
         gui_writeLog("Match!");
-        if(aamap_objects[index].obj != null)
-            aamap_objects[index].obj.remove();
-        aamap_objects.splice(index, 1);
-        aamap_redo_objects.push();
+        _aamap_removeObj(aamapObject);
     }
 }
 
 function aamap_undo() {
-    gui_writeLog("Undone latest addition.");
-    var obj = aamap_objects.pop();
-    if( !obj ) return void(alert("Nothing to undo!"));
-    if(obj.obj != null) obj.obj.remove();
-    aamap_redo_objects.push(obj);
+    gui_writeLog("Undo.");
+    if (aamap_undoStack.length === 0) { alert("Nothing to undo!"); return; }
+    var action = aamap_undoStack.pop();
+    action.undo();
+    aamap_redoStack.push(action);
 }
 
 function aamap_redo() {
-    var obj = aamap_redo_objects.pop();
-    if( obj ) aamap_objects.push(obj);
-    else alert("Nothing to redo!");
-    
-    aamap_render();
+    if (aamap_redoStack.length === 0) { alert("Nothing to redo!"); return; }
+    var action = aamap_redoStack.pop();
+    action.redo();
+    aamap_undoStack.push(action);
 }
 
 function aamap_activate() {

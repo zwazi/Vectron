@@ -3,21 +3,31 @@ body {
 }
 
 .info {
-	padding: 10px;
+	padding: 4px 12px;
 	font-size: 12px;
 	color: #eee;
 	background-color: #333;
 	position: absolute;
-	top: 0px;
-	bottom: 0px;
+	bottom: 0;
+	left: 50px;
 	right: 0;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 16px;
+	height: 26px;
+	z-index: 10;
+	box-sizing: border-box;
+}
+.info b {
+	margin-right: 2px;
 }
 .info .var {
-	display: block;
-	overflow: hidden;
-	width: 80px;
-	word-break: break-all;
-	height: 16px;
+	display: inline;
+	overflow: visible;
+	word-break: normal;
+	height: auto;
+	white-space: nowrap;
 }
 
 #tool_bar {
@@ -71,4 +81,15 @@ body {
 	opacity: 0.3;
 	cursor: no-drop;
 	color: #ccc;
+}
+
+#xml-editor-box {
+	background: #222;
+	border-color: #555;
+	color: #eee;
+}
+#xml-editor-content {
+	background: #1a1a1a;
+	color: #eee;
+	border-color: #444;
 }

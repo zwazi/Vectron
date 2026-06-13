@@ -50,14 +50,12 @@
     </head>
     <body class="noscroll">
         <div class="info" style="display:none">
-            <b>cursor</b><br />
+            <b>cursor</b>
             <span class="var">x: <span id="cursor-x">0</span></span>
             <span class="var">y: <span id="cursor-y">0</span></span>
-            <br />
-            <span class="var">zoom: <span id="zoom">0</span>%</span>
-            <span class="var">grid: <span id="spacing">0</span></span>
-            <br />
-            <b>map anchor</b><br />
+            <b>zoom:</b><span id="zoom">0</span>%
+            <b>grid:</b><span id="spacing">0</span>
+            <b>anchor</b>
             <span class="var">x: <span id="anchor-x">0</span></span>
             <span class="var">y: <span id="anchor-y">0</span></span>
         </div>
@@ -81,7 +79,7 @@
                         </ul>
                     </li>
                 </ul>
-                <div id="gui-tab-content" class="tab-content" style="max-height:300px;overflow:scroll">
+                <div id="gui-tab-content" class="tab-content">
 
                     <div class="tab-pane fade in active" id="gui-general">
                         <h5>Load Map</h5>
@@ -365,15 +363,17 @@
             <ul>
 
                 <li>
-                    <a class="toolbar-split-walls" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Split Walls at Grid Lines"></a>
-                </li>
-                <li>
                     <a class="toolbar-toolSplit" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Split Tool"></a>
                 </li>
                 <li>
                     <a class="toolbar-toolJoin" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Join Tool"></a>
                 </li>
 
+            </ul>
+            <ul>
+                <li>
+                    <a class="toolbar-toolXml" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="XML Editor"></a>
+                </li>
             </ul>
             <ul id="toolbar-bottom-ul">
                 <li>
@@ -408,7 +408,7 @@
                 <li><a tabindex="-1" href="#" class="toolbar-undo">Undo</a></li>
                 <li><a tabindex="-1" href="#" class="toolbar-redo">Redo</a></li>
                 <li class="divider"></li>
-                <li><a tabindex="-1" href="#" class="toolbar-split-walls">Split Walls at Grid Lines</a></li>
+                <li><a tabindex="-1" href="#" id="contextMenu-view-xml">View XML</a></li>
 
             </ul>
         </div>
@@ -418,5 +418,16 @@
         <script>
         $('[rel=tooltip]').tooltip();
         </script>
+
+        <div id="xml-editor-overlay">
+            <div id="xml-editor-box">
+                <h4>XML Editor <small id="xml-editor-title"></small></h4>
+                <textarea id="xml-editor-content" spellcheck="false"></textarea>
+                <div class="xml-editor-actions">
+                    <button id="xml-editor-apply" class="btn btn-primary">Apply Changes</button>
+                    <button id="xml-editor-close" class="btn btn-default">Close</button>
+                </div>
+            </div>
+        </div>
     </body>
 </html>
