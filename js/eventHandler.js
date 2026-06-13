@@ -154,6 +154,17 @@ function eventHandler_init() {
     });
 
 
+    // Sync top bar fields → xml_ variables so the XML editor always shows current values
+    $('#map_name').on('input change', function() { xml_name = this.value; });
+    $('#map_author').on('input change', function() { xml_author = this.value; });
+    $('#map_category').on('input change', function() { xml_category = this.value; });
+    $('#map_version').on('input change', function() { xml_version = this.value; });
+    $('#map_dtd').on('input change', function() { xml_dtd = this.value; });
+    $('#map_axes').on('input change', function() { xml_axes = parseInt(this.value) || 4; });
+    $('#map_settings').on('input change', function() {
+        xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
+    });
+
     // Handle settings changes
     $("#dark-theme").change(function(box)
     {
@@ -516,7 +527,23 @@ function eventHandler_init() {
         var xml = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>\n';
         xml += '<!DOCTYPE Resource SYSTEM "' + (xml_dtd || 'sty.dtd') + '">\n';
         xml += '<Resource type="aamap" name="' + (xml_name || '') + '" version="' + (xml_version || '') + '" author="' + (xml_author || '') + '" category="' + (xml_category || '') + '">\n';
-        xml += '  <Map version="0.2.8">\n    <World>\n      <Field>\n';
+        xml += '  <Map version="0.2.8">\n';
+        var settings = xml_settings.filter(function(s) { return s.trim(); });
+        if (settings.length > 0) {
+            xml += '    <Settings>\n';
+            for (var si = 0; si < settings.length; si++) {
+                var point = settings[si].indexOf(' ');
+                if (point < 0) continue; // skip malformed entries without a value
+                var sname = settings[si].slice(0, point), svalue = settings[si].slice(point + 1);
+                xml += '      <Setting name="' + sname + '" value="' + svalue + '" />\n';
+            }
+            xml += '    </Settings>\n';
+        }
+        xml += '    <World>\n      <Field>\n';
+        if (document.getElementById('map_axes_forced').checked) {
+            var axes = parseInt(document.getElementById('map_axes').value) || 4;
+            xml += '        <Axes number="' + axes + '"/>\n';
+        }
         for (var i = 0; i < aamap_objects.length; i++) {
             xml += xmlEditor_indentLines(aamap_objects[i].getXML(), '        ') + '\n';
         }

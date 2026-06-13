@@ -81,8 +81,19 @@
 
                     <div class="tab-pane fade in active" id="gui-settings">
                       <div class="form-group" title="Settings. This is NOT the place to stick all of your configuration files; rather any settings that must be for whatever reason tied with the map.">
-                        <label for="map_settings">The settings included in the map</label> <br />
-                        <textarea class="form-control" style="font-size:10pt;font-family:monospace;width:100%" rows=7 id="map_settings" name="map_settings"></textarea>
+                        <label>Map Settings</label>
+                        <div id="map-settings-search-row" style="display:flex;gap:6px;margin-bottom:6px;position:relative;">
+                          <div style="flex:1;position:relative;">
+                            <input type="text" class="form-control" style="font-size:11px;" id="map-settings-search" placeholder="Search or type a setting (e.g. CYCLE_SPEED 10)" autocomplete="off" />
+                            <div id="map-settings-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:1000;background:#fff;border:1px solid #bbb;border-top:none;border-radius:0 0 4px 4px;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>
+                          </div>
+                          <input type="text" class="form-control" style="font-size:11px;width:110px;flex-shrink:0;" id="map-settings-value" placeholder="Value" />
+                          <button id="map-settings-add" class="btn btn-sm btn-default" style="flex-shrink:0;">Add</button>
+                        </div>
+                        <div id="map-settings-list" style="min-height:40px;max-height:180px;overflow-y:auto;border:1px solid #ccc;border-radius:3px;padding:4px;background:#fafafa;font-family:monospace;font-size:11px;">
+                          <span id="map-settings-empty" style="color:#aaa;font-style:italic;font-family:sans-serif;">No settings added.</span>
+                        </div>
+                        <textarea id="map_settings" name="map_settings" style="display:none;"></textarea>
                       </div>
                     </div>
 
@@ -197,21 +208,25 @@
                         </table>
 
                         <p class="cfg-section-label">Settings Menu Tabs</p>
-                        <ul style="font-size:12px;padding-left:18px;">
-                            <li><b>Map Settings</b> — Settings tags embedded in the map file (not your server config).</li>
-                            <li><b>Adjust Map</b> — Scale, rotate, translate, or center all objects at once. "Center over 0,0" moves all objects so their group center lands on the world origin.</li>
-                            <li><b>Configure</b> — Dark theme, info bar, debug log, action history, zoom step, grid line colors/thickness, and keybind customization.</li>
-                        </ul>
+                        <table class="table table-bordered" style="font-size:12px;">
+                            <tbody>
+                                <tr><td><b>Map Settings</b></td><td>Settings tags embedded in the map file (not your server config).</td></tr>
+                                <tr><td><b>Adjust Map</b></td><td>Scale, rotate, translate, or center all objects at once. "Center over 0,0" moves all objects so their group center lands on the world origin.</td></tr>
+                                <tr><td><b>Configure</b></td><td>Dark theme, info bar, debug log, action history, zoom step, grid line colors/thickness, and keybind customization.</td></tr>
+                            </tbody>
+                        </table>
 
                         <p class="cfg-section-label">Toolbar Buttons</p>
-                        <ul style="font-size:12px;padding-left:18px;">
-                            <li><b>XML Editor</b> — View and edit the map XML directly. Changes are applied immediately.</li>
-                            <li><b>New Map</b> — Clears all objects and resets the map. Unsaved changes are lost.</li>
-                            <li><b>Import</b> — Load an <code>.aamap.xml</code> file from disk.</li>
-                            <li><b>Export</b> — Save the current map as an <code>.aamap.xml</code> file.</li>
-                            <li><b>Action History</b> — Toggle the action history panel (also accessible from Configure).</li>
-                            <li><b>Settings</b> — Open/close this settings window.</li>
-                        </ul>
+                        <table class="table table-bordered" style="font-size:12px;">
+                            <tbody>
+                                <tr><td><b>XML Editor</b></td><td>View and edit the map XML directly. Changes are applied immediately.</td></tr>
+                                <tr><td><b>New Map</b></td><td>Clears all objects and resets the map. Unsaved changes are lost.</td></tr>
+                                <tr><td><b>Import</b></td><td>Load an <code>.aamap.xml</code> file from disk.</td></tr>
+                                <tr><td><b>Export</b></td><td>Save the current map as an <code>.aamap.xml</code> file.</td></tr>
+                                <tr><td><b>Action History</b></td><td>Toggle the action history panel (also accessible from Configure).</td></tr>
+                                <tr><td><b>Settings</b></td><td>Open/close this settings window.</td></tr>
+                            </tbody>
+                        </table>
                     </div>
 
 
