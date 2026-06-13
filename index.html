@@ -24,6 +24,8 @@
         <script type="text/javascript" src="./js/AamapTools/zoneTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/navigationTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/selectTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/splitTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/joinTool.js"></script>
 
         <script type="text/javascript" src="./js/xml.js"></script>
         <script type="text/javascript" src="./js/aamap.js"></script>
@@ -221,6 +223,10 @@
                           <option value="0.20">Large (20%)</option>
                         </select>
                       </div>
+                      <div class="form-group" style="margin-top:10px;">
+                        <label>Keybinds</label>
+                        <div id="keybinds-config"></div>
+                      </div>
                     </div>
 
                     <div class="tab-pane fade" id="gui-about">
@@ -260,10 +266,6 @@
         </div>
         <div id="debug_box">
             <div id="debug_stream">
-            </div>
-            <div id="branding_box">
-                <h4 id="branding">Vectron <small> 1.1</small></h4>
-                <small><small><a href="#" onclick="$('.toolbar-gui-open').mouseup();$('#control_box').children().find('a[href*=#gui-about]').click()">About</a></small></small>
             </div>
         </div>
         <div id="tool_bar">
@@ -365,7 +367,18 @@
                 <li>
                     <a class="toolbar-split-walls" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Split Walls at Grid Lines"></a>
                 </li>
+                <li>
+                    <a class="toolbar-toolSplit" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Split Tool"></a>
+                </li>
+                <li>
+                    <a class="toolbar-toolJoin" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Join Tool"></a>
+                </li>
 
+            </ul>
+            <ul id="toolbar-bottom-ul">
+                <li>
+                    <a class="toolbar-toolInfo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="About Vectron"></a>
+                </li>
             </ul>
         </div>
 

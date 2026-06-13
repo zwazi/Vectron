@@ -10,20 +10,19 @@
 #rubber-zone-bar {
   display: none;
   position: absolute;
-  top: 0;
   left: 50px;
-  right: 0;
-  background: rgba(40,40,40,0.92);
+  top: 160px; /* next to the zone tool area */
+  background: rgba(30,30,30,0.97);
   color: #fff;
   padding: 6px 12px;
-  z-index: 100;
+  z-index: 200;
   font-size: 13px;
   align-items: center;
   gap: 10px;
-}
-
-body.rubber-zone-active #canvas_container {
-  top: 36px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+  white-space: nowrap;
 }
 
 #canvas_container.blur {
@@ -62,7 +61,7 @@ body.noscroll {
   position:absolute;
   bottom:0;
   right:0;
-  width:340px;
+  width:230px;
   height:140px;
   border-top-left-radius:6px;
   border-top:1px solid #1b1b1b;
@@ -73,8 +72,8 @@ body.noscroll {
 #debug_box.nodbug
 {
 	bottom: -11px;
-	width:116px;
-	height:66px;
+	width:100px;
+	height:30px;
 }
 
 #debug_stream {
@@ -86,27 +85,6 @@ body.noscroll {
   right:7;
   bottom:7;
   padding:7px;
-}
-
-#branding_box {
-  position:absolute;
-  top:0;
-  right:0;
-  width:110px;
-  height:60px;
-  padding-top:5px;
-  background:#333;
-  border-bottom-left-radius:3px;
-  text-align:center;
-}
-
-#branding_box a { color:#e5e5e5; }
-
-#branding {
-  margin:0;
-  color:#FFF;
-  text-align:center;
-  margin-bottom:5px;
 }
 
 .info {
@@ -415,3 +393,58 @@ body.noscroll {
   max-height: 100vh;
   overflow-y: auto;
 }
+
+/* Split Tool icon */
+.toolbar-toolSplit:after {
+    font-family: sans-serif;
+    content: "\2702";
+    font-size: 18px;
+    position:relative;
+    top:3px;
+}
+
+/* Join Tool icon */
+.toolbar-toolJoin:after {
+    font-family: sans-serif;
+    content: "\26D3";
+    font-size: 18px;
+    position:relative;
+    top:3px;
+}
+
+/* Info/About button */
+.toolbar-toolInfo:after {
+    font-family: 'Glyphicons Halflings';
+    content: "\e086";
+    font-size: 16px;
+    position:relative;
+    top:3px;
+}
+
+/* Bottom toolbar group pinned to bottom */
+#toolbar-bottom-ul {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 10px;
+  margin: 0;
+}
+
+/* Keybind overlay badge on toolbar buttons */
+#tool_bar a {
+  position: relative;
+}
+
+.keybind-overlay {
+  position: absolute;
+  bottom: 1px;
+  right: 2px;
+  font-size: 9px;
+  font-family: monospace;
+  color: rgba(255,255,255,0.65);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+

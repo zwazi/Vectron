@@ -72,16 +72,13 @@ function zoneTool_disconnect() {
     vectron_toolActive = false;
     $(".toolbar-toolZone").removeClass("toolbar-tool-active");
     $("#rubber-zone-bar").hide();
-    $("body").removeClass("rubber-zone-active");
 }
 
 function zoneTool_updateRubberBar() {
     if(zoneTool_type === 3) {
         $("#rubber-zone-bar").css("display", "flex");
-        $("body").addClass("rubber-zone-active");
     } else {
         $("#rubber-zone-bar").hide();
-        $("body").removeClass("rubber-zone-active");
     }
     vectron_render();
 }

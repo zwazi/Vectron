@@ -30,7 +30,7 @@ var vectron_height;
 
 var vectron_screen;
 
-var vectron_tools = ["select", "navigation", "wall", "zone", "spawn"];
+var vectron_tools = ["select", "navigation", "wall", "zone", "spawn", "split", "join"];
 var vectron_currentTool = "";
 var vectron_toolActive = false;
 
