@@ -38,6 +38,12 @@ function eventHandler_init() {
   
     $("#canvas_container").on("contextmenu", function(e) {
         aamap_active = false;
+        // Show/hide vertex delete based on current tool and selection
+        var showVertexDelete = (vectron_currentTool === "wallVertexMove" &&
+            !vectron_toolActive &&
+            wallVertexMoveTool_selectedWall !== null &&
+            wallVertexMoveTool_selectedPtIdx >= 0);
+        $("#contextMenu-delete-vertex").parent().toggle(showVertexDelete);
         $contextMenu.css({
             left: ( $contextMenu.width()+e.pageX > $("body").width() ) ? 
                     (e.pageX - $contextMenu.width() + 4) : 
@@ -274,6 +280,7 @@ function eventHandler_init() {
         zoneTool_type = 0;
         zoneTool_guide();
         zoneTool_updateRubberBar();
+        zoneTool_updateWindowActiveType();
         gui_writeLog('DeathZone selected.');
         $("#zones-menu").hide();
     });
@@ -283,6 +290,7 @@ function eventHandler_init() {
         zoneTool_type = 1;
         zoneTool_guide();
         zoneTool_updateRubberBar();
+        zoneTool_updateWindowActiveType();
         gui_writeLog('WinZone selected.');
         $("#zones-menu").hide();
     });
@@ -292,6 +300,7 @@ function eventHandler_init() {
         zoneTool_type = 2;
         zoneTool_guide();
         zoneTool_updateRubberBar();
+        zoneTool_updateWindowActiveType();
         gui_writeLog('TargetZone selected.');
         $("#zones-menu").hide();
     });
@@ -301,6 +310,7 @@ function eventHandler_init() {
         zoneTool_type = 4;
         zoneTool_guide();
         zoneTool_updateRubberBar();
+        zoneTool_updateWindowActiveType();
         gui_writeLog('FortressZone selected.');
         $("#zones-menu").hide();
     });
@@ -310,9 +320,96 @@ function eventHandler_init() {
         zoneTool_type = 3;
         zoneTool_guide();
         zoneTool_updateRubberBar();
+        zoneTool_updateWindowActiveType();
         gui_writeLog('RubberZone selected.');
         $("#zones-menu").hide();
     });
+
+    // Zone type buttons inside zone-tool-window
+    $(document).on("click", ".zone-type-btn", function(e) {
+        e.stopPropagation();
+        var type = parseInt($(this).data("type"));
+        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress"];
+        vectron_connectTool("zone");
+        zoneTool_type = type;
+        zoneTool_guide();
+        zoneTool_updateRubberBar();
+        zoneTool_updateWindowActiveType();
+        gui_writeLog(typeNames[type] + 'Zone selected.');
+    });
+
+    // Quick placement toggle
+    $("#zone-quick-placement-toggle").on("change", function() {
+        if ($(this).is(":checked")) {
+            $("#zone-quick-size-row").show();
+        } else {
+            $("#zone-quick-size-row").hide();
+        }
+    });
+
+    // Finish wall button
+    $("#wall-tool-finish").on("click", function() {
+        if (vectron_currentTool === "wall" && vectron_toolActive && wallTool_currentObj && wallTool_currentObj.points.length >= 2) {
+            wallTool_complete();
+        }
+    });
+
+    // Wall tool window drag
+    (function() {
+        var win = document.getElementById('wall-tool-window');
+        var hdr = document.getElementById('wall-tool-header');
+        if (!win || !hdr) return;
+        var dragging = false, ox, oy;
+        hdr.addEventListener('mousedown', function(e) {
+            if ($(e.target).is('#wall-tool-close')) return;
+            dragging = true;
+            var rect = win.getBoundingClientRect();
+            ox = e.clientX - rect.left;
+            oy = e.clientY - rect.top;
+            win.style.right = 'auto';
+            win.style.bottom = 'auto';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!dragging) return;
+            var px = e.clientX - ox;
+            var py = e.clientY - oy;
+            win.style.left = px + 'px';
+            win.style.top = py + 'px';
+        });
+        document.addEventListener('mouseup', function() { dragging = false; });
+        document.getElementById('wall-tool-close').addEventListener('click', function() {
+            win.style.display = 'none';
+        });
+    })();
+
+    // Zone tool window drag
+    (function() {
+        var win = document.getElementById('zone-tool-window');
+        var hdr = document.getElementById('zone-tool-header');
+        if (!win || !hdr) return;
+        var dragging = false, ox, oy;
+        hdr.addEventListener('mousedown', function(e) {
+            if ($(e.target).is('#zone-tool-close')) return;
+            dragging = true;
+            var rect = win.getBoundingClientRect();
+            ox = e.clientX - rect.left;
+            oy = e.clientY - rect.top;
+            win.style.right = 'auto';
+            win.style.bottom = 'auto';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!dragging) return;
+            win.style.left = (e.clientX - ox) + 'px';
+            win.style.top = (e.clientY - oy) + 'px';
+        });
+        document.addEventListener('mouseup', function() { dragging = false; });
+        document.getElementById('zone-tool-close').addEventListener('click', function() {
+            win.style.display = 'none';
+        });
+    })();
+
 
     $(".toolbar-toolSpawn").mouseup(function(e) {
         vectron_connectTool("spawn");
@@ -416,22 +513,23 @@ function eventHandler_init() {
         if (!$('#xml-editor-overlay').hasClass('visible')) return;
         var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
         if (xmlEditor_mode === 'selected') {
+            // On selection tab: always stay on it, just update content
             if (hasSelected) {
-                // Keep xmlEditor_selectedSnapshot in sync with the current selection so that
-                // xmlEditor_apply() knows which objects to replace when the user clicks Apply.
                 xmlEditor_selectedSnapshot = selectTool_selectedObjs.slice();
                 $('#xml-editor-content').val(xmlEditor_getSelectedXML());
                 $('#xml-tab-sel-count').text('(' + selectTool_selectedObjs.length + ')');
                 $('#xml-tab-selected').removeClass('disabled');
             } else {
-                // Selection cleared, fall back to full map view
-                xmlEditor_switchTab('full');
+                // Selection cleared while on selection tab — keep tab, show empty placeholder
+                xmlEditor_selectedSnapshot = [];
+                $('#xml-editor-content').val('<!-- No objects selected -->');
+                $('#xml-tab-sel-count').text('');
+                $('#xml-tab-selected').addClass('disabled');
             }
         } else {
-            // Update the selection tab availability indicator
+            // Not on selection tab: if selection exists, auto-switch to it
             if (hasSelected) {
-                $('#xml-tab-selected').removeClass('disabled');
-                $('#xml-tab-sel-count').text('(' + selectTool_selectedObjs.length + ')');
+                xmlEditor_switchTab('selected');
             } else {
                 $('#xml-tab-selected').addClass('disabled');
                 $('#xml-tab-sel-count').text('');
@@ -561,6 +659,10 @@ function eventHandler_init() {
     $("#contextMenu-view-xml").mouseup(function(e) {
         var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
         xmlEditor_open(hasSelected);
+    });
+
+    $("#contextMenu-delete-vertex").mouseup(function(e) {
+        wallVertexMoveTool_deleteSelected();
     });
 
     // Pan/Zoom context menu submenu
@@ -973,6 +1075,8 @@ function eventHandler_init() {
         if(!aamap_active) return;
         if(vectron_currentTool == "select" && !vectron_toolActive) {
             selectTool_delete();
+        } else if(vectron_currentTool == "wallVertexMove" && !vectron_toolActive) {
+            wallVertexMoveTool_deleteSelected();
         }
 
     });
@@ -998,6 +1102,7 @@ function eventHandler_init() {
                 + zoneTool_typeArray[zoneTool_type][0]);
             zoneTool_guide();
             zoneTool_updateRubberBar();
+            zoneTool_updateWindowActiveType();
         }
     });
 
@@ -1042,11 +1147,8 @@ function eventHandler_init() {
     });
 
     Mousetrap.bind('escape', function(e) {
-        // Priority: close xml editor → close settings → cancel active tool / switch to select → deselect / open settings
-        if($('#xml-editor-overlay').hasClass('visible')) {
-            xmlEditor_close();
-            return false;
-        }
+        // Priority: close settings → cancel active tool / switch to select → deselect / open settings
+        // NOTE: Escape does NOT close the XML editor (use the × button or Close button instead)
         if(gui_active) {
             gui_hide();
             $(".toolbar-gui-close").hide();

@@ -211,6 +211,11 @@ body {
 }
 
 /* Grid line appearance section */
+#grid-config {
+	background: #1e1e1e;
+	border-radius: 4px;
+	padding: 6px;
+}
 #grid-config table {
 	color: #eee;
 	border-collapse: collapse;
@@ -322,4 +327,40 @@ body {
 
 #xml-editor-error {
 	color: #ff7070;
+}
+
+/* Wall tool and Zone tool floating window dark mode */
+#wall-tool-window,
+#zone-tool-window {
+    background: rgba(28,28,28,0.97);
+    color: #eee;
+    border-color: #555;
+}
+#wall-tool-header,
+#zone-tool-header {
+    background: rgba(50,50,50,0.95);
+    border-bottom-color: #444;
+}
+#wall-tool-points-list {
+    background: rgba(255,255,255,0.05);
+}
+#wall-tool-points-list input {
+    background: rgba(255,255,255,0.08);
+    color: #eee;
+    border-color: #555;
+}
+#zone-tool-body label,
+#zone-tool-body span {
+    color: #eee;
+}
+#wall-tool-body label,
+#wall-tool-body span {
+    color: #eee;
+}
+#wall-tool-body input[type=number],
+#zone-tool-body input[type=number] {
+    background: rgba(255,255,255,0.08);
+    color: #eee;
+    border: 1px solid #555;
+    border-radius: 2px;
 }

@@ -257,8 +257,23 @@ function selectTool_delete() {
     });
     aamap_objects = aamap_objects.diff(deletedObjs);
     selectTool_selectedObjs = [];
+
+    // Build a count label: z(zones) w(walls) v(vertices) s(spawns)
+    var zCount = 0, wCount = 0, vCount = 0, sCount = 0;
+    deletedObjs.forEach(function(e) {
+        if (e instanceof Zone) { zCount++; }
+        else if (e instanceof Wall) { wCount++; vCount += e.points.length; }
+        else if (e instanceof Spawn) { sCount++; }
+    });
+    var parts = [];
+    if (zCount > 0) parts.push('z(' + zCount + ')');
+    if (wCount > 0) parts.push('w(' + wCount + ')');
+    if (vCount > 0) parts.push('v(' + vCount + ')');
+    if (sCount > 0) parts.push('s(' + sCount + ')');
+    var countLabel = parts.length > 0 ? ' ' + parts.join(' ') : '';
+
     aamap_recordAction({
-        label: "Delete object(s)",
+        label: "Delete" + countLabel,
         undo: function() {
             deletedObjs.forEach(function(e) { aamap_objects.push(e); });
             vectron_render();
