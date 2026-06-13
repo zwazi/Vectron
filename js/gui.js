@@ -72,11 +72,10 @@ function actionHistory_update() {
         (function(idx) {
             // Clicking action at idx means: go to the state AFTER action[idx] was applied.
             // Steps to undo = (aamap_undoStack.length - 1) - idx
-            // If 0 steps: already at this state (most recent action), still make clickable for UX clarity.
             var stepsToUndo = aamap_undoStack.length - 1 - idx;
             var li = makeItem(aamap_undoStack[idx].label, "ah-undo", function() {
                 for(var s = 0; s < stepsToUndo; s++) aamap_undo();
-                if(stepsToUndo > 0) vectron_render();
+                vectron_render();
             });
             list.appendChild(li);
         })(i);
