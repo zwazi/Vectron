@@ -274,13 +274,6 @@
         <div id="tool_bar">
             <ul>
                 <li>
-                    <a class="toolbar-gui-open" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Settings and Controls"></a>
-                    <a class="toolbar-gui-close" href="#" rel="tooltip" data-trigger="hover" data-placement="right" style="display:none;" data-original-title="Settings and Controls"></a>
-                </li>
-            </ul>
-
-            <ul>
-                <li>
                     <a class="toolbar-toolSelect" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Select Tool"></a>
                 </li>
                 <li>
@@ -288,18 +281,10 @@
                 </li>
             </ul>
 
-           <!-- <ul>
-                <li>
-                    <a class="toolimg" id="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Tool"></a>
-                </li>
-            </ul>-->
             <ul id="zone-base" class="single-item">
             	<li>
             	   <a class="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Tool"></a>
             	</li>
-            	<li>
-            	   <a class="toolbar-toolWallVertexMove" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Vertex Move Tool"></a>
-                </li>
                 <li>
                     <a class="toolbar-toolZone" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zone Tool"></a>
                 </li>
@@ -320,8 +305,6 @@
                         <a class="toolzoneimg toolbar-toolZone-rubber" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Rubber"></a>
                     </li>
                 </div>
-           <!-- </ul>
-            <ul>-->
                 <li>
                     <a class="toolbar-toolSpawn" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Spawn tool"></a>
                 </li>
@@ -346,17 +329,7 @@
                     <a class="toolbar-toolFitScreen" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Fit Map to Screen [Ctrl+0]"><span class="glyphicon glyphicon-fullscreen" style="font-size:14px;position:relative;left:0px;top:8px;"></span></a>
                 </li>
              </ul>
-             <!-- <ul>
-                <li>
-                    <a class="toolbar-toolScaleUp" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Scale Up"></a>
-                </li>
-                <li>
-                    <a class="toolbar-toolScaleDown" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Scale Down"></a>
-                </li>
-
-            </ul> -->
             <ul>
-
                 <li>
                     <a class="toolbar-delete" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Delete Selected"></a>
                 </li>
@@ -366,17 +339,17 @@
                 <li>
                     <a class="toolbar-redo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Redo"></a>
                 </li>
-
             </ul>
             <ul>
-
                 <li>
                     <a class="toolbar-toolSplit" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Split Tool"></a>
                 </li>
                 <li>
                     <a class="toolbar-toolJoin" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Join Tool"></a>
                 </li>
-
+                <li>
+                    <a class="toolbar-toolWallVertexMove" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall Vertex Move Tool"></a>
+                </li>
             </ul>
             <ul>
                 <li>
@@ -385,6 +358,10 @@
             </ul>
             <ul id="toolbar-bottom-ul">
                 <li>
+                    <a class="toolbar-gui-open" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Settings"></a>
+                    <a class="toolbar-gui-close" href="#" rel="tooltip" data-trigger="hover" data-placement="right" style="display:none;" data-original-title="Settings"></a>
+                </li>
+                <li>
                     <a class="toolbar-toolInfo" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="About Vectron"></a>
                 </li>
             </ul>
@@ -392,32 +369,15 @@
 
         <div id="contextMenu" class="dropdown clearfix">
             <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu" style="display:block;position:static;margin-bottom:5px;">
-                <li><a tabindex="-1" href="#" class="toolbar-gui-open">Toggle GUI</a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-copy">Copy <span style="float:right;opacity:0.6;font-size:11px;">Ctrl+C</span></a></li>
+                <li><a tabindex="-1" href="#" class="toolbar-paste">Paste <span style="float:right;opacity:0.6;font-size:11px;">Ctrl+V</span></a></li>
                 <li class="divider"></li>
-                <li><a tabindex="-1" href="#" class="toolbar-copy">Copy</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-paste">Paste</a></li>
-                <li class="divider"></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolSelect">Select Tool</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolWall">Wall Tool</a></li>
-
-                <li><a tabindex="-1" href="#" class="toolbar-toolZone">Zone Tool</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolSpawn">Spawn Tool</a></li>
-                <li class="divider"></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolLock">Toggle Snap-to-grid</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolZoomIn">Zoom In</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolZoomOut">Zoom Out</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolZoom100">Zoom 100%</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolFitScreen">Fit Map to Screen</a></li>
-                <li class="divider"></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolScaleUp">Scale Up</a></li>
-                <li><a tabindex="-1" href="#" class="toolbar-toolScaleDown">Scale Down</a></li>
-                <li class="divider"></li>
-                <li><a tabindex="-1" href="#" class="toolbar-delete">Delete Selected</a></li>
                 <li><a tabindex="-1" href="#" class="toolbar-undo">Undo</a></li>
                 <li><a tabindex="-1" href="#" class="toolbar-redo">Redo</a></li>
                 <li class="divider"></li>
+                <li><a tabindex="-1" href="#" class="toolbar-delete">Delete Selected</a></li>
+                <li class="divider"></li>
                 <li><a tabindex="-1" href="#" id="contextMenu-view-xml">View XML</a></li>
-
             </ul>
         </div>
 
@@ -429,7 +389,11 @@
 
         <div id="xml-editor-overlay">
             <div id="xml-editor-box">
-                <h4>XML Editor <small id="xml-editor-title"></small></h4>
+                <h4 style="margin:0 0 8px;">XML Editor</h4>
+                <ul class="nav nav-tabs" id="xml-editor-tabs" style="margin-bottom:0;border-bottom:none;">
+                    <li id="xml-tab-full"><a href="#" data-tab="full">Full Map</a></li>
+                    <li id="xml-tab-selected"><a href="#" data-tab="selected">Selection <span id="xml-tab-sel-count"></span></a></li>
+                </ul>
                 <textarea id="xml-editor-content" spellcheck="false"></textarea>
                 <div class="xml-editor-actions">
                     <button id="xml-editor-apply" class="btn btn-primary">Apply Changes</button>
