@@ -364,9 +364,10 @@ function aamap_drawGrid() {
     }
 
     // Draw every-10th lines (2x the narrow line width)
+    var TENTH_LINE_MULTIPLIER = 2;
     if(tenthArray.length > 0) {
         var tenth = vectron_screen.path(tenthArray)
-            .attr({stroke: config_isDark ? "#444" : "#fff", "stroke-width": regularStroke * 2});
+            .attr({stroke: config_isDark ? "#444" : "#fff", "stroke-width": regularStroke * TENTH_LINE_MULTIPLIER});
         tenth.node.style.shapeRendering = "crispedges";
         aamap_grid.push(tenth);
     }
