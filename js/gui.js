@@ -25,6 +25,11 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 var gui_active = false;
+var gui_floatingWindowRegistry = [];
+
+var GUI_FLOATING_WINDOW_MARGIN = 8;
+var GUI_FLOATING_WINDOW_DEFAULT_TOP = 46;
+var GUI_FLOATING_WINDOW_DOCK_THRESHOLD = 42;
 
 /** Clamp a window position so it stays fully within the viewport, does not overlap the 50px left toolbar, the 36px top settings bar, or the bottom info bar. */
 function gui_clampToScreen(win, px, py) {
@@ -34,9 +39,167 @@ function gui_clampToScreen(win, px, py) {
     var INFO_BAR_H = (infoBar && infoBar.style.display !== "none") ? 26 : 0;
     var w = win.offsetWidth || 0;
     var h = win.offsetHeight || 0;
-    var maxX = Math.max(TOOLBAR_W, window.innerWidth  - w);
-    var maxY = Math.max(TOP_BAR_H, window.innerHeight - h - INFO_BAR_H);
-    return [Math.max(TOOLBAR_W, Math.min(px, maxX)), Math.max(TOP_BAR_H, Math.min(py, maxY))];
+    var maxX = Math.max(TOOLBAR_W + GUI_FLOATING_WINDOW_MARGIN, window.innerWidth - w - GUI_FLOATING_WINDOW_MARGIN);
+    var maxY = Math.max(TOP_BAR_H + GUI_FLOATING_WINDOW_MARGIN, window.innerHeight - h - INFO_BAR_H - GUI_FLOATING_WINDOW_MARGIN);
+    return [
+        Math.max(TOOLBAR_W + GUI_FLOATING_WINDOW_MARGIN, Math.min(px, maxX)),
+        Math.max(TOP_BAR_H + GUI_FLOATING_WINDOW_MARGIN, Math.min(py, maxY))
+    ];
+}
+
+function gui_floatingWindowDockContainer() {
+    var dock = document.getElementById("vt-right-dock");
+    if (!dock) {
+        dock = document.createElement("div");
+        dock.id = "vt-right-dock";
+        document.body.appendChild(dock);
+    }
+    return dock;
+}
+
+function gui_isWindowDocked(win) {
+    return !!(win && win.getAttribute("data-vt-docked") === "1");
+}
+
+function gui_refreshFloatingWindowBounds(win) {
+    if (!win) return;
+    if (gui_isWindowDocked(win)) {
+        win.style.position = "relative";
+        win.style.left = "";
+        win.style.top = "";
+        win.style.right = "";
+        win.style.bottom = "";
+        win.style.maxWidth = "100%";
+        win.style.maxHeight = "calc(100vh - 82px)";
+    } else {
+        win.style.position = "fixed";
+        win.style.maxWidth = "calc(100vw - 66px)";
+        win.style.maxHeight = "calc(100vh - 82px)";
+    }
+}
+
+function gui_layoutDockedWindows() {
+    var dock = gui_floatingWindowDockContainer();
+    var windows = gui_floatingWindowRegistry.filter(function(entry) {
+        return entry && entry.win && gui_isWindowDocked(entry.win) && entry.win.style.display !== "none";
+    }).sort(function(a, b) {
+        return a.order - b.order;
+    });
+    if (!windows.length) {
+        dock.style.display = "none";
+        return;
+    }
+    dock.style.display = "flex";
+    windows.forEach(function(entry) {
+        gui_refreshFloatingWindowBounds(entry.win);
+        dock.appendChild(entry.win);
+    });
+}
+
+function gui_refreshFloatingWindows() {
+    gui_layoutDockedWindows();
+    gui_floatingWindowRegistry.forEach(function(entry) {
+        if (!entry || !entry.win || gui_isWindowDocked(entry.win) || entry.win.style.display === "none") return;
+        var rect = entry.win.getBoundingClientRect();
+        var clamped = gui_clampToScreen(entry.win, rect.left, rect.top);
+        entry.win.style.left = clamped[0] + "px";
+        entry.win.style.top = clamped[1] + "px";
+        gui_refreshFloatingWindowBounds(entry.win);
+    });
+}
+
+function gui_dockWindow(win) {
+    if (!win) return;
+    if (!gui_isWindowDocked(win)) {
+        var rect = win.getBoundingClientRect();
+        win.setAttribute("data-vt-last-left", rect.left);
+        win.setAttribute("data-vt-last-top", rect.top);
+    }
+    win.setAttribute("data-vt-docked", "1");
+    gui_refreshFloatingWindowBounds(win);
+    gui_layoutDockedWindows();
+}
+
+function gui_undockWindow(win) {
+    if (!win) return;
+    var rect = win.getBoundingClientRect();
+    win.setAttribute("data-vt-docked", "0");
+    gui_refreshFloatingWindowBounds(win);
+    win.style.position = "fixed";
+    win.style.left = rect.left + "px";
+    win.style.top = rect.top + "px";
+    document.body.appendChild(win);
+}
+
+function gui_setupDockableWindow(opts) {
+    var win = document.getElementById(opts.id);
+    var header = document.getElementById(opts.headerId);
+    var dockButton = opts.dockButtonId ? document.getElementById(opts.dockButtonId) : null;
+    if (!win || !header) return;
+
+    if (gui_floatingWindowRegistry.some(function(entry) { return entry.win === win; })) return;
+    gui_floatingWindowRegistry.push({ win: win, order: opts.order || 0 });
+    win.classList.add("vt-floating-window");
+    win.setAttribute("data-vt-docked", "0");
+    gui_refreshFloatingWindowBounds(win);
+
+    var dragging = false;
+    var dragOffX = 0;
+    var dragOffY = 0;
+
+    function startDrag(e) {
+        if (e.target && $(e.target).closest(".vt-window-action").length) return;
+        if (e.which && e.which !== 1) return;
+        if (gui_isWindowDocked(win)) {
+            gui_undockWindow(win);
+        }
+        var rect = win.getBoundingClientRect();
+        dragging = true;
+        dragOffX = e.clientX - rect.left;
+        dragOffY = e.clientY - rect.top;
+        win.style.right = "auto";
+        win.style.bottom = "auto";
+        e.preventDefault();
+    }
+
+    header.addEventListener("mousedown", startDrag);
+    document.addEventListener("mousemove", function(e) {
+        if (!dragging) return;
+        var clamped = gui_clampToScreen(win, e.clientX - dragOffX, e.clientY - dragOffY);
+        win.style.left = clamped[0] + "px";
+        win.style.top = clamped[1] + "px";
+    });
+    document.addEventListener("mouseup", function() {
+        if (!dragging) return;
+        dragging = false;
+        var rect = win.getBoundingClientRect();
+        if (!gui_isWindowDocked(win) && (window.innerWidth - rect.right) <= GUI_FLOATING_WINDOW_DOCK_THRESHOLD) {
+            gui_dockWindow(win);
+        }
+    });
+
+    if (dockButton) {
+        dockButton.addEventListener("click", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (gui_isWindowDocked(win)) {
+                gui_undockWindow(win);
+                var left = parseFloat(win.getAttribute("data-vt-last-left"));
+                var top = parseFloat(win.getAttribute("data-vt-last-top"));
+                if (isNaN(left) || isNaN(top)) {
+                    var fallback = gui_clampToScreen(win, window.innerWidth - (win.offsetWidth || 0) - 64, GUI_FLOATING_WINDOW_DEFAULT_TOP);
+                    left = fallback[0];
+                    top = fallback[1];
+                }
+                win.style.left = left + "px";
+                win.style.top = top + "px";
+            } else {
+                win.setAttribute("data-vt-last-left", win.offsetLeft);
+                win.setAttribute("data-vt-last-top", win.offsetTop);
+                gui_dockWindow(win);
+            }
+        });
+    }
 }
 
 function gui_init() {
@@ -44,6 +207,11 @@ function gui_init() {
     actionHistory_init();
     controlBox_initDrag();
     mapSettings_loadCSVs();
+    gui_setupDockableWindow({ id: "wall-tool-window", headerId: "wall-tool-header", dockButtonId: "wall-tool-dock", order: 1 });
+    gui_setupDockableWindow({ id: "zone-tool-window", headerId: "zone-tool-header", dockButtonId: "zone-tool-dock", order: 2 });
+    gui_setupDockableWindow({ id: "action-history-window", headerId: "action-history-header", dockButtonId: "action-history-dock", order: 3 });
+    gui_refreshFloatingWindows();
+    window.addEventListener("resize", gui_refreshFloatingWindows);
 }
 
 function controlBox_initDrag() {
@@ -78,25 +246,7 @@ function controlBox_initDrag() {
 }
 
 function actionHistory_init() {
-    // Make the action history window draggable and resizable via JS
-    var win = document.getElementById("action-history-window");
-    if(!win) return;
-    var header = document.getElementById("action-history-header");
-    var isDragging = false, dragOffX = 0, dragOffY = 0;
-    header.addEventListener("mousedown", function(e) {
-        isDragging = true;
-        dragOffX = e.clientX - win.offsetLeft;
-        dragOffY = e.clientY - win.offsetTop;
-        e.preventDefault();
-    });
-    document.addEventListener("mousemove", function(e) {
-        if(isDragging) {
-            var clamped = gui_clampToScreen(win, e.clientX - dragOffX, e.clientY - dragOffY);
-            win.style.left = clamped[0] + "px";
-            win.style.top  = clamped[1] + "px";
-        }
-    });
-    document.addEventListener("mouseup", function() { isDragging = false; });
+    gui_layoutDockedWindows();
 }
 
 function actionHistory_update() {
@@ -152,15 +302,20 @@ function actionHistory_show() {
     var win = document.getElementById("action-history-window");
     win.style.display = "";
     actionHistory_update();
+    gui_layoutDockedWindows();
 }
 
 function actionHistory_hide() {
     document.getElementById("action-history-window").style.display = "none";
+    gui_layoutDockedWindows();
 }
 
 function gui_writeLog(message) {
-    $('#debug_stream').append('<span>' + message + '</span');
     var element = document.getElementById("debug_stream");
+    if (!element) return;
+    var span = document.createElement("span");
+    span.textContent = message;
+    element.appendChild(span);
     element.scrollTop = element.scrollHeight;
 }
 
@@ -372,8 +527,13 @@ function mapSettings_addFromUI() {
     var valueEl  = document.getElementById('map-settings-value');
     if (!searchEl) return;
 
+    function releaseInputFocus() {
+       searchEl.blur();
+       if (valueEl) valueEl.blur();
+    }
+
     var raw = searchEl.value.trim();
-    if (!raw) return;
+    if (!raw) { releaseInputFocus(); return; }
 
     var entry;
     // If there's already a space, treat the whole thing as "NAME VALUE"
@@ -382,19 +542,20 @@ function mapSettings_addFromUI() {
     } else {
         // Use separate value field
         var val = valueEl ? valueEl.value.trim() : '';
-        if (!val) { gui_toast('Please enter a value.'); return; }
+        if (!val) { gui_toast('Please enter a value.'); releaseInputFocus(); return; }
         entry = raw + ' ' + val;
     }
 
     // Avoid duplicates by name
     var spaceIdx = entry.indexOf(' ');
-    if (spaceIdx < 0) { gui_toast('Invalid setting format. Use: NAME VALUE'); return; }
+    if (spaceIdx < 0) { gui_toast('Invalid setting format. Use: NAME VALUE'); releaseInputFocus(); return; }
     var namePart = entry.slice(0, spaceIdx).toUpperCase();
     for (var i = 0; i < xml_settings.length; i++) {
         var existingSpace = xml_settings[i].indexOf(' ');
         var existingName = existingSpace >= 0 ? xml_settings[i].slice(0, existingSpace).toUpperCase() : xml_settings[i].toUpperCase();
         if (existingName === namePart) {
             gui_toast('Setting "' + namePart + '" already exists. Remove it first.');
+            releaseInputFocus();
             return;
         }
     }
@@ -405,6 +566,7 @@ function mapSettings_addFromUI() {
     searchEl.value = '';
     if (valueEl) valueEl.value = '';
     document.getElementById('map-settings-dropdown').style.display = 'none';
+    releaseInputFocus();
 }
 
 function mapSettings_removeEntry(idx) {
