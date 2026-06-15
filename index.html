@@ -521,12 +521,13 @@
         <script type="text/javascript" src="./js/libs/bootstrap.min.js"></script>
         <script type="text/javascript" src="./js/tour.js"></script>
         <script>
+        var WALL_TOOL_POPOVER_DELAY_MS = 2200;
         $('[rel=tooltip]').tooltip();
         $('.wall-tool-mode-btn[data-toggle="popover"]').popover({
             trigger: 'hover',
             placement: 'top',
             container: 'body',
-            delay: { show: 2200, hide: 0 },
+            delay: { show: WALL_TOOL_POPOVER_DELAY_MS, hide: 0 },
             html: true
         });
         </script>
