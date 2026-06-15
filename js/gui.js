@@ -280,13 +280,12 @@ function gui_hide() {
 }
 
 function gui_fillInput() {
-    $("#map_name").val(xml_name);
-    $("#map_author").val(xml_author)
-    $("#map_category").val(xml_category);
-    $("#map_version").val(xml_version)
-    $("#map_dtd").val(xml_dtd);
-
-    $("#map_axes").val(xml_axes);
+    $("#map_name").val(xml_name || "");
+    $("#map_author").val(xml_author || "");
+    $("#map_category").val(xml_category || "");
+    $("#map_version").val(xml_version || "");
+    $("#map_dtd").val(xml_dtd || "");
+    $("#map_axes").val(xml_axes == null ? "" : xml_axes);
     $("#map_settings").val(xml_settings.join("\n"));
     mapSettings_renderList();
 }

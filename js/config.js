@@ -188,7 +188,6 @@ function _config_set_disable(item)
 // ---- Keybinds ----
 var vectron_defaultKeybinds = {
     select: '1',
-    navigation: '2',
     wall: '3',
     zone: '4',
     spawn: '5',
@@ -233,7 +232,6 @@ function keybinds_apply() {
     }
 
     bindKey(vectron_keybinds.select,     function(){ vectron_connectTool('select'); });
-    bindKey(vectron_keybinds.navigation, function(){ vectron_connectTool('navigation'); });
     bindKey(vectron_keybinds.wall,       function(){ vectron_connectTool('wall'); });
     bindKey(vectron_keybinds.zone,       function(){ if(vectron_currentTool!='zone') vectron_connectTool('zone'); });
     bindKey(vectron_keybinds.spawn,      function(){ vectron_connectTool('spawn'); });
@@ -258,7 +256,6 @@ function keybinds_updateOverlays() {
     // update small key-label overlays on toolbar buttons
     var map = {
         select:         '.toolbar-toolSelect',
-        navigation:     '.toolbar-toolNavigation',
         wall:           '.toolbar-toolWall',
         zone:           '.toolbar-toolZone',
         spawn:          '.toolbar-toolSpawn',
@@ -381,7 +378,7 @@ function keybinds_buildUI() {
     container.innerHTML = '';
 
     var labels = {
-        select: 'Select', navigation: 'Navigation', wall: 'Wall',
+        select: 'Select', wall: 'Wall',
         zone: 'Zone', spawn: 'Spawn', snap: 'Snap',
         split: 'Split', join: 'Join', wallVertexMove: 'Vertex Move'
     };

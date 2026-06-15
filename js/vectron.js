@@ -34,6 +34,7 @@ var vectron_tools = ["select", "navigation", "wall", "zone", "spawn", "split", "
 var vectron_currentTool = "";
 var vectron_toolActive = false;
 
+var vectron_grid_spacing_base = 16;
 var vectron_grid_spacing = 16;
 var vectron_zoom = 1;//15
 var vectron_panX = 0;
@@ -116,10 +117,33 @@ function vectron_format_zoom(z) {
 function vectron_write_info()
 {
     document.getElementById("zoom").innerText = vectron_format_zoom(vectron_zoom);
-    document.getElementById("spacing").innerText = vectron_grid_spacing;
+    var gridSelect = document.getElementById("grid-spacing-select");
+    if(gridSelect) gridSelect.value = String(vectron_grid_spacing);
+    var lockBtn = document.getElementById("grid-spacing-lock");
+    if(lockBtn) {
+        lockBtn.title = config_autoAdjustGridSpacing ? "Lock grid size" : "Unlock grid size";
+        lockBtn.setAttribute("aria-label", config_autoAdjustGridSpacing ? "Lock grid size" : "Unlock grid size");
+        lockBtn.innerHTML = config_autoAdjustGridSpacing ? '<i class="fa-solid fa-lock" aria-hidden="true"></i>' : '<i class="fa-solid fa-unlock" aria-hidden="true"></i>';
+    }
     
     document.getElementById("anchor-x").innerText = vectron_format_coord(-(vectron_panX));
     document.getElementById("anchor-y").innerText = vectron_format_coord(-(vectron_panY));
+}
+
+function vectron_setGridSpacing(spacing) {
+    var value = parseFloat(spacing);
+    if(isNaN(value) || value <= 0) return;
+    vectron_grid_spacing_base = value;
+    vectron_grid_spacing = value;
+    vectron_render();
+}
+
+function vectron_toggleGridSpacingLock() {
+    config_autoAdjustGridSpacing = !config_autoAdjustGridSpacing;
+    if(!config_autoAdjustGridSpacing) {
+        vectron_grid_spacing_base = vectron_grid_spacing;
+    }
+    vectron_render();
 }
 
 function vectron_zoom_adjustment()
@@ -222,4 +246,3 @@ function vectron_saveTextAsFile(xml, filename)
 function vectron_destroyClickedElement(event) {
     document.body.removeChild(event.target);
 }
-
