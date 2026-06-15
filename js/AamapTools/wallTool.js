@@ -288,7 +288,7 @@ function wallTool_rasterizeText(text, cols, rows) {
     ctx.textBaseline = "middle";
 
     var fontSize = wallTool_fitTextFont(ctx, lines, cols, rows);
-    var lineHeight = fontSize * 1.15;
+    var lineHeight = fontSize * WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER;
     var totalHeight = lineHeight * lines.length;
     var startY = (rows - totalHeight) / 2 + lineHeight / 2;
     ctx.font = "bold " + fontSize + "px monospace";
@@ -334,29 +334,35 @@ function wallTool_mergeSegments(segments) {
     var horizontals = {};
     var verticals = {};
 
-    function keyFor(value) {
+    function stringifyKey(value) {
         return String(value);
+    }
+
+    function normalizeSegment(seg) {
+        var normalized = { x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 };
+        if(normalized.y1 === normalized.y2 && normalized.x2 < normalized.x1) {
+            var tmp = normalized.x1;
+            normalized.x1 = normalized.x2;
+            normalized.x2 = tmp;
+        } else if(normalized.x1 === normalized.x2 && normalized.y2 < normalized.y1) {
+            var tmpY = normalized.y1;
+            normalized.y1 = normalized.y2;
+            normalized.y2 = tmpY;
+        }
+        return normalized;
     }
 
     segments.forEach(function(seg) {
         if(seg.y1 === seg.y2) {
-            var y = seg.y1;
-            if(seg.x2 < seg.x1) {
-                var tmp = seg.x1;
-                seg.x1 = seg.x2;
-                seg.x2 = tmp;
-            }
-            if(!horizontals[keyFor(y)]) horizontals[keyFor(y)] = [];
-            horizontals[keyFor(y)].push({ x1: seg.x1, y1: y, x2: seg.x2, y2: y });
+            var normalizedHorizontal = normalizeSegment(seg);
+            var y = normalizedHorizontal.y1;
+            if(!horizontals[stringifyKey(y)]) horizontals[stringifyKey(y)] = [];
+            horizontals[stringifyKey(y)].push(normalizedHorizontal);
         } else if(seg.x1 === seg.x2) {
-            var x = seg.x1;
-            if(seg.y2 < seg.y1) {
-                var tmpY = seg.y1;
-                seg.y1 = seg.y2;
-                seg.y2 = tmpY;
-            }
-            if(!verticals[keyFor(x)]) verticals[keyFor(x)] = [];
-            verticals[keyFor(x)].push({ x1: x, y1: seg.y1, x2: x, y2: seg.y2 });
+            var normalizedVertical = normalizeSegment(seg);
+            var x = normalizedVertical.x1;
+            if(!verticals[stringifyKey(x)]) verticals[stringifyKey(x)] = [];
+            verticals[stringifyKey(x)].push(normalizedVertical);
         }
     });
 
@@ -725,20 +731,20 @@ function wallTool_completeShape() {
             gui_writeLog("Click two corners before submitting text walls.");
             return;
         }
-        var textWalls = wallTool_buildTextWalls(wallTool_stagePoints, wallTool_getTextInput());
-        if(textWalls === null) {
+        var draftWallPoints = wallTool_buildTextWalls(wallTool_stagePoints, wallTool_getTextInput());
+        if(draftWallPoints === null) {
             gui_writeLog("Text box must have a width and a height.");
             return;
         }
-        if(textWalls.length === 0) {
+        if(draftWallPoints.length === 0) {
             gui_writeLog("Enter text before submitting.");
             return;
         }
         var addedTextWalls = [];
-        for(var tw = 0; tw < textWalls.length; tw++) {
+        for(var tw = 0; tw < draftWallPoints.length; tw++) {
             var wall = new Wall();
             wall.height = wallTool_getHeight();
-            wall.points = textWalls[tw];
+            wall.points = draftWallPoints[tw];
             addedTextWalls.push(wall);
             aamap_add(wall);
         }
@@ -969,15 +975,15 @@ function wallTool_renderCurrent() {
     }
 
     if(wallTool_mode === "text") {
-        var textWalls = wallTool_getDraftPoints(
+        var previewWallPoints = wallTool_getDraftPoints(
             wallTool_stagePoints.length >= 1 ? new WallPoint(aamap_mapX(cursor_realX), aamap_mapY(cursor_realY)) : null
         );
-        if(!textWalls || textWalls.length === 0) {
+        if(!previewWallPoints || previewWallPoints.length === 0) {
             wallTool_clearPreview();
             wallTool_updatePointsList();
             return;
         }
-        wallTool_drawPreviewSegments(textWalls);
+        wallTool_drawPreviewSegments(previewWallPoints);
         wallTool_updatePointsList();
         return;
     }
