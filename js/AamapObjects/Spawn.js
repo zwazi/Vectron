@@ -57,8 +57,10 @@ function Spawn() {
 
     this.guideUpdate = function() {
         // get mouse cursor's distance from spawn's center
-        var diffX = aamap_mapX(cursor_neverSnappedX) - this.x;
-        var diffY = aamap_mapY(cursor_neverSnappedY) - this.y;
+        var targetX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
+        var targetY = cursor_snap ? cursor_realY : cursor_neverSnappedY;
+        var diffX = aamap_mapX(targetX) - this.x;
+        var diffY = aamap_mapY(targetY) - this.y;
         var dist = Math.sqrt(diffX * diffX + diffY * diffY);
 
         if(dist <= 1e-9) return;
