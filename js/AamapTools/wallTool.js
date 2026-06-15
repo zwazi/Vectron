@@ -432,7 +432,10 @@ function wallTool_textSegmentsToWalls(segments, box) {
         adjacency[endKey].push(i);
     }
 
-    var used = [];
+    var used = new Array(segments.length);
+    for(var u = 0; u < segments.length; u++) {
+        used[u] = false;
+    }
     for(var j = 0; j < segments.length; j++) {
         if(used[j]) continue;
 

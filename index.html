@@ -346,14 +346,14 @@
             <div id="wall-tool-body">
                 <div class="wall-tool-section">
                     <div id="wall-tool-mode-row" style="display:flex;gap:4px;flex-wrap:wrap;">
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="freeform" rel="popover" data-trigger="hover" data-placement="top" data-container="body" data-delay='{"show":1200,"hide":0}' data-html="true" data-original-title="Freeform Wall" data-content="Click to place wall points one by one. Double-click or press Shift+W to finish." aria-label="Freeform Wall"><i class="fa-solid fa-pen-ruler" aria-hidden="true"></i></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="rect2" rel="popover" data-trigger="hover" data-placement="top" data-container="body" data-delay='{"show":1200,"hide":0}' data-html="true" data-original-title="2-point Rectangle" data-content="Click opposite corners to create a rectangle." aria-label="2-point Rectangle"><i class="fa-regular fa-square" aria-hidden="true"></i></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="centerRect" rel="popover" data-trigger="hover" data-placement="top" data-container="body" data-delay='{"show":1200,"hide":0}' data-html="true" data-original-title="Center Rectangle" data-content="Click the center point, then a corner." aria-label="Center Rectangle"><i class="fa-solid fa-clone" aria-hidden="true"></i></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circleCenter" rel="popover" data-trigger="hover" data-placement="top" data-container="body" data-delay='{"show":1200,"hide":0}' data-html="true" data-original-title="Center Circle" data-content="Click the center, then a radius point." aria-label="Center Circle"><i class="fa-regular fa-circle-dot" aria-hidden="true"></i></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circle3pt" rel="popover" data-trigger="hover" data-placement="top" data-container="body" data-delay='{"show":1200,"hide":0}' data-html="true" data-original-title="3-point Circle" data-content="Click three points on the circumference." aria-label="3-point Circle"><i class="fa-regular fa-circle" aria-hidden="true"></i></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="arc3pt" rel="popover" data-trigger="hover" data-placement="top" data-container="body" data-delay='{"show":1200,"hide":0}' data-html="true" data-original-title="3-point Arc" data-content="Click two endpoints and one point on the arc." aria-label="3-point Arc"><i class="fa-solid fa-wave-square" aria-hidden="true"></i></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="ellipse3pt" rel="popover" data-trigger="hover" data-placement="top" data-container="body" data-delay='{"show":1200,"hide":0}' data-html="true" data-original-title="3-point Ellipse" data-content="Click the center, major axis, then minor axis." aria-label="3-point Ellipse"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="text" rel="popover" data-trigger="hover" data-placement="top" data-container="body" data-delay='{"show":1200,"hide":0}' data-html="true" data-original-title="Text Walls" data-content="Type text, click two corners for the box, then submit." aria-label="Text Walls"><i class="fa-solid fa-font" aria-hidden="true"></i></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="freeform" data-toggle="popover" data-original-title="Freeform Wall" data-content="Click to place wall points one by one. Double-click or press Shift+W to finish." aria-label="Freeform Wall"><i class="fa-solid fa-pen-ruler" aria-hidden="true"></i></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="rect2" data-toggle="popover" data-original-title="2-point Rectangle" data-content="Click opposite corners to create a rectangle." aria-label="2-point Rectangle"><i class="fa-regular fa-square" aria-hidden="true"></i></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="centerRect" data-toggle="popover" data-original-title="Center Rectangle" data-content="Click the center point, then a corner." aria-label="Center Rectangle"><i class="fa-solid fa-clone" aria-hidden="true"></i></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circleCenter" data-toggle="popover" data-original-title="Center Circle" data-content="Click the center, then a radius point." aria-label="Center Circle"><i class="fa-regular fa-circle-dot" aria-hidden="true"></i></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circle3pt" data-toggle="popover" data-original-title="3-point Circle" data-content="Click three points on the circumference." aria-label="3-point Circle"><i class="fa-regular fa-circle" aria-hidden="true"></i></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="arc3pt" data-toggle="popover" data-original-title="3-point Arc" data-content="Click two endpoints and one point on the arc." aria-label="3-point Arc"><i class="fa-solid fa-wave-square" aria-hidden="true"></i></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="ellipse3pt" data-toggle="popover" data-original-title="3-point Ellipse" data-content="Click the center, major axis, then minor axis." aria-label="3-point Ellipse"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="text" data-toggle="popover" data-original-title="Text Walls" data-content="Type text, click two corners for the box, then submit." aria-label="Text Walls"><i class="fa-solid fa-font" aria-hidden="true"></i></button>
                     </div>
                 </div>
                 <div class="wall-tool-section" id="wall-tool-status-row">
@@ -522,7 +522,13 @@
         <script type="text/javascript" src="./js/tour.js"></script>
         <script>
         $('[rel=tooltip]').tooltip();
-        $('[rel=popover]').popover();
+        $('.wall-tool-mode-btn[data-toggle="popover"]').popover({
+            trigger: 'hover',
+            placement: 'top',
+            container: 'body',
+            delay: { show: 1200, hide: 0 },
+            html: true
+        });
         </script>
 
         <div id="xml-editor-overlay">
