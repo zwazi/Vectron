@@ -36,6 +36,14 @@ function eventHandler_init() {
 
     var $contextMenu = $("#contextMenu");
 
+    $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']), textarea", function(e) {
+        if (this.tagName === "TEXTAREA") return;
+        if (e.key !== "Enter" || (e.isDefaultPrevented && e.isDefaultPrevented())) return;
+        e.preventDefault();
+        this.blur();
+        $(this).trigger("change");
+    });
+
     $("#canvas_container").on("contextmenu", function(e) {
         aamap_active = false;
         // Show/hide vertex delete based on current tool and selection
@@ -151,6 +159,14 @@ function eventHandler_init() {
         }
         gui_writeLog('GUI TOGGLE');
         $("#zones-menu").hide();
+    });
+
+    $(document).on("click", "#wall-tool-close", function() {
+        wallTool_disconnect();
+    });
+
+    $(document).on("click", "#zone-tool-close", function() {
+        zoneTool_disconnect();
     });
 
 
@@ -444,63 +460,6 @@ function eventHandler_init() {
         wallTool_refreshCountInput(true);
         wallTool_renderCurrent();
     });
-
-    // Wall tool window drag
-    (function() {
-        var win = document.getElementById('wall-tool-window');
-        var hdr = document.getElementById('wall-tool-header');
-        if (!win || !hdr) return;
-        var dragging = false, ox, oy;
-        hdr.addEventListener('mousedown', function(e) {
-            if ($(e.target).is('#wall-tool-close')) return;
-            dragging = true;
-            var rect = win.getBoundingClientRect();
-            ox = e.clientX - rect.left;
-            oy = e.clientY - rect.top;
-            win.style.right = 'auto';
-            win.style.bottom = 'auto';
-            e.preventDefault();
-        });
-        document.addEventListener('mousemove', function(e) {
-            if (!dragging) return;
-            var clamped = gui_clampToScreen(win, e.clientX - ox, e.clientY - oy);
-            win.style.left = clamped[0] + 'px';
-            win.style.top  = clamped[1] + 'px';
-        });
-        document.addEventListener('mouseup', function() { dragging = false; });
-        document.getElementById('wall-tool-close').addEventListener('click', function() {
-            win.style.display = 'none';
-        });
-    })();
-
-    // Zone tool window drag
-    (function() {
-        var win = document.getElementById('zone-tool-window');
-        var hdr = document.getElementById('zone-tool-header');
-        if (!win || !hdr) return;
-        var dragging = false, ox, oy;
-        hdr.addEventListener('mousedown', function(e) {
-            if ($(e.target).is('#zone-tool-close')) return;
-            dragging = true;
-            var rect = win.getBoundingClientRect();
-            ox = e.clientX - rect.left;
-            oy = e.clientY - rect.top;
-            win.style.right = 'auto';
-            win.style.bottom = 'auto';
-            e.preventDefault();
-        });
-        document.addEventListener('mousemove', function(e) {
-            if (!dragging) return;
-            var clamped = gui_clampToScreen(win, e.clientX - ox, e.clientY - oy);
-            win.style.left = clamped[0] + 'px';
-            win.style.top  = clamped[1] + 'px';
-        });
-        document.addEventListener('mouseup', function() { dragging = false; });
-        document.getElementById('zone-tool-close').addEventListener('click', function() {
-            win.style.display = 'none';
-        });
-    })();
-
 
     $(".toolbar-toolSpawn").mouseup(function(e) {
         vectron_connectTool("spawn");
