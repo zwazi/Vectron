@@ -52,12 +52,9 @@ function cursor_render(newX, newY, spacing) {
 
         var midWidth = vectron_width/2 + (vectron_zoom * vectron_panX);
         var midHeight = vectron_height/2 - (vectron_zoom * vectron_panY);
-
-        cursor_realX = (midWidth) - Math.round(((midWidth) - newX) /
-            spacing) * spacing;
-
-        cursor_realY = (midHeight) - Math.round(((midHeight) - newY) /
-            spacing) * spacing;
+        var snapped = gridLayout_snapPoint(newX, newY, spacing, midWidth, midHeight);
+        cursor_realX = snapped.x;
+        cursor_realY = snapped.y;
 
     } else {
         cursor_realX = newX;
@@ -96,4 +93,3 @@ function cursor_hide() {
     cursor_active = false;
     cursor_obj.remove();
 }
-

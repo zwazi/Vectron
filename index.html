@@ -212,7 +212,7 @@
                             <tbody>
                                 <tr><td><b>Map Settings</b></td><td>Settings tags embedded in the map file (not your server config).</td></tr>
                                 <tr><td><b>Adjust Map</b></td><td>Scale, rotate, translate, or center all objects at once. "Center over 0,0" moves all objects so their group center lands on the world origin.</td></tr>
-                                <tr><td><b>Configure</b></td><td>Dark theme, info bar, debug log, action history, zoom step, grid line colors/thickness, and keybind customization.</td></tr>
+                                <tr><td><b>Configure</b></td><td>Dark theme, info bar, debug log, action history, zoom step, grid layout, grid line colors/thickness, and keybind customization.</td></tr>
                             </tbody>
                         </table>
 
@@ -253,6 +253,16 @@
                           <option value="0.05">Medium (5%)</option>
                           <option value="0.10">Coarse (10%)</option>
                           <option value="0.20">Large (20%)</option>
+                        </select>
+                      </div>
+                      <div class="form-group cfg-form-group">
+                        <label for="grid-layout-select">Grid Layout</label>
+                        <select class="form-control" id="grid-layout-select" name="grid-layout-select" onchange="config_gridLayout=this.value;_config_set('gridLayout',this.value);vectron_render();">
+                          <option value="square">Square</option>
+                          <option value="hex">Hex (6)</option>
+                          <option value="octagon">Octagon (8)</option>
+                          <option value="triangle">Triangle (3)</option>
+                          <option value="penta">Penta (5)</option>
                         </select>
                       </div>
                       <hr class="cfg-divider" />

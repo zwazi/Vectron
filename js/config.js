@@ -40,6 +40,63 @@ var config_gridNarrowThickness = 0; // 0 = use default (1)
 var config_gridTenthThickness  = 0; // 0 = use default (0.5)
 var config_gridAxisXThickness  = 0; // 0 = use default (1)
 var config_gridAxisYThickness  = 0; // 0 = use default (1)
+var config_gridLayout          = 'square';
+
+function gridLayout_getFamilyAngles(layout) {
+    switch(layout) {
+        case 'hex':
+        case 'triangle':
+            return [0, Math.PI / 3, 2 * Math.PI / 3];
+        case 'octagon':
+            return [0, Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4];
+        case 'penta':
+            return [0, Math.PI / 5, 2 * Math.PI / 5, 3 * Math.PI / 5, 4 * Math.PI / 5];
+        case 'square':
+        default:
+            return [0, Math.PI / 2];
+    }
+}
+
+function gridLayout_snapPoint(x, y, spacing, originX, originY) {
+    var families = gridLayout_getFamilyAngles(config_gridLayout);
+    var relX = x - originX;
+    var relY = y - originY;
+    var bestX = relX;
+    var bestY = relY;
+    var bestDist = Infinity;
+    var lineValues = [];
+
+    for(var i = 0; i < families.length; i++) {
+        var angle = families[i];
+        var nx = -Math.sin(angle);
+        var ny = Math.cos(angle);
+        lineValues[i] = Math.round((relX * nx + relY * ny) / spacing) * spacing;
+    }
+
+    for(var a = 0; a < families.length; a++) {
+        for(var b = a + 1; b < families.length; b++) {
+            var angleA = families[a], angleB = families[b];
+            var ax = -Math.sin(angleA), ay = Math.cos(angleA);
+            var bx = -Math.sin(angleB), by = Math.cos(angleB);
+            var det = ax * by - ay * bx;
+            if(Math.abs(det) < 1e-9) continue;
+
+            var px = (lineValues[a] * by - ay * lineValues[b]) / det;
+            var py = (ax * lineValues[b] - lineValues[a] * bx) / det;
+            var dist = (px - relX) * (px - relX) + (py - relY) * (py - relY);
+            if(dist < bestDist) {
+                bestDist = dist;
+                bestX = px;
+                bestY = py;
+            }
+        }
+    }
+
+    return {
+        x: originX + bestX,
+        y: originY + bestY
+    };
+}
 
 // default values:
 function _config_check_default(item)
@@ -240,6 +297,9 @@ function config_load()
     config_gridTenthThickness  = parseFloat(_config_get('gridTenthThickness'))  || 0;
     config_gridAxisXThickness  = parseFloat(_config_get('gridAxisXThickness'))  || 0;
     config_gridAxisYThickness  = parseFloat(_config_get('gridAxisYThickness'))  || 0;
+    config_gridLayout          = _config_get('gridLayout') || 'square';
+    var gridLayoutSelect = document.getElementById('grid-layout-select');
+    if(gridLayoutSelect) gridLayoutSelect.value = config_gridLayout;
 
     keybinds_load();
     keybinds_apply();
