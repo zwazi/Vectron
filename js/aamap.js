@@ -315,15 +315,15 @@ function aamap_drawGrid() {
         [-originX, vectron_height - originY],
         [vectron_width - originX, vectron_height - originY]
     ];
-    var drawLength = Math.sqrt(vectron_width * vectron_width + vectron_height * vectron_height) * 2;
+    var drawLength = Math.sqrt(vectron_width * vectron_width + vectron_height * vectron_height) * 1.2;
 
     function addLine(target, x1, y1, x2, y2) {
         target.push("M", x1, y1, "L", x2, y2);
     }
 
     function lineCategory(angle, idx) {
-        var horizontal = Math.abs(Math.sin(angle)) < 1e-6;
-        var vertical = Math.abs(Math.cos(angle)) < 1e-6;
+        var horizontal = Math.abs(Math.sin(angle)) < GRID_LAYOUT_EPSILON;
+        var vertical = Math.abs(Math.cos(angle)) < GRID_LAYOUT_EPSILON;
         if(idx === 0) {
             if(horizontal) return "axisX";
             if(vertical) return "axisY";
