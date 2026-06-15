@@ -39,8 +39,15 @@ var wallTool_mode = "freeform";
 var wallTool_step = 0;
 var wallTool_stagePoints = [];
 
+// Minimum segment length used to cap segment counts; smaller shapes get lower limits.
 var WALL_TOOL_MIN_SEGMENTS = 3;
 var WALL_TOOL_SEGMENT_LENGTH = 4;
+// Hard ceiling to keep giant circles from generating too many tiny walls.
+var WALL_TOOL_MAX_SEGMENTS = 720;
+// Keep wall coordinates stable when rounding generated points.
+var WALL_TOOL_COORD_PRECISION = 1e6;
+var WALL_TOOL_BUTTON_LABEL_FINISH = "Finish Wall";
+var WALL_TOOL_BUTTON_LABEL_GENERATE = "Generate Walls";
 
 function wallTool_clearPreview() {
     if(wallTool_previewObj != null) {
@@ -107,7 +114,7 @@ function wallTool_getSegmentInput() {
 function wallTool_wallCountLimit(perimeter) {
     var limit = Math.floor(perimeter / WALL_TOOL_SEGMENT_LENGTH);
     if(limit < WALL_TOOL_MIN_SEGMENTS) limit = WALL_TOOL_MIN_SEGMENTS;
-    if(limit > 720) limit = 720;
+    if(limit > WALL_TOOL_MAX_SEGMENTS) limit = WALL_TOOL_MAX_SEGMENTS;
     return limit;
 }
 
@@ -147,6 +154,7 @@ function wallTool_angleDiff(fromAngle, toAngle) {
 }
 
 function wallTool_circumcenter(a, b, c) {
+    // Standard circumcenter formula for three non-collinear points.
     var d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
     if(Math.abs(d) < 1e-9) return null;
     var a2 = a.x * a.x + a.y * a.y;
@@ -160,8 +168,8 @@ function wallTool_circumcenter(a, b, c) {
 
 function wallTool_pushPoint(list, x, y) {
     list.push(new WallPoint(
-        Math.round(x * 1e6) / 1e6,
-        Math.round(y * 1e6) / 1e6
+        Math.round(x * WALL_TOOL_COORD_PRECISION) / WALL_TOOL_COORD_PRECISION,
+        Math.round(y * WALL_TOOL_COORD_PRECISION) / WALL_TOOL_COORD_PRECISION
     ));
 }
 
@@ -311,7 +319,7 @@ function wallTool_updateWindow() {
     if(finishBtn) {
         var showFinish = isCountMode || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2);
         finishBtn.style.display = showFinish ? "" : "none";
-        finishBtn.innerHTML = isCountMode ? "Generate Walls" : "Finish Wall";
+        finishBtn.innerHTML = isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : WALL_TOOL_BUTTON_LABEL_FINISH;
     }
 
     if(isFreeform) {
@@ -368,9 +376,9 @@ function wallTool_getDraftPoints(candidatePoint) {
         var startAngle = Math.atan2(pts[0].y - center.y, pts[0].x - center.x);
         var radiusAngle = Math.atan2(pts[2].y - center.y, pts[2].x - center.x);
         var endAngle = Math.atan2(pts[1].y - center.y, pts[1].x - center.x);
-        var ccwSweep = wallTool_angleDiff(startAngle, endAngle);
+        var counterClockwiseSweep = wallTool_angleDiff(startAngle, endAngle);
         var radiusSweep = wallTool_angleDiff(startAngle, radiusAngle);
-        var clockwise = (radiusSweep > ccwSweep);
+        var clockwise = (radiusSweep > counterClockwiseSweep);
         return wallTool_arcPoints(center, radius, startAngle, endAngle, wallTool_getSegmentInput(), clockwise);
     }
 
@@ -402,9 +410,9 @@ function wallTool_getDraftPerimeter() {
         var startAngle = Math.atan2(wallTool_stagePoints[0].y - arcCenter.y, wallTool_stagePoints[0].x - arcCenter.x);
         var endAngle = Math.atan2(wallTool_stagePoints[1].y - arcCenter.y, wallTool_stagePoints[1].x - arcCenter.x);
         var radiusAngle = Math.atan2(wallTool_stagePoints[2].y - arcCenter.y, wallTool_stagePoints[2].x - arcCenter.x);
-        var ccwSweep = wallTool_angleDiff(startAngle, endAngle);
+        var counterClockwiseSweep = wallTool_angleDiff(startAngle, endAngle);
         var radiusSweep = wallTool_angleDiff(startAngle, radiusAngle);
-        var sweep = (radiusSweep > ccwSweep) ? (Math.PI * 2 - ccwSweep) : ccwSweep;
+        var sweep = (radiusSweep > counterClockwiseSweep) ? (Math.PI * 2 - counterClockwiseSweep) : counterClockwiseSweep;
         return arcRadius * sweep;
     }
 
@@ -412,6 +420,7 @@ function wallTool_getDraftPerimeter() {
         var majorLen = wallTool_pointDistance(wallTool_stagePoints[0], wallTool_stagePoints[1]);
         var minorLen = wallTool_pointDistance(wallTool_stagePoints[0], wallTool_stagePoints[2]);
         if(majorLen <= 0 || minorLen <= 0) return 0;
+        // Ramanujan's approximation is accurate enough for a wall-count limit.
         return Math.PI * (3 * (majorLen + minorLen) - Math.sqrt((3 * majorLen + minorLen) * (majorLen + 3 * minorLen)));
     }
 
@@ -435,13 +444,13 @@ function wallTool_finalizePoints(points) {
     wallTool_stagePoints = [];
     wallTool_step = 0;
     aamap_add(wall);
+    wall.render();
     aamap_recordAction({
         label: "Add wall",
         undo: function() { _aamap_removeObj(wall); vectron_render(); },
         redo: function() { aamap_objects.push(wall); vectron_render(); }
     });
     vectron_toolActive = false;
-    vectron_render();
     wallTool_updateWindow();
     return true;
 }
@@ -481,9 +490,9 @@ function wallTool_completeShape() {
         var startAngle = Math.atan2(wallTool_stagePoints[0].y - arcCenter.y, wallTool_stagePoints[0].x - arcCenter.x);
         var endAngle = Math.atan2(wallTool_stagePoints[1].y - arcCenter.y, wallTool_stagePoints[1].x - arcCenter.x);
         var radiusAngle = Math.atan2(wallTool_stagePoints[2].y - arcCenter.y, wallTool_stagePoints[2].x - arcCenter.x);
-        var ccwSweep = wallTool_angleDiff(startAngle, endAngle);
+        var counterClockwiseSweep = wallTool_angleDiff(startAngle, endAngle);
         var radiusSweep = wallTool_angleDiff(startAngle, radiusAngle);
-        var clockwise = (radiusSweep > ccwSweep);
+        var clockwise = (radiusSweep > counterClockwiseSweep);
         finalPts = wallTool_arcPoints(arcCenter, arcRadius, startAngle, endAngle, count, clockwise);
     } else if(wallTool_mode === "ellipse3pt") {
         finalPts = wallTool_ellipsePoints(wallTool_stagePoints[0], wallTool_stagePoints[1], wallTool_stagePoints[2], count);
@@ -753,7 +762,8 @@ function wallTool_updatePointsList() {
     var listEl = document.getElementById('wall-tool-points-list');
     var section = document.getElementById('wall-tool-points-section');
     var finishBtn = document.getElementById('wall-tool-finish');
-    if (!listEl || !section || !finishBtn) return;
+    if (!listEl) return;
+    if (!section || !finishBtn) return;
 
     if(wallTool_mode !== "freeform") {
         section.style.display = 'none';
