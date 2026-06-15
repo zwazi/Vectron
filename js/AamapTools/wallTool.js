@@ -84,6 +84,12 @@ function wallTool_hasTextDraft() {
     return wallTool_textObject != null;
 }
 
+function wallTool_clearTextObjectIfMatch(obj) {
+    if(wallTool_textObject === obj) {
+        wallTool_textObject = null;
+    }
+}
+
 function wallTool_createTextObject() {
     if(wallTool_stagePoints.length < 2) return null;
     var text = wallTool_getTextValue();
@@ -106,8 +112,21 @@ function wallTool_createTextObject() {
     selectTool_selectedObjs.push(textObj);
     aamap_recordAction({
         label: "Add text",
-        undo: function() { if(wallTool_textObject === textObj) wallTool_textObject = null; _aamap_removeObj(textObj); selectTool_deselectAll(); vectron_render(); },
-        redo: function() { aamap_objects.push(textObj); wallTool_textObject = textObj; textObj.render(); selectTool_deselectAll(); selectTool_select(textObj); selectTool_selectedObjs.push(textObj); vectron_render(); }
+        undo: function() {
+            wallTool_clearTextObjectIfMatch(textObj);
+            _aamap_removeObj(textObj);
+            selectTool_deselectAll();
+            vectron_render();
+        },
+        redo: function() {
+            aamap_objects.push(textObj);
+            wallTool_textObject = textObj;
+            textObj.render();
+            selectTool_deselectAll();
+            selectTool_select(textObj);
+            selectTool_selectedObjs.push(textObj);
+            vectron_render();
+        }
     });
     wallTool_stagePoints = [];
     wallTool_step = 0;
@@ -404,7 +423,9 @@ function wallTool_updateWindow() {
     } else if(mode === "ellipse3pt") {
         wallTool_setStatus(wallTool_step < 3 ? "Click the center, major axis, then minor axis." : "Set the wall count, then generate the ellipse.");
     } else if(mode === "text") {
-        wallTool_setStatus(wallTool_hasTextDraft() ? "Text added. Fine tune it with the Select tool, then click Submit." : "Enter text, then click two opposite corners to size it.");
+        wallTool_setStatus(wallTool_hasTextDraft()
+            ? "Text added. Fine tune it with the Select tool, then click Submit."
+            : "Enter text, then click two opposite corners to size it.");
     }
 }
 

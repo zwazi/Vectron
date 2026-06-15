@@ -287,7 +287,7 @@ function selectTool_delete() {
         else if (e instanceof Wall) { wCount++; vCount += e.points.length; }
         else if (e instanceof Spawn) { sCount++; }
         else if (e instanceof Text) { tCount++; }
-        if (e === wallTool_textObject) wallTool_textObject = null;
+        wallTool_clearTextObjectIfMatch(e);
     });
     var parts = [];
     if (zCount > 0) parts.push('z(' + zCount + ')');
@@ -663,4 +663,3 @@ var selectTool_hoverOutSelected = function(evt) {
     selectTool_hoveredSet = null;
     selectTool_hoveredAamapObj = null;
 }
-
