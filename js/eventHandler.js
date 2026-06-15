@@ -460,6 +460,12 @@ function eventHandler_init() {
         wallTool_renderCurrent();
     });
 
+    $("#dWallText").on("input change", function() {
+        if(vectron_currentTool === "wall") {
+            wallTool_renderCurrent();
+        }
+    });
+
     $(".toolbar-toolSpawn").mouseup(function(e) {
         vectron_connectTool("spawn");
         $("#zones-menu").hide();
