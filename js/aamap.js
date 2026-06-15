@@ -306,49 +306,60 @@ function aamap_drawGrid() {
     var axisXArray = [];
     var axisYArray = [];
 
-    var midWidth = vectron_width/2 + (vectron_zoom * vectron_panX);
-    var midHeight = vectron_height/2 - (vectron_zoom * vectron_panY);
+    var families = gridLayout_getLineAngles(config_gridLayout);
+    var originX = vectron_width/2 + (vectron_zoom * vectron_panX);
+    var originY = vectron_height/2 - (vectron_zoom * vectron_panY);
+    var corners = [
+        [-originX, -originY],
+        [vectron_width - originX, -originY],
+        [-originX, vectron_height - originY],
+        [vectron_width - originX, vectron_height - originY]
+    ];
+    var drawLength = Math.sqrt(vectron_width * vectron_width + vectron_height * vectron_height) * GRID_LAYOUT_LINE_PADDING;
 
-    // Helper: determine which "count" a line at pixel pos i is, given the mid and spacing
-    // Returns the grid index (0 = axis, multiple of 10 = tenth line, else regular)
-    function gridIndex(pos, mid, spacing) {
-        return Math.round((pos - mid) / spacing);
-    }
-
-    // Extend grid 1 full screen beyond visible area so panning doesn't show blank edges
-    var gridLeft = -vectron_width;
-    var gridRight = 2 * vectron_width;
-    var gridTop = -vectron_height;
-    var gridBottom = 2 * vectron_height;
-
-    /**
-     * drawing vertical lines from mid to right and mid to left (extended 1 screen)
-     */
-    for(var i=midWidth; i < gridRight; i+= gridSpacing) {
-        var idx = gridIndex(i, midWidth, gridSpacing);
-        if(idx === 0) axisYArray.push("M", i, gridBottom, "L", i, gridTop);
-        else if(idx % 10 === 0) tenthArray.push("M", i, gridBottom, "L", i, gridTop);
-        else regularArray.push("M", i, gridBottom, "L", i, gridTop);
-    }
-    for(var i=midWidth - gridSpacing; i > gridLeft; i -= gridSpacing) {
-        var idx = gridIndex(i, midWidth, gridSpacing);
-        if(idx === 0) axisYArray.push("M", i, gridBottom, "L", i, gridTop);
-        else if(idx % 10 === 0) tenthArray.push("M", i, gridBottom, "L", i, gridTop);
-        else regularArray.push("M", i, gridBottom, "L", i, gridTop);
+    function addLine(target, x1, y1, x2, y2) {
+        target.push("M", x1, y1, "L", x2, y2);
     }
 
-    for(var i=midHeight; i < gridBottom; i+= gridSpacing) {
-        var idx = gridIndex(i, midHeight, gridSpacing);
-        if(idx === 0) axisXArray.push("M", gridRight, i, "L", gridLeft, i);
-        else if(idx % 10 === 0) tenthArray.push("M", gridRight, i, "L", gridLeft, i);
-        else regularArray.push("M", gridRight, i, "L", gridLeft, i);
+    function lineCategory(angle, idx) {
+        var horizontal = Math.abs(Math.sin(angle)) < GRID_LAYOUT_EPSILON;
+        var vertical = Math.abs(Math.cos(angle)) < GRID_LAYOUT_EPSILON;
+        if(idx === 0) {
+            if(horizontal) return "axisX";
+            if(vertical) return "axisY";
+        }
+        if(idx % 10 === 0) return "tenth";
+        return "regular";
     }
-    for(var i=midHeight - gridSpacing; i > gridTop; i -= gridSpacing) {
-        var idx = gridIndex(i, midHeight, gridSpacing);
-        if(idx === 0) axisXArray.push("M", gridRight, i, "L", gridLeft, i);
-        else if(idx % 10 === 0) tenthArray.push("M", gridRight, i, "L", gridLeft, i);
-        else regularArray.push("M", gridRight, i, "L", gridLeft, i);
-    }
+
+    families.forEach(function(angle) {
+        var nx = -Math.sin(angle), ny = Math.cos(angle);
+        var dx = Math.cos(angle), dy = Math.sin(angle);
+        var minProj = Infinity, maxProj = -Infinity;
+
+        for(var c = 0; c < corners.length; c++) {
+            var proj = corners[c][0] * nx + corners[c][1] * ny;
+            if(proj < minProj) minProj = proj;
+            if(proj > maxProj) maxProj = proj;
+        }
+
+        var kMin = Math.floor(minProj / gridSpacing) - 1;
+        var kMax = Math.ceil(maxProj / gridSpacing) + 1;
+        for(var k = kMin; k <= kMax; k++) {
+            var offset = k * gridSpacing;
+            var centerX = originX + nx * offset;
+            var centerY = originY + ny * offset;
+            var x1 = centerX - dx * drawLength;
+            var y1 = centerY - dy * drawLength;
+            var x2 = centerX + dx * drawLength;
+            var y2 = centerY + dy * drawLength;
+            var category = lineCategory(angle, k);
+            if(category === "axisX") addLine(axisXArray, x1, y1, x2, y2);
+            else if(category === "axisY") addLine(axisYArray, x1, y1, x2, y2);
+            else if(category === "tenth") addLine(tenthArray, x1, y1, x2, y2);
+            else addLine(regularArray, x1, y1, x2, y2);
+        }
+    });
 
     // Draw regular grid lines — use configurable color/thickness
     var defaultNarrowColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
@@ -410,4 +421,3 @@ function escapeHtml(string) {
         return entityMap[s];
     });
 }
-
