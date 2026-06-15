@@ -154,7 +154,7 @@
                             <tbody>
                                 <tr><td><b>Select</b></td><td><kbd>1</kbd></td><td>Click an object to select it. Drag on empty space to box-select. Click a selected object to deselect. <kbd>Del</kbd> deletes the selection.</td></tr>
                                 <tr><td><b>Navigation</b></td><td><kbd>2</kbd></td><td>Click and drag to pan the view. Alternatively use middle-click drag or arrow keys at any time.</td></tr>
-                                <tr><td><b>Wall</b></td><td><kbd>3</kbd></td><td>Click to place wall points. Double-click or press <kbd>Shift+W</kbd> to end the wall. Press <kbd>Esc</kbd> to cancel.</td></tr>
+                                <tr><td><b>Wall</b></td><td><kbd>3</kbd></td><td>Open the Wall Tool window to choose freeform walls, rectangles, circles, arcs, or ellipses. For shape tools, click the requested points, set the wall count if prompted, then press <b>Generate Walls</b>. Double-click or press <kbd>Shift+W</kbd> to finish freeform walls. Press <kbd>Esc</kbd> to cancel.</td></tr>
                                 <tr><td><b>Zone</b></td><td><kbd>4</kbd></td><td>Choose a zone type in the Zone Tool window, then click to place. <kbd>+</kbd>/<kbd>=</kbd> increase radius; <kbd>-</kbd>/<kbd>_</kbd> decrease radius. <kbd>Shift+Z</kbd> cycles zone types.</td></tr>
                                 <tr><td><b>Spawn</b></td><td><kbd>5</kbd></td><td>Click to place a spawn point. Move the cursor to set the spawn direction, then click again to confirm.</td></tr>
                                 <tr><td><b>Snap Toggle</b></td><td><kbd>6</kbd></td><td>Toggles grid snapping on/off. The lock/unlock icon in the toolbar reflects the current state.</td></tr>
@@ -347,6 +347,24 @@
             <div id="wall-tool-header">Wall Tool <span id="wall-tool-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
             <div id="wall-tool-body">
                 <div class="wall-tool-section">
+                    <div id="wall-tool-mode-row" style="display:flex;gap:4px;flex-wrap:wrap;">
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="freeform">Freeform</button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="rect2">2-point Rect</button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="centerRect">Center Rect</button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circleCenter">Center Circle</button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circle3pt">3-point Circle</button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="arc3pt">3-point Arc</button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="ellipse3pt">3-point Ellipse</button>
+                    </div>
+                </div>
+                <div class="wall-tool-section" id="wall-tool-status-row">
+                    <div id="wall-tool-status" style="font-size:11px;color:#666;line-height:1.35;"></div>
+                </div>
+                <div class="wall-tool-section" id="wall-tool-count-section" style="display:none;">
+                    <label style="margin:0 6px 0 0;white-space:nowrap;font-size:12px;">Walls:</label>
+                    <input type="number" id="dWallSegments" name="dWallSegments" value="16" step="1" min="3" max="720" style="width:80px;" />
+                </div>
+                <div class="wall-tool-section">
                     <label style="margin:0 6px 0 0;white-space:nowrap;font-size:12px;">Wall Height:</label>
                     <input type="number" id="dWallHeight" name="dWallHeight" value="4" step="1" min="1" max="50" style="width:60px;" />
                 </div>
@@ -401,9 +419,9 @@
             </ul>
 
             <ul id="zone-base" class="single-item">
-            	<li>
-            	   <a class="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall"></a>
-            	</li>
+                <li>
+                    <a class="toolbar-toolWall" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Wall"></a>
+                </li>
                 <li>
                     <a class="toolbar-toolZone" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Zone"></a>
                 </li>
