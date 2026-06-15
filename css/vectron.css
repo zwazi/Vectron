@@ -129,6 +129,22 @@ body.noscroll {
     border-right: 0;
 }
 
+.wall-tool-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.wall-tool-mode-btn .fa-solid,
+.wall-tool-mode-btn .fa-regular,
+.wall-tool-mode-btn .fa-brands {
+  font-size: 14px;
+  line-height: 1;
+}
 
 #tool_bar ul li a {
   background-size:cover;

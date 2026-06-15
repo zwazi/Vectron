@@ -417,10 +417,118 @@ function wallTool_textSegmentsToWalls(segments, box) {
         );
     }
 
-    for(var i = 0; i < segments.length; i++) {
-        var seg = segments[i];
-        var wall = [toPoint(seg.x1, seg.y1), toPoint(seg.x2, seg.y2)];
-        walls.push(wall);
+    function pointKey(x, y) {
+        return x + "," + y;
+    }
+
+    function pointFromKey(key) {
+        var parts = key.split(",");
+        return toPoint(parseFloat(parts[0]), parseFloat(parts[1]));
+    }
+
+    function segmentEndpointKey(seg, isEnd) {
+        return pointKey(isEnd ? seg.x2 : seg.x1, isEnd ? seg.y2 : seg.y1);
+    }
+
+    function otherEndpoint(seg, key) {
+        var a = segmentEndpointKey(seg, false);
+        var b = segmentEndpointKey(seg, true);
+        if(a === key) return b;
+        if(b === key) return a;
+        return null;
+    }
+
+    function simplifyPath(points) {
+        if(points.length <= 2) return points;
+        var simplified = [points[0]];
+        for(var i = 1; i < points.length - 1; i++) {
+            var prev = simplified[simplified.length - 1];
+            var cur = points[i];
+            var next = points[i + 1];
+            var cross = (cur.x - prev.x) * (next.y - cur.y) - (cur.y - prev.y) * (next.x - cur.x);
+            if(Math.abs(cross) < 1e-9) continue;
+            simplified.push(cur);
+        }
+        simplified.push(points[points.length - 1]);
+        return simplified;
+    }
+
+    var used = [];
+    var adjacency = {};
+
+    function addAdjacency(key, idx) {
+        if(!adjacency[key]) adjacency[key] = [];
+        adjacency[key].push(idx);
+    }
+
+    for(var s = 0; s < segments.length; s++) {
+        addAdjacency(segmentEndpointKey(segments[s], false), s);
+        addAdjacency(segmentEndpointKey(segments[s], true), s);
+    }
+
+    function pickStartSegment() {
+        for(var i = 0; i < segments.length; i++) {
+            if(used[i]) continue;
+            var seg = segments[i];
+            var startKey = segmentEndpointKey(seg, false);
+            var endKey = segmentEndpointKey(seg, true);
+            var startDegree = (adjacency[startKey] || []).length;
+            var endDegree = (adjacency[endKey] || []).length;
+            if(startDegree === 1 || endDegree === 1) {
+                return { idx: i, key: (startDegree <= endDegree) ? startKey : endKey };
+            }
+        }
+        for(var j = 0; j < segments.length; j++) {
+            if(!used[j]) {
+                return { idx: j, key: segmentEndpointKey(segments[j], false) };
+            }
+        }
+        return null;
+    }
+
+    function buildPath(startIdx, startKey) {
+        var pathKeys = [startKey];
+        var currentKey = startKey;
+        var previousIdx = null;
+        used[startIdx] = true;
+
+        var firstNext = otherEndpoint(segments[startIdx], startKey);
+        if(firstNext == null) return pathKeys;
+        pathKeys.push(firstNext);
+        currentKey = firstNext;
+        previousIdx = startIdx;
+
+        while(true) {
+            var candidates = adjacency[currentKey] || [];
+            var nextIdx = null;
+            for(var i = 0; i < candidates.length; i++) {
+                if(used[candidates[i]] || candidates[i] === previousIdx) continue;
+                nextIdx = candidates[i];
+                break;
+            }
+            if(nextIdx == null) break;
+
+            used[nextIdx] = true;
+            var nextKey = otherEndpoint(segments[nextIdx], currentKey);
+            if(nextKey == null) break;
+            pathKeys.push(nextKey);
+            if(nextKey === pathKeys[0]) break;
+            previousIdx = nextIdx;
+            currentKey = nextKey;
+        }
+
+        return pathKeys;
+    }
+
+    var start;
+    while((start = pickStartSegment()) != null) {
+        var pathKeys = buildPath(start.idx, start.key);
+        var pathPoints = [];
+        for(var p = 0; p < pathKeys.length; p++) {
+            pathPoints.push(pointFromKey(pathKeys[p]));
+        }
+        pathPoints = simplifyPath(pathPoints);
+        if(pathPoints.length >= 2) walls.push(pathPoints);
     }
 
     return walls;
@@ -773,8 +881,8 @@ function wallTool_completeShape() {
                 vectron_render();
             }
         });
-        vectron_connectTool("select");
         wallTool_selectWalls(addedTextWalls);
+        wallTool_updateWindow();
         vectron_render();
         if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
         return;
