@@ -436,8 +436,8 @@ function wallTool_textSegmentsToWalls(segments, box) {
     }
 
     var used = new Array(segments.length);
-    for(var u = 0; u < segments.length; u++) {
-        used[u] = false;
+    for(var idx = 0; idx < segments.length; idx++) {
+        used[idx] = false;
     }
     for(var j = 0; j < segments.length; j++) {
         if(used[j]) continue;
@@ -520,6 +520,7 @@ function wallTool_simplifyWallPoints(points) {
         var dy1 = curr.y - prev.y;
         var dx2 = next.x - curr.x;
         var dy2 = next.y - curr.y;
+        // Skip collinear points (cross product near zero).
         if(Math.abs(dx1 * dy2 - dy1 * dx2) < WALL_TOOL_TEXT_SIMPLIFY_EPSILON) continue;
         simplified.push(curr);
     }
