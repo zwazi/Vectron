@@ -797,9 +797,42 @@ body.noscroll {
   padding: 1px 3px;
 }
 
-.zone-type-btn.active-zone-type {
-  outline: 2px solid #333;
-  box-shadow: 0 0 4px rgba(0,0,0,0.4);
+#zone-tool-types-row {
+  align-items: center;
+}
+
+#zone-tool-types-row .zone-type-btn {
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f6f6f6;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+#zone-tool-types-row .zone-type-btn:hover,
+#zone-tool-types-row .zone-type-btn:focus {
+  background: #fff;
+  border-color: #666;
+}
+
+#zone-tool-types-row .zone-type-btn img {
+  width: 28px;
+  height: 28px;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+#zone-tool-types-row .zone-type-btn.active-zone-type {
+  background: #fff;
+  border-color: #375ffc;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(55,95,252,0.35);
 }
 
 /* Action history clickable items */
