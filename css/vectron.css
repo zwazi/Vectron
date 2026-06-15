@@ -267,7 +267,7 @@ body.noscroll {
     font-family: 'Glyphicons Halflings';
     content: "\e014";
     font-size: 18px;
-    
+
     position:relative;
     top:3px;
 }
@@ -276,7 +276,7 @@ body.noscroll {
     font-family: sans-serif;
     content: "\21b6";
     font-size: 26px;
-    
+
     position:relative;
     top:4px; left:-1px;
 }
@@ -285,7 +285,7 @@ body.noscroll {
     font-family: sans-serif;
     content: "\21b7";
     font-size: 26px;
-    
+
     position:relative;
     top:4px; left:-0px;
 }
@@ -314,12 +314,13 @@ body.noscroll {
 #tool_bar ul li.toolbar-toolUnlock-list {   display:none; }
 
 
+/* Keep the settings window within the viewport and clear of the top/bottom bars. */
 #control_box {
-  position:absolute;
+  position:fixed;
   background:#FFF; width:600px;
   width: min(100%, 600px);
   border:1px solid #aaa;
-  top: 100px;
+  top: 46px;
   z-index:5;
   left:0;
   right:0;margin:auto auto;
@@ -329,6 +330,8 @@ body.noscroll {
   overflow: auto;
   min-width: 320px;
   min-height: 200px;
+  max-width: calc(100vw - 66px);
+  max-height: calc(100vh - 82px);
   box-sizing: border-box;
 }
 
@@ -358,16 +361,6 @@ body.noscroll {
   padding: 20px;
 }
 
-@media only screen and (max-height: 800px)
-{
-  #control_box { top:10% }
-}
-
-@media only screen and (max-height: 615px)
-{
-  #control_box { top:5% }
-}
-
 #control_box .gui-tool-name {
   margin-top:0;
   border-bottom:1px solid #aaa;
@@ -380,16 +373,9 @@ body.noscroll {
   margin-bottom:10px;
 }
 
-@media only screen and (max-height: 530px)
-{
-  #control_box { top:0; height:100% }
-  #control_box #gui-tab-content { height:100% }
-  #control_box .tab-pane { min-height:100% }
-}
-
-@media only screen and (max-height: 480px)
-{
-  #control_box { top:-20px; height:auto }
+#control_box #gui-tab-content {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
 }
 
 #control_box .tab-pane {
@@ -495,7 +481,7 @@ body.noscroll {
 
 /* Settings modal: auto-size, no mandatory scroll when there's room */
 #control_box #gui-tab-content {
-  max-height: calc(80vh - 220px);
+  max-height: calc(100vh - 220px);
   overflow-y: auto;
 }
 
@@ -510,8 +496,8 @@ body.noscroll {
 /* Action History Window */
 #action-history-window {
   position: fixed;
-  top: 80px;
-  right: 10px;
+  top: 46px;
+  right: 8px;
   width: 220px;
   min-height: 120px;
   max-height: 50vh;
@@ -525,6 +511,8 @@ body.noscroll {
   flex-direction: column;
   resize: both;
   overflow: hidden;
+  max-width: calc(100vw - 66px);
+  max-height: calc(100vh - 82px);
 }
 #action-history-header {
   background: #333;
@@ -535,6 +523,47 @@ body.noscroll {
   user-select: none;
   border-bottom: 1px solid #555;
   flex-shrink: 0;
+}
+
+#action-history-header .vt-window-action,
+#wall-tool-header .vt-window-action,
+#zone-tool-header .vt-window-action,
+#control-box-header .vt-window-action,
+#xml-editor-header .vt-window-action {
+  float: right;
+  cursor: pointer;
+  font-weight: bold;
+  opacity: 0.7;
+  margin-left: 8px;
+}
+
+#action-history-header .vt-window-action:hover,
+#wall-tool-header .vt-window-action:hover,
+#zone-tool-header .vt-window-action:hover,
+#control-box-header .vt-window-action:hover,
+#xml-editor-header .vt-window-action:hover {
+  opacity: 1;
+}
+
+#vt-right-dock {
+  position: fixed;
+  top: 46px;
+  right: 8px;
+  bottom: 34px;
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 250;
+  max-width: calc(100vw - 66px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+#vt-right-dock .vt-floating-window {
+  pointer-events: auto;
 }
 #action-history-list {
   list-style: none;
@@ -588,12 +617,14 @@ body.noscroll {
   flex-direction: column;
   box-shadow: 0 4px 24px rgba(0,0,0,0.3);
   position: absolute;
-  bottom: 0;
+  bottom: 34px;
   right: 0;
   top: auto;
   left: auto;
   resize: both;
   overflow: hidden;
+  max-width: calc(100vw - 66px);
+  max-height: calc(100vh - 82px);
 }
 #xml-editor-header {
   background: #333;
@@ -710,9 +741,9 @@ body.noscroll {
 /* Wall Tool and Zone Tool floating windows */
 #wall-tool-window,
 #zone-tool-window {
-  position: absolute;
+  position: fixed;
   left: 66px;
-  top: 16px;
+  top: 46px;
   min-width: 220px;
   max-width: 340px;
   background: rgba(245,245,245,0.98);
@@ -724,6 +755,8 @@ body.noscroll {
   font-size: 13px;
   resize: both;
   overflow: auto;
+  max-width: calc(100vw - 66px);
+  max-height: calc(100vh - 82px);
 }
 
 #wall-tool-header,
@@ -786,22 +819,29 @@ body.noscroll {
 
 /* Toolbar new map / import / export — use image files */
 .toolbar-newMap {
-  background-image: url('../images/ObjectTools/file.png');
-  background-size: 20px 20px;
-  background-position: center;
-  filter: invert(1);
+  background-image: none;
 }
 .toolbar-import {
-  background-image: url('../images/ObjectTools/import.png');
-  background-size: 20px 20px;
-  background-position: center;
-  filter: invert(1);
+  background-image: none;
 }
 .toolbar-export {
-  background-image: url('../images/ObjectTools/export.png');
-  background-size: 20px 20px;
-  background-position: center;
-  filter: invert(1);
+  background-image: none;
+}
+
+#tool_bar a.toolbar-newMap,
+#tool_bar a.toolbar-import,
+#tool_bar a.toolbar-export {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+#tool_bar a.toolbar-newMap:hover,
+#tool_bar a.toolbar-import:hover,
+#tool_bar a.toolbar-export:hover {
+  background-color: #1b1b1b;
+  text-decoration: none;
 }
 
 /* Context menu: standardized item size/spacing (matching copy/paste style) */

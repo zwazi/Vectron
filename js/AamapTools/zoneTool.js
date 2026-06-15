@@ -66,6 +66,7 @@ function zoneTool_connect() {
     zoneTool_updateRubberBar();
     $("#zone-tool-window").show();
     zoneTool_updateWindowActiveType();
+    gui_layoutDockedWindows();
 }
 
 function zoneTool_disconnect() {
@@ -75,6 +76,7 @@ function zoneTool_disconnect() {
     $(".toolbar-toolZone").removeClass("toolbar-tool-active");
     $("#rubber-zone-bar").hide();
     $("#zone-tool-window").hide();
+    gui_layoutDockedWindows();
 }
 
 function zoneTool_updateRubberBar() {
