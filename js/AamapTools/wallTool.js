@@ -418,7 +418,9 @@ function wallTool_textSegmentsToWalls(segments, box) {
     }
 
     function keyForPoint(px, py) {
-        return px + "," + py;
+        var normalizedX = Math.round(px * WALL_TOOL_COORD_PRECISION) / WALL_TOOL_COORD_PRECISION;
+        var normalizedY = Math.round(py * WALL_TOOL_COORD_PRECISION) / WALL_TOOL_COORD_PRECISION;
+        return normalizedX + "," + normalizedY;
     }
 
     var adjacency = {};
@@ -479,7 +481,8 @@ function wallTool_textSegmentsToWalls(segments, box) {
                 currentPointKey = nextStartKey;
             }
 
-            var lastPoint = currentPoints[currentPoints.length - 1];
+            var lastIndex = currentPoints.length - 1;
+            var lastPoint = currentPoints[lastIndex];
             if(lastPoint.x !== nextPoint.x || lastPoint.y !== nextPoint.y) {
                 currentPoints.push(nextPoint);
             }
