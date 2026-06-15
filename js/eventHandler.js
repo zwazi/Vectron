@@ -38,7 +38,7 @@ function eventHandler_init() {
 
     $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']), textarea", function(e) {
         if (this.tagName === "TEXTAREA") return;
-        if (e.key !== "Enter" || (e.isDefaultPrevented && e.isDefaultPrevented())) return;
+        if (e.key !== "Enter" || e.isDefaultPrevented()) return;
         e.preventDefault();
         this.blur();
         $(this).trigger("change");
