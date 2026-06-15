@@ -58,6 +58,7 @@ var WALL_TOOL_TEXT_MIN_COLS = 24;
 var WALL_TOOL_TEXT_MAX_ROWS = 72;
 var WALL_TOOL_TEXT_MIN_ROWS = 12;
 var WALL_TOOL_TEXT_RASTER_SCALE_FACTOR = 2;
+var WALL_TOOL_TEXT_SIMPLIFY_EPSILON = 1e-9;
 
 function wallTool_clearPreview() {
     if(wallTool_previewObj != null) {
@@ -519,7 +520,7 @@ function wallTool_simplifyWallPoints(points) {
         var dy1 = curr.y - prev.y;
         var dx2 = next.x - curr.x;
         var dy2 = next.y - curr.y;
-        if(Math.abs(dx1 * dy2 - dy1 * dx2) < 1e-9) continue;
+        if(Math.abs(dx1 * dy2 - dy1 * dx2) < WALL_TOOL_TEXT_SIMPLIFY_EPSILON) continue;
         simplified.push(curr);
     }
 
@@ -529,7 +530,7 @@ function wallTool_simplifyWallPoints(points) {
     }
 
     if(closed && !wallTool_pointsEqual(simplified[0], simplified[simplified.length - 1])) {
-        simplified.push(new WallPoint(simplified[0].x, simplified[0].y));
+        simplified.push(simplified[0]);
     }
 
     return simplified;
