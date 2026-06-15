@@ -48,6 +48,16 @@ var WALL_TOOL_MAX_SEGMENTS = 720;
 var WALL_TOOL_COORD_PRECISION = 1e6;
 var WALL_TOOL_BUTTON_LABEL_FINISH = "Finish Wall";
 var WALL_TOOL_BUTTON_LABEL_GENERATE = "Generate Walls";
+var WALL_TOOL_BUTTON_LABEL_SUBMIT = "Submit";
+var WALL_TOOL_TEXT_ALPHA_THRESHOLD = 24;
+var WALL_TOOL_TEXT_FONT_SEARCH_ITERATIONS = 12;
+var WALL_TOOL_TEXT_BOX_PADDING_FACTOR = 0.9;
+var WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER = 1.15;
+var WALL_TOOL_TEXT_MAX_COLS = 96;
+var WALL_TOOL_TEXT_MIN_COLS = 24;
+var WALL_TOOL_TEXT_MAX_ROWS = 72;
+var WALL_TOOL_TEXT_MIN_ROWS = 12;
+var WALL_TOOL_TEXT_RASTER_SCALE_FACTOR = 2;
 
 function wallTool_clearPreview() {
     if(wallTool_previewObj != null) {
@@ -192,6 +202,255 @@ function wallTool_drawPreview(points) {
     });
 }
 
+function wallTool_drawPreviewSegments(segments) {
+    wallTool_clearPreview();
+    if(!segments || segments.length === 0) return;
+    wallTool_previewObj = vectron_screen.set();
+    for(var i = 0; i < segments.length; i++) {
+        var seg = segments[i];
+        var path = vectron_screen.path(wallTool_makePath(seg)).attr({
+            stroke: "#aaa",
+            "stroke-dasharray": "--..",
+            "fill": "none"
+        });
+        wallTool_previewObj.push(path);
+    }
+}
+
+function wallTool_getTextInput() {
+    var el = document.getElementById("dWallText");
+    return el ? el.value : "";
+}
+
+function wallTool_getTextModeBox(points) {
+    if(!points || points.length < 2) return null;
+    var a = points[0];
+    var b = points[1];
+    var left = Math.min(a.x, b.x);
+    var right = Math.max(a.x, b.x);
+    var top = Math.max(a.y, b.y);
+    var bottom = Math.min(a.y, b.y);
+    var width = right - left;
+    var height = top - bottom;
+    if(width <= 0 || height <= 0) return null;
+    return {
+        left: left,
+        right: right,
+        top: top,
+        bottom: bottom,
+        width: width,
+        height: height
+    };
+}
+
+function wallTool_getTextCanvas() {
+    return document.createElement("canvas");
+}
+
+function wallTool_fitTextFont(ctx, lines, width, height) {
+    var low = 1;
+    var high = Math.max(8, Math.floor(Math.min(width, height)));
+    var best = low;
+
+    for(var i = 0; i < WALL_TOOL_TEXT_FONT_SEARCH_ITERATIONS; i++) {
+        var mid = Math.max(1, Math.floor((low + high) / 2));
+        ctx.font = "bold " + mid + "px monospace";
+        var lineHeight = mid * WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER;
+        var maxLineWidth = 0;
+        for(var j = 0; j < lines.length; j++) {
+            var measured = ctx.measureText(lines[j] || " ").width;
+            if(measured > maxLineWidth) maxLineWidth = measured;
+        }
+        var totalHeight = lineHeight * lines.length;
+        if(maxLineWidth <= width * WALL_TOOL_TEXT_BOX_PADDING_FACTOR && totalHeight <= height * WALL_TOOL_TEXT_BOX_PADDING_FACTOR) {
+            best = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+        if(low > high) break;
+    }
+
+    return Math.max(1, best);
+}
+
+function wallTool_rasterizeText(text, cols, rows) {
+    var canvas = wallTool_getTextCanvas();
+    canvas.width = cols;
+    canvas.height = rows;
+    var ctx = canvas.getContext("2d");
+    var lines = String(text || "").replace(/\r/g, "").split("\n");
+    if(lines.length === 0) lines = [""];
+
+    ctx.clearRect(0, 0, cols, rows);
+    ctx.fillStyle = "#000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    var fontSize = wallTool_fitTextFont(ctx, lines, cols, rows);
+    var lineHeight = fontSize * WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER;
+    var totalHeight = lineHeight * lines.length;
+    var startY = (rows - totalHeight) / 2 + lineHeight / 2;
+    ctx.font = "bold " + fontSize + "px monospace";
+
+    for(var i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i] || " ", cols / 2, startY + i * lineHeight);
+    }
+
+    var pixels = ctx.getImageData(0, 0, cols, rows).data;
+    var mask = [];
+    for(var y = 0; y < rows; y++) {
+        mask[y] = [];
+        for(var x = 0; x < cols; x++) {
+            var idx = (y * cols + x) * 4 + 3;
+            mask[y][x] = pixels[idx] > WALL_TOOL_TEXT_ALPHA_THRESHOLD;
+        }
+    }
+
+    return mask;
+}
+
+function wallTool_maskToSegments(mask, cols, rows) {
+    var segments = [];
+
+    function isFilled(x, y) {
+        return !!(mask[y] && mask[y][x]);
+    }
+
+    for(var y = 0; y < rows; y++) {
+        for(var x = 0; x < cols; x++) {
+            if(!isFilled(x, y)) continue;
+            if(!isFilled(x, y - 1)) segments.push({ x1: x, y1: y, x2: x + 1, y2: y });
+            if(!isFilled(x + 1, y)) segments.push({ x1: x + 1, y1: y, x2: x + 1, y2: y + 1 });
+            if(!isFilled(x, y + 1)) segments.push({ x1: x + 1, y1: y + 1, x2: x, y2: y + 1 });
+            if(!isFilled(x - 1, y)) segments.push({ x1: x, y1: y + 1, x2: x, y2: y });
+        }
+    }
+
+    return segments;
+}
+
+function wallTool_mergeSegments(segments) {
+    var horizontals = {};
+    var verticals = {};
+
+    function stringifyKey(value) {
+        return String(value);
+    }
+
+    function normalizeSegment(seg) {
+        var normalized = { x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 };
+        if(normalized.y1 === normalized.y2 && normalized.x2 < normalized.x1) {
+            var tmp = normalized.x1;
+            normalized.x1 = normalized.x2;
+            normalized.x2 = tmp;
+        } else if(normalized.x1 === normalized.x2 && normalized.y2 < normalized.y1) {
+            var tmpY = normalized.y1;
+            normalized.y1 = normalized.y2;
+            normalized.y2 = tmpY;
+        }
+        return normalized;
+    }
+
+    segments.forEach(function(seg) {
+        if(seg.y1 === seg.y2) {
+            var normalizedHorizontal = normalizeSegment(seg);
+            var y = normalizedHorizontal.y1;
+            if(!horizontals[stringifyKey(y)]) horizontals[stringifyKey(y)] = [];
+            horizontals[stringifyKey(y)].push(normalizedHorizontal);
+        } else if(seg.x1 === seg.x2) {
+            var normalizedVertical = normalizeSegment(seg);
+            var x = normalizedVertical.x1;
+            if(!verticals[stringifyKey(x)]) verticals[stringifyKey(x)] = [];
+            verticals[stringifyKey(x)].push(normalizedVertical);
+        }
+    });
+
+    var merged = [];
+    Object.keys(horizontals).sort(function(a, b) { return parseFloat(a) - parseFloat(b); }).forEach(function(key) {
+        var list = horizontals[key].sort(function(a, b) { return a.x1 - b.x1; });
+        var cur = null;
+        list.forEach(function(seg) {
+            if(!cur) {
+                cur = { x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 };
+                return;
+            }
+            if(cur.y1 === seg.y1 && cur.x2 === seg.x1) {
+                cur.x2 = seg.x2;
+            } else {
+                merged.push(cur);
+                cur = { x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 };
+            }
+        });
+        if(cur) merged.push(cur);
+    });
+
+    Object.keys(verticals).sort(function(a, b) { return parseFloat(a) - parseFloat(b); }).forEach(function(key) {
+        var list = verticals[key].sort(function(a, b) { return a.y1 - b.y1; });
+        var cur = null;
+        list.forEach(function(seg) {
+            if(!cur) {
+                cur = { x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 };
+                return;
+            }
+            if(cur.x1 === seg.x1 && cur.y2 === seg.y1) {
+                cur.y2 = seg.y2;
+            } else {
+                merged.push(cur);
+                cur = { x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2 };
+            }
+        });
+        if(cur) merged.push(cur);
+    });
+
+    return merged;
+}
+
+function wallTool_textSegmentsToWalls(segments, box) {
+    var walls = [];
+    if(!box || !segments || segments.length === 0) return walls;
+
+    function toPoint(px, py) {
+        return new WallPoint(
+            box.left + (px / box.cols) * box.width,
+            box.top - (py / box.rows) * box.height
+        );
+    }
+
+    for(var i = 0; i < segments.length; i++) {
+        var seg = segments[i];
+        var wall = [toPoint(seg.x1, seg.y1), toPoint(seg.x2, seg.y2)];
+        walls.push(wall);
+    }
+
+    return walls;
+}
+
+function wallTool_buildTextWalls(points, text) {
+    var box = wallTool_getTextModeBox(points);
+    if(!box) return null;
+
+    var rawText = String(text || "");
+    if(rawText.replace(/\s/g, "") === "") return [];
+
+    var cols = Math.min(WALL_TOOL_TEXT_MAX_COLS, Math.max(WALL_TOOL_TEXT_MIN_COLS, Math.round(box.width * WALL_TOOL_TEXT_RASTER_SCALE_FACTOR)));
+    var rows = Math.min(WALL_TOOL_TEXT_MAX_ROWS, Math.max(WALL_TOOL_TEXT_MIN_ROWS, Math.round(box.height * WALL_TOOL_TEXT_RASTER_SCALE_FACTOR)));
+    box.cols = cols;
+    box.rows = rows;
+
+    var mask = wallTool_rasterizeText(rawText, cols, rows);
+    var segments = wallTool_mergeSegments(wallTool_maskToSegments(mask, cols, rows));
+    return wallTool_textSegmentsToWalls(segments, box);
+}
+
+function wallTool_selectWalls(walls) {
+    selectTool_deselectAll();
+    for(var i = 0; i < walls.length; i++) {
+        walls[i].isSelected = true;
+        selectTool_selectedObjs.push(walls[i]);
+    }
+}
+
 function wallTool_makeRectangle(a, b) {
     return [
         new WallPoint(a.x, a.y),
@@ -292,7 +551,8 @@ function wallTool_modeLabel() {
         "circleCenter": "Center-point Circle",
         "circle3pt": "3-point Circle",
         "arc3pt": "3-point Arc",
-        "ellipse3pt": "3-point Ellipse"
+        "ellipse3pt": "3-point Ellipse",
+        "text": "Text Walls"
     };
     return labels[wallTool_mode] || "Wall Tool";
 }
@@ -305,21 +565,24 @@ function wallTool_setStatus(message) {
 function wallTool_updateWindow() {
     var mode = wallTool_mode;
     var isFreeform = (mode === "freeform");
+    var isTextMode = (mode === "text");
     var isCountMode = wallTool_isCountPhase();
     var finishBtn = document.getElementById("wall-tool-finish");
     var countSection = document.getElementById("wall-tool-count-section");
     var pointsSection = document.getElementById("wall-tool-points-section");
+    var textSection = document.getElementById("wall-tool-text-section");
     var modeButtons = $(".wall-tool-mode-btn");
 
     modeButtons.removeClass("active");
     modeButtons.filter("[data-mode='" + mode + "']").addClass("active");
 
     if(pointsSection) pointsSection.style.display = isFreeform ? "" : "none";
+    if(textSection) textSection.style.display = isTextMode ? "" : "none";
     if(countSection) countSection.style.display = isCountMode ? "" : "none";
     if(finishBtn) {
-        var showFinish = isCountMode || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2);
+        var showFinish = isCountMode || (isTextMode && wallTool_stagePoints.length >= 2) || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2);
         finishBtn.style.display = showFinish ? "" : "none";
-        finishBtn.innerHTML = isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : WALL_TOOL_BUTTON_LABEL_FINISH;
+        finishBtn.innerHTML = isTextMode ? WALL_TOOL_BUTTON_LABEL_SUBMIT : (isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : WALL_TOOL_BUTTON_LABEL_FINISH);
     }
 
     if(isFreeform) {
@@ -336,6 +599,8 @@ function wallTool_updateWindow() {
         wallTool_setStatus(wallTool_step < 3 ? "Click two endpoints and a radius point." : "Set the wall count, then generate the arc.");
     } else if(mode === "ellipse3pt") {
         wallTool_setStatus(wallTool_step < 3 ? "Click the center, major axis, then minor axis." : "Set the wall count, then generate the ellipse.");
+    } else if(isTextMode) {
+        wallTool_setStatus(wallTool_stagePoints.length < 2 ? "Click two corners to set the text box." : "Review the preview, then press Submit.");
     }
 }
 
@@ -385,6 +650,11 @@ function wallTool_getDraftPoints(candidatePoint) {
     if(wallTool_mode === "ellipse3pt") {
         if(pts.length < 3) return pts;
         return wallTool_ellipsePoints(pts[0], pts[1], pts[2], wallTool_getSegmentInput());
+    }
+
+    if(wallTool_mode === "text") {
+        if(pts.length < 2) return pts;
+        return wallTool_buildTextWalls(pts, wallTool_getTextInput());
     }
 
     return null;
@@ -456,6 +726,60 @@ function wallTool_finalizePoints(points) {
 }
 
 function wallTool_completeShape() {
+    if(wallTool_mode === "text") {
+        if(wallTool_stagePoints.length < 2) {
+            gui_writeLog("Click two corners before submitting text walls.");
+            return;
+        }
+        var draftWallPoints = wallTool_buildTextWalls(wallTool_stagePoints, wallTool_getTextInput());
+        if(draftWallPoints === null) {
+            gui_writeLog("Text box must have a width and a height.");
+            return;
+        }
+        if(draftWallPoints.length === 0) {
+            gui_writeLog("Enter text before submitting.");
+            return;
+        }
+        var addedTextWalls = [];
+        for(var tw = 0; tw < draftWallPoints.length; tw++) {
+            var wall = new Wall();
+            wall.height = wallTool_getHeight();
+            wall.points = draftWallPoints[tw];
+            addedTextWalls.push(wall);
+            aamap_add(wall);
+        }
+        wallTool_clearPreview();
+        wallTool_stagePoints = [];
+        wallTool_step = 0;
+        wallTool_currentObj = null;
+        vectron_toolActive = false;
+        aamap_recordAction({
+            label: "Add text walls",
+            undo: function() {
+                addedTextWalls.forEach(function(wall) {
+                    wall.isSelected = false;
+                    _aamap_removeObj(wall);
+                });
+                selectTool_selectedObjs = [];
+                selectTool_hoveredSet = null;
+                selectTool_hoveredAamapObj = null;
+                vectron_render();
+            },
+            redo: function() {
+                addedTextWalls.forEach(function(wall) {
+                    aamap_objects.push(wall);
+                });
+                wallTool_selectWalls(addedTextWalls);
+                vectron_render();
+            }
+        });
+        vectron_connectTool("select");
+        wallTool_selectWalls(addedTextWalls);
+        vectron_render();
+        if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
+        return;
+    }
+
     if(wallTool_mode === "circleCenter" && wallTool_stagePoints.length < 2) {
         gui_writeLog("Select a center point and a radius point first.");
         return;
@@ -583,6 +907,26 @@ function wallTool_handleShapeClick() {
         wallTool_renderCurrent();
         return;
     }
+
+    if(wallTool_mode === "text") {
+        if(wallTool_stagePoints.length >= 2) {
+            wallTool_renderCurrent();
+            return;
+        }
+        wallTool_stagePoints.push(pt);
+        wallTool_step = wallTool_stagePoints.length;
+        if(wallTool_stagePoints.length >= 2) {
+            wallTool_step = 2;
+            vectron_toolActive = true;
+            wallTool_updateWindow();
+            wallTool_renderCurrent();
+            return;
+        }
+        vectron_toolActive = true;
+        wallTool_updateWindow();
+        wallTool_renderCurrent();
+        return;
+    }
 }
 
 function wallTool_handleFreeformClick() {
@@ -626,6 +970,20 @@ function wallTool_renderCurrent() {
             wallTool_currentObj.render();
             wallTool_currentObj.guide();
         }
+        wallTool_updatePointsList();
+        return;
+    }
+
+    if(wallTool_mode === "text") {
+        var previewWallPoints = wallTool_getDraftPoints(
+            wallTool_stagePoints.length >= 1 ? new WallPoint(aamap_mapX(cursor_realX), aamap_mapY(cursor_realY)) : null
+        );
+        if(!previewWallPoints || previewWallPoints.length === 0) {
+            wallTool_clearPreview();
+            wallTool_updatePointsList();
+            return;
+        }
+        wallTool_drawPreviewSegments(previewWallPoints);
         wallTool_updatePointsList();
         return;
     }
