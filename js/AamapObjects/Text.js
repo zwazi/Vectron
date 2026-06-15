@@ -24,7 +24,7 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-function Text(x, y, text, width, height, fontSize) {
+function Text(x, y, text, width, height, fontSize, fontWeight) {
     this.objectID = vectron_objectID;
     vectron_objectID++;
 
@@ -40,6 +40,7 @@ function Text(x, y, text, width, height, fontSize) {
     this.width = Math.max(0.01, width || 1);
     this.height = Math.max(0.01, height || 1);
     this.fontSize = Math.max(0.5, fontSize || Math.min(this.width, this.height) * 0.7);
+    this.fontWeight = fontWeight || "bold";
     this.text = text || "";
     this.fill = config_isDark ? "#f4f4f4" : "#111111";
     this.stroke = config_isDark ? "#aaaaaa" : "#666666";
@@ -75,7 +76,7 @@ function Text(x, y, text, width, height, fontSize) {
                 fill: this.fill,
                 "font-size": fontSize,
                 "font-family": "Arial, Helvetica, sans-serif",
-                "font-weight": "bold",
+                "font-weight": this.fontWeight,
                 "text-anchor": "middle"
             });
         if(this.textObj.node) {
@@ -132,7 +133,7 @@ function Text(x, y, text, width, height, fontSize) {
     };
 
     this.getXML = function() {
-        return '<Text x="' + (Math.round(this.x * 1e6) / 1e6) + '" y="' + (Math.round(this.y * 1e6) / 1e6) + '" width="' + (Math.round(this.width * 1e6) / 1e6) + '" height="' + (Math.round(this.height * 1e6) / 1e6) + '" size="' + (Math.round(this.fontSize * 1e6) / 1e6) + '">' + escapeHtml(this.text) + '</Text>';
+        return '<Text x="' + (Math.round(this.x * 1e6) / 1e6) + '" y="' + (Math.round(this.y * 1e6) / 1e6) + '" width="' + (Math.round(this.width * 1e6) / 1e6) + '" height="' + (Math.round(this.height * 1e6) / 1e6) + '" size="' + (Math.round(this.fontSize * 1e6) / 1e6) + '" weight="' + escapeHtml(this.fontWeight) + '">' + escapeHtml(this.text) + '</Text>';
     };
 
     this.outputFriendlyXML = function() {
