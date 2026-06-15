@@ -298,7 +298,7 @@ function eventHandler_init() {
         var ptsx = [], ptsy = [];
         for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
             var obj = aamap_objects[i];
-            if(obj instanceof Zone || obj instanceof Spawn) {
+            if(obj instanceof Zone || obj instanceof Spawn || obj instanceof Text) {
                 ptsx.push(obj.x); ptsy.push(obj.y);
             } else if(obj instanceof Wall) {
                 for(var j = 0, jj = obj.points.length; j < jj; j++) {
@@ -442,7 +442,7 @@ function eventHandler_init() {
 
     // Finish wall button
     $("#wall-tool-finish").on("click", function() {
-        if (vectron_currentTool === "wall" && vectron_toolActive) {
+        if ($("#wall-tool-window").is(":visible")) {
             wallTool_finishWall();
         }
     });
@@ -458,6 +458,14 @@ function eventHandler_init() {
     $("#dWallSegments").on("change input", function() {
         wallTool_refreshCountInput(true);
         wallTool_renderCurrent();
+    });
+
+    $("#dWallText").on("input change", function() {
+        if (wallTool_mode === "text" && wallTool_textObject) {
+            wallTool_textObject.setText(this.value);
+            wallTool_textObject.render();
+            vectron_render();
+        }
     });
 
     $(".toolbar-toolSpawn").mouseup(function(e) {

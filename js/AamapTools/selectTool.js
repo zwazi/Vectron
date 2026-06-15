@@ -280,18 +280,21 @@ function selectTool_delete() {
     aamap_objects = aamap_objects.diff(deletedObjs);
     selectTool_selectedObjs = [];
 
-    // Build a count label: z(zones) w(walls) v(vertices) s(spawns)
-    var zCount = 0, wCount = 0, vCount = 0, sCount = 0;
+    // Build a count label: z(zones) w(walls) v(vertices) s(spawns) t(text)
+    var zCount = 0, wCount = 0, vCount = 0, sCount = 0, tCount = 0;
     deletedObjs.forEach(function(e) {
         if (e instanceof Zone) { zCount++; }
         else if (e instanceof Wall) { wCount++; vCount += e.points.length; }
         else if (e instanceof Spawn) { sCount++; }
+        else if (e instanceof Text) { tCount++; }
+        wallTool_clearTextObjectIfMatch(e);
     });
     var parts = [];
     if (zCount > 0) parts.push('z(' + zCount + ')');
     if (wCount > 0) parts.push('w(' + wCount + ')');
     if (vCount > 0) parts.push('v(' + vCount + ')');
     if (sCount > 0) parts.push('s(' + sCount + ')');
+    if (tCount > 0) parts.push('t(' + tCount + ')');
     var countLabel = parts.length > 0 ? ' ' + parts.join(' ') : '';
 
     aamap_recordAction({
@@ -660,6 +663,3 @@ var selectTool_hoverOutSelected = function(evt) {
     selectTool_hoveredSet = null;
     selectTool_hoveredAamapObj = null;
 }
-
-
-

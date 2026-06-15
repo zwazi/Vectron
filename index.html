@@ -20,6 +20,7 @@
 
         <script type="text/javascript" src="./js/AamapObjects/Spawn.js"></script>
         <script type="text/javascript" src="./js/AamapObjects/Wall.js"></script>
+        <script type="text/javascript" src="./js/AamapObjects/Text.js"></script>
         <script type="text/javascript" src="./js/AamapObjects/Zone.js"></script>
         <script type="text/javascript" src="./js/AamapTools/spawnTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/wallTool.js"></script>
@@ -155,7 +156,7 @@
                             <tbody>
                                 <tr><td><b>Select</b></td><td><kbd>1</kbd></td><td>Click an object to select it. Drag on empty space to box-select. Click a selected object to deselect. <kbd>Del</kbd> deletes the selection.</td></tr>
                                 <tr><td><b>Navigation</b></td><td><kbd>2</kbd></td><td>Click and drag to pan the view. Alternatively use middle-click drag or arrow keys at any time.</td></tr>
-                                <tr><td><b>Wall</b></td><td><kbd>3</kbd></td><td>Open the Wall Tool window to choose freeform walls, rectangles, circles, arcs, or ellipses. For shape tools, click the requested points, set the wall count if prompted, then press <b>Generate Walls</b>. Double-click or press <kbd>Shift+W</kbd> to finish freeform walls. Press <kbd>Esc</kbd> to cancel.</td></tr>
+                                <tr><td><b>Wall</b></td><td><kbd>3</kbd></td><td>Open the Wall Tool window to choose freeform walls, rectangles, circles, arcs, ellipses, or text. For shape tools, click the requested points, set the wall count if prompted, then press <b>Generate Walls</b>. For text, type the text, click two corners, then press <b>Submit</b>. Double-click or press <kbd>Shift+W</kbd> to finish freeform walls. Press <kbd>Esc</kbd> to cancel.</td></tr>
                                 <tr><td><b>Zone</b></td><td><kbd>4</kbd></td><td>Choose a zone type in the Zone Tool window, then click to place. <kbd>+</kbd>/<kbd>=</kbd> increase radius; <kbd>-</kbd>/<kbd>_</kbd> decrease radius. <kbd>Shift+Z</kbd> cycles zone types.</td></tr>
                                 <tr><td><b>Spawn</b></td><td><kbd>5</kbd></td><td>Click to place a spawn point. Move the cursor to set the spawn direction, then click again to confirm.</td></tr>
                                 <tr><td><b>Snap Toggle</b></td><td><kbd>6</kbd></td><td>Toggles grid snapping on/off. The lock/unlock icon in the toolbar reflects the current state.</td></tr>
@@ -357,10 +358,15 @@
                         <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circle3pt">3-point Circle</button>
                         <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="arc3pt">3-point Arc</button>
                         <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="ellipse3pt">3-point Ellipse</button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="text">Text</button>
                     </div>
                 </div>
                 <div class="wall-tool-section" id="wall-tool-status-row">
                     <div id="wall-tool-status" style="font-size:11px;color:#666;line-height:1.35;"></div>
+                </div>
+                <div class="wall-tool-section" id="wall-tool-text-section" style="display:none;">
+                    <label style="margin:0 6px 4px 0;white-space:nowrap;font-size:12px;">Text:</label>
+                    <textarea id="dWallText" name="dWallText" rows="3" style="width:100%;resize:vertical;" placeholder="Enter text to place on the map"></textarea>
                 </div>
                 <div class="wall-tool-section" id="wall-tool-count-section" style="display:none;">
                     <label style="margin:0 6px 0 0;white-space:nowrap;font-size:12px;">Walls:</label>
