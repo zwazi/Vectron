@@ -84,6 +84,22 @@ function wallTool_hasTextDraft() {
     return wallTool_textObject != null;
 }
 
+function wallTool_isTextEmpty(text) {
+    return !text || !text.trim();
+}
+
+function wallTool_shouldShowFinishButton(mode, isCountMode, isFreeform) {
+    return isCountMode ||
+        (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2) ||
+        (mode === "text" && wallTool_hasTextDraft());
+}
+
+function wallTool_getFinishButtonLabel(mode, isCountMode) {
+    if(isCountMode) return WALL_TOOL_BUTTON_LABEL_GENERATE;
+    if(mode === "text") return WALL_TOOL_BUTTON_LABEL_SUBMIT;
+    return WALL_TOOL_BUTTON_LABEL_FINISH;
+}
+
 function wallTool_clearTextObjectIfMatch(obj) {
     if(wallTool_textObject === obj) {
         wallTool_textObject = null;
@@ -93,7 +109,7 @@ function wallTool_clearTextObjectIfMatch(obj) {
 function wallTool_createTextObject() {
     if(wallTool_stagePoints.length < 2) return null;
     var text = wallTool_getTextValue();
-    if(!text || !text.trim()) {
+    if(wallTool_isTextEmpty(text)) {
         gui_writeLog("Enter some text first.");
         return null;
     }
@@ -403,9 +419,9 @@ function wallTool_updateWindow() {
     if(textSection) textSection.style.display = (mode === "text") ? "" : "none";
     if(countSection) countSection.style.display = isCountMode ? "" : "none";
     if(finishBtn) {
-        var showFinish = isCountMode || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2) || (mode === "text" && wallTool_hasTextDraft());
+        var showFinish = wallTool_shouldShowFinishButton(mode, isCountMode, isFreeform);
         finishBtn.style.display = showFinish ? "" : "none";
-        finishBtn.innerHTML = isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : ((mode === "text") ? WALL_TOOL_BUTTON_LABEL_SUBMIT : WALL_TOOL_BUTTON_LABEL_FINISH);
+        finishBtn.innerHTML = wallTool_getFinishButtonLabel(mode, isCountMode);
     }
 
     if(isFreeform) {
@@ -696,7 +712,7 @@ function wallTool_handleShapeClick() {
             return;
         }
         var text = wallTool_getTextValue();
-        if(!text || !text.trim()) {
+        if(wallTool_isTextEmpty(text)) {
             gui_writeLog("Enter some text first.");
             return;
         }
