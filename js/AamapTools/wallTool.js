@@ -113,9 +113,14 @@ function wallTool_isParametricMode() {
 }
 
 function wallTool_isCountPhase() {
+    if(!wallTool_hasCountInput()) return false;
     if(wallTool_mode === "circleCenter") return wallTool_step >= 2;
     if(wallTool_mode === "circle3pt" || wallTool_mode === "arc3pt" || wallTool_mode === "ellipse3pt") return wallTool_step >= 3;
     return false;
+}
+
+function wallTool_hasCountInput() {
+    return wallTool_mode === "circleCenter" || wallTool_mode === "circle3pt" || wallTool_mode === "arc3pt" || wallTool_mode === "ellipse3pt";
 }
 
 function wallTool_getSegmentInput() {
@@ -691,7 +696,7 @@ function wallTool_updateWindow() {
     var mode = wallTool_mode;
     var isFreeform = (mode === "freeform");
     var isTextMode = (mode === "text");
-    var isCountMode = wallTool_isCountPhase();
+    var isCountMode = wallTool_hasCountInput();
     var finishBtn = document.getElementById("wall-tool-finish");
     var countSection = document.getElementById("wall-tool-count-section");
     var pointsSection = document.getElementById("wall-tool-points-section");
@@ -826,6 +831,14 @@ function wallTool_refreshCountInput(warnIfReduced) {
     var el = document.getElementById("dWallSegments");
     if(!el) return WALL_TOOL_MIN_SEGMENTS;
     var limit = wallTool_wallCountLimit(wallTool_getDraftPerimeter());
+    if(!limit || limit < WALL_TOOL_MIN_SEGMENTS) {
+        el.max = WALL_TOOL_MAX_SEGMENTS;
+        var raw = parseInt(el.value);
+        if(isNaN(raw) || raw < WALL_TOOL_MIN_SEGMENTS) raw = WALL_TOOL_MIN_SEGMENTS;
+        if(raw > WALL_TOOL_MAX_SEGMENTS) raw = WALL_TOOL_MAX_SEGMENTS;
+        el.value = raw;
+        return raw;
+    }
     return wallTool_applyCountLimit(limit, warnIfReduced);
 }
 

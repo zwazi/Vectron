@@ -293,6 +293,7 @@ function aamap_drawGrid() {
 
     if(config_autoAdjustGridSpacing)
     {
+        vectron_grid_spacing = vectron_grid_spacing_base;
         while((vectron_zoom*vectron_grid_spacing) > 30)
         {
             vectron_grid_spacing /= 2;

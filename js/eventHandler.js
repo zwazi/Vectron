@@ -171,6 +171,12 @@ function eventHandler_init() {
         wallTool_disconnect();
     });
 
+    $(document).on("click", "#wall-tool-cancel", function() {
+        if(vectron_currentTool === "wall") {
+            wallTool_cancelCurrent();
+        }
+    });
+
     $(document).on("click", "#zone-tool-close", function() {
         zoneTool_disconnect();
     });
@@ -185,6 +191,13 @@ function eventHandler_init() {
     $('#map_axes').on('input change', function() { xml_axes = parseInt(this.value) || 4; });
     $('#map_settings').on('input change', function() {
         xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
+    });
+    $('#grid-spacing-select').on('change', function() {
+        vectron_setGridSpacing($(this).val());
+    });
+    $('#grid-spacing-lock').on('click', function(e) {
+        e.preventDefault();
+        vectron_toggleGridSpacingLock();
     });
 
     // Handle settings changes
@@ -485,9 +498,48 @@ function eventHandler_init() {
         });
     })();
 
+    (function initZoneTypeTooltips() {
+        var descTimer = null;
+        var $buttons = $(".zone-type-btn");
+        $buttons.tooltip({
+            html: true,
+            container: "body",
+            placement: "right",
+            trigger: "manual",
+            title: function() {
+                return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") + '</div>';
+            }
+        });
+        $buttons.on("mouseenter focus", function() {
+            var btn = this;
+            clearTimeout(descTimer);
+            $(btn).tooltip("show");
+            descTimer = setTimeout(function() {
+                var title = $(btn).data("tooltip-title") || "";
+                var desc = $(btn).data("tooltip-desc") || "";
+                var instance = $(btn).data("bs.tooltip") || $(btn).data("tooltip");
+                var $tip = instance ? (instance.$tip || (instance.tip ? instance.tip() : null)) : null;
+                if($tip && $tip.length) {
+                    $tip.find(".tooltip-inner").html('<div class="vt-tooltip-title">' + title + '</div><div class="vt-tooltip-desc">' + desc + '</div>');
+                }
+            }, 1800);
+        }).on("mouseleave blur", function() {
+            clearTimeout(descTimer);
+            $(this).tooltip("hide");
+        });
+    })();
+
     $("#dWallSegments").on("change input", function() {
         wallTool_refreshCountInput(true);
         wallTool_renderCurrent();
+    });
+
+    $(document).on("keydown", "#dWallSegments, #dWallText", function(e) {
+        if(e.key === "Escape") {
+            e.preventDefault();
+            wallTool_cancelCurrent();
+            return false;
+        }
     });
 
     $("#dWallText").on("input change", function() {
@@ -1275,10 +1327,12 @@ function eventHandler_init() {
             zoneTool_guide();
             return false;
         }
+        if(vectron_currentTool == "wall") {
+            wallTool_cancelCurrent();
+            return false;
+        }
         if(vectron_toolActive) {
-            if(vectron_currentTool == "wall") {
-                wallTool_cancelCurrent();
-            } else if(vectron_currentTool == "spawn") {
+            if(vectron_currentTool == "spawn") {
                 spawnTool_disconnect();
                 vectron_currentTool = "";
                 vectron_connectTool("spawn");
@@ -1293,10 +1347,8 @@ function eventHandler_init() {
                 gui_writeLog("Split Tool: selection cancelled.");
             } else if(vectron_currentTool == "join") {
                 // Cancel selected wall, stay on join tool
-                joinTool_firstWall = null;
+                joinTool_cancelSelection();
                 vectron_toolActive = false;
-                joinTool_clearHighlightA();
-                joinTool_clearHighlightB();
                 vectron_render();
                 gui_writeLog("Join Tool: selection cancelled.");
             }
@@ -1403,6 +1455,19 @@ function eventHandler_init() {
             if(obj.glowObj) { obj.glowObj.remove(); obj.glowObj = null; }
         });
         aamap_objects = [];
+        xml_name = "";
+        xml_author = "";
+        xml_category = "";
+        xml_version = "";
+        xml_dtd = "";
+        xml_axes = null;
+        $("#map_name").val("");
+        $("#map_author").val("");
+        $("#map_category").val("");
+        $("#map_version").val("");
+        $("#map_dtd").val("");
+        $("#map_axes").val("");
+        $("#map_axes_forced").prop("checked", false);
         vectron_panX = 0;
         vectron_panY = 0;
         vectron_zoom = 1;

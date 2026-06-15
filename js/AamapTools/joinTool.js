@@ -32,7 +32,12 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
  *         The tool figures out which ends connect, reverses walls as needed, and merges them.
  */
 
-var joinTool_firstWall = null;
+var joinTool_selecting = false;
+var joinTool_selectionStartMapX = null;
+var joinTool_selectionStartMapY = null;
+var joinTool_selectionCurrentMapX = null;
+var joinTool_selectionCurrentMapY = null;
+var joinTool_selectionBox = null;
 var joinTool_highlightA = null;
 var joinTool_highlightB = null;
 
@@ -41,18 +46,29 @@ var JOIN_TOLERANCE = 0.1; // map units – endpoints within this distance are co
 function joinTool_connect() {
     $(".toolbar-toolJoin").addClass("toolbar-tool-active");
     cursor_active = false;
-    joinTool_firstWall = null;
+    joinTool_cancelSelection();
     joinTool_clearHighlightA();
     joinTool_clearHighlightB();
 }
 
 function joinTool_disconnect() {
+    joinTool_cancelSelection();
     joinTool_clearHighlightA();
     joinTool_clearHighlightB();
-    joinTool_firstWall = null;
     cursor_active = true;
     vectron_toolActive = false;
     $(".toolbar-toolJoin").removeClass("toolbar-tool-active");
+}
+
+function joinTool_cancelSelection() {
+    joinTool_selecting = false;
+    joinTool_selectionStartMapX = null;
+    joinTool_selectionStartMapY = null;
+    joinTool_selectionCurrentMapX = null;
+    joinTool_selectionCurrentMapY = null;
+    if (joinTool_selectionBox) { joinTool_selectionBox.remove(); joinTool_selectionBox = null; }
+    joinTool_clearHighlightA();
+    joinTool_clearHighlightB();
 }
 
 function joinTool_clearHighlightA() {
@@ -61,6 +77,34 @@ function joinTool_clearHighlightA() {
 
 function joinTool_clearHighlightB() {
     if (joinTool_highlightB) { joinTool_highlightB.remove(); joinTool_highlightB = null; }
+}
+
+function joinTool_clearSelectionBox() {
+    if (joinTool_selectionBox) { joinTool_selectionBox.remove(); joinTool_selectionBox = null; }
+}
+
+function joinTool_drawSelectionBox() {
+    joinTool_clearSelectionBox();
+    if (joinTool_selectionStartMapX == null || joinTool_selectionStartMapY == null ||
+        joinTool_selectionCurrentMapX == null || joinTool_selectionCurrentMapY == null) {
+        return;
+    }
+    var left = Math.min(joinTool_selectionStartMapX, joinTool_selectionCurrentMapX);
+    var top = Math.max(joinTool_selectionStartMapY, joinTool_selectionCurrentMapY);
+    var right = Math.max(joinTool_selectionStartMapX, joinTool_selectionCurrentMapX);
+    var bottom = Math.min(joinTool_selectionStartMapY, joinTool_selectionCurrentMapY);
+    joinTool_selectionBox = vectron_screen.rect(
+        aamap_realX(left),
+        aamap_realY(top),
+        Math.max(0, aamap_realX(right) - aamap_realX(left)),
+        Math.max(0, aamap_realY(bottom) - aamap_realY(top))
+    ).attr({
+        stroke: '#51a0ff',
+        'stroke-width': 1,
+        'stroke-dasharray': '--',
+        fill: '#51a0ff',
+        'fill-opacity': 0.12
+    });
 }
 
 function joinTool_drawWallPath(wall, color, width) {
@@ -123,6 +167,97 @@ function joinTool_ptEq(a, b) {
     return Math.abs(a.x - b.x) <= JOIN_TOLERANCE && Math.abs(a.y - b.y) <= JOIN_TOLERANCE;
 }
 
+function joinTool_getWallBounds(wall) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    if (!wall || !wall.points || wall.points.length === 0) return null;
+    for (var i = 0; i < wall.points.length; i++) {
+        var pt = wall.points[i];
+        if (pt.x < minX) minX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y > maxY) maxY = pt.y;
+    }
+    return { left: minX, right: maxX, top: maxY, bottom: minY };
+}
+
+function joinTool_rectsOverlap(a, b) {
+    if (!a || !b) return false;
+    return !(a.right < b.left || a.left > b.right || a.top < b.bottom || a.bottom > b.top);
+}
+
+function joinTool_findWallsInSelectionBox() {
+    if (joinTool_selectionStartMapX == null || joinTool_selectionStartMapY == null ||
+        joinTool_selectionCurrentMapX == null || joinTool_selectionCurrentMapY == null) {
+        return [];
+    }
+    var bounds = {
+        left: Math.min(joinTool_selectionStartMapX, joinTool_selectionCurrentMapX),
+        right: Math.max(joinTool_selectionStartMapX, joinTool_selectionCurrentMapX),
+        top: Math.max(joinTool_selectionStartMapY, joinTool_selectionCurrentMapY),
+        bottom: Math.min(joinTool_selectionStartMapY, joinTool_selectionCurrentMapY)
+    };
+    var walls = [];
+    for (var i = 0; i < aamap_objects.length; i++) {
+        var obj = aamap_objects[i];
+        if (!(obj instanceof Wall)) continue;
+        var wallBounds = joinTool_getWallBounds(obj);
+        if (joinTool_rectsOverlap(bounds, wallBounds)) {
+            walls.push(obj);
+        }
+    }
+    return walls;
+}
+
+function joinTool_mergePair(wallA, wallB, desc) {
+    var ptsA = wallA.points.slice();
+    var ptsB = wallB.points.slice();
+
+    if (desc.reverseA) ptsA.reverse();
+    if (desc.reverseB) ptsB.reverse();
+
+    var combined = desc.swap ? ptsB.concat(ptsA.slice(1)) : ptsA.concat(ptsB.slice(1));
+    var merged = new Wall();
+    merged.height = wallA.height;
+    merged.points = combined;
+    return merged;
+}
+
+function joinTool_joinWalls(selectedWalls) {
+    var working = selectedWalls.slice();
+    var mergedAny = false;
+    var joinedOriginals = [];
+
+    function markJoined(wall) {
+        if (joinedOriginals.indexOf(wall) === -1) joinedOriginals.push(wall);
+    }
+
+    var progress = true;
+    while(progress) {
+        progress = false;
+        outer: for (var i = 0; i < working.length; i++) {
+            for (var j = i + 1; j < working.length; j++) {
+                var desc = joinTool_findJoin(working[i], working[j]);
+                if (!desc) continue;
+                markJoined(working[i]);
+                markJoined(working[j]);
+                var merged = joinTool_mergePair(working[i], working[j], desc);
+                working.splice(j, 1);
+                working.splice(i, 1);
+                working.push(merged);
+                mergedAny = true;
+                progress = true;
+                break outer;
+            }
+        }
+    }
+
+    return {
+        mergedAny: mergedAny,
+        joinedOriginals: joinedOriginals,
+        finalWalls: working
+    };
+}
+
 /** Check if two walls share an endpoint. Returns a join descriptor or null. */
 function joinTool_findJoin(wallA, wallB) {
     var aFirst = wallA.points[0];
@@ -151,98 +286,107 @@ function joinTool_findJoin(wallA, wallB) {
 
 /** Called on mouse move. */
 function joinTool_guide() {
+    if (joinTool_selecting) {
+        joinTool_drawSelectionBox();
+        return;
+    }
     joinTool_clearHighlightB();
-    if (joinTool_firstWall) {
-        var hovered = joinTool_findHoveredWall();
-        if (hovered && hovered !== joinTool_firstWall) {
-            var canJoin = joinTool_findJoin(joinTool_firstWall, hovered) !== null;
-            joinTool_highlightB = joinTool_drawWallPath(hovered, canJoin ? '#00ff88' : '#ff4444', 3);
-        }
-    } else {
-        var hovered = joinTool_findHoveredWall();
-        if (hovered) {
-            joinTool_highlightB = joinTool_drawWallPath(hovered, '#ffcc00', 3);
-        }
+    var hovered = joinTool_findHoveredWall();
+    if (hovered) {
+        joinTool_highlightB = joinTool_drawWallPath(hovered, '#ffcc00', 3);
     }
 }
 
-/** Called on canvas click. */
-function joinTool_click() {
-    var wall = joinTool_findHoveredWall();
+function joinTool_start() {
+    joinTool_selecting = true;
+    joinTool_selectionStartMapX = aamap_mapX(cursor_realX);
+    joinTool_selectionStartMapY = aamap_mapY(cursor_realY);
+    joinTool_selectionCurrentMapX = joinTool_selectionStartMapX;
+    joinTool_selectionCurrentMapY = joinTool_selectionStartMapY;
+    joinTool_clearSelectionBox();
+    joinTool_clearHighlightA();
+    joinTool_clearHighlightB();
+    vectron_toolActive = true;
+    joinTool_drawSelectionBox();
+}
 
-    if (!joinTool_firstWall) {
+function joinTool_progress() {
+    if (!joinTool_selecting) return;
+    joinTool_selectionCurrentMapX = aamap_mapX(cursor_realX);
+    joinTool_selectionCurrentMapY = aamap_mapY(cursor_realY);
+    joinTool_drawSelectionBox();
+}
+
+function joinTool_finish() {
+    if (!joinTool_selecting) {
+        var wall = joinTool_findHoveredWall();
         if (!wall) return;
-        joinTool_firstWall = wall;
-        joinTool_clearHighlightA();
-        joinTool_clearHighlightB();
-        joinTool_highlightA = joinTool_drawWallPath(wall, '#ff6600', 3);
-        vectron_toolActive = true;
-        gui_writeLog("Join Tool: first wall selected. Now select the second wall.");
+        joinTool_selecting = true;
+        joinTool_selectionStartMapX = aamap_mapX(cursor_realX);
+        joinTool_selectionStartMapY = aamap_mapY(cursor_realY);
+        joinTool_selectionCurrentMapX = joinTool_selectionStartMapX;
+        joinTool_selectionCurrentMapY = joinTool_selectionStartMapY;
+    } else {
+        joinTool_selectionCurrentMapX = aamap_mapX(cursor_realX);
+        joinTool_selectionCurrentMapY = aamap_mapY(cursor_realY);
+    }
+
+    var dragDx = Math.abs(joinTool_selectionCurrentMapX - joinTool_selectionStartMapX);
+    var dragDy = Math.abs(joinTool_selectionCurrentMapY - joinTool_selectionStartMapY);
+    var selectedWalls = (dragDx < 0.1 && dragDy < 0.1) ? (function() {
+        var hovered = joinTool_findHoveredWall();
+        return hovered ? [hovered] : [];
+    })() : joinTool_findWallsInSelectionBox();
+
+    joinTool_clearSelectionBox();
+    joinTool_selecting = false;
+    vectron_toolActive = false;
+
+    if (!selectedWalls.length) {
+        joinTool_cancelSelection();
+        vectron_render();
+        gui_writeLog("Join Tool: no walls selected.");
         return;
     }
 
-    // Clicking the same wall deselects
-    if (wall === joinTool_firstWall) {
-        joinTool_firstWall = null;
-        vectron_toolActive = false;
-        joinTool_clearHighlightA();
-        joinTool_clearHighlightB();
-        gui_writeLog("Join Tool: deselected first wall.");
+    var result = joinTool_joinWalls(selectedWalls);
+    if (!result.mergedAny) {
+        var failedOnly = selectedWalls.length;
+        if (failedOnly > 0) {
+            gui_toast("Unable to join (" + failedOnly + ") walls");
+        }
+        vectron_render();
         return;
     }
 
-    if (!wall) {
-        gui_writeLog("Join Tool: no wall found at cursor.");
-        return;
+    for (var i = 0; i < selectedWalls.length; i++) {
+        _aamap_removeObj(selectedWalls[i]);
+    }
+    for (var j = 0; j < result.finalWalls.length; j++) {
+        aamap_objects.push(result.finalWalls[j]);
     }
 
-    var desc = joinTool_findJoin(joinTool_firstWall, wall);
-    if (!desc) {
-        gui_writeLog("Join Tool: walls do not share an endpoint (within tolerance " + JOIN_TOLERANCE + ").");
-        return;
-    }
-
-    var ptsA = joinTool_firstWall.points.slice();
-    var ptsB = wall.points.slice();
-
-    if (desc.reverseA) ptsA.reverse();
-    if (desc.reverseB) ptsB.reverse();
-
-    // When aFirst == bLast, we join as B + A so that the shared endpoint
-    // is correctly at the junction (ptsB.last == ptsA.first, remove ptsA[0]).
-    var combined = desc.swap ? ptsB.concat(ptsA.slice(1)) : ptsA.concat(ptsB.slice(1));
-
-    var merged = new Wall();
-    merged.height = joinTool_firstWall.height;
-    merged.points = combined;
-
-    // Remove both originals. Remove idxA first; if idxB was after idxA the
-    // splice shifts all later indices down by one, so decrement idxB.
-    var idxA = aamap_objects.indexOf(joinTool_firstWall);
-    if (idxA >= 0) aamap_objects.splice(idxA, 1);
-    var idxB = aamap_objects.indexOf(wall);
-    if (idxB >= 0) aamap_objects.splice(idxB, 1);
-    aamap_objects.push(merged);
-
-    var origA = joinTool_firstWall, origB = wall, wM = merged;
+    var originalWalls = selectedWalls.slice();
+    var finalWalls = result.finalWalls.slice();
     aamap_recordAction({
         label: "Join walls",
         undo: function() {
-            _aamap_removeObj(wM);
-            aamap_objects.push(origA); aamap_objects.push(origB);
+            finalWalls.forEach(function(w) { _aamap_removeObj(w); });
+            originalWalls.forEach(function(w) { aamap_objects.push(w); });
             vectron_render();
         },
         redo: function() {
-            _aamap_removeObj(origA); _aamap_removeObj(origB);
-            aamap_objects.push(wM);
+            originalWalls.forEach(function(w) { _aamap_removeObj(w); });
+            finalWalls.forEach(function(w) { aamap_objects.push(w); });
             vectron_render();
         }
     });
 
-    joinTool_firstWall = null;
-    vectron_toolActive = false;
-    joinTool_clearHighlightA();
-    joinTool_clearHighlightB();
+    var failedCount = selectedWalls.filter(function(w) { return result.joinedOriginals.indexOf(w) === -1; }).length;
+    if (failedCount > 0) {
+        gui_toast("Unable to join (" + failedCount + ") walls");
+    } else {
+        gui_writeLog("Join Tool: walls joined successfully.");
+    }
     vectron_render();
-    gui_writeLog("Join Tool: walls joined successfully.");
 }
