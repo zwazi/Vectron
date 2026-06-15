@@ -1077,6 +1077,7 @@ function eventHandler_init() {
     function clearZoomPreview()
     {
         clearTimeout(__zoom_render_timeout);
+        __zoom_render_timeout = null;
         __zoom_canvas.style.transform = '';
         __zoom_canvas.style.transformOrigin = '';
     }
@@ -1141,7 +1142,7 @@ function eventHandler_init() {
             __zoom_render_timeout = setTimeout(function()
             {
                 renderZoomFinal();
-            }, 120);
+            }, 80);
 
             clearTimeout(__zoom_timeout);
             __zoom_timeout = setTimeout(function()
