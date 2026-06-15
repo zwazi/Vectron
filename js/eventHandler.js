@@ -774,24 +774,24 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
     $("#cm-zoom-in").mouseup(function(e) {
-        __zoom_clearPreview();
+        clearZoomPreview();
         vectron_zoom *= 1.1;
         vectron_zoom_adjustment();
         vectron_render();
     });
     $("#cm-zoom-out").mouseup(function(e) {
-        __zoom_clearPreview();
+        clearZoomPreview();
         vectron_zoom /= 1.1;
         vectron_zoom_adjustment();
         vectron_render();
     });
     $("#cm-zoom-100").mouseup(function(e) {
-        __zoom_clearPreview();
+        clearZoomPreview();
         vectron_zoom = 1;
         vectron_render();
     });
     $("#cm-fit-screen").mouseup(function(e) {
-        __zoom_clearPreview();
+        clearZoomPreview();
         aamap_fitToScreen();
     });
 
@@ -823,7 +823,7 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZoomIn").mouseup(function(e) {
-        __zoom_clearPreview();
+        clearZoomPreview();
         vectron_zoom *= 1.1;
         vectron_zoom_adjustment();
         vectron_render();
@@ -831,7 +831,7 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZoomOut").mouseup(function(e) {
-        __zoom_clearPreview();
+        clearZoomPreview();
         vectron_zoom /= 1.1;
         vectron_zoom_adjustment();
         vectron_render();
@@ -839,14 +839,14 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZoom100").mouseup(function(e) {
-        __zoom_clearPreview();
+        clearZoomPreview();
         vectron_zoom = 1;
         vectron_render();
         $("#zones-menu").hide();
     });
 
     $(".toolbar-toolFitScreen").mouseup(function(e) {
-        __zoom_clearPreview();
+        clearZoomPreview();
         aamap_fitToScreen();
         $("#zones-menu").hide();
     });
@@ -1074,15 +1074,15 @@ function eventHandler_init() {
     var __zoom_render_timeout;
     var __zoom_last_rendered_zoom = 1;
     var __zoom_canvas = document.getElementById('canvas_container');
-    function __zoom_clearPreview()
+    function clearZoomPreview()
     {
         clearTimeout(__zoom_render_timeout);
         __zoom_canvas.style.transform = '';
         __zoom_canvas.style.transformOrigin = '';
     }
-    function __zoom_renderFinal()
+    function renderZoomFinal()
     {
-        __zoom_clearPreview();
+        clearZoomPreview();
         __zoom_last_rendered_zoom = vectron_zoom;
         vectron_render();
     }
@@ -1136,9 +1136,11 @@ function eventHandler_init() {
 
             // Redraw once the wheel interaction settles instead of on every wheel tick.
             clearTimeout(__zoom_render_timeout);
+            // Debounce the full redraw so wheel scrolling stays smooth while the
+            // preview transform provides immediate feedback.
             __zoom_render_timeout = setTimeout(function()
             {
-                __zoom_renderFinal();
+                renderZoomFinal();
             }, 120);
 
             clearTimeout(__zoom_timeout);
