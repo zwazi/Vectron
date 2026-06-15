@@ -213,7 +213,7 @@
                             <tbody>
                                 <tr><td><b>Map Settings</b></td><td>Settings tags embedded in the map file (not your server config).</td></tr>
                                 <tr><td><b>Adjust Map</b></td><td>Scale, rotate, translate, or center all objects at once. "Center over 0,0" moves all objects so their group center lands on the world origin.</td></tr>
-                                <tr><td><b>Configure</b></td><td>Theme, info bar, debug log, action history, grid layout/colors, and keybinds.</td></tr>
+                                <tr><td><b>Configure</b></td><td>Theme, info bar, action history, grid layout/colors, and keybinds.</td></tr>
                             </tbody>
                         </table>
 
@@ -238,9 +238,6 @@
                       </div>
                       <div class="checkbox cfg-checkbox">
                         <label><input type="checkbox" id="show-info-bar" name="show-info-bar"> Show info bar</label>
-                      </div>
-                      <div class="checkbox cfg-checkbox">
-                        <label><input type="checkbox" id="show-debug-panel" name="show-debug-panel"> Show debug log</label>
                       </div>
                       <div class="checkbox cfg-checkbox">
                         <label><input type="checkbox" id="show-action-history" name="show-action-history"> Show action history window</label>
@@ -343,10 +340,9 @@
             </span>
         </div>
         <div id="canvas_container"></div>
-        <div id="vt-right-dock" aria-label="Docked popover windows"></div>
         <!-- Wall Tool Popover Window -->
         <div id="wall-tool-window" style="display:none;">
-            <div id="wall-tool-header">Wall Tool <span id="wall-tool-dock" title="Dock/undock" class="vt-window-action">⇱</span><span id="wall-tool-close" title="Close" class="vt-window-action">✕</span></div>
+            <div id="wall-tool-header">Wall Tool <span id="wall-tool-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="wall-tool-close" title="Close" class="vt-window-action">✕</span></div>
             <div id="wall-tool-body">
                 <div class="wall-tool-section">
                     <div id="wall-tool-mode-row" style="display:flex;gap:4px;flex-wrap:wrap;">
@@ -387,7 +383,7 @@
 
         <!-- Zone Tool Popover Window -->
         <div id="zone-tool-window" style="display:none;">
-            <div id="zone-tool-header">Zone Tool <span id="zone-tool-dock" title="Dock/undock" class="vt-window-action">⇱</span><span id="zone-tool-close" title="Close" class="vt-window-action">✕</span></div>
+            <div id="zone-tool-header">Zone Tool <span id="zone-tool-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="zone-tool-close" title="Close" class="vt-window-action">✕</span></div>
             <div id="zone-tool-body">
                 <div id="zone-tool-types-row" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
                     <button class="btn btn-xs zone-type-btn" data-type="0" style="background:#ff0000;color:#fff;border-color:#cc0000;">Death</button>
@@ -412,10 +408,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div id="debug_box">
-            <div id="debug_stream">
             </div>
         </div>
         <div id="tool_bar">
@@ -557,7 +549,7 @@
             </div>
         </div>
         <div id="action-history-window" style="display:none;">
-            <div id="action-history-header">Action History <span id="action-history-dock" title="Dock/undock" class="vt-window-action">⇱</span><span id="action-history-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
+            <div id="action-history-header">Action History <span id="action-history-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="action-history-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
             <ul id="action-history-list"></ul>
         </div>
         <input type="file" id="toolbar-files" name="file" style="display:none;" />
