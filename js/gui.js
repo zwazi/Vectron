@@ -56,11 +56,16 @@ function gui_refreshFloatingWindows() {
     gui_floatingWindowRegistry.forEach(function(entry) {
         if (!entry || !entry.win || entry.win.style.display === "none") return;
         var rect = entry.win.getBoundingClientRect();
-        var clamped = gui_clampToScreen(entry.win, rect.left, rect.top);
-        entry.win.style.left = clamped[0] + "px";
-        entry.win.style.top = clamped[1] + "px";
+        gui_applyClampedPosition(entry.win, rect.left, rect.top);
         gui_refreshFloatingWindowBounds(entry.win);
     });
+}
+
+function gui_applyClampedPosition(win, left, top) {
+    if (!win) return;
+    var clamped = gui_clampToScreen(win, left, top);
+    win.style.left = clamped[0] + "px";
+    win.style.top = clamped[1] + "px";
 }
 
 function gui_applyWindowDefaultSize(win, entry) {
@@ -122,9 +127,7 @@ function gui_setupFloatingWindow(opts) {
         if (!dragging) return;
         dragging = false;
         var rect = win.getBoundingClientRect();
-        var clamped = gui_clampToScreen(win, rect.left, rect.top);
-        win.style.left = clamped[0] + "px";
-        win.style.top = clamped[1] + "px";
+        gui_applyClampedPosition(win, rect.left, rect.top);
     });
 
     if (resetButton) {
