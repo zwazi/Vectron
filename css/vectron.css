@@ -406,6 +406,21 @@ body.noscroll {
     content: none;
 }
 
+/* Wall tool mode buttons */
+#wall-tool-mode-row .wall-tool-mode-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#wall-tool-mode-row .wall-tool-mode-btn i {
+  pointer-events: none;
+  font-size: 14px;
+}
+
 /* Info/About button */
 .toolbar-toolInfo:after {
     font-family: 'Glyphicons Halflings';
