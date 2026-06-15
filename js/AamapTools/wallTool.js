@@ -746,6 +746,7 @@ function wallTool_disconnect() {
     vectron_toolActive = false;
     $(".toolbar-toolWall").removeClass("toolbar-tool-active");
     $("#wall-tool-window").hide();
+    gui_layoutDockedWindows();
 }
 
 function wallTool_connect() {
@@ -754,6 +755,7 @@ function wallTool_connect() {
     if(!wallTool_mode) wallTool_mode = "freeform";
     wallTool_updateWindow();
     wallTool_renderCurrent();
+    gui_layoutDockedWindows();
 }
 
 /** Update the points/walls list in the wall tool popover */

@@ -96,10 +96,25 @@ body {
 	background-repeat: no-repeat;
 }
 
+#tool_bar a.toolbar-newMap,
+#tool_bar a.toolbar-import,
+#tool_bar a.toolbar-export {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 #tool_bar ul li a:hover {
 	color:#FFF;
 	background-color:#1b1b1b;
 	text-decoration:none;
+}
+
+#tool_bar a.toolbar-newMap:hover,
+#tool_bar a.toolbar-import:hover,
+#tool_bar a.toolbar-export:hover {
+	background-color:#1b1b1b;
+	color:#fff;
 }
 
 #tool_bar ul li a.active {
@@ -247,6 +262,11 @@ body {
 }
 #control_box .nav-tabs .dropdown-toggle .caret {
 	border-top-color: #ccc;
+}
+
+#vt-right-dock {
+	top: 46px;
+	bottom: 34px;
 }
 
 /* Grid line appearance section */

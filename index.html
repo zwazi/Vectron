@@ -10,6 +10,7 @@
         <link href="./css/vectron.css" rel="stylesheet">
         <link id="theme" rel="stylesheet">
         <link href="./css/shepherd-theme-arrows.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
         <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400,300,700,600' rel='stylesheet' type='text/css'>
         <script type="text/javascript" src="./js/libs/jquery.js"></script>
         <script type="text/javascript" src="./js/libs/raphael-min.js"></script>
@@ -342,9 +343,10 @@
             </span>
         </div>
         <div id="canvas_container"></div>
+        <div id="vt-right-dock" aria-label="Docked popover windows"></div>
         <!-- Wall Tool Popover Window -->
         <div id="wall-tool-window" style="display:none;">
-            <div id="wall-tool-header">Wall Tool <span id="wall-tool-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
+            <div id="wall-tool-header">Wall Tool <span id="wall-tool-dock" title="Dock/undock" class="vt-window-action">⇱</span><span id="wall-tool-close" title="Close" class="vt-window-action">✕</span></div>
             <div id="wall-tool-body">
                 <div class="wall-tool-section">
                     <div id="wall-tool-mode-row" style="display:flex;gap:4px;flex-wrap:wrap;">
@@ -380,7 +382,7 @@
 
         <!-- Zone Tool Popover Window -->
         <div id="zone-tool-window" style="display:none;">
-            <div id="zone-tool-header">Zone Tool <span id="zone-tool-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
+            <div id="zone-tool-header">Zone Tool <span id="zone-tool-dock" title="Dock/undock" class="vt-window-action">⇱</span><span id="zone-tool-close" title="Close" class="vt-window-action">✕</span></div>
             <div id="zone-tool-body">
                 <div id="zone-tool-types-row" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
                     <button class="btn btn-xs zone-type-btn" data-type="0" style="background:#ff0000;color:#fff;border-color:#cc0000;">Death</button>
@@ -472,13 +474,13 @@
             </ul>
             <ul>
                 <li>
-                    <a class="toolbar-newMap" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="New Map"></a>
+                    <a class="toolbar-newMap" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="New Map"><i class="fa fa-file-o" aria-hidden="true"></i></a>
                 </li>
                 <li>
-                    <a class="toolbar-import" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Import"></a>
+                    <a class="toolbar-import" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Import"><i class="fa fa-folder-open-o" aria-hidden="true"></i></a>
                 </li>
                 <li>
-                    <a class="toolbar-export" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Export"></a>
+                    <a class="toolbar-export" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Export"><i class="fa fa-download" aria-hidden="true"></i></a>
                 </li>
             </ul>
             <ul>
@@ -550,7 +552,7 @@
             </div>
         </div>
         <div id="action-history-window" style="display:none;">
-            <div id="action-history-header">Action History <span id="action-history-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
+            <div id="action-history-header">Action History <span id="action-history-dock" title="Dock/undock" class="vt-window-action">⇱</span><span id="action-history-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
             <ul id="action-history-list"></ul>
         </div>
         <input type="file" id="toolbar-files" name="file" style="display:none;" />
