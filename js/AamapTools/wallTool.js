@@ -498,6 +498,43 @@ function wallTool_textSegmentsToWalls(segments, box) {
     return walls;
 }
 
+function wallTool_pointsEqual(a, b) {
+    return a && b && a.x === b.x && a.y === b.y;
+}
+
+function wallTool_simplifyWallPoints(points) {
+    if(!points || points.length < 3) return points ? points.slice() : [];
+
+    var closed = wallTool_pointsEqual(points[0], points[points.length - 1]);
+    var source = closed ? points.slice(0, -1) : points.slice();
+    if(source.length < 3) return closed ? points.slice() : source;
+
+    var simplified = [source[0]];
+    for(var i = 1; i < source.length - 1; i++) {
+        var prev = simplified[simplified.length - 1];
+        var curr = source[i];
+        var next = source[i + 1];
+        if(wallTool_pointsEqual(prev, curr)) continue;
+        var dx1 = curr.x - prev.x;
+        var dy1 = curr.y - prev.y;
+        var dx2 = next.x - curr.x;
+        var dy2 = next.y - curr.y;
+        if(Math.abs(dx1 * dy2 - dy1 * dx2) < 1e-9) continue;
+        simplified.push(curr);
+    }
+
+    var last = source[source.length - 1];
+    if(!wallTool_pointsEqual(simplified[simplified.length - 1], last)) {
+        simplified.push(last);
+    }
+
+    if(closed && !wallTool_pointsEqual(simplified[0], simplified[simplified.length - 1])) {
+        simplified.push(new WallPoint(simplified[0].x, simplified[0].y));
+    }
+
+    return simplified;
+}
+
 function wallTool_buildTextWalls(points, text) {
     var box = wallTool_getTextModeBox(points);
     if(!box) return null;
@@ -512,7 +549,11 @@ function wallTool_buildTextWalls(points, text) {
 
     var mask = wallTool_rasterizeText(rawText, cols, rows);
     var segments = wallTool_mergeSegments(wallTool_maskToSegments(mask, cols, rows));
-    return wallTool_textSegmentsToWalls(segments, box);
+    var walls = wallTool_textSegmentsToWalls(segments, box);
+    for(var i = 0; i < walls.length; i++) {
+        walls[i] = wallTool_simplifyWallPoints(walls[i]);
+    }
+    return walls.filter(function(wall) { return wall && wall.length >= 2; });
 }
 
 function wallTool_selectWalls(walls) {
@@ -845,7 +886,8 @@ function wallTool_completeShape() {
                 vectron_render();
             }
         });
-        vectron_connectTool("select", { keepWindowOpen: true });
+        wallTool_updateWindow();
+        wallTool_renderCurrent();
         wallTool_selectWalls(addedTextWalls);
         vectron_render();
         if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
