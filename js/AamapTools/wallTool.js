@@ -49,6 +49,15 @@ var WALL_TOOL_COORD_PRECISION = 1e6;
 var WALL_TOOL_BUTTON_LABEL_FINISH = "Finish Wall";
 var WALL_TOOL_BUTTON_LABEL_GENERATE = "Generate Walls";
 var WALL_TOOL_BUTTON_LABEL_SUBMIT = "Submit";
+var WALL_TOOL_TEXT_ALPHA_THRESHOLD = 24;
+var WALL_TOOL_TEXT_FONT_SEARCH_ITERATIONS = 12;
+var WALL_TOOL_TEXT_BOX_PADDING_FACTOR = 0.9;
+var WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER = 1.15;
+var WALL_TOOL_TEXT_MAX_COLS = 96;
+var WALL_TOOL_TEXT_MIN_COLS = 24;
+var WALL_TOOL_TEXT_MAX_ROWS = 72;
+var WALL_TOOL_TEXT_MIN_ROWS = 12;
+var WALL_TOOL_TEXT_RASTER_SCALE_FACTOR = 2;
 
 function wallTool_clearPreview() {
     if(wallTool_previewObj != null) {
@@ -243,17 +252,17 @@ function wallTool_fitTextFont(ctx, lines, width, height) {
     var high = Math.max(8, Math.floor(Math.min(width, height)));
     var best = low;
 
-    for(var i = 0; i < 12; i++) {
+    for(var i = 0; i < WALL_TOOL_TEXT_FONT_SEARCH_ITERATIONS; i++) {
         var mid = Math.max(1, Math.floor((low + high) / 2));
         ctx.font = "bold " + mid + "px monospace";
-        var lineHeight = mid * 1.15;
+        var lineHeight = mid * WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER;
         var maxLineWidth = 0;
         for(var j = 0; j < lines.length; j++) {
             var measured = ctx.measureText(lines[j] || " ").width;
             if(measured > maxLineWidth) maxLineWidth = measured;
         }
         var totalHeight = lineHeight * lines.length;
-        if(maxLineWidth <= width * 0.9 && totalHeight <= height * 0.9) {
+        if(maxLineWidth <= width * WALL_TOOL_TEXT_BOX_PADDING_FACTOR && totalHeight <= height * WALL_TOOL_TEXT_BOX_PADDING_FACTOR) {
             best = mid;
             low = mid + 1;
         } else {
@@ -294,7 +303,7 @@ function wallTool_rasterizeText(text, cols, rows) {
         mask[y] = [];
         for(var x = 0; x < cols; x++) {
             var idx = (y * cols + x) * 4 + 3;
-            mask[y][x] = pixels[idx] > 24;
+            mask[y][x] = pixels[idx] > WALL_TOOL_TEXT_ALPHA_THRESHOLD;
         }
     }
 
@@ -418,8 +427,8 @@ function wallTool_buildTextWalls(points, text) {
     var rawText = String(text || "");
     if(rawText.replace(/\s/g, "") === "") return [];
 
-    var cols = Math.min(96, Math.max(24, Math.round(box.width * 2)));
-    var rows = Math.min(72, Math.max(12, Math.round(box.height * 2)));
+    var cols = Math.min(WALL_TOOL_TEXT_MAX_COLS, Math.max(WALL_TOOL_TEXT_MIN_COLS, Math.round(box.width * WALL_TOOL_TEXT_RASTER_SCALE_FACTOR)));
+    var rows = Math.min(WALL_TOOL_TEXT_MAX_ROWS, Math.max(WALL_TOOL_TEXT_MIN_ROWS, Math.round(box.height * WALL_TOOL_TEXT_RASTER_SCALE_FACTOR)));
     box.cols = cols;
     box.rows = rows;
 
