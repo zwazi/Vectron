@@ -80,6 +80,10 @@ function aamap_save(name, author, category, version, dtd, axes, settings) {
 function aamap_render() {
     aamap_drawGrid();
 
+    if(vectron_currentTool == "select" && typeof selectTool_beginRenderCycle == "function") {
+        selectTool_beginRenderCycle();
+    }
+
     for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
         aamap_objects[i].render();
     }
@@ -309,16 +313,51 @@ function aamap_drawGrid() {
     var families = gridLayout_getLineAngles(config_gridLayout);
     var originX = vectron_width/2 + (vectron_zoom * vectron_panX);
     var originY = vectron_height/2 - (vectron_zoom * vectron_panY);
+    var expandedLeft = -vectron_width;
+    var expandedRight = vectron_width * 2;
+    var expandedTop = -vectron_height;
+    var expandedBottom = vectron_height * 2;
     var corners = [
-        [-originX, -originY],
-        [vectron_width - originX, -originY],
-        [-originX, vectron_height - originY],
-        [vectron_width - originX, vectron_height - originY]
+        [expandedLeft - originX, expandedTop - originY],
+        [expandedRight - originX, expandedTop - originY],
+        [expandedLeft - originX, expandedBottom - originY],
+        [expandedRight - originX, expandedBottom - originY]
     ];
-    var drawLength = Math.sqrt(vectron_width * vectron_width + vectron_height * vectron_height) * GRID_LAYOUT_LINE_PADDING;
-
     function addLine(target, x1, y1, x2, y2) {
         target.push("M", x1, y1, "L", x2, y2);
+    }
+
+    function lineIntersectionsWithExpandedViewport(px, py, dx, dy) {
+        var hits = [];
+
+        function addHit(t) {
+            var x = px + dx * t;
+            var y = py + dy * t;
+            if(x < expandedLeft - GRID_LAYOUT_EPSILON || x > expandedRight + GRID_LAYOUT_EPSILON) return;
+            if(y < expandedTop - GRID_LAYOUT_EPSILON || y > expandedBottom + GRID_LAYOUT_EPSILON) return;
+            for(var i = 0; i < hits.length; i++) {
+                if(Math.abs(hits[i].x - x) < GRID_LAYOUT_EPSILON && Math.abs(hits[i].y - y) < GRID_LAYOUT_EPSILON) return;
+            }
+            hits.push({ x: x, y: y, t: t });
+        }
+
+        if(Math.abs(dx) > GRID_LAYOUT_EPSILON) {
+            addHit((expandedLeft - px) / dx);
+            addHit((expandedRight - px) / dx);
+        }
+        if(Math.abs(dy) > GRID_LAYOUT_EPSILON) {
+            addHit((expandedTop - py) / dy);
+            addHit((expandedBottom - py) / dy);
+        }
+
+        if(hits.length < 2) return null;
+        hits.sort(function(a, b) { return a.t - b.t; });
+        return {
+            x1: hits[0].x,
+            y1: hits[0].y,
+            x2: hits[hits.length - 1].x,
+            y2: hits[hits.length - 1].y
+        };
     }
 
     function lineCategory(angle, idx) {
@@ -349,15 +388,13 @@ function aamap_drawGrid() {
             var offset = k * gridSpacing;
             var centerX = originX + nx * offset;
             var centerY = originY + ny * offset;
-            var x1 = centerX - dx * drawLength;
-            var y1 = centerY - dy * drawLength;
-            var x2 = centerX + dx * drawLength;
-            var y2 = centerY + dy * drawLength;
+            var clipped = lineIntersectionsWithExpandedViewport(centerX, centerY, dx, dy);
+            if(!clipped) continue;
             var category = lineCategory(angle, k);
-            if(category === "axisX") addLine(axisXArray, x1, y1, x2, y2);
-            else if(category === "axisY") addLine(axisYArray, x1, y1, x2, y2);
-            else if(category === "tenth") addLine(tenthArray, x1, y1, x2, y2);
-            else addLine(regularArray, x1, y1, x2, y2);
+            if(category === "axisX") addLine(axisXArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
+            else if(category === "axisY") addLine(axisYArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
+            else if(category === "tenth") addLine(tenthArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
+            else addLine(regularArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
         }
     });
 

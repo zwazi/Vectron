@@ -36,6 +36,13 @@ function eventHandler_init() {
 
     var $contextMenu = $("#contextMenu");
 
+    $(document).on("mousedown", function(e) {
+        var active = document.activeElement;
+        if(!active || !/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return;
+        if(active === e.target || $.contains(active, e.target)) return;
+        active.blur();
+    });
+
     $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden'])", function(e) {
         if (e.key !== "Enter" || e.isDefaultPrevented()) return;
         e.preventDefault();
@@ -446,6 +453,37 @@ function eventHandler_init() {
         }
         wallTool_setMode($(this).data("mode"));
     });
+
+    (function initWallModeTooltips() {
+        var descTimer = null;
+        var $buttons = $(".wall-tool-mode-btn");
+        $buttons.tooltip({
+            html: true,
+            container: "body",
+            placement: "bottom",
+            trigger: "manual",
+            title: function() {
+                return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") + '</div>';
+            }
+        });
+        $buttons.on("mouseenter focus", function() {
+            var btn = this;
+            clearTimeout(descTimer);
+            $(btn).tooltip("show");
+            descTimer = setTimeout(function() {
+                var title = $(btn).data("tooltip-title") || "";
+                var desc = $(btn).data("tooltip-desc") || "";
+                var instance = $(btn).data("bs.tooltip") || $(btn).data("tooltip");
+                var $tip = instance ? (instance.$tip || (instance.tip ? instance.tip() : null)) : null;
+                if($tip && $tip.length) {
+                    $tip.find(".tooltip-inner").html('<div class="vt-tooltip-title">' + title + '</div><div class="vt-tooltip-desc">' + desc + '</div>');
+                }
+            }, 1800);
+        }).on("mouseleave blur", function() {
+            clearTimeout(descTimer);
+            $(this).tooltip("hide");
+        });
+    })();
 
     $("#dWallSegments").on("change input", function() {
         wallTool_refreshCountInput(true);
@@ -998,11 +1036,6 @@ function eventHandler_init() {
 
         if(vectron_currentTool == "wall") {
             wallTool_renderCurrent();
-            if(vectron_toolActive) {
-                navigationTool_autopan(function(){
-                    wallTool_renderCurrent();
-                });
-            }
         } else if(vectron_currentTool == "zone") {
             zoneTool_guide();
         } else if(vectron_currentTool == "spawn") {
@@ -1010,6 +1043,8 @@ function eventHandler_init() {
                 spawnTool_currentObj.guide();
         } else if(vectron_currentTool == "select" && vectron_toolActive) {
             selectTool_progress();
+        } else if(vectron_currentTool == "select") {
+            selectTool_updateHoverFromCursor();
         } else if(vectron_currentTool == "navigation" && vectron_toolActive) {
             navigationTool_progress();
         } else if(vectron_currentTool == "split") {
@@ -1221,9 +1256,7 @@ function eventHandler_init() {
         }
         if(vectron_toolActive) {
             if(vectron_currentTool == "wall") {
-                wallTool_disconnect();
-                vectron_currentTool = "";
-                vectron_connectTool("wall");
+                wallTool_cancelCurrent();
             } else if(vectron_currentTool == "spawn") {
                 spawnTool_disconnect();
                 vectron_currentTool = "";
@@ -1400,6 +1433,7 @@ function eventHandler_init() {
 
 var __resize_timeout;
 window.onresize = function() {
+    if(!vectron_screen) return;
     var width = $("#canvas_container").width();
     var height = $("#canvas_container").height();
     vectron_screen.setSize(width, height);

@@ -56,36 +56,14 @@ function Spawn() {
     }
 
     this.guideUpdate = function() {
-        var axes = parseInt($("#map_axes").val().trim());
-
         // get mouse cursor's distance from spawn's center
-        var diffX = aamap_mapX(cursor_realX) - this.x;
-        var diffY = aamap_mapY(cursor_realY) - this.y;
+        var diffX = aamap_mapX(cursor_neverSnappedX) - this.x;
+        var diffY = aamap_mapY(cursor_neverSnappedY) - this.y;
+        var dist = Math.sqrt(diffX * diffX + diffY * diffY);
 
-        // get the real angle in radians
-        var rad = Math.atan2(diffY,diffX);
-
-        // add half axes portion for better interaction
-        // i.e. let the arrow follow the mouse cursor
-        rad += Math.PI / axes;
-
-        // divide the circumference by current map axes
-        // (snap spawn rotation to axes)
-        var fraction = Math.floor(rad / Math.PI * axes / 2);
-
-        // recalculate the snapped angle in radians
-        var snapRad = (Math.PI * fraction) / axes * 2;
-
-        // get sine and cosine
-        this.xDir = (Math.cos(snapRad));
-        this.yDir = (Math.sin(snapRad));
-
-        // sin and cos functions return weird numbers in some cases...
-        // fix required
-        if(snapRad == Math.PI / 2 || snapRad == -Math.PI / 2)
-            this.xDir = 0;
-        else if(snapRad == Math.PI || snapRad == -Math.PI)
-            this.yDir = 0;
+        if(dist <= 1e-9) return;
+        this.xDir = diffX / dist;
+        this.yDir = diffY / dist;
     }
 
     this.render = function() {
