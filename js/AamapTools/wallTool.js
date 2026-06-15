@@ -417,10 +417,76 @@ function wallTool_textSegmentsToWalls(segments, box) {
         );
     }
 
+    function keyForPoint(px, py) {
+        return px + "," + py;
+    }
+
+    var adjacency = {};
     for(var i = 0; i < segments.length; i++) {
         var seg = segments[i];
-        var wall = [toPoint(seg.x1, seg.y1), toPoint(seg.x2, seg.y2)];
-        walls.push(wall);
+        var startKey = keyForPoint(seg.x1, seg.y1);
+        var endKey = keyForPoint(seg.x2, seg.y2);
+        if(!adjacency[startKey]) adjacency[startKey] = [];
+        if(!adjacency[endKey]) adjacency[endKey] = [];
+        adjacency[startKey].push(i);
+        adjacency[endKey].push(i);
+    }
+
+    var used = [];
+    for(var j = 0; j < segments.length; j++) {
+        if(used[j]) continue;
+
+        var currentSeg = segments[j];
+        var currentPoints = [
+            toPoint(currentSeg.x1, currentSeg.y1),
+            toPoint(currentSeg.x2, currentSeg.y2)
+        ];
+        used[j] = true;
+
+        var startPointKey = keyForPoint(currentSeg.x1, currentSeg.y1);
+        var currentPointKey = keyForPoint(currentSeg.x2, currentSeg.y2);
+
+        while(true) {
+            var connections = adjacency[currentPointKey];
+            var nextSegIndex = -1;
+            if(connections) {
+                for(var k = 0; k < connections.length; k++) {
+                    if(!used[connections[k]]) {
+                        nextSegIndex = connections[k];
+                        break;
+                    }
+                }
+            }
+
+            if(nextSegIndex < 0) {
+                break;
+            }
+
+            var nextSeg = segments[nextSegIndex];
+            used[nextSegIndex] = true;
+
+            var nextStartKey = keyForPoint(nextSeg.x1, nextSeg.y1);
+            var nextEndKey = keyForPoint(nextSeg.x2, nextSeg.y2);
+            var nextPoint;
+            if(currentPointKey === nextStartKey) {
+                nextPoint = toPoint(nextSeg.x2, nextSeg.y2);
+                currentPointKey = nextEndKey;
+            } else {
+                nextPoint = toPoint(nextSeg.x1, nextSeg.y1);
+                currentPointKey = nextStartKey;
+            }
+
+            var lastPoint = currentPoints[currentPoints.length - 1];
+            if(lastPoint.x !== nextPoint.x || lastPoint.y !== nextPoint.y) {
+                currentPoints.push(nextPoint);
+            }
+
+            if(currentPointKey === startPointKey) {
+                break;
+            }
+        }
+
+        walls.push(currentPoints);
     }
 
     return walls;
@@ -773,7 +839,7 @@ function wallTool_completeShape() {
                 vectron_render();
             }
         });
-        vectron_connectTool("select");
+        vectron_connectTool("select", { keepWindowOpen: true });
         wallTool_selectWalls(addedTextWalls);
         vectron_render();
         if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
@@ -1096,14 +1162,16 @@ function wallTool_finishWall() {
     vectron_render();
 }
 
-function wallTool_disconnect() {
+function wallTool_disconnect(keepWindowOpen) {
     wallTool_clearPreview();
     wallTool_clearCurrentWall();
     wallTool_step = 0;
     wallTool_stagePoints = [];
     vectron_toolActive = false;
     $(".toolbar-toolWall").removeClass("toolbar-tool-active");
-    $("#wall-tool-window").hide();
+    if(!keepWindowOpen) {
+        $("#wall-tool-window").hide();
+    }
     gui_refreshFloatingWindows();
 }
 

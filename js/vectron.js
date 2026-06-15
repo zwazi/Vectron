@@ -138,22 +138,26 @@ function vectron_zoom_adjustment()
     if(vectron_zoom == 0) vectron_zoom = 1;
 }
 
-function vectron_disconnectTool() {
+function vectron_disconnectTool(keepWindowOpen) {
     if(vectron_toolActive) {
         gui_writeLog("Cannot disconnect active tool. Try canceling current Action.");
         return false;
     }
 
     if(vectron_tools.indexOf(vectron_currentTool) >= 0) {
-        window[vectron_currentTool + "Tool_disconnect"]();
+        if(vectron_currentTool === "wall") {
+            window[vectron_currentTool + "Tool_disconnect"](keepWindowOpen);
+        } else {
+            window[vectron_currentTool + "Tool_disconnect"]();
+        }
         vectron_currentTool = "";
     }
 
     return true;
 }
 
-function vectron_connectTool(toolName) {
-    if(vectron_tools.indexOf(toolName) >= 0 && vectron_disconnectTool()) {
+function vectron_connectTool(toolName, options) {
+    if(vectron_tools.indexOf(toolName) >= 0 && vectron_disconnectTool(options && options.keepWindowOpen)) {
         if(vectron_currentTool === toolName) {
             // Already on this tool - clicking again deselects (switches to select)
             if(toolName !== "select") {
@@ -222,4 +226,3 @@ function vectron_saveTextAsFile(xml, filename)
 function vectron_destroyClickedElement(event) {
     document.body.removeChild(event.target);
 }
-
