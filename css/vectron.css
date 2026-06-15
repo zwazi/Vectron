@@ -314,6 +314,7 @@ body.noscroll {
 #tool_bar ul li.toolbar-toolUnlock-list {   display:none; }
 
 
+/* Keep the settings window fixed so it stays clear of the top and bottom bars. */
 #control_box {
   position:fixed;
   background:#FFF; width:600px;

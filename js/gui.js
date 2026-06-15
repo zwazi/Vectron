@@ -311,7 +311,9 @@ function actionHistory_hide() {
 }
 
 function gui_writeLog(message) {
-    $('#debug_stream').append('<span>' + message + '</span');
+    var span = document.createElement("span");
+    span.textContent = message;
+    document.getElementById("debug_stream").appendChild(span);
     var element = document.getElementById("debug_stream");
     element.scrollTop = element.scrollHeight;
 }
@@ -524,13 +526,13 @@ function mapSettings_addFromUI() {
     var valueEl  = document.getElementById('map-settings-value');
     if (!searchEl) return;
 
-    function finish() {
+    function blurInputs() {
        searchEl.blur();
        if (valueEl) valueEl.blur();
     }
 
     var raw = searchEl.value.trim();
-    if (!raw) { finish(); return; }
+    if (!raw) { blurInputs(); return; }
 
     var entry;
     // If there's already a space, treat the whole thing as "NAME VALUE"
@@ -539,20 +541,20 @@ function mapSettings_addFromUI() {
     } else {
         // Use separate value field
         var val = valueEl ? valueEl.value.trim() : '';
-        if (!val) { gui_toast('Please enter a value.'); finish(); return; }
+        if (!val) { gui_toast('Please enter a value.'); blurInputs(); return; }
         entry = raw + ' ' + val;
     }
 
     // Avoid duplicates by name
     var spaceIdx = entry.indexOf(' ');
-    if (spaceIdx < 0) { gui_toast('Invalid setting format. Use: NAME VALUE'); finish(); return; }
+    if (spaceIdx < 0) { gui_toast('Invalid setting format. Use: NAME VALUE'); blurInputs(); return; }
     var namePart = entry.slice(0, spaceIdx).toUpperCase();
     for (var i = 0; i < xml_settings.length; i++) {
         var existingSpace = xml_settings[i].indexOf(' ');
         var existingName = existingSpace >= 0 ? xml_settings[i].slice(0, existingSpace).toUpperCase() : xml_settings[i].toUpperCase();
         if (existingName === namePart) {
             gui_toast('Setting "' + namePart + '" already exists. Remove it first.');
-            finish();
+            blurInputs();
             return;
         }
     }
@@ -563,7 +565,7 @@ function mapSettings_addFromUI() {
     searchEl.value = '';
     if (valueEl) valueEl.value = '';
     document.getElementById('map-settings-dropdown').style.display = 'none';
-    finish();
+    blurInputs();
 }
 
 function mapSettings_removeEntry(idx) {
