@@ -428,7 +428,7 @@ function eventHandler_init() {
     // Finish wall button
     $("#wall-tool-finish").on("click", function() {
         if (vectron_currentTool === "wall" && vectron_toolActive) {
-            wallTool_complete();
+            wallTool_finishWall();
         }
     });
 
@@ -877,8 +877,16 @@ function eventHandler_init() {
                 vectron_render();
                 wallTool_currentObj.guide();
             }
+            else if(wallTool_mode !== "freeform" && wallTool_stagePoints.length > 0)
+            {
+                wallTool_stagePoints.pop();
+                wallTool_step = wallTool_stagePoints.length;
+                wallTool_updateWindow();
+                wallTool_renderCurrent();
+            }
             else
             {
+                gui_writeLog("Wall canceled, < 2 points");
                 wallTool_disconnect();
                 vectron_currentTool = "";
                 vectron_connectTool("wall");
@@ -1363,7 +1371,7 @@ function eventHandler_init() {
 
     // Wall height bar: update wall height input on change
     $("#dWallHeight").on("change input", function() {
-        wallTool_getHeight();
+        $(this).val(wallTool_getHeight());
     });
 
     // New map button (toolbar) — show popover instead of native confirm
