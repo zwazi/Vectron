@@ -105,7 +105,7 @@ function aamap_panCenter() {
 
     for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
         var obj = aamap_objects[i];
-        if(obj instanceof Zone || obj instanceof Spawn || obj instanceof Text) {
+        if(obj instanceof Zone || obj instanceof Spawn) {
             ptsx.push(obj.x);
             ptsy.push(obj.y);
         } else if(obj instanceof Wall) {
@@ -136,7 +136,7 @@ function aamap_fitToScreen() {
 
     for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
         var obj = aamap_objects[i];
-        if(obj instanceof Zone || obj instanceof Spawn || obj instanceof Text) {
+        if(obj instanceof Zone || obj instanceof Spawn) {
             ptsx.push(obj.x);
             ptsy.push(obj.y);
         } else if(obj instanceof Wall) {
@@ -363,7 +363,7 @@ function aamap_drawGrid() {
 
     // Draw regular grid lines — use configurable color/thickness
     var defaultNarrowColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
-    var defaultTenthColor  = '#7f7f7f';
+    var defaultTenthColor  = config_isDark ? '#1a1a1a' : '#d6d6ec'; // default same as narrow
     var narrowColor  = config_gridNarrowColor  || defaultNarrowColor;
     var tenthColor   = config_gridTenthColor   || defaultTenthColor;
     var axisXColor   = config_gridAxisXColor   || '#2244cc';
