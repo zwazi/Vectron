@@ -694,8 +694,6 @@ body.noscroll {
   position: fixed;
   left: 66px;
   top: 46px;
-  width: 340px;
-  height: 420px;
   min-width: 220px;
   max-width: 340px;
   background: rgba(245,245,245,0.98);

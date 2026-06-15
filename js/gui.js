@@ -264,9 +264,6 @@ function gui_toast(message) {
     }, 2200);
 }
 
-function gui_clearLog() {
-}
-
 function gui_show() {
     map_active = false;
     gui_active = true;
