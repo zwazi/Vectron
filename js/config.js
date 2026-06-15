@@ -41,7 +41,12 @@ var config_gridTenthThickness  = 0; // 0 = use default (0.5)
 var config_gridAxisXThickness  = 0; // 0 = use default (1)
 var config_gridAxisYThickness  = 0; // 0 = use default (1)
 var config_gridLayout          = 'square';
+var GRID_LAYOUT_EPSILON        = 1e-6;
 
+/**
+ * Snap a screen-space cursor position to the nearest intersection of the
+ * active grid layout's line families.
+ */
 function gridLayout_getFamilyAngles(layout) {
     switch(layout) {
         case 'hex':
@@ -79,7 +84,7 @@ function gridLayout_snapPoint(x, y, spacing, originX, originY) {
             var ax = -Math.sin(angleA), ay = Math.cos(angleA);
             var bx = -Math.sin(angleB), by = Math.cos(angleB);
             var det = ax * by - ay * bx;
-            if(Math.abs(det) < 1e-9) continue;
+            if(Math.abs(det) < GRID_LAYOUT_EPSILON) continue;
 
             var px = (lineValues[a] * by - ay * lineValues[b]) / det;
             var py = (ax * lineValues[b] - lineValues[a] * bx) / det;
