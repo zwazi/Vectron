@@ -306,7 +306,7 @@ function aamap_drawGrid() {
     var axisXArray = [];
     var axisYArray = [];
 
-    var families = gridLayout_getFamilyAngles(config_gridLayout);
+    var families = gridLayout_getLineAngles(config_gridLayout);
     var originX = vectron_width/2 + (vectron_zoom * vectron_panX);
     var originY = vectron_height/2 - (vectron_zoom * vectron_panY);
     var corners = [

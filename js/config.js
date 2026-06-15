@@ -43,14 +43,12 @@ var config_gridAxisYThickness  = 0; // 0 = use default (1)
 var config_gridLayout          = 'square';
 var GRID_LAYOUT_EPSILON        = 1e-6;
 
-/**
- * Snap a screen-space cursor position to the nearest intersection of the
- * active grid layout's line families.
- */
-function gridLayout_getFamilyAngles(layout) {
+function gridLayout_getLineAngles(layout) {
     switch(layout) {
         case 'hex':
         case 'triangle':
+            // Both layouts use the same 60° line families; only the visual
+            // interpretation of the cells differs.
             return [0, Math.PI / 3, 2 * Math.PI / 3];
         case 'octagon':
             return [0, Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4];
@@ -62,8 +60,19 @@ function gridLayout_getFamilyAngles(layout) {
     }
 }
 
+/**
+ * Snap a screen-space cursor position to the nearest intersection of the
+ * active grid layout's line families.
+ *
+ * @param {number} x Screen-space x coordinate.
+ * @param {number} y Screen-space y coordinate.
+ * @param {number} spacing Distance between adjacent grid lines.
+ * @param {number} originX Screen-space x position of the map origin.
+ * @param {number} originY Screen-space y position of the map origin.
+ * @returns {{x:number, y:number}} Screen-space snapped position.
+ */
 function gridLayout_snapPoint(x, y, spacing, originX, originY) {
-    var families = gridLayout_getFamilyAngles(config_gridLayout);
+    var families = gridLayout_getLineAngles(config_gridLayout);
     var relX = x - originX;
     var relY = y - originY;
     var bestX = relX;
