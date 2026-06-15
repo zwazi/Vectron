@@ -46,6 +46,7 @@ function spawnTool_start() {
 }
 
 function spawnTool_complete() {
+    spawnTool_currentObj.guideUpdate();
     spawnTool_currentObj.guideObj.remove();
     var completedSpawn = spawnTool_currentObj;
     aamap_add(completedSpawn);

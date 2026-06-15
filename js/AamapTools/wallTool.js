@@ -49,15 +49,12 @@ var WALL_TOOL_COORD_PRECISION = 1e6;
 var WALL_TOOL_BUTTON_LABEL_FINISH = "Finish Wall";
 var WALL_TOOL_BUTTON_LABEL_GENERATE = "Generate Walls";
 var WALL_TOOL_BUTTON_LABEL_SUBMIT = "Submit";
-var WALL_TOOL_TEXT_ALPHA_THRESHOLD = 24;
-var WALL_TOOL_TEXT_FONT_SEARCH_ITERATIONS = 12;
-var WALL_TOOL_TEXT_BOX_PADDING_FACTOR = 0.9;
-var WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER = 1.15;
-var WALL_TOOL_TEXT_MAX_COLS = 96;
-var WALL_TOOL_TEXT_MIN_COLS = 24;
-var WALL_TOOL_TEXT_MAX_ROWS = 72;
-var WALL_TOOL_TEXT_MIN_ROWS = 12;
-var WALL_TOOL_TEXT_RASTER_SCALE_FACTOR = 2;
+var WALL_TOOL_TEXT_ALPHA_THRESHOLD = 72;
+var WALL_TOOL_TEXT_CHAR_COLS = 64;
+var WALL_TOOL_TEXT_CHAR_ROWS = 80;
+var WALL_TOOL_TEXT_CHAR_SPACING = 5;
+var WALL_TOOL_TEXT_LINE_SPACING = 12;
+var WALL_TOOL_TEXT_MASK_CACHE = {};
 
 function wallTool_clearPreview() {
     if(wallTool_previewObj != null) {
@@ -80,6 +77,14 @@ function wallTool_resetDraft() {
     wallTool_step = 0;
     wallTool_stagePoints = [];
     vectron_toolActive = false;
+}
+
+function wallTool_cancelCurrent() {
+    wallTool_resetDraft();
+    wallTool_updateWindow();
+    wallTool_updatePointsList();
+    wallTool_renderCurrent();
+    gui_writeLog("Wall Tool: current action cancelled.");
 }
 
 function wallTool_getHeight() {
@@ -247,67 +252,103 @@ function wallTool_getTextCanvas() {
     return document.createElement("canvas");
 }
 
-function wallTool_fitTextFont(ctx, lines, width, height) {
-    var low = 1;
-    var high = Math.max(8, Math.floor(Math.min(width, height)));
-    var best = low;
-
-    for(var i = 0; i < WALL_TOOL_TEXT_FONT_SEARCH_ITERATIONS; i++) {
-        var mid = Math.max(1, Math.floor((low + high) / 2));
-        ctx.font = "bold " + mid + "px monospace";
-        var lineHeight = mid * WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER;
-        var maxLineWidth = 0;
-        for(var j = 0; j < lines.length; j++) {
-            var measured = ctx.measureText(lines[j] || " ").width;
-            if(measured > maxLineWidth) maxLineWidth = measured;
-        }
-        var totalHeight = lineHeight * lines.length;
-        if(maxLineWidth <= width * WALL_TOOL_TEXT_BOX_PADDING_FACTOR && totalHeight <= height * WALL_TOOL_TEXT_BOX_PADDING_FACTOR) {
-            best = mid;
-            low = mid + 1;
-        } else {
-            high = mid - 1;
-        }
-        if(low > high) break;
+function wallTool_blankMask(cols, rows) {
+    var mask = [];
+    for(var y = 0; y < rows; y++) {
+        mask[y] = [];
+        for(var x = 0; x < cols; x++) mask[y][x] = false;
     }
-
-    return Math.max(1, best);
+    return mask;
 }
 
-function wallTool_rasterizeText(text, cols, rows) {
+function wallTool_rasterizeGlyph(ch) {
+    var cacheKey = ch;
+    if(WALL_TOOL_TEXT_MASK_CACHE[cacheKey]) return WALL_TOOL_TEXT_MASK_CACHE[cacheKey];
+    var cols = WALL_TOOL_TEXT_CHAR_COLS;
+    var rows = WALL_TOOL_TEXT_CHAR_ROWS;
     var canvas = wallTool_getTextCanvas();
     canvas.width = cols;
     canvas.height = rows;
     var ctx = canvas.getContext("2d");
-    var lines = String(text || "").replace(/\r/g, "").split("\n");
-    if(lines.length === 0) lines = [""];
-
     ctx.clearRect(0, 0, cols, rows);
     ctx.fillStyle = "#000";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-
-    var fontSize = wallTool_fitTextFont(ctx, lines, cols, rows);
-    var lineHeight = fontSize * WALL_TOOL_TEXT_LINE_HEIGHT_MULTIPLIER;
-    var totalHeight = lineHeight * lines.length;
-    var startY = (rows - totalHeight) / 2 + lineHeight / 2;
-    ctx.font = "bold " + fontSize + "px monospace";
-
-    for(var i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i] || " ", cols / 2, startY + i * lineHeight);
-    }
-
+    ctx.font = "bold 72px 'Arial Rounded MT Bold', Arial, sans-serif";
+    ctx.fillText(ch || " ", cols / 2, rows / 2 + 4);
     var pixels = ctx.getImageData(0, 0, cols, rows).data;
-    var mask = [];
+    var mask = wallTool_blankMask(cols, rows);
     for(var y = 0; y < rows; y++) {
-        mask[y] = [];
         for(var x = 0; x < cols; x++) {
             var idx = (y * cols + x) * 4 + 3;
             mask[y][x] = pixels[idx] > WALL_TOOL_TEXT_ALPHA_THRESHOLD;
         }
     }
-
+    WALL_TOOL_TEXT_MASK_CACHE[cacheKey] = mask;
     return mask;
+}
+
+function wallTool_trimGlyphMask(mask) {
+    var rows = mask.length;
+    var cols = rows ? mask[0].length : 0;
+    var minX = cols, maxX = -1;
+    for(var y = 0; y < rows; y++) {
+        for(var x = 0; x < cols; x++) {
+            if(mask[y][x]) {
+                if(x < minX) minX = x;
+                if(x > maxX) maxX = x;
+            }
+        }
+    }
+    if(maxX < minX) return { mask: wallTool_blankMask(4, WALL_TOOL_TEXT_CHAR_ROWS), width: 4 };
+    var width = maxX - minX + 1;
+    var trimmed = wallTool_blankMask(width, rows);
+    for(var ty = 0; ty < rows; ty++) {
+        for(var tx = 0; tx < width; tx++) {
+            trimmed[ty][tx] = mask[ty][minX + tx];
+        }
+    }
+    return { mask: trimmed, width: width };
+}
+
+function wallTool_rasterizeText(text) {
+    var lines = String(text || "").replace(/\r/g, "").split("\n");
+    if(lines.length === 0) lines = [""];
+    var lineGlyphs = [];
+    var maxCols = 1;
+    var totalRows = lines.length * WALL_TOOL_TEXT_CHAR_ROWS + Math.max(0, lines.length - 1) * WALL_TOOL_TEXT_LINE_SPACING;
+
+    for(var i = 0; i < lines.length; i++) {
+        var glyphs = [];
+        var lineCols = 0;
+        for(var c = 0; c < lines[i].length; c++) {
+            var glyph = wallTool_trimGlyphMask(wallTool_rasterizeGlyph(lines[i].charAt(c)));
+            glyphs.push(glyph);
+            lineCols += glyph.width;
+            if(c < lines[i].length - 1) lineCols += WALL_TOOL_TEXT_CHAR_SPACING;
+        }
+        if(lineCols === 0) lineCols = WALL_TOOL_TEXT_CHAR_COLS;
+        if(lineCols > maxCols) maxCols = lineCols;
+        lineGlyphs.push({ glyphs: glyphs, cols: lineCols });
+    }
+
+    var mask = wallTool_blankMask(maxCols, totalRows);
+    for(var lineIndex = 0; lineIndex < lineGlyphs.length; lineIndex++) {
+        var line = lineGlyphs[lineIndex];
+        var offsetX = Math.floor((maxCols - line.cols) / 2);
+        var offsetY = lineIndex * (WALL_TOOL_TEXT_CHAR_ROWS + WALL_TOOL_TEXT_LINE_SPACING);
+        for(var gi = 0; gi < line.glyphs.length; gi++) {
+            var g = line.glyphs[gi];
+            for(var gy = 0; gy < WALL_TOOL_TEXT_CHAR_ROWS; gy++) {
+                for(var gx = 0; gx < g.width; gx++) {
+                    if(g.mask[gy][gx]) mask[offsetY + gy][offsetX + gx] = true;
+                }
+            }
+            offsetX += g.width + WALL_TOOL_TEXT_CHAR_SPACING;
+        }
+    }
+
+    return { mask: mask, cols: maxCols, rows: totalRows };
 }
 
 function wallTool_maskToSegments(mask, cols, rows) {
@@ -328,6 +369,68 @@ function wallTool_maskToSegments(mask, cols, rows) {
     }
 
     return segments;
+}
+
+function wallTool_stitchSegments(segments) {
+    var adjacency = {};
+    var used = {};
+
+    function key(x, y) {
+        return x + "," + y;
+    }
+
+    function addEdge(a, b, index) {
+        if(!adjacency[a]) adjacency[a] = [];
+        adjacency[a].push({ to: b, index: index });
+    }
+
+    for(var i = 0; i < segments.length; i++) {
+        var seg = segments[i];
+        var a = key(seg.x1, seg.y1);
+        var b = key(seg.x2, seg.y2);
+        addEdge(a, b, i);
+        addEdge(b, a, i);
+    }
+
+    function parseKey(k) {
+        var parts = k.split(",");
+        return { x: parseFloat(parts[0]), y: parseFloat(parts[1]) };
+    }
+
+    function nextEdge(pointKey, previousKey) {
+        var list = adjacency[pointKey] || [];
+        for(var i = 0; i < list.length; i++) {
+            if(!used[list[i].index] && list[i].to !== previousKey) return list[i];
+        }
+        for(var j = 0; j < list.length; j++) {
+            if(!used[list[j].index]) return list[j];
+        }
+        return null;
+    }
+
+    var paths = [];
+    for(var s = 0; s < segments.length; s++) {
+        if(used[s]) continue;
+        var first = segments[s];
+        var start = key(first.x1, first.y1);
+        var cur = key(first.x2, first.y2);
+        var prev = start;
+        var path = [parseKey(start), parseKey(cur)];
+        used[s] = true;
+
+        while(cur !== start) {
+            var edge = nextEdge(cur, prev);
+            if(!edge) break;
+            used[edge.index] = true;
+            prev = cur;
+            cur = edge.to;
+            path.push(parseKey(cur));
+        }
+
+        paths.push(path);
+    }
+
+    return paths;
 }
 
 function wallTool_mergeSegments(segments) {
@@ -409,18 +512,36 @@ function wallTool_mergeSegments(segments) {
 function wallTool_textSegmentsToWalls(segments, box) {
     var walls = [];
     if(!box || !segments || segments.length === 0) return walls;
+    var paths = wallTool_stitchSegments(segments);
 
     function toPoint(px, py) {
         return new WallPoint(
-            box.left + (px / box.cols) * box.width,
-            box.top - (py / box.rows) * box.height
+            box.renderLeft + px * box.cellSize,
+            box.renderTop - py * box.cellSize
         );
     }
 
-    for(var i = 0; i < segments.length; i++) {
-        var seg = segments[i];
-        var wall = [toPoint(seg.x1, seg.y1), toPoint(seg.x2, seg.y2)];
-        walls.push(wall);
+    function cleanWallPoints(points) {
+        var cleaned = [];
+        var length = 0;
+        for(var i = 0; i < points.length; i++) {
+            var pt = points[i];
+            var prev = cleaned.length ? cleaned[cleaned.length - 1] : null;
+            if(prev && Math.abs(prev.x - pt.x) < 1e-9 && Math.abs(prev.y - pt.y) < 1e-9) continue;
+            if(prev) length += wallTool_pointDistance(prev, pt);
+            cleaned.push(pt);
+        }
+        return length > Math.max(1e-6, box.cellSize * 0.5) ? cleaned : null;
+    }
+
+    for(var i = 0; i < paths.length; i++) {
+        if(paths[i].length < 2) continue;
+        var wall = [];
+        for(var j = 0; j < paths[i].length; j++) {
+            wall.push(toPoint(paths[i][j].x, paths[i][j].y));
+        }
+        wall = cleanWallPoints(wall);
+        if(wall) walls.push(wall);
     }
 
     return walls;
@@ -433,13 +554,17 @@ function wallTool_buildTextWalls(points, text) {
     var rawText = String(text || "");
     if(rawText.replace(/\s/g, "") === "") return [];
 
-    var cols = Math.min(WALL_TOOL_TEXT_MAX_COLS, Math.max(WALL_TOOL_TEXT_MIN_COLS, Math.round(box.width * WALL_TOOL_TEXT_RASTER_SCALE_FACTOR)));
-    var rows = Math.min(WALL_TOOL_TEXT_MAX_ROWS, Math.max(WALL_TOOL_TEXT_MIN_ROWS, Math.round(box.height * WALL_TOOL_TEXT_RASTER_SCALE_FACTOR)));
-    box.cols = cols;
-    box.rows = rows;
+    var raster = wallTool_rasterizeText(rawText);
+    var cellSize = Math.min(box.width / raster.cols, box.height / raster.rows);
+    var renderWidth = raster.cols * cellSize;
+    var renderHeight = raster.rows * cellSize;
+    box.cols = raster.cols;
+    box.rows = raster.rows;
+    box.cellSize = cellSize;
+    box.renderLeft = box.left + (box.width - renderWidth) / 2;
+    box.renderTop = box.top - (box.height - renderHeight) / 2;
 
-    var mask = wallTool_rasterizeText(rawText, cols, rows);
-    var segments = wallTool_mergeSegments(wallTool_maskToSegments(mask, cols, rows));
+    var segments = wallTool_mergeSegments(wallTool_maskToSegments(raster.mask, raster.cols, raster.rows));
     return wallTool_textSegmentsToWalls(segments, box);
 }
 
@@ -773,8 +898,12 @@ function wallTool_completeShape() {
                 vectron_render();
             }
         });
-        vectron_connectTool("select");
         wallTool_selectWalls(addedTextWalls);
+        wallTool_clearPreview();
+        wallTool_stagePoints = [];
+        wallTool_step = 0;
+        vectron_toolActive = false;
+        wallTool_updateWindow();
         vectron_render();
         if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
         return;

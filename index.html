@@ -46,10 +46,6 @@
         <script type="text/javascript" src="./js/libs/tether.js"></script>
         <script type="text/javascript" src="./js/libs/shepherd.js"></script>
 
-        <script type="text/javascript">
-            $('[data-toggle="tooltip"]').tooltip();
-        </script>
-
     </head>
     <body class="noscroll">
         <div class="info" style="display:none">
@@ -346,14 +342,14 @@
             <div id="wall-tool-body">
                 <div class="wall-tool-section">
                     <div id="wall-tool-mode-row" style="display:flex;gap:4px;flex-wrap:wrap;">
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="freeform">Freeform</button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="rect2">2-point Rect</button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="centerRect">Center Rect</button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circleCenter">Center Circle</button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circle3pt">3-point Circle</button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="arc3pt">3-point Arc</button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="ellipse3pt">3-point Ellipse</button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="text">Text</button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="freeform" aria-label="Freeform Wall" data-tooltip-title="Freeform Wall" data-tooltip-desc="Click points to draw a wall path; double-click or Shift+W to finish."><img src="./images/ObjectTools/conic-arc.svg" alt="" aria-hidden="true"></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="rect2" aria-label="2-point Rectangle" data-tooltip-title="2-point Rectangle" data-tooltip-desc="Click opposite corners to create a rectangular wall."><img src="./images/ObjectTools/2-point-rectangle.svg" alt="" aria-hidden="true"></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="centerRect" aria-label="Center-point Rectangle" data-tooltip-title="Center-point Rectangle" data-tooltip-desc="Click the center point, then click a corner to size the rectangle."><img src="./images/ObjectTools/center-point-rectangle.svg" alt="" aria-hidden="true"></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circleCenter" aria-label="Center-point Circle" data-tooltip-title="Center-point Circle" data-tooltip-desc="Click the center, click a radius point, then choose the wall count."><img src="./images/ObjectTools/center-point-circle.svg" alt="" aria-hidden="true"></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circle3pt" aria-label="3-point Circle" data-tooltip-title="3-point Circle" data-tooltip-desc="Click three circumference points, then choose the wall count."><img src="./images/ObjectTools/3-point-circle.svg" alt="" aria-hidden="true"></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="arc3pt" aria-label="3-point Arc" data-tooltip-title="3-point Arc" data-tooltip-desc="Click two arc endpoints and one radius point, then choose the wall count."><img src="./images/ObjectTools/3-point-arc.svg" alt="" aria-hidden="true"></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="ellipse3pt" aria-label="3-point Ellipse" data-tooltip-title="3-point Ellipse" data-tooltip-desc="Click the center, major axis point, and minor axis point, then choose the wall count."><img src="./images/ObjectTools/3-point-ellipse.svg" alt="" aria-hidden="true"></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="text" aria-label="Text Walls" data-tooltip-title="Text Walls" data-tooltip-desc="Type text, click two box corners, then submit walls generated from text outlines."><i class="fa-solid fa-font" aria-hidden="true"></i></button>
                     </div>
                 </div>
                 <div class="wall-tool-section" id="wall-tool-status-row">

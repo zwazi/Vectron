@@ -739,6 +739,39 @@ body.noscroll {
   margin-bottom: 8px;
 }
 
+.wall-tool-mode-btn {
+  width: 30px;
+  height: 28px;
+  padding: 3px 0;
+  line-height: 20px;
+  text-align: center;
+}
+
+.wall-tool-mode-btn i,
+.wall-tool-mode-btn img {
+  font-size: 14px;
+  line-height: 20px;
+  max-width: 18px;
+  max-height: 18px;
+  vertical-align: middle;
+}
+
+.wall-tool-mode-btn img {
+  display: inline-block;
+}
+
+.tooltip .vt-tooltip-title {
+  font-weight: bold;
+}
+
+.tooltip .vt-tooltip-desc {
+  margin-top: 4px;
+  max-width: 220px;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
 #wall-tool-points-list {
   background: rgba(0,0,0,0.04);
   border-radius: 3px;

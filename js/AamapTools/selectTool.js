@@ -58,6 +58,139 @@ var selectTool_sets = [];
 var selectTool_hoveredSet = null;
 var selectTool_hoveredAamapObj = null;
 
+function selectTool_setGlowAttrs(aamapObject, attrs) {
+    if(aamapObject && aamapObject.glowObj) aamapObject.glowObj.attr(attrs);
+}
+
+function selectTool_defaultGlowAttrs(aamapObject) {
+    if(aamapObject && aamapObject.isSelected) {
+        return {
+            "stroke-opacity": 0.75,
+            "fill-opacity": 0.05,
+            cursor: "pointer"
+        };
+    }
+    return {
+        "stroke-opacity": 0,
+        "fill-opacity": 0,
+        cursor: "default"
+    };
+}
+
+function selectTool_hoverGlowAttrs(aamapObject) {
+    if(aamapObject && aamapObject.isSelected) {
+        return {
+            "stroke-opacity": 0.95,
+            "fill-opacity": 0.08,
+            cursor: "pointer"
+        };
+    }
+    return {
+        "stroke-opacity": 0.45,
+        "fill-opacity": 0.08,
+        cursor: "pointer"
+    };
+}
+
+function selectTool_beginRenderCycle() {
+    selectTool_sets = [];
+    if(!vectron_toolActive) {
+        selectTool_hoveredSet = null;
+        selectTool_hoveredAamapObj = null;
+    }
+}
+
+function selectTool_pointInGlow(aamapObject, x, y) {
+    if(!aamapObject || !aamapObject.glowObj) return false;
+    var bbox = aamapObject.glowObj.getBBox();
+    if(!bbox || !isFinite(bbox.x) || !isFinite(bbox.y) || !isFinite(bbox.width) || !isFinite(bbox.height)) return false;
+    return x >= bbox.x && x <= bbox.x + bbox.width && y >= bbox.y && y <= bbox.y + bbox.height;
+}
+
+function selectTool_glowArea(aamapObject) {
+    if(!aamapObject || !aamapObject.glowObj) return Infinity;
+    var bbox = aamapObject.glowObj.getBBox();
+    if(!bbox || !isFinite(bbox.width) || !isFinite(bbox.height)) return Infinity;
+    return bbox.width * bbox.height;
+}
+
+function selectTool_findSetForObject(aamapObject) {
+    if(!aamapObject) return null;
+    for(var i = selectTool_sets.length - 1; i >= 0; i--) {
+        if(selectTool_sets[i] && selectTool_sets[i][0] == aamapObject.obj) return selectTool_sets[i];
+    }
+    return null;
+}
+
+function selectTool_resolveHoveredSetFromCursor() {
+    var x = cursor_realX;
+    var y = cursor_realY;
+    var bestObj = null;
+    var bestArea = Infinity;
+
+    for(var i = aamap_objects.length - 1; i >= 0; i--) {
+        if(selectTool_pointInGlow(aamap_objects[i], x, y)) {
+            var area = selectTool_glowArea(aamap_objects[i]);
+            if(area < bestArea) {
+                bestArea = area;
+                bestObj = aamap_objects[i];
+            }
+        }
+    }
+
+    for(var j = 0; j < aamap_objects.length; j++) {
+        selectTool_setGlowAttrs(aamap_objects[j], selectTool_defaultGlowAttrs(aamap_objects[j]));
+        if(aamap_objects[j].obj) aamap_objects[j].obj.attr("cursor", "default");
+    }
+
+    selectTool_hoveredAamapObj = bestObj;
+    selectTool_hoveredSet = selectTool_findSetForObject(bestObj);
+    shouldAddToSelected = bestObj ? !bestObj.isSelected : false;
+
+    if(bestObj) {
+        selectTool_setGlowAttrs(bestObj, selectTool_hoverGlowAttrs(bestObj));
+        if(bestObj.obj) bestObj.obj.attr("cursor", "pointer");
+    }
+
+    return selectTool_hoveredSet != null;
+}
+
+function selectTool_updateHoverFromCursor() {
+    if(vectron_currentTool !== "select" || vectron_toolActive) return;
+    selectTool_resolveHoveredSetFromCursor();
+}
+
+function selectTool_addToSelection(aamapObject) {
+    if(!aamapObject) return;
+    aamapObject.isSelected = true;
+    if(selectTool_selectedObjs.indexOf(aamapObject) === -1) {
+        selectTool_selectedObjs.push(aamapObject);
+    }
+}
+
+function selectTool_removeSelectionBox(aamapObject) {
+    if(aamapObject && aamapObject.glowObj) {
+        aamapObject.glowObj.remove();
+        aamapObject.glowObj = null;
+    }
+}
+
+function selectTool_removeSelectedGlowRects() {
+    for(var i = 0; i < selectTool_selectedObjs.length; i++) {
+        selectTool_removeSelectionBox(selectTool_selectedObjs[i]);
+    }
+}
+
+function selectTool_renderSelectedGlowRects() {
+    if(vectron_currentTool !== "select") return;
+    for(var i = 0; i < selectTool_selectedObjs.length; i++) {
+        if(selectTool_selectedObjs[i].glowObj) {
+            selectTool_selectedObjs[i].glowObj.toFront();
+            selectTool_selectedObjs[i].obj.toFront();
+        }
+    }
+}
+
 function selectTool_connect() {
     $(".toolbar-toolSelect").addClass("toolbar-tool-active");
     cursor_active = false;
@@ -87,6 +220,8 @@ function selectTool_disconnect() {
 function selectTool_start() {
     if(selectTool_guideObj != null) selectTool_guideObj.remove();
 
+    selectTool_resolveHoveredSetFromCursor();
+
     if(selectTool_hoveredSet != null) {
         // we have a move!
         // find the hovered aaobject and add it to the selected list
@@ -96,8 +231,7 @@ function selectTool_start() {
                 selectTool_hoveredAamapObj = aamap_objects[i];
                 selectTool_clickedAlreadySelected = selectTool_hoveredAamapObj.isSelected;
                 if(shouldAddToSelected) {
-                    selectTool_hoveredAamapObj.isSelected = true;
-                    selectTool_selectedObjs.push(selectTool_hoveredAamapObj);
+                    selectTool_addToSelection(selectTool_hoveredAamapObj);
                 }
             }
         }
@@ -148,7 +282,7 @@ function selectTool_progress() {
 
         selectTool_selectedObjs.forEach(function(e) {
             e.obj.translate(-dx, -dy);
-            e.glowObj.translate(-dx, -dy);
+            if(e.glowObj) e.glowObj.translate(-dx, -dy);
         });
 
         return;
@@ -198,22 +332,6 @@ function selectTool_complete() {
 
         var movedObjs = selectTool_selectedObjs.slice();
         var finalDx = -dx, finalDy = -dy;
-
-        // Click (no drag) on an already-selected object: deselect it
-        if (finalDx === 0 && finalDy === 0 && selectTool_clickedAlreadySelected) {
-            var deselectObj = selectTool_hoveredAamapObj;
-            var idx = selectTool_selectedObjs.indexOf(deselectObj);
-            if (idx >= 0) selectTool_selectedObjs.splice(idx, 1);
-            selectTool_deselect(deselectObj);
-            selectTool_hoveredAamapObj = null;
-            selectTool_hoveredSet = null;
-            selectTool_clickedAlreadySelected = false;
-            shouldAddToSelected = false;
-            vectron_toolActive = false;
-            vectron_render();
-            if (window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
-            return;
-        }
 
         selectTool_clickedAlreadySelected = false;
 
@@ -320,12 +438,16 @@ function selectTool_selectArea(xStart, yStart, xEnd, yEnd, select)
     var selectFunc = select ? (function()
         {
             selectTool_select(curObj);
-            selectTool_selectedObjs.push( curObj );
+            if(selectTool_selectedObjs.indexOf(curObj) === -1) {
+                selectTool_selectedObjs.push( curObj );
+            }
         }
     ) : (function()
         {
             // give to-be-selected items a green glow
-            curObj.glowObj.attr("stroke", "#44ff44");
+            if(curObj.glowObj) {
+                curObj.glowObj.attr({"stroke": "#44ff44", "stroke-opacity": 0.45, "fill-opacity": 0.08});
+            }
         }
     );
     
@@ -337,9 +459,7 @@ function selectTool_selectArea(xStart, yStart, xEnd, yEnd, select)
         var curObj = aamap_objects[i];
         
         // reset glow before and during selecting
-        curObj.glowObj.attr("stroke", (
-            selectTool_selectedObjs.indexOf() !== -1 )?("#375ffc"):(config_isDark?"#000000":"#FFFFFF")
-        );
+        selectTool_setGlowAttrs(curObj, selectTool_defaultGlowAttrs(curObj));
         
         if( curObj instanceof Wall ) {
             for(var j = 0; j < curObj.points.length - 1; j++) {
@@ -597,25 +717,59 @@ function selectTool_circIntersectsRect(p1, r, x0, y0, x1, y1) {
 }
 
 function selectTool_addInvisibleGlow(aamapObject) {
-    var hitWidth = Math.min(Math.max(8, Math.round(12 / vectron_zoom)), 60);
-    aamapObject.glowObj = aamapObject.obj.glow({color: config_isDark?"#000000":"#FFFFFF", width: hitWidth, opacity: 0.01});
+    var bbox = aamapObject.obj.getBBox();
+    if(!bbox || !isFinite(bbox.x) || !isFinite(bbox.y) || !isFinite(bbox.width) || !isFinite(bbox.height)) return;
+    var pad = Math.min(Math.max(10, Math.round(14 / vectron_zoom)), 80);
+    aamapObject.glowObj = vectron_screen.rect(
+        bbox.x - pad,
+        bbox.y - pad,
+        Math.max(1, bbox.width + pad * 2),
+        Math.max(1, bbox.height + pad * 2)
+    ).attr({
+        stroke: "#375ffc",
+        "stroke-width": 1,
+        "stroke-opacity": 0,
+        fill: "#375ffc",
+        "fill-opacity": 0
+    });
+    selectTool_setGlowAttrs(aamapObject, selectTool_defaultGlowAttrs(aamapObject));
+    aamapObject.glowObj.insertBefore(aamapObject.obj);
+    aamapObject.obj.toFront();
 }
 
 function selectTool_removeInvisibleGlow(aamapObject) {
+    if(!aamapObject.glowObj) return;
     aamapObject.glowObj.remove();
     aamapObject.glowObj = null;
 }
 
 function selectTool_addHoverSet(aamapObject) {
     selectTool_addInvisibleGlow(aamapObject);
+    if(!aamapObject.glowObj) return;
     var set = vectron_screen.set().push(aamapObject.obj, aamapObject.glowObj);
     selectTool_sets.push(set);
     set.hoverset(vectron_screen, selectTool_hoverIn, selectTool_hoverOut);
 }
 
 function selectTool_addHoverSetSelected(aamapObject) {
-    var hitWidth = Math.min(Math.max(10, Math.round(16 / vectron_zoom)), 80);
-    aamapObject.glowObj = aamapObject.obj.glow({color: config_isDark ? "#77bbff" : "#375ffc", width: hitWidth, opacity: config_isDark ? 0.4 : 0.25});
+    var bbox = aamapObject.obj.getBBox();
+    if(!bbox || !isFinite(bbox.x) || !isFinite(bbox.y) || !isFinite(bbox.width) || !isFinite(bbox.height)) return;
+    var pad = Math.min(Math.max(12, Math.round(18 / vectron_zoom)), 90);
+    aamapObject.glowObj = vectron_screen.rect(
+        bbox.x - pad,
+        bbox.y - pad,
+        Math.max(1, bbox.width + pad * 2),
+        Math.max(1, bbox.height + pad * 2)
+    ).attr({
+        stroke: config_isDark ? "#77bbff" : "#375ffc",
+        "stroke-width": 1,
+        "stroke-opacity": 0,
+        fill: config_isDark ? "#77bbff" : "#375ffc",
+        "fill-opacity": 0
+    });
+    selectTool_setGlowAttrs(aamapObject, selectTool_defaultGlowAttrs(aamapObject));
+    aamapObject.glowObj.insertBefore(aamapObject.obj);
+    aamapObject.obj.toFront();
     var set = vectron_screen.set().push(aamapObject.obj, aamapObject.glowObj);
     selectTool_sets.push(set);
     set.hoverset(vectron_screen, selectTool_hoverInSelected, selectTool_hoverOutSelected);
@@ -624,41 +778,27 @@ function selectTool_addHoverSetSelected(aamapObject) {
 var selectTool_hoverIn = function(evt) {
     if(vectron_toolActive) return;
 
-    shouldAddToSelected = true;
-    this[1].attr("stroke", "#375ffc").attr("cursor", "pointer");
-    this[0].attr("cursor", "pointer");
-    selectTool_hoveredSet = this;
+    selectTool_resolveHoveredSetFromCursor();
 }
 
 var selectTool_hoverOut = function(evt) {
     if(vectron_toolActive) return;
 
-    shouldAddToSelected = false;
-    this[1].attr("stroke", config_isDark?"#000000":"#FFFFFF").attr("cursor", "default");
-    this[0].attr("cursor", "default");
+    selectTool_resolveHoveredSetFromCursor();
     gui_writeLog("Null Now");
-    selectTool_hoveredSet = null;
-    selectTool_hoveredAamapObj = null;
 }
 
 var selectTool_hoverInSelected = function(evt) {
     if(vectron_toolActive) return;
-    shouldAddToSelected = false;
 
-    this[0].attr("cursor", "pointer");
-    this[1].attr("cursor", "pointer");
-    selectTool_hoveredSet = this;
+    selectTool_resolveHoveredSetFromCursor();
 }
 
 var selectTool_hoverOutSelected = function(evt) {
     if(vectron_toolActive) return;
-    shouldAddToSelected = false;
 
-    this[0].attr("cursor", "default");
-    this[1].attr("cursor", "deafult");
+    selectTool_resolveHoveredSetFromCursor();
     gui_writeLog("NUll now");
-    selectTool_hoveredSet = null;
-    selectTool_hoveredAamapObj = null;
 }
 
 
