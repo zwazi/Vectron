@@ -40,8 +40,10 @@ var config_gridNarrowThickness = 0; // 0 = use default (1)
 var config_gridTenthThickness  = 0; // 0 = use default (0.5)
 var config_gridAxisXThickness  = 0; // 0 = use default (1)
 var config_gridAxisYThickness  = 0; // 0 = use default (1)
+// Default until config_load() replaces it with saved state or stored default.
 var config_gridLayout          = 'square';
 var GRID_LAYOUT_EPSILON        = 1e-6;
+var GRID_LAYOUT_LINE_PADDING   = 1.2;
 
 function gridLayout_getLineAngles(layout) {
     switch(layout) {
@@ -82,6 +84,8 @@ function gridLayout_snapPoint(x, y, spacing, originX, originY) {
 
     for(var i = 0; i < families.length; i++) {
         var angle = families[i];
+        // The normal vector is perpendicular to the line direction, so dotting
+        // it with the point gives the signed distance from the origin-facing line.
         var nx = -Math.sin(angle);
         var ny = Math.cos(angle);
         lineValues[i] = Math.round((relX * nx + relY * ny) / spacing) * spacing;
