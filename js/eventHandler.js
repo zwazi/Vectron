@@ -35,7 +35,7 @@ var eventHandler_middlePanStartX = 0, eventHandler_middlePanStartY = 0;
 function eventHandler_init() {
 
     var $contextMenu = $("#contextMenu");
-  
+
     $("#canvas_container").on("contextmenu", function(e) {
         aamap_active = false;
         // Show/hide vertex delete based on current tool and selection
@@ -45,13 +45,13 @@ function eventHandler_init() {
             wallVertexMoveTool_selectedPtIdx >= 0);
         $("#contextMenu-delete-vertex").parent().toggle(showVertexDelete);
         $contextMenu.css({
-            left: ( $contextMenu.width()+e.pageX > $("body").width() ) ? 
-                    (e.pageX - $contextMenu.width() + 4) : 
+            left: ( $contextMenu.width()+e.pageX > $("body").width() ) ?
+                    (e.pageX - $contextMenu.width() + 4) :
                 e.pageX,
             top: ( $contextMenu.height()+e.pageY > $("body").height() ) ? (
-                    ( $contextMenu.height() >= ( $("body").height() - 4 ) || e.pageY < $contextMenu.height() ) ? 
+                    ( $contextMenu.height() >= ( $("body").height() - 4 ) || e.pageY < $contextMenu.height() ) ?
                         0 : (e.pageY - $contextMenu.height() + 4)
-                    ) : 
+                    ) :
                 e.pageY,
         });
         $contextMenu.fadeIn(150);
@@ -79,7 +79,7 @@ function eventHandler_init() {
             return;
         }
     });
-    
+
     $contextMenu.on("contextmenu", function(e) {
         aamap_active = true;
         $contextMenu.fadeOut(150);
@@ -173,7 +173,7 @@ function eventHandler_init() {
         else
             disable_dark_theme();
     });
-    
+
     $("#show-info-bar").change(function(box)
     {
         if($("#show-info-bar").is(':checked'))
@@ -181,7 +181,7 @@ function eventHandler_init() {
         else
             hide_info_bar();
     });
-    
+
     $("#show-debug-panel").change(function(box)
     {
         if($("#show-debug-panel").is(':checked'))
@@ -247,7 +247,7 @@ function eventHandler_init() {
             redo: function() { affectedObjs.forEach(function(o){ o.rotateSimple(1); }); aamap_panCenter(); }
         });
     });
-    
+
     $("#rotate_map").mouseup(function(e)
     {
         var ang = parseFloat($("#map_rot_angle").val());
@@ -313,7 +313,7 @@ function eventHandler_init() {
     $(".toolbar-copy").mouseup(function(e) {
         selectTool_copy();
     });
-    
+
     $(".toolbar-paste").mouseup(function(e) {
         selectTool_paste();
     });
@@ -427,9 +427,22 @@ function eventHandler_init() {
 
     // Finish wall button
     $("#wall-tool-finish").on("click", function() {
-        if (vectron_currentTool === "wall" && vectron_toolActive && wallTool_currentObj && wallTool_currentObj.points.length >= 2) {
-            wallTool_finishWall();
+        if (vectron_currentTool === "wall" && vectron_toolActive) {
+            wallTool_complete();
         }
+    });
+
+    $(document).on("click", ".wall-tool-mode-btn", function(e) {
+        e.preventDefault();
+        if(vectron_currentTool !== "wall") {
+            vectron_connectTool("wall");
+        }
+        wallTool_setMode($(this).data("mode"));
+    });
+
+    $("#dWallSegments").on("change input", function() {
+        wallTool_refreshCountInput(true);
+        wallTool_renderCurrent();
     });
 
     // Wall tool window drag
@@ -802,7 +815,7 @@ function eventHandler_init() {
         if(!cursor_snap) {
             $('.toolbar-toolUnlock-list').css('display','none');
             $('.toolbar-toolLock-list').css('display','block');
-           
+
         } else {
             $('.toolbar-toolLock-list').css('display','none');
             $('.toolbar-toolUnlock-list').css('display','block');
@@ -858,7 +871,7 @@ function eventHandler_init() {
         if(vectron_currentTool == "select" && !vectron_toolActive) {
             selectTool_delete();
         } else if(vectron_currentTool == "wall" && vectron_toolActive) {
-            if(wallTool_currentObj.points.length > 1)
+            if(wallTool_mode === "freeform" && wallTool_currentObj && wallTool_currentObj.points.length > 1)
             {
                 wallTool_currentObj.points.pop();
                 vectron_render();
@@ -927,8 +940,7 @@ function eventHandler_init() {
         switch (e.which) {
             case 1:
                 if(vectron_currentTool == "wall") {
-                    if(!vectron_toolActive) wallTool_start();
-                    else wallTool_progress();
+                    wallTool_handleClick();
                 } else if(vectron_currentTool == "zone") {
                     zoneTool_complete();
                 } else if(vectron_currentTool == "spawn") {
@@ -997,7 +1009,7 @@ function eventHandler_init() {
             default:
                 alert('You have a strange Mouse!');
         }
-    }); 
+    });
 
 
     $("#canvas_container").mousemove(function(event) {
@@ -1020,11 +1032,13 @@ function eventHandler_init() {
 
         cursor_render(cursor_pageX, cursor_pageY, vectron_zoom*vectron_grid_spacing);
 
-        if(vectron_currentTool == "wall" && vectron_toolActive) {
-            wallTool_currentObj.guide();
-            navigationTool_autopan(function(){
-                wallTool_currentObj.guide();
-            });
+        if(vectron_currentTool == "wall") {
+            wallTool_renderCurrent();
+            if(vectron_toolActive) {
+                navigationTool_autopan(function(){
+                    wallTool_renderCurrent();
+                });
+            }
         } else if(vectron_currentTool == "zone") {
             zoneTool_guide();
         } else if(vectron_currentTool == "spawn") {
@@ -1045,7 +1059,7 @@ function eventHandler_init() {
         }
 
     });
-    
+
     var prev_vectron_zoom = 0;
     var prev_vectron_panX = 0, prev_vectron_panY = 0;
     var zoom_mouse_x = 0, zoom_mouse_y = 0;
@@ -1149,7 +1163,7 @@ function eventHandler_init() {
                 eventHandler_shift = false;
             }
         }).keydown(function(evt) {
-            if (evt.keyCode == 16 && !eventHandler_shift) {    
+            if (evt.keyCode == 16 && !eventHandler_shift) {
                 gui_writeLog("shift down.");
                 eventHandler_shift = true;
             }
@@ -1349,9 +1363,7 @@ function eventHandler_init() {
 
     // Wall height bar: update wall height input on change
     $("#dWallHeight").on("change input", function() {
-        var v = parseInt($(this).val());
-        if(isNaN(v) || v < 1) { $(this).val(1); }
-        else if(v > 50) { $(this).val(50); }
+        wallTool_getHeight();
     });
 
     // New map button (toolbar) — show popover instead of native confirm
@@ -1428,8 +1440,7 @@ window.onresize = function() {
     var height = $("#canvas_container").height();
     vectron_screen.setSize(width, height);
     vectron_screen.setViewBox((vectron_width-width)/2, (vectron_height-height)/2, width, height);
-    
+
     clearTimeout(__resize_timeout);
     __resize_timeout = setTimeout(function(){vectron_render()},150);
 }
-
