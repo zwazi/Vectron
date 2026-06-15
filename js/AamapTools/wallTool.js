@@ -35,6 +35,7 @@ function WallPoint(x, y) {
 
 var wallTool_currentObj = null;
 var wallTool_previewObj = null;
+var wallTool_textObject = null;
 var wallTool_mode = "freeform";
 var wallTool_step = 0;
 var wallTool_stagePoints = [];
@@ -48,6 +49,7 @@ var WALL_TOOL_MAX_SEGMENTS = 720;
 var WALL_TOOL_COORD_PRECISION = 1e6;
 var WALL_TOOL_BUTTON_LABEL_FINISH = "Finish Wall";
 var WALL_TOOL_BUTTON_LABEL_GENERATE = "Generate Walls";
+var WALL_TOOL_BUTTON_LABEL_SUBMIT = "Submit";
 
 function wallTool_clearPreview() {
     if(wallTool_previewObj != null) {
@@ -70,6 +72,68 @@ function wallTool_resetDraft() {
     wallTool_step = 0;
     wallTool_stagePoints = [];
     vectron_toolActive = false;
+}
+
+function wallTool_getTextValue() {
+    var el = document.getElementById("dWallText");
+    if(!el) return "";
+    return el.value;
+}
+
+function wallTool_hasTextDraft() {
+    return wallTool_textObject != null;
+}
+
+function wallTool_createTextObject() {
+    if(wallTool_stagePoints.length < 2) return null;
+    var text = wallTool_getTextValue();
+    if(!text || !text.trim()) {
+        gui_writeLog("Enter some text first.");
+        return null;
+    }
+    var p1 = wallTool_stagePoints[0];
+    var p2 = wallTool_stagePoints[1];
+    var left = Math.min(p1.x, p2.x);
+    var right = Math.max(p1.x, p2.x);
+    var top = Math.max(p1.y, p2.y);
+    var bottom = Math.min(p1.y, p2.y);
+    var textObj = new Text((left + right) / 2, (top + bottom) / 2, text, right - left, top - bottom);
+    aamap_add(textObj);
+    textObj.render();
+    wallTool_textObject = textObj;
+    selectTool_deselectAll();
+    selectTool_select(textObj);
+    selectTool_selectedObjs.push(textObj);
+    aamap_recordAction({
+        label: "Add text",
+        undo: function() { if(wallTool_textObject === textObj) wallTool_textObject = null; _aamap_removeObj(textObj); selectTool_deselectAll(); vectron_render(); },
+        redo: function() { aamap_objects.push(textObj); wallTool_textObject = textObj; textObj.render(); selectTool_deselectAll(); selectTool_select(textObj); selectTool_selectedObjs.push(textObj); vectron_render(); }
+    });
+    wallTool_stagePoints = [];
+    wallTool_step = 0;
+    selectTool_connect();
+    vectron_currentTool = "select";
+    $(".toolbar-toolWall").removeClass("toolbar-tool-active");
+    vectron_toolActive = false;
+    wallTool_updateWindow();
+    vectron_render();
+    return textObj;
+}
+
+function wallTool_finishText() {
+    if(!wallTool_textObject) {
+        if(wallTool_stagePoints.length >= 2) {
+            wallTool_createTextObject();
+        }
+    }
+    if(!wallTool_textObject) {
+        gui_writeLog("Click two points to generate the text first.");
+        return;
+    }
+    wallTool_textObject = null;
+    wallTool_step = 0;
+    wallTool_stagePoints = [];
+    wallTool_disconnect();
 }
 
 function wallTool_getHeight() {
@@ -292,7 +356,8 @@ function wallTool_modeLabel() {
         "circleCenter": "Center-point Circle",
         "circle3pt": "3-point Circle",
         "arc3pt": "3-point Arc",
-        "ellipse3pt": "3-point Ellipse"
+        "ellipse3pt": "3-point Ellipse",
+        "text": "Text"
     };
     return labels[wallTool_mode] || "Wall Tool";
 }
@@ -309,17 +374,19 @@ function wallTool_updateWindow() {
     var finishBtn = document.getElementById("wall-tool-finish");
     var countSection = document.getElementById("wall-tool-count-section");
     var pointsSection = document.getElementById("wall-tool-points-section");
+    var textSection = document.getElementById("wall-tool-text-section");
     var modeButtons = $(".wall-tool-mode-btn");
 
     modeButtons.removeClass("active");
     modeButtons.filter("[data-mode='" + mode + "']").addClass("active");
 
     if(pointsSection) pointsSection.style.display = isFreeform ? "" : "none";
+    if(textSection) textSection.style.display = (mode === "text") ? "" : "none";
     if(countSection) countSection.style.display = isCountMode ? "" : "none";
     if(finishBtn) {
-        var showFinish = isCountMode || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2);
+        var showFinish = isCountMode || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2) || (mode === "text" && wallTool_hasTextDraft());
         finishBtn.style.display = showFinish ? "" : "none";
-        finishBtn.innerHTML = isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : WALL_TOOL_BUTTON_LABEL_FINISH;
+        finishBtn.innerHTML = isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : ((mode === "text") ? WALL_TOOL_BUTTON_LABEL_SUBMIT : WALL_TOOL_BUTTON_LABEL_FINISH);
     }
 
     if(isFreeform) {
@@ -336,6 +403,8 @@ function wallTool_updateWindow() {
         wallTool_setStatus(wallTool_step < 3 ? "Click two endpoints and a radius point." : "Set the wall count, then generate the arc.");
     } else if(mode === "ellipse3pt") {
         wallTool_setStatus(wallTool_step < 3 ? "Click the center, major axis, then minor axis." : "Set the wall count, then generate the ellipse.");
+    } else if(mode === "text") {
+        wallTool_setStatus(wallTool_hasTextDraft() ? "Text added. Fine tune it with the Select tool, then click Submit." : "Enter text, then click two opposite corners to size it.");
     }
 }
 
@@ -385,6 +454,11 @@ function wallTool_getDraftPoints(candidatePoint) {
     if(wallTool_mode === "ellipse3pt") {
         if(pts.length < 3) return pts;
         return wallTool_ellipsePoints(pts[0], pts[1], pts[2], wallTool_getSegmentInput());
+    }
+
+    if(wallTool_mode === "text") {
+        if(pts.length < 2) return pts;
+        return wallTool_makeRectangle(pts[0], pts[1]);
     }
 
     return null;
@@ -462,6 +536,18 @@ function wallTool_completeShape() {
     }
     if((wallTool_mode === "circle3pt" || wallTool_mode === "arc3pt" || wallTool_mode === "ellipse3pt") && wallTool_stagePoints.length < 3) {
         gui_writeLog("Select all required points first.");
+        return;
+    }
+    if(wallTool_mode === "text") {
+        if(wallTool_hasTextDraft()) {
+            wallTool_finishText();
+            return;
+        }
+        if(wallTool_stagePoints.length < 2) {
+            gui_writeLog("Select two points first.");
+            return;
+        }
+        wallTool_createTextObject();
         return;
     }
 
@@ -583,6 +669,27 @@ function wallTool_handleShapeClick() {
         wallTool_renderCurrent();
         return;
     }
+
+    if(wallTool_mode === "text") {
+        if(wallTool_hasTextDraft()) {
+            return;
+        }
+        var text = wallTool_getTextValue();
+        if(!text || !text.trim()) {
+            gui_writeLog("Enter some text first.");
+            return;
+        }
+        wallTool_stagePoints.push(pt);
+        wallTool_step = wallTool_stagePoints.length;
+        if(wallTool_stagePoints.length >= 2) {
+            wallTool_createTextObject();
+            return;
+        }
+        vectron_toolActive = true;
+        wallTool_updateWindow();
+        wallTool_renderCurrent();
+        return;
+    }
 }
 
 function wallTool_handleFreeformClick() {
@@ -634,6 +741,7 @@ function wallTool_renderCurrent() {
         (wallTool_mode === "rect2" || wallTool_mode === "centerRect") ? new WallPoint(aamap_mapX(cursor_realX), aamap_mapY(cursor_realY)) :
         (wallTool_mode === "circleCenter" && wallTool_stagePoints.length >= 1) ? new WallPoint(aamap_mapX(cursor_realX), aamap_mapY(cursor_realY)) :
         (wallTool_mode === "circle3pt" || wallTool_mode === "arc3pt" || wallTool_mode === "ellipse3pt") ? new WallPoint(aamap_mapX(cursor_realX), aamap_mapY(cursor_realY)) :
+        (wallTool_mode === "text") ? new WallPoint(aamap_mapX(cursor_realX), aamap_mapY(cursor_realY)) :
         null
     );
 
@@ -710,6 +818,10 @@ function wallTool_complete() {
 }
 
 function wallTool_finishWall() {
+    if(wallTool_mode === "text") {
+        wallTool_finishText();
+        return;
+    }
     if(wallTool_mode !== "freeform") {
         wallTool_completeShape();
         return;
@@ -741,6 +853,7 @@ function wallTool_finishWall() {
 function wallTool_disconnect() {
     wallTool_clearPreview();
     wallTool_clearCurrentWall();
+    wallTool_textObject = null;
     wallTool_step = 0;
     wallTool_stagePoints = [];
     vectron_toolActive = false;

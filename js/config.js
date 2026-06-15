@@ -37,7 +37,7 @@ var config_gridTenthColor      = '';
 var config_gridAxisXColor      = '';
 var config_gridAxisYColor      = '';
 var config_gridNarrowThickness = 0; // 0 = use default (1)
-var config_gridTenthThickness  = 0; // 0 = use default (0.5)
+var config_gridTenthThickness  = 0; // 0 = use default (1)
 var config_gridAxisXThickness  = 0; // 0 = use default (1)
 var config_gridAxisYThickness  = 0; // 0 = use default (1)
 // Default until config_load() replaces it with saved state or stored default.
@@ -482,7 +482,7 @@ function gridConfig_buildUI() {
     // Default values for comparison
     var defaultNarrowLight = '#d6d6ec', defaultNarrowDark = '#1a1a1a';
     var defaultAxisX = '#2244cc', defaultAxisY = '#cc2222';
-    var defaultThickNarrow = 1, defaultThickTenth = 0.5, defaultThickX = 1, defaultThickY = 1;
+    var defaultThickNarrow = 1, defaultThickTenth = 1, defaultThickX = 1, defaultThickY = 1;
 
     function getDefaultNarrowColor() { return config_isDark ? defaultNarrowDark : defaultNarrowLight; }
     function getDefaultTenthColor()  { return getDefaultNarrowColor(); }
@@ -491,7 +491,7 @@ function gridConfig_buildUI() {
         { label: 'Narrow lines', colorKey: 'gridNarrowColor', thickKey: 'gridNarrowThickness',
           defaultColor: getDefaultNarrowColor, defaultThick: defaultThickNarrow },
         { label: 'Every 10th line', colorKey: 'gridTenthColor', thickKey: 'gridTenthThickness',
-          defaultColor: getDefaultTenthColor, defaultThick: defaultThickTenth },
+          defaultColor: function(){ return '#7f7f7f'; }, defaultThick: defaultThickTenth },
         { label: 'X axis (y=0)', colorKey: 'gridAxisXColor', thickKey: 'gridAxisXThickness',
           defaultColor: function(){ return defaultAxisX; }, defaultThick: defaultThickX },
         { label: 'Y axis (x=0)', colorKey: 'gridAxisYColor', thickKey: 'gridAxisYThickness',

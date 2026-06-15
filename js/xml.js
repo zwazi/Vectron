@@ -92,6 +92,23 @@ function xml_process_piece(xml)
 
     $(xml).find("*").each(function(){switch(this.tagName.toLowerCase())
     {
+    case "text": {
+        var textNode = $(this);
+        var x = parseFloat(textNode.attr("x"));
+        var y = parseFloat(textNode.attr("y"));
+        var width = parseFloat(textNode.attr("width"));
+        var height = parseFloat(textNode.attr("height"));
+        var size = parseFloat(textNode.attr("size"));
+        var text = textNode.text();
+        if(isNaN(width) || width <= 0) width = Math.max(1, text.length * 0.75);
+        if(isNaN(height) || height <= 0) height = Math.max(1, isNaN(size) || size <= 0 ? 1.5 : size * 1.5);
+        ptsx.push(x - width / 2, x + width / 2);
+        ptsy.push(y - height / 2, y + height / 2);
+        var textObj = new Text(x, y, text, width, height, size);
+        textObj.render();
+        aamap_add(textObj);
+    } break;
+    
     case "spawn": {
         var spawn = $(this);
         var x = spawn.attr("x");
