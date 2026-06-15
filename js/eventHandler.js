@@ -36,8 +36,7 @@ function eventHandler_init() {
 
     var $contextMenu = $("#contextMenu");
 
-    $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']), textarea", function(e) {
-        if (this.tagName === "TEXTAREA") return;
+    $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden'])", function(e) {
         if (e.key !== "Enter" || e.isDefaultPrevented()) return;
         e.preventDefault();
         this.blur();

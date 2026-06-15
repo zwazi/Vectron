@@ -28,7 +28,7 @@ var gui_active = false;
 var gui_floatingWindowRegistry = [];
 
 var GUI_FLOATING_WINDOW_MARGIN = 8;
-var GUI_FLOATING_WINDOW_TOP = 46;
+var GUI_FLOATING_WINDOW_DEFAULT_TOP = 46;
 var GUI_FLOATING_WINDOW_DOCK_THRESHOLD = 42;
 
 /** Clamp a window position so it stays fully within the viewport, does not overlap the 50px left toolbar, the 36px top settings bar, or the bottom info bar. */
@@ -187,7 +187,7 @@ function gui_setupDockableWindow(opts) {
                 var left = parseFloat(win.getAttribute("data-vt-last-left"));
                 var top = parseFloat(win.getAttribute("data-vt-last-top"));
                 if (isNaN(left) || isNaN(top)) {
-                    var fallback = gui_clampToScreen(win, window.innerWidth - (win.offsetWidth || 0) - 64, GUI_FLOATING_WINDOW_TOP);
+                    var fallback = gui_clampToScreen(win, window.innerWidth - (win.offsetWidth || 0) - 64, GUI_FLOATING_WINDOW_DEFAULT_TOP);
                     left = fallback[0];
                     top = fallback[1];
                 }
@@ -311,10 +311,11 @@ function actionHistory_hide() {
 }
 
 function gui_writeLog(message) {
+    var element = document.getElementById("debug_stream");
+    if (!element) return;
     var span = document.createElement("span");
     span.textContent = message;
-    document.getElementById("debug_stream").appendChild(span);
-    var element = document.getElementById("debug_stream");
+    element.appendChild(span);
     element.scrollTop = element.scrollHeight;
 }
 
@@ -526,13 +527,13 @@ function mapSettings_addFromUI() {
     var valueEl  = document.getElementById('map-settings-value');
     if (!searchEl) return;
 
-    function blurInputs() {
+    function releaseInputFocus() {
        searchEl.blur();
        if (valueEl) valueEl.blur();
     }
 
     var raw = searchEl.value.trim();
-    if (!raw) { blurInputs(); return; }
+    if (!raw) { releaseInputFocus(); return; }
 
     var entry;
     // If there's already a space, treat the whole thing as "NAME VALUE"
@@ -541,20 +542,20 @@ function mapSettings_addFromUI() {
     } else {
         // Use separate value field
         var val = valueEl ? valueEl.value.trim() : '';
-        if (!val) { gui_toast('Please enter a value.'); blurInputs(); return; }
+        if (!val) { gui_toast('Please enter a value.'); releaseInputFocus(); return; }
         entry = raw + ' ' + val;
     }
 
     // Avoid duplicates by name
     var spaceIdx = entry.indexOf(' ');
-    if (spaceIdx < 0) { gui_toast('Invalid setting format. Use: NAME VALUE'); blurInputs(); return; }
+    if (spaceIdx < 0) { gui_toast('Invalid setting format. Use: NAME VALUE'); releaseInputFocus(); return; }
     var namePart = entry.slice(0, spaceIdx).toUpperCase();
     for (var i = 0; i < xml_settings.length; i++) {
         var existingSpace = xml_settings[i].indexOf(' ');
         var existingName = existingSpace >= 0 ? xml_settings[i].slice(0, existingSpace).toUpperCase() : xml_settings[i].toUpperCase();
         if (existingName === namePart) {
             gui_toast('Setting "' + namePart + '" already exists. Remove it first.');
-            blurInputs();
+            releaseInputFocus();
             return;
         }
     }
@@ -565,7 +566,7 @@ function mapSettings_addFromUI() {
     searchEl.value = '';
     if (valueEl) valueEl.value = '';
     document.getElementById('map-settings-dropdown').style.display = 'none';
-    blurInputs();
+    releaseInputFocus();
 }
 
 function mapSettings_removeEntry(idx) {
