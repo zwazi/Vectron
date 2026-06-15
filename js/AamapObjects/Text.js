@@ -82,14 +82,12 @@ function Text(x, y, text, width, height, fontSize) {
             this.textObj.node.style.pointerEvents = "none";
         }
 
-        {
-            var self = this;
-            this.obj.__translate = this.obj.translate;
-            this.obj.translate = function(dx, dy) {
-                this.__translate(dx, dy);
-                self.textObj.translate(dx, dy);
-            };
-        }
+        var self = this;
+        this.obj.__translate = this.obj.translate;
+        this.obj.translate = function(dx, dy) {
+            this.__translate(dx, dy);
+            self.textObj.translate(dx, dy);
+        };
 
         if(this.isSelected) {
             selectTool_addHoverSetSelected(this);

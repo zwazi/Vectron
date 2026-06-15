@@ -33,6 +33,8 @@ var xml_category;
 var xml_wallheight = 4;
 var xml_axes = 4;
 var xml_settings = [];
+var TEXT_DEFAULT_WIDTH_PER_CHAR = 0.75;
+var TEXT_DEFAULT_HEIGHT_MULTIPLIER = 1.5;
 
 function xml_init() {
 
@@ -100,8 +102,8 @@ function xml_process_piece(xml)
         var height = parseFloat(textNode.attr("height"));
         var size = parseFloat(textNode.attr("size"));
         var text = textNode.text();
-        if(isNaN(width) || width <= 0) width = Math.max(1, text.length * 0.75);
-        if(isNaN(height) || height <= 0) height = Math.max(1, isNaN(size) || size <= 0 ? 1.5 : size * 1.5);
+        if(isNaN(width) || width <= 0) width = Math.max(1, text.length * TEXT_DEFAULT_WIDTH_PER_CHAR);
+        if(isNaN(height) || height <= 0) height = Math.max(1, isNaN(size) || size <= 0 ? 1 : size * TEXT_DEFAULT_HEIGHT_MULTIPLIER);
         ptsx.push(x - width / 2, x + width / 2);
         ptsy.push(y - height / 2, y + height / 2);
         var textObj = new Text(x, y, text, width, height, size);

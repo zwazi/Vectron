@@ -442,7 +442,9 @@ function eventHandler_init() {
 
     // Finish wall button
     $("#wall-tool-finish").on("click", function() {
-        wallTool_finishWall();
+        if ($("#wall-tool-window").is(":visible")) {
+            wallTool_finishWall();
+        }
     });
 
     $(document).on("click", ".wall-tool-mode-btn", function(e) {
