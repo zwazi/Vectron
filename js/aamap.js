@@ -84,9 +84,9 @@ function aamap_render() {
         aamap_objects[i].render();
     }
 
-    if(vectron_currentTool == "wall" && vectron_toolActive)
+    if(vectron_currentTool == "wall")
     {
-        wallTool_currentObj.render();
+        wallTool_renderCurrent();
     }
     else if( vectron_currentTool == "select" && vectron_toolActive )
     {
@@ -110,10 +110,10 @@ function aamap_panCenter() {
             ptsy.push(obj.y);
         } else if(obj instanceof Wall) {
             for(var j = 0, jj = obj.points.length; j < jj; j++) {
-            	if(obj.points[i] != null) {
-	                ptsx.push(obj.points[i].x);
-	                ptsy.push(obj.points[i].y);
-	            }
+                if(obj.points[i] != null) {
+                    ptsx.push(obj.points[i].x);
+                    ptsy.push(obj.points[i].y);
+                }
             }
         }
     }
@@ -298,7 +298,7 @@ function aamap_drawGrid() {
             vectron_grid_spacing *= 2;
         }
     }
-    
+
     var gridSpacing = vectron_zoom*vectron_grid_spacing;
 
     var regularArray = [];
