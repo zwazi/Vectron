@@ -28,8 +28,6 @@ var gui_active = false;
 var gui_floatingWindowRegistry = [];
 
 var GUI_FLOATING_WINDOW_MARGIN = 8;
-var GUI_FLOATING_WINDOW_DEFAULT_TOP = 46;
-var GUI_FLOATING_WINDOW_DOCK_THRESHOLD = 42;
 
 /** Clamp a window position so it stays fully within the viewport, does not overlap the 50px left toolbar, the 36px top settings bar, or the bottom info bar. */
 function gui_clampToScreen(win, px, py) {
@@ -47,59 +45,16 @@ function gui_clampToScreen(win, px, py) {
     ];
 }
 
-function gui_floatingWindowDockContainer() {
-    var dock = document.getElementById("vt-right-dock");
-    if (!dock) {
-        dock = document.createElement("div");
-        dock.id = "vt-right-dock";
-        document.body.appendChild(dock);
-    }
-    return dock;
-}
-
-function gui_isWindowDocked(win) {
-    return !!(win && win.getAttribute("data-vt-docked") === "1");
-}
-
 function gui_refreshFloatingWindowBounds(win) {
     if (!win) return;
-    if (gui_isWindowDocked(win)) {
-        win.style.position = "relative";
-        win.style.left = "";
-        win.style.top = "";
-        win.style.right = "";
-        win.style.bottom = "";
-        win.style.maxWidth = "100%";
-        win.style.maxHeight = "calc(100vh - 82px)";
-    } else {
-        win.style.position = "fixed";
-        win.style.maxWidth = "calc(100vw - 66px)";
-        win.style.maxHeight = "calc(100vh - 82px)";
-    }
-}
-
-function gui_layoutDockedWindows() {
-    var dock = gui_floatingWindowDockContainer();
-    var windows = gui_floatingWindowRegistry.filter(function(entry) {
-        return entry && entry.win && gui_isWindowDocked(entry.win) && entry.win.style.display !== "none";
-    }).sort(function(a, b) {
-        return a.order - b.order;
-    });
-    if (!windows.length) {
-        dock.style.display = "none";
-        return;
-    }
-    dock.style.display = "flex";
-    windows.forEach(function(entry) {
-        gui_refreshFloatingWindowBounds(entry.win);
-        dock.appendChild(entry.win);
-    });
+    win.style.position = "fixed";
+    win.style.maxWidth = "calc(100vw - 66px)";
+    win.style.maxHeight = "calc(100vh - 82px)";
 }
 
 function gui_refreshFloatingWindows() {
-    gui_layoutDockedWindows();
     gui_floatingWindowRegistry.forEach(function(entry) {
-        if (!entry || !entry.win || gui_isWindowDocked(entry.win) || entry.win.style.display === "none") return;
+        if (!entry || !entry.win || entry.win.style.display === "none") return;
         var rect = entry.win.getBoundingClientRect();
         var clamped = gui_clampToScreen(entry.win, rect.left, rect.top);
         entry.win.style.left = clamped[0] + "px";
@@ -108,40 +63,37 @@ function gui_refreshFloatingWindows() {
     });
 }
 
-function gui_dockWindow(win) {
-    if (!win) return;
-    if (!gui_isWindowDocked(win)) {
-        var rect = win.getBoundingClientRect();
-        win.setAttribute("data-vt-last-left", rect.left);
-        win.setAttribute("data-vt-last-top", rect.top);
-    }
-    win.setAttribute("data-vt-docked", "1");
-    gui_refreshFloatingWindowBounds(win);
-    gui_layoutDockedWindows();
+function gui_applyWindowDefaultSize(win, entry) {
+    if (!win || !entry) return;
+    if (entry.defaultWidth) win.style.width = entry.defaultWidth + "px";
+    if (entry.defaultHeight) win.style.height = entry.defaultHeight + "px";
 }
 
-function gui_undockWindow(win) {
+function gui_resetFloatingWindowSize(win) {
     if (!win) return;
-    var rect = win.getBoundingClientRect();
-    win.setAttribute("data-vt-docked", "0");
-    gui_refreshFloatingWindowBounds(win);
-    win.style.position = "fixed";
-    win.style.left = rect.left + "px";
-    win.style.top = rect.top + "px";
-    document.body.appendChild(win);
+    var entry = gui_floatingWindowRegistry.find(function(item) { return item && item.win === win; });
+    if (!entry) return;
+    gui_applyWindowDefaultSize(win, entry);
+    gui_refreshFloatingWindows();
 }
 
-function gui_setupDockableWindow(opts) {
+function gui_setupFloatingWindow(opts) {
     var win = document.getElementById(opts.id);
     var header = document.getElementById(opts.headerId);
-    var dockButton = opts.dockButtonId ? document.getElementById(opts.dockButtonId) : null;
+    var resetButton = opts.resetButtonId ? document.getElementById(opts.resetButtonId) : null;
     if (!win || !header) return;
 
     if (gui_floatingWindowRegistry.some(function(entry) { return entry.win === win; })) return;
-    gui_floatingWindowRegistry.push({ win: win, order: opts.order || 0 });
+    var entry = {
+        win: win,
+        order: opts.order || 0,
+        defaultWidth: opts.defaultWidth || 0,
+        defaultHeight: opts.defaultHeight || 0
+    };
+    gui_floatingWindowRegistry.push(entry);
     win.classList.add("vt-floating-window");
-    win.setAttribute("data-vt-docked", "0");
     gui_refreshFloatingWindowBounds(win);
+    gui_applyWindowDefaultSize(win, entry);
 
     var dragging = false;
     var dragOffX = 0;
@@ -150,9 +102,6 @@ function gui_setupDockableWindow(opts) {
     function startDrag(e) {
         if (e.target && $(e.target).closest(".vt-window-action").length) return;
         if (e.which && e.which !== 1) return;
-        if (gui_isWindowDocked(win)) {
-            gui_undockWindow(win);
-        }
         var rect = win.getBoundingClientRect();
         dragging = true;
         dragOffX = e.clientX - rect.left;
@@ -173,31 +122,16 @@ function gui_setupDockableWindow(opts) {
         if (!dragging) return;
         dragging = false;
         var rect = win.getBoundingClientRect();
-        if (!gui_isWindowDocked(win) && (window.innerWidth - rect.right) <= GUI_FLOATING_WINDOW_DOCK_THRESHOLD) {
-            gui_dockWindow(win);
-        }
+        var clamped = gui_clampToScreen(win, rect.left, rect.top);
+        win.style.left = clamped[0] + "px";
+        win.style.top = clamped[1] + "px";
     });
 
-    if (dockButton) {
-        dockButton.addEventListener("click", function(e) {
+    if (resetButton) {
+        resetButton.addEventListener("click", function(e) {
             e.preventDefault();
             e.stopPropagation();
-            if (gui_isWindowDocked(win)) {
-                gui_undockWindow(win);
-                var left = parseFloat(win.getAttribute("data-vt-last-left"));
-                var top = parseFloat(win.getAttribute("data-vt-last-top"));
-                if (isNaN(left) || isNaN(top)) {
-                    var fallback = gui_clampToScreen(win, window.innerWidth - (win.offsetWidth || 0) - 64, GUI_FLOATING_WINDOW_DEFAULT_TOP);
-                    left = fallback[0];
-                    top = fallback[1];
-                }
-                win.style.left = left + "px";
-                win.style.top = top + "px";
-            } else {
-                win.setAttribute("data-vt-last-left", win.offsetLeft);
-                win.setAttribute("data-vt-last-top", win.offsetTop);
-                gui_dockWindow(win);
-            }
+            gui_resetFloatingWindowSize(win);
         });
     }
 }
@@ -207,9 +141,9 @@ function gui_init() {
     actionHistory_init();
     controlBox_initDrag();
     mapSettings_loadCSVs();
-    gui_setupDockableWindow({ id: "wall-tool-window", headerId: "wall-tool-header", dockButtonId: "wall-tool-dock", order: 1 });
-    gui_setupDockableWindow({ id: "zone-tool-window", headerId: "zone-tool-header", dockButtonId: "zone-tool-dock", order: 2 });
-    gui_setupDockableWindow({ id: "action-history-window", headerId: "action-history-header", dockButtonId: "action-history-dock", order: 3 });
+    gui_setupFloatingWindow({ id: "wall-tool-window", headerId: "wall-tool-header", resetButtonId: "wall-tool-reset-size", order: 1, defaultWidth: 340, defaultHeight: 420 });
+    gui_setupFloatingWindow({ id: "zone-tool-window", headerId: "zone-tool-header", resetButtonId: "zone-tool-reset-size", order: 2, defaultWidth: 300, defaultHeight: 240 });
+    gui_setupFloatingWindow({ id: "action-history-window", headerId: "action-history-header", resetButtonId: "action-history-reset-size", order: 3, defaultWidth: 220, defaultHeight: 240 });
     gui_refreshFloatingWindows();
     window.addEventListener("resize", gui_refreshFloatingWindows);
 }
@@ -246,7 +180,7 @@ function controlBox_initDrag() {
 }
 
 function actionHistory_init() {
-    gui_layoutDockedWindows();
+    gui_refreshFloatingWindows();
 }
 
 function actionHistory_update() {
@@ -302,21 +236,16 @@ function actionHistory_show() {
     var win = document.getElementById("action-history-window");
     win.style.display = "";
     actionHistory_update();
-    gui_layoutDockedWindows();
+    gui_refreshFloatingWindows();
 }
 
 function actionHistory_hide() {
     document.getElementById("action-history-window").style.display = "none";
-    gui_layoutDockedWindows();
+    gui_refreshFloatingWindows();
 }
 
 function gui_writeLog(message) {
-    var element = document.getElementById("debug_stream");
-    if (!element) return;
-    var span = document.createElement("span");
-    span.textContent = message;
-    element.appendChild(span);
-    element.scrollTop = element.scrollHeight;
+    if (window.console && console.log) console.log(message);
 }
 
 var _toast_timeout = null;
@@ -336,7 +265,6 @@ function gui_toast(message) {
 }
 
 function gui_clearLog() {
-    //$('#debug_stream').clear();
 }
 
 function gui_show() {

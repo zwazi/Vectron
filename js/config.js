@@ -123,7 +123,6 @@ function _config_check_default(item)
     {
         case "darkTheme": return "true";
         case "showInfoBar": return "true";
-        case "showDebug": return "false";
         case "showActionHistory": return "true";
         case "zoomStep": return "0.02";
     }
@@ -288,11 +287,6 @@ function config_load()
     if(_config_check("showInfoBar"))
         show_info_bar(true);
     
-    if(_config_check("showDebug"))
-        show_debug(true);
-    else
-        hide_debug(true);
-
     if(_config_check("showActionHistory"))
     {
         actionHistory_show();
@@ -379,21 +373,6 @@ function hide_info_bar(noset)
     
     document.getElementById("show-info-bar").checked = false;
     if(!noset) _config_set_disable("showInfoBar");
-}
-
-function show_debug(noset)
-{
-    document.getElementById("debug_box").style.display = "block";
-    
-    document.getElementById("show-debug-panel").checked = true;
-    if(!noset) _config_set_enable("showDebug");
-}
-function hide_debug(noset)
-{
-    document.getElementById("debug_box").style.display = "none";
-    
-    document.getElementById("show-debug-panel").checked = false;
-    if(!noset) _config_set_disable("showDebug");
 }
 
 function keybinds_buildUI() {

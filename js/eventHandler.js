@@ -197,14 +197,6 @@ function eventHandler_init() {
             hide_info_bar();
     });
 
-    $("#show-debug-panel").change(function(box)
-    {
-        if($("#show-debug-panel").is(':checked'))
-            show_debug();
-        else
-            hide_debug();
-    });
-
     $("#show-action-history").change(function(box)
     {
         if($("#show-action-history").is(':checked'))
