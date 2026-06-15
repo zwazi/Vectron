@@ -264,11 +264,6 @@ body {
 	border-top-color: #ccc;
 }
 
-#vt-right-dock {
-	top: 46px;
-	bottom: 34px;
-}
-
 /* Grid line appearance section */
 #grid-config table {
 	color: #eee;
