@@ -774,20 +774,24 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
     $("#cm-zoom-in").mouseup(function(e) {
+        __zoom_clearPreview();
         vectron_zoom *= 1.1;
         vectron_zoom_adjustment();
         vectron_render();
     });
     $("#cm-zoom-out").mouseup(function(e) {
+        __zoom_clearPreview();
         vectron_zoom /= 1.1;
         vectron_zoom_adjustment();
         vectron_render();
     });
     $("#cm-zoom-100").mouseup(function(e) {
+        __zoom_clearPreview();
         vectron_zoom = 1;
         vectron_render();
     });
     $("#cm-fit-screen").mouseup(function(e) {
+        __zoom_clearPreview();
         aamap_fitToScreen();
     });
 
@@ -819,6 +823,7 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZoomIn").mouseup(function(e) {
+        __zoom_clearPreview();
         vectron_zoom *= 1.1;
         vectron_zoom_adjustment();
         vectron_render();
@@ -826,6 +831,7 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZoomOut").mouseup(function(e) {
+        __zoom_clearPreview();
         vectron_zoom /= 1.1;
         vectron_zoom_adjustment();
         vectron_render();
@@ -833,12 +839,14 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZoom100").mouseup(function(e) {
+        __zoom_clearPreview();
         vectron_zoom = 1;
         vectron_render();
         $("#zones-menu").hide();
     });
 
     $(".toolbar-toolFitScreen").mouseup(function(e) {
+        __zoom_clearPreview();
         aamap_fitToScreen();
         $("#zones-menu").hide();
     });
@@ -1063,9 +1071,22 @@ function eventHandler_init() {
     var prev_vectron_panX = 0, prev_vectron_panY = 0;
     var zoom_mouse_x = 0, zoom_mouse_y = 0;
     var __zoom_timeout;
-    var __zoom_raf;
+    var __zoom_render_timeout;
     var __zoom_last_rendered_zoom = 1;
     var __zoom_canvas = document.getElementById('canvas_container');
+    function __zoom_clearPreview()
+    {
+        clearTimeout(__zoom_render_timeout);
+        __zoom_render_timeout = null;
+        __zoom_canvas.style.transform = '';
+        __zoom_canvas.style.transformOrigin = '';
+    }
+    function __zoom_renderFinal()
+    {
+        __zoom_clearPreview();
+        __zoom_last_rendered_zoom = vectron_zoom;
+        vectron_render();
+    }
     if(!("onwheel" in $("#canvas_container")[0]))
     {
         $("#canvas_container")[0].addEventListener("mousewheel",function(event)
@@ -1108,20 +1129,19 @@ function eventHandler_init() {
             vectron_panX = prev_vectron_panX + (zoom_mouse_x - vectron_width/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
             vectron_panY = prev_vectron_panY - (zoom_mouse_y - vectron_height/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
 
-            // Apply instant CSS scale transform for immediate visual feedback before the RAF renders
+            // Apply instant CSS scale transform for immediate visual feedback before the redraw
             var cssScale = vectron_zoom / __zoom_last_rendered_zoom;
             __zoom_canvas.style.transformOrigin = zoom_mouse_x + 'px ' + zoom_mouse_y + 'px';
             __zoom_canvas.style.transform = 'scale(' + cssScale + ')';
+            vectron_write_info();
 
-            // Proper render using requestAnimationFrame (removes CSS transform and redraws correctly)
-            if(__zoom_raf) cancelAnimationFrame(__zoom_raf);
-            __zoom_raf = requestAnimationFrame(function()
+            // Redraw once the wheel interaction settles instead of on every wheel tick.
+            clearTimeout(__zoom_render_timeout);
+            __zoom_render_timeout = setTimeout(function()
             {
-                __zoom_canvas.style.transform = '';
-                __zoom_last_rendered_zoom = vectron_zoom;
-                vectron_render();
-                __zoom_raf = null;
-            });
+                __zoom_render_timeout = null;
+                __zoom_renderFinal();
+            }, 120);
 
             clearTimeout(__zoom_timeout);
             __zoom_timeout = setTimeout(function()
