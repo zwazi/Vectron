@@ -445,6 +445,7 @@ function wallTool_textSegmentsToWalls(segments, box) {
             var prev = simplified[simplified.length - 1];
             var cur = points[i];
             var next = points[i + 1];
+            // Drop points that stay on the same line so each wall path stays compact.
             var cross = (cur.x - prev.x) * (next.y - cur.y) - (cur.y - prev.y) * (next.x - cur.x);
             if(Math.abs(cross) < 1e-9) continue;
             simplified.push(cur);
@@ -453,7 +454,7 @@ function wallTool_textSegmentsToWalls(segments, box) {
         return simplified;
     }
 
-    var used = [];
+    var used = new Array(segments.length).fill(false);
     var adjacency = {};
 
     function addAdjacency(key, idx) {
@@ -493,7 +494,7 @@ function wallTool_textSegmentsToWalls(segments, box) {
         used[startIdx] = true;
 
         var firstNext = otherEndpoint(segments[startIdx], startKey);
-        if(firstNext == null) return pathKeys;
+        if(firstNext === null) return pathKeys;
         pathKeys.push(firstNext);
         currentKey = firstNext;
         previousIdx = startIdx;
@@ -506,11 +507,11 @@ function wallTool_textSegmentsToWalls(segments, box) {
                 nextIdx = candidates[i];
                 break;
             }
-            if(nextIdx == null) break;
+            if(nextIdx === null) break;
 
             used[nextIdx] = true;
             var nextKey = otherEndpoint(segments[nextIdx], currentKey);
-            if(nextKey == null) break;
+            if(nextKey === null) break;
             pathKeys.push(nextKey);
             if(nextKey === pathKeys[0]) break;
             previousIdx = nextIdx;
@@ -521,7 +522,7 @@ function wallTool_textSegmentsToWalls(segments, box) {
     }
 
     var start;
-    while((start = pickStartSegment()) != null) {
+    while((start = pickStartSegment()) !== null) {
         var pathKeys = buildPath(start.idx, start.key);
         var pathPoints = [];
         for(var p = 0; p < pathKeys.length; p++) {
