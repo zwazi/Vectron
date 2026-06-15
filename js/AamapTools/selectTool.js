@@ -719,12 +719,11 @@ function selectTool_circIntersectsRect(p1, r, x0, y0, x1, y1) {
 function selectTool_addInvisibleGlow(aamapObject) {
     var bbox = aamapObject.obj.getBBox();
     if(!bbox || !isFinite(bbox.x) || !isFinite(bbox.y) || !isFinite(bbox.width) || !isFinite(bbox.height)) return;
-    var pad = Math.min(Math.max(10, Math.round(14 / vectron_zoom)), 80);
     aamapObject.glowObj = vectron_screen.rect(
-        bbox.x - pad,
-        bbox.y - pad,
-        Math.max(1, bbox.width + pad * 2),
-        Math.max(1, bbox.height + pad * 2)
+        bbox.x,
+        bbox.y,
+        Math.max(1, bbox.width),
+        Math.max(1, bbox.height)
     ).attr({
         stroke: "#375ffc",
         "stroke-width": 1,
@@ -754,12 +753,11 @@ function selectTool_addHoverSet(aamapObject) {
 function selectTool_addHoverSetSelected(aamapObject) {
     var bbox = aamapObject.obj.getBBox();
     if(!bbox || !isFinite(bbox.x) || !isFinite(bbox.y) || !isFinite(bbox.width) || !isFinite(bbox.height)) return;
-    var pad = Math.min(Math.max(12, Math.round(18 / vectron_zoom)), 90);
     aamapObject.glowObj = vectron_screen.rect(
-        bbox.x - pad,
-        bbox.y - pad,
-        Math.max(1, bbox.width + pad * 2),
-        Math.max(1, bbox.height + pad * 2)
+        bbox.x,
+        bbox.y,
+        Math.max(1, bbox.width),
+        Math.max(1, bbox.height)
     ).attr({
         stroke: config_isDark ? "#77bbff" : "#375ffc",
         "stroke-width": 1,
