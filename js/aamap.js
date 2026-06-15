@@ -363,14 +363,14 @@ function aamap_drawGrid() {
 
     // Draw regular grid lines — use configurable color/thickness
     var defaultNarrowColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
-    var defaultTenthColor  = config_isDark ? '#1a1a1a' : '#d6d6ec'; // default same as narrow
+    var defaultTenthColor  = config_isDark ? '#7f7f7f' : '#7f7f7f';
     var narrowColor  = config_gridNarrowColor  || defaultNarrowColor;
     var tenthColor   = config_gridTenthColor   || defaultTenthColor;
     var axisXColor   = config_gridAxisXColor   || '#2244cc';
     var axisYColor   = config_gridAxisYColor   || '#cc2222';
 
     var narrowStroke  = config_gridNarrowThickness  > 0 ? config_gridNarrowThickness  : 1;
-    var tenthStroke   = config_gridTenthThickness   > 0 ? config_gridTenthThickness   : 0.5;
+    var tenthStroke   = config_gridTenthThickness   > 0 ? config_gridTenthThickness   : 1;
     var axisXStroke   = config_gridAxisXThickness   > 0 ? config_gridAxisXThickness   : 1;
     var axisYStroke   = config_gridAxisYThickness   > 0 ? config_gridAxisYThickness   : 1;
 

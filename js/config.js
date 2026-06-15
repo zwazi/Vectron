@@ -37,7 +37,7 @@ var config_gridTenthColor      = '';
 var config_gridAxisXColor      = '';
 var config_gridAxisYColor      = '';
 var config_gridNarrowThickness = 0; // 0 = use default (1)
-var config_gridTenthThickness  = 0; // 0 = use default (0.5)
+var config_gridTenthThickness  = 0; // 0 = use default (1)
 var config_gridAxisXThickness  = 0; // 0 = use default (1)
 var config_gridAxisYThickness  = 0; // 0 = use default (1)
 // Default until config_load() replaces it with saved state or stored default.
