@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>
 <!DOCTYPE Resource SYSTEM "sty.dtd">
-<Resource type="aamap" name="Vectron" version="1.1" author="Tristan" category="art">
+<Resource type="aamap" name="VectronTextTest" version="0.1" author="zwazi" category="test">
   <Map version="0.2.8">
     <Settings>
       <Setting name="" value="" />
@@ -8,74 +8,102 @@
     <World>
       <Field>
         <Axes number="8"/>
-        <Spawn x="-80" y="0" xdir="1" ydir="0"/>
+        <Wall height="4">
+          <Point x="-544" y="80"/>
+          <Point x="-464" y="-80"/>
+          <Point x="-384" y="80"/>
+        </Wall>
+        <Wall height="4">
+          <Point x="-80" y="80"/>
+          <Point x="80" y="80"/>
+        </Wall>
+        <Wall height="4">
+          <Point x="0" y="80"/>
+          <Point x="0" y="-80"/>
+        </Wall>
+        <Wall height="4">
+          <Point x="96" y="-80"/>
+          <Point x="96" y="80"/>
+          <Point x="160" y="80"/>
+        </Wall>
+        <Wall height="4">
+          <Point x="96" y="0"/>
+          <Point x="160" y="0"/>
+        </Wall>
+        <Wall height="4">
+          <Point x="160" y="80"/>
+          <Point x="168.316468" y="79.125904"/>
+          <Point x="176.269466" y="76.541818"/>
+          <Point x="183.51141" y="72.36068"/>
+          <Point x="189.725794" y="66.765224"/>
+          <Point x="194.641016" y="60"/>
+          <Point x="198.04226" y="52.36068"/>
+          <Point x="199.780876" y="44.181138"/>
+          <Point x="199.780876" y="35.818862"/>
+          <Point x="198.04226" y="27.63932"/>
+          <Point x="194.641016" y="20"/>
+          <Point x="189.725794" y="13.234776"/>
+          <Point x="183.51141" y="7.63932"/>
+          <Point x="176.269466" y="3.458182"/>
+          <Point x="168.316468" y="0.874096"/>
+          <Point x="160" y="0"/>
+        </Wall>
+        <Wall height="4">
+          <Point x="104" y="0"/>
+          <Point x="113.83616" y="-0.19329"/>
+          <Point x="123.619572" y="-1.228778"/>
+          <Point x="133.27826" y="-3.098846"/>
+          <Point x="142.741162" y="-5.789734"/>
+          <Point x="151.938658" y="-9.281648"/>
+          <Point x="160.803082" y="-13.548894"/>
+          <Point x="169.269216" y="-18.560078"/>
+          <Point x="177.274774" y="-24.278334"/>
+          <Point x="184.760858" y="-30.66159"/>
+          <Point x="191.67239" y="-37.662884"/>
+          <Point x="197.958522" y="-45.230706"/>
+          <Point x="203.573008" y="-53.30938"/>
+          <Point x="208.474538" y="-61.839468"/>
+          <Point x="212.627052" y="-70.758214"/>
+          <Point x="216" y="-80"/>
+        </Wall>
         <Zone effect="death">
-          <ShapeCircle radius=" 32 " growth="0">
-            <Point x="160" y="0"/>
+          <ShapeCircle radius=" 80 " growth="0">
+            <Point x="304" y="0"/>
           </ShapeCircle>
         </Zone>
         <Wall height="4">
-          <Point x="0" y="32"/>
-          <Point x="-32" y="32"/>
+          <Point x="400" y="-80"/>
+          <Point x="400" y="80"/>
+          <Point x="560" y="-80"/>
+          <Point x="560" y="80"/>
         </Wall>
         <Wall height="4">
-          <Point x="0" y="32"/>
-          <Point x="32" y="32"/>
+          <Point x="-96" y="48"/>
+          <Point x="-115.211232" y="66.287"/>
+          <Point x="-139.34563" y="77.287754"/>
+          <Point x="-165.750348" y="79.793066"/>
+          <Point x="-191.522992" y="73.527552"/>
+          <Point x="-213.830638" y="59.179916"/>
+          <Point x="-230.22124" y="38.327244"/>
+          <Point x="-238.893146" y="13.261654"/>
+          <Point x="-238.893146" y="-13.261654"/>
+          <Point x="-230.22124" y="-38.327244"/>
+          <Point x="-213.830638" y="-59.179916"/>
+          <Point x="-191.522992" y="-73.527552"/>
+          <Point x="-165.750348" y="-79.793066"/>
+          <Point x="-139.34563" y="-77.287754"/>
+          <Point x="-115.211232" y="-66.287"/>
+          <Point x="-96" y="-48"/>
         </Wall>
         <Wall height="4">
-          <Point x="0" y="32"/>
-          <Point x="0" y="-32"/>
+          <Point x="-248" y="80"/>
+          <Point x="-368" y="80"/>
+          <Point x="-368" y="-80"/>
+          <Point x="-248" y="-80"/>
         </Wall>
         <Wall height="4">
-          <Point x="-48" y="16"/>
-          <Point x="-64" y="32"/>
-          <Point x="-96" y="32"/>
-          <Point x="-112" y="16"/>
-          <Point x="-112" y="-16"/>
-          <Point x="-96" y="-32"/>
-          <Point x="-64" y="-32"/>
-          <Point x="-48" y="-16"/>
-        </Wall>
-        <Wall height="4">
-          <Point x="-128" y="32"/>
-          <Point x="-176" y="32"/>
-          <Point x="-192" y="16"/>
-          <Point x="-192" y="-16"/>
-          <Point x="-176" y="-32"/>
-          <Point x="-128" y="-32"/>
-        </Wall>
-        <Wall height="4">
-          <Point x="-192" y="0"/>
-          <Point x="-144" y="0"/>
-        </Wall>
-        <Wall height="4">
-          <Point x="-208" y="32"/>
-          <Point x="-240" y="-32"/>
-          <Point x="-272" y="32"/>
-        </Wall>
-        <Wall height="4">
-          <Point x="48" y="-32"/>
-          <Point x="48" y="32"/>
-        </Wall>
-        <Wall height="4">
-          <Point x="48" y="0"/>
-          <Point x="112" y="0"/>
-        </Wall>
-        <Wall height="4">
-          <Point x="112" y="0"/>
-          <Point x="112" y="16"/>
-          <Point x="96" y="32"/>
-          <Point x="48" y="32"/>
-        </Wall>
-        <Wall height="4">
-          <Point x="80" y="0"/>
-          <Point x="112" y="-32"/>
-        </Wall>
-        <Wall height="4">
-          <Point x="208" y="-32"/>
-          <Point x="208" y="32"/>
-          <Point x="272" y="-32"/>
-          <Point x="272" y="32"/>
+          <Point x="-368" y="0"/>
+          <Point x="-304" y="0"/>
         </Wall>
       </Field>
     </World>
