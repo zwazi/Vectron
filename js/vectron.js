@@ -35,11 +35,23 @@ var vectron_currentTool = "";
 var vectron_toolActive = false;
 
 var vectron_grid_spacing = 16;
+var vectron_grid_render_locked = false;
+var vectron_grid_render_spacing = 16;
 var vectron_zoom = 1;//15
 var vectron_panX = 0;
 var vectron_panY = 0;
 
 var vectron_objectID = 0;
+
+function vectron_assetUrl(path) {
+    var scripts = document.getElementsByTagName("script");
+    for(var i = 0; i < scripts.length; i++) {
+        var src = scripts[i].getAttribute("src") || "";
+        var match = src.match(/^(.*\/)js\/vectron\.js(?:[?#].*)?$/);
+        if(match) return match[1] + path.replace(/^\.\//, "");
+    }
+    return "./" + path.replace(/^\.\//, "");
+}
 
 
 /**
@@ -61,13 +73,14 @@ function vectron_init() {
     eventHandler_init();
     
     config_load();
+    gridSizeControls_init();
 
     vectron_render();
 
     xml_init();
 
     $.ajax({
-        url: './js/startup.aamap.xml',
+        url: vectron_assetUrl('js/startup.aamap.xml'),
         dataType: 'text',
         success: function(data) {
             xml_process(data);
@@ -116,10 +129,71 @@ function vectron_format_zoom(z) {
 function vectron_write_info()
 {
     document.getElementById("zoom").innerText = vectron_format_zoom(vectron_zoom);
-    document.getElementById("spacing").innerText = vectron_grid_spacing;
+    if(document.getElementById("grid-spacing-select")) {
+        gridSizeControls_sync();
+    }
     
     document.getElementById("anchor-x").innerText = vectron_format_coord(-(vectron_panX));
     document.getElementById("anchor-y").innerText = vectron_format_coord(-(vectron_panY));
+}
+
+function vectron_getAutoGridSpacing(baseSpacing) {
+    var spacing = baseSpacing || vectron_grid_spacing;
+    if(spacing <= 0) return spacing;
+    while((vectron_zoom * spacing) > 30) spacing /= 2;
+    while((vectron_zoom * spacing) < 15) spacing *= 2;
+    return spacing;
+}
+
+function gridSizeControls_sync() {
+    var select = document.getElementById("grid-spacing-select");
+    var lockBtn = document.getElementById("grid-size-lock");
+    if(!select) return;
+    var value = vectron_grid_render_locked ? vectron_grid_render_spacing : vectron_grid_spacing;
+    var valueText = String(value);
+    if(select.value !== valueText) {
+        var found = false;
+        for(var i = 0; i < select.options.length; i++) {
+            if(select.options[i].value === valueText) found = true;
+        }
+        if(!found && value > 0) {
+            var option = document.createElement("option");
+            option.value = valueText;
+            option.textContent = valueText;
+            select.appendChild(option);
+        }
+        select.value = valueText;
+    }
+    if(lockBtn) {
+        lockBtn.className = "info-icon-btn" + (vectron_grid_render_locked ? " active" : "");
+        lockBtn.title = vectron_grid_render_locked ? "Unlock grid rendering size" : "Lock grid rendering size";
+        lockBtn.setAttribute("aria-label", lockBtn.title);
+    }
+}
+
+function gridSizeControls_init() {
+    var select = document.getElementById("grid-spacing-select");
+    if(!select) return;
+    var values = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512];
+    select.innerHTML = "";
+    for(var i = 0; i < values.length; i++) {
+        var option = document.createElement("option");
+        option.value = String(values[i]);
+        option.textContent = String(values[i]);
+        select.appendChild(option);
+    }
+    gridSizeControls_sync();
+}
+
+function gridSizeControls_setLocked(locked) {
+    vectron_grid_render_locked = locked;
+    if(locked) {
+        vectron_grid_render_spacing = vectron_grid_spacing;
+    } else {
+        vectron_grid_spacing = vectron_getAutoGridSpacing(vectron_grid_spacing);
+        vectron_grid_render_spacing = vectron_grid_spacing;
+    }
+    vectron_render();
 }
 
 function vectron_zoom_adjustment()

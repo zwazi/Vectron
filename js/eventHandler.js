@@ -446,6 +446,12 @@ function eventHandler_init() {
         }
     });
 
+    $("#wall-tool-cancel").on("click", function() {
+        if (vectron_currentTool === "wall" && vectron_toolActive) {
+            wallTool_cancelCurrent();
+        }
+    });
+
     $(document).on("click", ".wall-tool-mode-btn", function(e) {
         e.preventDefault();
         if(vectron_currentTool !== "wall") {
@@ -460,7 +466,38 @@ function eventHandler_init() {
         $buttons.tooltip({
             html: true,
             container: "body",
-            placement: "bottom",
+            placement: "right",
+            trigger: "manual",
+            title: function() {
+                return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") + '</div>';
+            }
+        });
+        $buttons.on("mouseenter focus", function() {
+            var btn = this;
+            clearTimeout(descTimer);
+            $(btn).tooltip("show");
+            descTimer = setTimeout(function() {
+                var title = $(btn).data("tooltip-title") || "";
+                var desc = $(btn).data("tooltip-desc") || "";
+                var instance = $(btn).data("bs.tooltip") || $(btn).data("tooltip");
+                var $tip = instance ? (instance.$tip || (instance.tip ? instance.tip() : null)) : null;
+                if($tip && $tip.length) {
+                    $tip.find(".tooltip-inner").html('<div class="vt-tooltip-title">' + title + '</div><div class="vt-tooltip-desc">' + desc + '</div>');
+                }
+            }, 1800);
+        }).on("mouseleave blur", function() {
+            clearTimeout(descTimer);
+            $(this).tooltip("hide");
+        });
+    })();
+
+    (function initZoneModeTooltips() {
+        var descTimer = null;
+        var $buttons = $(".zone-type-btn");
+        $buttons.tooltip({
+            html: true,
+            container: "body",
+            placement: "right",
             trigger: "manual",
             title: function() {
                 return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") + '</div>';
@@ -494,6 +531,19 @@ function eventHandler_init() {
         if(vectron_currentTool === "wall") {
             wallTool_renderCurrent();
         }
+    });
+
+    $("#grid-spacing-select").on("change", function() {
+        var spacing = parseFloat(this.value);
+        if(isNaN(spacing) || spacing <= 0) return;
+        vectron_grid_spacing = spacing;
+        vectron_grid_render_spacing = spacing;
+        vectron_grid_render_locked = true;
+        vectron_render();
+    });
+
+    $("#grid-size-lock").on("click", function() {
+        gridSizeControls_setLocked(!vectron_grid_render_locked);
     });
 
     $(".toolbar-toolSpawn").mouseup(function(e) {
@@ -964,7 +1014,9 @@ function eventHandler_init() {
                 } else if(vectron_currentTool == "split") {
                     splitTool_click();
                 } else if(vectron_currentTool == "join") {
-                    joinTool_click();
+                    if(!joinTool_completeSelection()) {
+                        joinTool_click();
+                    }
                 } else if(vectron_currentTool == "wallVertexMove" && vectron_toolActive) {
                     wallVertexMoveTool_complete();
                 }
@@ -1004,6 +1056,8 @@ function eventHandler_init() {
                     navigationTool_start();
                 } else if(vectron_currentTool == "wallVertexMove" && !vectron_toolActive) {
                     wallVertexMoveTool_start();
+                } else if(vectron_currentTool == "join" && !vectron_toolActive) {
+                    joinTool_start();
                 }
                 break;
             case 2:
@@ -1058,7 +1112,11 @@ function eventHandler_init() {
         } else if(vectron_currentTool == "split") {
             splitTool_guide();
         } else if(vectron_currentTool == "join") {
-            joinTool_guide();
+            if(vectron_toolActive) {
+                joinTool_progress();
+            } else {
+                joinTool_guide();
+            }
         } else if(vectron_currentTool == "wallVertexMove") {
             if(vectron_toolActive) {
                 wallVertexMoveTool_progress();
@@ -1275,10 +1333,12 @@ function eventHandler_init() {
             zoneTool_guide();
             return false;
         }
+        if(vectron_currentTool == "wall" && vectron_toolActive) {
+            wallTool_cancelCurrent();
+            return false;
+        }
         if(vectron_toolActive) {
-            if(vectron_currentTool == "wall") {
-                wallTool_cancelCurrent();
-            } else if(vectron_currentTool == "spawn") {
+            if(vectron_currentTool == "spawn") {
                 spawnTool_disconnect();
                 vectron_currentTool = "";
                 vectron_connectTool("spawn");
@@ -1406,6 +1466,16 @@ function eventHandler_init() {
         vectron_panX = 0;
         vectron_panY = 0;
         vectron_zoom = 1;
+        $("#map_name,#map_author,#map_category,#map_version,#map_dtd,#map_settings").val("");
+        $("#map_axes").val("");
+        $("#map_axes_forced").prop("checked", false);
+        xml_name = "";
+        xml_author = "";
+        xml_category = "";
+        xml_version = "";
+        xml_dtd = "";
+        xml_axes = 4;
+        xml_settings = [];
         aamap_clearHistory();
         vectron_render();
         gui_writeLog("New map created.");

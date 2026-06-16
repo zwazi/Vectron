@@ -61,6 +61,23 @@ body {
 	height: auto;
 	white-space: nowrap;
 }
+#grid-spacing-select {
+	background: #252525;
+	color: #eee;
+	border-color: #555;
+}
+.info-icon-btn {
+	background: #252525;
+	color: #ddd;
+	border-color: #555;
+}
+.info-icon-btn:hover,
+.info-icon-btn:focus,
+.info-icon-btn.active {
+	background: #3a3a3a;
+	color: #fff;
+	border-color: #777;
+}
 
 #tool_bar {
 	position: absolute;
@@ -479,6 +496,46 @@ body {
     color: #eee;
     border: 1px solid #555;
     border-radius: 2px;
+}
+
+#wall-tool-body .wall-tool-mode-btn,
+#wall-tool-body .btn-default {
+    background: #222;
+    color: #eee;
+    border-color: #555;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+#wall-tool-body .wall-tool-mode-btn:hover,
+#wall-tool-body .wall-tool-mode-btn:focus,
+#wall-tool-body .wall-tool-mode-btn.active,
+#wall-tool-body .btn-default:hover,
+#wall-tool-body .btn-default:focus {
+    background: #303030;
+    color: #fff;
+    border-color: #888;
+}
+
+#wall-tool-body .wall-tool-mode-btn img {
+    filter: invert(1) brightness(1.45) contrast(1.08);
+}
+
+#wall-tool-body .vt-tool-icon,
+#zone-tool-body .vt-tool-icon {
+    color: #ddd;
+}
+
+#wall-tool-body .vt-tool-choice-dot,
+#zone-tool-body .vt-tool-choice-dot {
+    background: #111;
+    border-color: #777;
+}
+
+#wall-tool-body .wall-tool-mode-btn.active .vt-tool-choice-dot,
+#zone-tool-types-row .zone-type-btn.active-zone-type .vt-tool-choice-dot {
+    background: #8fb7ff;
+    border-color: #8fb7ff;
+    box-shadow: 0 0 0 2px rgba(143,183,255,0.28);
 }
 
 #zone-tool-types-row .zone-type-btn {

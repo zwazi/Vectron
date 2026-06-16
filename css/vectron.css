@@ -671,6 +671,39 @@ body.noscroll {
   min-width: 24px;
   text-align: left;
 }
+.info-grid-section {
+  gap: 6px;
+}
+#grid-spacing-select {
+  height: 20px;
+  min-width: 56px;
+  color: #eee;
+  background: #444;
+  border: 1px solid #666;
+  border-radius: 3px;
+  font-size: 12px;
+  padding: 0 4px;
+}
+.info-icon-btn {
+  width: 22px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #ddd;
+  background: #444;
+  border: 1px solid #666;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.info-icon-btn:hover,
+.info-icon-btn:focus,
+.info-icon-btn.active {
+  color: #fff;
+  background: #555;
+  border-color: #888;
+}
 .info-section {
   display: inline-flex;
   align-items: center;
@@ -733,6 +766,10 @@ body.noscroll {
 #wall-tool-body,
 #zone-tool-body {
   padding: 10px;
+  display: grid;
+  grid-template-columns: 42px 96px minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: start;
 }
 
 .wall-tool-section {
@@ -740,7 +777,7 @@ body.noscroll {
 }
 
 .wall-tool-mode-btn {
-  width: 30px;
+  width: 34px;
   height: 28px;
   padding: 3px 0;
   line-height: 20px;
@@ -833,6 +870,170 @@ body.noscroll {
   border-color: #375ffc;
   outline: none;
   box-shadow: 0 0 0 2px rgba(55,95,252,0.35);
+}
+
+.vt-tool-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#wall-tool-body > .wall-tool-section:first-child,
+#zone-tool-types-row {
+  grid-column: 1;
+  grid-row: 1 / span 20;
+}
+
+#zone-tool-settings {
+  display: contents;
+}
+
+#wall-tool-status-row {
+  grid-column: 2 / 4;
+}
+
+.vt-tool-grid-row {
+  display: grid;
+  grid-template-columns: 34px minmax(86px, 1fr) minmax(34px, auto);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  box-sizing: border-box;
+}
+
+button.vt-tool-grid-row,
+#zone-tool-types-row .zone-type-btn.vt-tool-grid-row {
+  width: 34px;
+  height: 32px;
+  min-height: 32px;
+  padding: 3px 0;
+  line-height: 20px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: normal;
+}
+
+.vt-setting-row {
+  display: contents;
+}
+
+.vt-tool-icon {
+  width: 30px;
+  min-width: 30px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+}
+
+.vt-tool-icon img {
+  width: 22px;
+  height: 22px;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.vt-tool-name {
+  min-width: 0;
+  margin: 0;
+  color: inherit;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.vt-tool-input {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.wall-tool-mode-btn .vt-tool-name,
+.wall-tool-mode-btn .vt-tool-input,
+#zone-tool-types-row .zone-type-btn .vt-tool-name,
+#zone-tool-types-row .zone-type-btn .vt-tool-input {
+  display: none;
+}
+
+.vt-setting-row > .vt-tool-icon {
+  display: none;
+}
+
+.vt-setting-row > .vt-tool-name {
+  grid-column: 2;
+  align-self: center;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.vt-setting-row > .vt-tool-input {
+  grid-column: 3;
+  justify-content: flex-start;
+  align-self: center;
+  min-height: 32px;
+}
+
+.vt-tool-choice-dot {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #888;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.75);
+  box-sizing: border-box;
+}
+
+.wall-tool-mode-btn.active .vt-tool-choice-dot,
+#zone-tool-types-row .zone-type-btn.active-zone-type .vt-tool-choice-dot {
+  background: #375ffc;
+  border-color: #375ffc;
+  box-shadow: 0 0 0 2px rgba(55,95,252,0.22);
+}
+
+#wall-tool-body .vt-setting-row input[type="number"],
+#zone-tool-body .vt-setting-row input[type="number"] {
+  width: 78px;
+}
+
+#dWallHeight {
+  width: 62px;
+}
+
+#dWallText {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 11px;
+  box-sizing: border-box;
+}
+
+#wall-tool-points-list.vt-tool-input {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.vt-tool-actions-row > .vt-tool-name,
+.vt-tool-actions-row > .vt-tool-input {
+  min-height: 0;
+}
+
+.vt-tool-actions {
+  gap: 6px;
+}
+
+.vt-tool-actions .btn {
+  flex: 1;
+  min-width: 62px;
 }
 
 /* Action history clickable items */
