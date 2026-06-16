@@ -692,23 +692,31 @@ function wallTool_updateWindow() {
     var isFreeform = (mode === "freeform");
     var isTextMode = (mode === "text");
     var isCountMode = wallTool_isCountPhase();
+    var usesCountInput = (mode === "circleCenter" || mode === "circle3pt" || mode === "arc3pt" || mode === "ellipse3pt");
     var finishBtn = document.getElementById("wall-tool-finish");
+    var cancelBtn = document.getElementById("wall-tool-cancel");
     var countSection = document.getElementById("wall-tool-count-section");
     var pointsSection = document.getElementById("wall-tool-points-section");
     var textSection = document.getElementById("wall-tool-text-section");
+    var actionsSection = document.getElementById("wall-tool-actions-section");
     var modeButtons = $(".wall-tool-mode-btn");
+    var showFinish = isCountMode || (isTextMode && wallTool_stagePoints.length >= 2) || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2);
+    var hasDraft = (isFreeform && wallTool_currentObj != null) || (!isFreeform && wallTool_stagePoints.length > 0);
 
     modeButtons.removeClass("active");
     modeButtons.filter("[data-mode='" + mode + "']").addClass("active");
 
     if(pointsSection) pointsSection.style.display = isFreeform ? "" : "none";
     if(textSection) textSection.style.display = isTextMode ? "" : "none";
-    if(countSection) countSection.style.display = isCountMode ? "" : "none";
+    if(countSection) countSection.style.display = usesCountInput ? "" : "none";
     if(finishBtn) {
-        var showFinish = isCountMode || (isTextMode && wallTool_stagePoints.length >= 2) || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2);
         finishBtn.style.display = showFinish ? "" : "none";
         finishBtn.innerHTML = isTextMode ? WALL_TOOL_BUTTON_LABEL_SUBMIT : (isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : WALL_TOOL_BUTTON_LABEL_FINISH);
     }
+    if(cancelBtn) {
+        cancelBtn.style.display = hasDraft ? "" : "none";
+    }
+    if(actionsSection) actionsSection.style.display = (showFinish || hasDraft) ? "" : "none";
 
     if(isFreeform) {
         wallTool_setStatus("Click to place wall points. Double-click or Shift+W to finish.");

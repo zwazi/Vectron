@@ -11,7 +11,7 @@
         <link id="theme" rel="stylesheet">
         <link href="./css/shepherd-theme-arrows.css" rel="stylesheet">
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer">
-        <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400,300,700,600' rel='stylesheet' type='text/css'>
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400,300,700,600" rel="stylesheet" type="text/css">
         <script type="text/javascript" src="./js/libs/jquery.js"></script>
         <script type="text/javascript" src="./js/libs/raphael-min.js"></script>
         <script type="text/javascript" src="./js/libs/raphael.set.hoverset.js"></script>
@@ -53,7 +53,7 @@
             <span class="info-sep">|</span>
             <span class="info-section"><b>zoom:</b>&nbsp;<span id="zoom">0</span>%</span>
             <span class="info-sep">|</span>
-            <span class="info-section"><b>grid:</b>&nbsp;<span id="spacing">0</span></span>
+            <span class="info-section info-grid-section"><b>grid:</b>&nbsp;<select id="grid-spacing-select" title="Grid size"></select><button id="grid-size-lock" class="info-icon-btn" type="button" title="Lock grid rendering size" aria-label="Lock grid rendering size"><span class="glyphicon glyphicon-lock" aria-hidden="true"></span></button></span>
             <span class="info-sep">|</span>
             <span class="info-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span></span>
         </div>
@@ -150,7 +150,6 @@
                             <thead><tr><th>Tool</th><th>Key</th><th>Description</th></tr></thead>
                             <tbody>
                                 <tr><td><b>Select</b></td><td><kbd>1</kbd></td><td>Click an object to select it. Drag on empty space to box-select. Click a selected object to deselect. <kbd>Del</kbd> deletes the selection.</td></tr>
-                                <tr><td><b>Navigation</b></td><td><kbd>2</kbd></td><td>Click and drag to pan the view. Alternatively use middle-click drag or arrow keys at any time.</td></tr>
                                 <tr><td><b>Wall</b></td><td><kbd>3</kbd></td><td>Open the Wall Tool window to choose freeform walls, rectangles, circles, arcs, ellipses, or text walls. For shape tools, click the requested points, set the wall count if prompted, then press <b>Generate Walls</b>. Text walls use a typed string, a two-corner box, and <b>Submit</b>. Double-click or press <kbd>Shift+W</kbd> to finish freeform walls. Press <kbd>Esc</kbd> to cancel.</td></tr>
                                 <tr><td><b>Zone</b></td><td><kbd>4</kbd></td><td>Choose a zone type in the Zone Tool window, then click to place. <kbd>+</kbd>/<kbd>=</kbd> increase radius; <kbd>-</kbd>/<kbd>_</kbd> decrease radius. <kbd>Shift+Z</kbd> cycles zone types.</td></tr>
                                 <tr><td><b>Spawn</b></td><td><kbd>5</kbd></td><td>Click to place a spawn point. Move the cursor to set the spawn direction, then click again to confirm.</td></tr>
@@ -341,38 +340,44 @@
             <div id="wall-tool-header">Wall Tool <span id="wall-tool-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="wall-tool-close" title="Close" class="vt-window-action">✕</span></div>
             <div id="wall-tool-body">
                 <div class="wall-tool-section">
-                    <div id="wall-tool-mode-row" style="display:flex;gap:4px;flex-wrap:wrap;">
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="freeform" aria-label="Freeform Wall" data-tooltip-title="Freeform Wall" data-tooltip-desc="Click points to draw a wall path; double-click or Shift+W to finish."><img src="./images/ObjectTools/conic-arc.svg" alt="" aria-hidden="true"></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="rect2" aria-label="2-point Rectangle" data-tooltip-title="2-point Rectangle" data-tooltip-desc="Click opposite corners to create a rectangular wall."><img src="./images/ObjectTools/2-point-rectangle.svg" alt="" aria-hidden="true"></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="centerRect" aria-label="Center-point Rectangle" data-tooltip-title="Center-point Rectangle" data-tooltip-desc="Click the center point, then click a corner to size the rectangle."><img src="./images/ObjectTools/center-point-rectangle.svg" alt="" aria-hidden="true"></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circleCenter" aria-label="Center-point Circle" data-tooltip-title="Center-point Circle" data-tooltip-desc="Click the center, click a radius point, then choose the wall count."><img src="./images/ObjectTools/center-point-circle.svg" alt="" aria-hidden="true"></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="circle3pt" aria-label="3-point Circle" data-tooltip-title="3-point Circle" data-tooltip-desc="Click three circumference points, then choose the wall count."><img src="./images/ObjectTools/3-point-circle.svg" alt="" aria-hidden="true"></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="arc3pt" aria-label="3-point Arc" data-tooltip-title="3-point Arc" data-tooltip-desc="Click two arc endpoints and one radius point, then choose the wall count."><img src="./images/ObjectTools/3-point-arc.svg" alt="" aria-hidden="true"></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="ellipse3pt" aria-label="3-point Ellipse" data-tooltip-title="3-point Ellipse" data-tooltip-desc="Click the center, major axis point, and minor axis point, then choose the wall count."><img src="./images/ObjectTools/3-point-ellipse.svg" alt="" aria-hidden="true"></button>
-                        <button class="btn btn-xs btn-default wall-tool-mode-btn" data-mode="text" aria-label="Text Walls" data-tooltip-title="Text Walls" data-tooltip-desc="Type text, click two box corners, then submit walls generated from text outlines."><i class="fa-solid fa-font" aria-hidden="true"></i></button>
+                    <div id="wall-tool-mode-row" class="vt-tool-grid">
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn vt-tool-grid-row" data-mode="freeform" aria-label="Freeform Wall" data-tooltip-title="Freeform Wall" data-tooltip-desc="Click points to draw a wall path; double-click or Shift+W to finish."><span class="vt-tool-icon"><img src="./images/ObjectTools/conic-arc.svg" alt="" aria-hidden="true"></span><span class="vt-tool-name">Freeform Wall</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn vt-tool-grid-row" data-mode="rect2" aria-label="2-point Rectangle" data-tooltip-title="2-point Rectangle" data-tooltip-desc="Click opposite corners to create a rectangular wall."><span class="vt-tool-icon"><img src="./images/ObjectTools/2-point-rectangle.svg" alt="" aria-hidden="true"></span><span class="vt-tool-name">2-point Rectangle</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn vt-tool-grid-row" data-mode="centerRect" aria-label="Center-point Rectangle" data-tooltip-title="Center-point Rectangle" data-tooltip-desc="Click the center point, then click a corner to size the rectangle."><span class="vt-tool-icon"><img src="./images/ObjectTools/center-point-rectangle.svg" alt="" aria-hidden="true"></span><span class="vt-tool-name">Center Rectangle</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn vt-tool-grid-row" data-mode="circleCenter" aria-label="Center-point Circle" data-tooltip-title="Center-point Circle" data-tooltip-desc="Click the center, click a radius point, then choose the wall count."><span class="vt-tool-icon"><img src="./images/ObjectTools/center-point-circle.svg" alt="" aria-hidden="true"></span><span class="vt-tool-name">Center Circle</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn vt-tool-grid-row" data-mode="circle3pt" aria-label="3-point Circle" data-tooltip-title="3-point Circle" data-tooltip-desc="Click three circumference points, then choose the wall count."><span class="vt-tool-icon"><img src="./images/ObjectTools/3-point-circle.svg" alt="" aria-hidden="true"></span><span class="vt-tool-name">3-point Circle</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn vt-tool-grid-row" data-mode="arc3pt" aria-label="3-point Arc" data-tooltip-title="3-point Arc" data-tooltip-desc="Click two arc endpoints and one radius point, then choose the wall count."><span class="vt-tool-icon"><img src="./images/ObjectTools/3-point-arc.svg" alt="" aria-hidden="true"></span><span class="vt-tool-name">3-point Arc</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn vt-tool-grid-row" data-mode="ellipse3pt" aria-label="3-point Ellipse" data-tooltip-title="3-point Ellipse" data-tooltip-desc="Click the center, major axis point, and minor axis point, then choose the wall count."><span class="vt-tool-icon"><img src="./images/ObjectTools/3-point-ellipse.svg" alt="" aria-hidden="true"></span><span class="vt-tool-name">3-point Ellipse</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                        <button class="btn btn-xs btn-default wall-tool-mode-btn vt-tool-grid-row" data-mode="text" aria-label="Text Walls" data-tooltip-title="Text Walls" data-tooltip-desc="Type text, click two box corners, then submit walls generated from text outlines."><span class="vt-tool-icon"><i class="fa-solid fa-font" aria-hidden="true"></i></span><span class="vt-tool-name">Text Walls</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
                     </div>
                 </div>
                 <div class="wall-tool-section" id="wall-tool-status-row">
                     <div id="wall-tool-status" style="font-size:11px;color:#666;line-height:1.35;"></div>
                 </div>
-                <div class="wall-tool-section" id="wall-tool-text-section" style="display:none;">
-                    <label style="display:block;margin:0 0 4px;font-size:12px;">Text:</label>
-                    <textarea id="dWallText" name="dWallText" rows="4" style="width:100%;resize:vertical;font-family:monospace;font-size:11px;" placeholder="Type text to convert into walls"></textarea>
+                <div class="wall-tool-section vt-tool-grid-row vt-setting-row" id="wall-tool-text-section" style="display:none;">
+                    <span class="vt-tool-icon"><span class="glyphicon glyphicon-font" aria-hidden="true"></span></span>
+                    <label class="vt-tool-name" for="dWallText">Text</label>
+                    <span class="vt-tool-input"><textarea id="dWallText" name="dWallText" rows="4" placeholder="Type text to convert into walls"></textarea></span>
                 </div>
-                <div class="wall-tool-section" id="wall-tool-count-section" style="display:none;">
-                    <label style="margin:0 6px 0 0;white-space:nowrap;font-size:12px;">Walls:</label>
-                    <input type="number" id="dWallSegments" name="dWallSegments" value="16" step="1" min="3" max="720" style="width:80px;" />
+                <div class="wall-tool-section vt-tool-grid-row vt-setting-row" id="wall-tool-count-section" style="display:none;">
+                    <span class="vt-tool-icon"><span class="glyphicon glyphicon-th-list" aria-hidden="true"></span></span>
+                    <label class="vt-tool-name" for="dWallSegments">Walls</label>
+                    <span class="vt-tool-input"><input type="number" id="dWallSegments" name="dWallSegments" value="16" step="1" min="3" max="720" /></span>
                 </div>
-                <div class="wall-tool-section">
-                    <label style="margin:0 6px 0 0;white-space:nowrap;font-size:12px;">Wall Height:</label>
-                    <input type="number" id="dWallHeight" name="dWallHeight" value="4" step="1" min="1" max="50" style="width:60px;" />
+                <div class="wall-tool-section vt-tool-grid-row vt-setting-row">
+                    <span class="vt-tool-icon"><span class="glyphicon glyphicon-resize-vertical" aria-hidden="true"></span></span>
+                    <label class="vt-tool-name" for="dWallHeight">Wall Height</label>
+                    <span class="vt-tool-input"><input type="number" id="dWallHeight" name="dWallHeight" value="4" step="1" min="1" max="50" /></span>
                 </div>
-                <div class="wall-tool-section" id="wall-tool-points-section" style="display:none;">
-                    <div id="wall-tool-points-label" style="font-size:11px;font-weight:bold;margin-bottom:4px;">Points &amp; Walls</div>
-                    <div id="wall-tool-points-list" style="font-size:11px;max-height:200px;overflow-y:auto;"></div>
+                <div class="wall-tool-section vt-tool-grid-row vt-setting-row" id="wall-tool-points-section" style="display:none;">
+                    <span class="vt-tool-icon"><span class="glyphicon glyphicon-map-marker" aria-hidden="true"></span></span>
+                    <div id="wall-tool-points-label" class="vt-tool-name">Points &amp; Walls</div>
+                    <div id="wall-tool-points-list" class="vt-tool-input"></div>
                 </div>
-                <div class="wall-tool-section">
-                    <button id="wall-tool-finish" class="btn btn-sm btn-primary" style="width:100%;display:none;">Finish Wall</button>
+                <div class="wall-tool-section vt-tool-grid-row vt-setting-row vt-tool-actions-row" id="wall-tool-actions-section">
+                    <span class="vt-tool-icon"></span>
+                    <span class="vt-tool-name">Action</span>
+                    <span class="vt-tool-input vt-tool-actions"><button id="wall-tool-finish" class="btn btn-sm btn-primary" style="display:none;">Finish Wall</button><button id="wall-tool-cancel" class="btn btn-sm btn-default" style="display:none;">Cancel</button></span>
                 </div>
             </div>
         </div>
@@ -381,27 +386,28 @@
         <div id="zone-tool-window" style="display:none;">
             <div id="zone-tool-header">Zone Tool <span id="zone-tool-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="zone-tool-close" title="Close" class="vt-window-action">✕</span></div>
             <div id="zone-tool-body">
-                <div id="zone-tool-types-row" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-                    <button class="btn btn-xs zone-type-btn zone-type-death" data-type="0" title="Death" aria-label="Death zone"><img src="./images/ObjectTools/Zones/DeathZone.png" alt=""></button>
-                    <button class="btn btn-xs zone-type-btn zone-type-win" data-type="1" title="Win" aria-label="Win zone"><img src="./images/ObjectTools/Zones/WinZone.png" alt=""></button>
-                    <button class="btn btn-xs zone-type-btn zone-type-target" data-type="2" title="Target" aria-label="Target zone"><img src="./images/ObjectTools/Zones/TargetZone.png" alt=""></button>
-                    <button class="btn btn-xs zone-type-btn zone-type-rubber" data-type="3" title="Rubber" aria-label="Rubber zone"><img src="./images/ObjectTools/Zones/RubberZone.png" alt=""></button>
-                    <button class="btn btn-xs zone-type-btn zone-type-fortress" data-type="4" title="Fortress" aria-label="Fortress zone"><img src="./images/ObjectTools/Zones/FortressZone.png" alt=""></button>
+                <div id="zone-tool-types-row" class="vt-tool-grid">
+                    <button class="btn btn-xs zone-type-btn zone-type-death vt-tool-grid-row" data-type="0" aria-label="Death zone" data-tooltip-title="Death Zone" data-tooltip-desc="Place a zone that destroys players on contact."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/DeathZone.png" alt=""></span><span class="vt-tool-name">Death Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                    <button class="btn btn-xs zone-type-btn zone-type-win vt-tool-grid-row" data-type="1" aria-label="Win zone" data-tooltip-title="Win Zone" data-tooltip-desc="Place a zone that triggers a win condition."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/WinZone.png" alt=""></span><span class="vt-tool-name">Win Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                    <button class="btn btn-xs zone-type-btn zone-type-target vt-tool-grid-row" data-type="2" aria-label="Target zone" data-tooltip-title="Target Zone" data-tooltip-desc="Place a target zone for objective-style maps."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/TargetZone.png" alt=""></span><span class="vt-tool-name">Target Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                    <button class="btn btn-xs zone-type-btn zone-type-rubber vt-tool-grid-row" data-type="3" aria-label="Rubber zone" data-tooltip-title="Rubber Zone" data-tooltip-desc="Place a rubber zone with configurable rubber behavior."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/RubberZone.png" alt=""></span><span class="vt-tool-name">Rubber Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                    <button class="btn btn-xs zone-type-btn zone-type-fortress vt-tool-grid-row" data-type="4" aria-label="Fortress zone" data-tooltip-title="Fortress Zone" data-tooltip-desc="Place a fortress zone for conquest-style gameplay."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/FortressZone.png" alt=""></span><span class="vt-tool-name">Fortress Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
                 </div>
-                <div id="zone-tool-settings" style="font-size:12px;">
-                    <div id="zone-rubber-setting" style="display:none;margin-bottom:6px;">
-                        <label style="margin:0 6px 0 0;white-space:nowrap;">Rubber Value:</label>
-                        <input type="number" id="dRubberVal" name="dRubberVal" value="2" step="0.1" min="0" style="width:70px;" />
+                <div id="zone-tool-settings" class="vt-tool-grid">
+                    <div id="zone-rubber-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-dashboard" aria-hidden="true"></span></span>
+                        <label class="vt-tool-name" for="dRubberVal">Rubber Value</label>
+                        <span class="vt-tool-input"><input type="number" id="dRubberVal" name="dRubberVal" value="2" step="0.1" min="0" /></span>
                     </div>
-                    <div id="zone-quick-placement" style="margin-bottom:4px;">
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;">
-                            <input type="checkbox" id="zone-quick-placement-toggle" />
-                            <span>Quick placement</span>
-                        </label>
-                        <div id="zone-quick-size-row" style="display:none;margin-top:4px;">
-                            <label style="font-size:11px;margin:0 4px 0 0;">Size (radius):</label>
-                            <input type="number" id="zone-quick-size" value="32" min="1" step="1" style="width:70px;" />
-                        </div>
+                    <div id="zone-quick-placement" class="vt-tool-grid-row vt-setting-row">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-screenshot" aria-hidden="true"></span></span>
+                        <label class="vt-tool-name" for="zone-quick-placement-toggle">Quick Placement</label>
+                        <span class="vt-tool-input"><input type="checkbox" id="zone-quick-placement-toggle" /></span>
+                    </div>
+                    <div id="zone-quick-size-row" class="vt-tool-grid-row vt-setting-row" style="display:none;">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-record" aria-hidden="true"></span></span>
+                        <label class="vt-tool-name" for="zone-quick-size">Size Radius</label>
+                        <span class="vt-tool-input"><input type="number" id="zone-quick-size" value="32" min="1" step="1" /></span>
                     </div>
                 </div>
             </div>

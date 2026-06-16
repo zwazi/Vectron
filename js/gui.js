@@ -322,9 +322,9 @@ function mapSettings_parseCSV(text) {
 
 function mapSettings_loadCSVs() {
     var files = [
-        { url: './js/0.2.8.3.1.csv', version: '0.2.8.3.1' },
-        { url: './js/Trunk.csv',      version: 'Trunk'      },
-        { url: './js/Sty+ct.csv',     version: 'Sty+ct'     }
+        { url: vectron_assetUrl('js/0.2.8.3.1.csv'), version: '0.2.8.3.1' },
+        { url: vectron_assetUrl('js/Trunk.csv'),      version: 'Trunk'      },
+        { url: vectron_assetUrl('js/Sty+ct.csv'),     version: 'Sty+ct'     }
     ];
     var loaded = 0;
     var combined = {}; // name -> {desc, defaultVal, versions:[]}

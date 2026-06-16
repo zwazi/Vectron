@@ -291,19 +291,14 @@ function aamap_drawGrid() {
 
     if(vectron_grid_spacing <= 0) return;
 
-    if(config_autoAdjustGridSpacing)
+    if(config_autoAdjustGridSpacing && !vectron_grid_render_locked)
     {
-        while((vectron_zoom*vectron_grid_spacing) > 30)
-        {
-            vectron_grid_spacing /= 2;
-        }
-        while((vectron_zoom*vectron_grid_spacing) < 15)
-        {
-            vectron_grid_spacing *= 2;
-        }
+        vectron_grid_spacing = vectron_getAutoGridSpacing(vectron_grid_spacing);
+        vectron_grid_render_spacing = vectron_grid_spacing;
     }
 
-    var gridSpacing = vectron_zoom*vectron_grid_spacing;
+    var renderSpacing = vectron_grid_render_locked ? vectron_grid_render_spacing : vectron_grid_spacing;
+    var gridSpacing = vectron_zoom * renderSpacing;
 
     var regularArray = [];
     var tenthArray = [];
