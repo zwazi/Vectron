@@ -171,9 +171,14 @@ function gridSizeControls_sync() {
     }
     if(lockBtn) {
         var lockIcon = lockBtn.querySelector(".grid-size-lock-icon");
+        var lockTitle = vectron_grid_render_locked ? "Unlock grid rendering size" : "Lock grid rendering size";
         lockBtn.className = "info-icon-btn" + (vectron_grid_render_locked ? " active" : "");
-        lockBtn.title = vectron_grid_render_locked ? "Unlock grid rendering size" : "Lock grid rendering size";
-        lockBtn.setAttribute("aria-label", lockBtn.title);
+        if(typeof eventHandler_setTooltipText == "function") {
+            eventHandler_setTooltipText(lockBtn, lockTitle);
+        } else {
+            lockBtn.setAttribute("data-original-title", lockTitle);
+            lockBtn.setAttribute("aria-label", lockTitle);
+        }
         if(lockIcon) {
             lockIcon.className = "grid-size-lock-icon " + (vectron_grid_render_locked ? "grid-size-lock-icon-locked" : "grid-size-lock-icon-unlocked");
         }

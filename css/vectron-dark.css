@@ -46,16 +46,21 @@ body {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
-	gap: 16px;
+	justify-content: center;
+	gap: 18px;
 	height: 26px;
 	z-index: 10;
 	box-sizing: border-box;
+	font-variant-numeric: tabular-nums;
 }
 .info b {
 	margin-right: 2px;
+	flex: 0 0 auto;
 }
 .info .var {
-	display: inline;
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
 	overflow: visible;
 	word-break: normal;
 	height: auto;
@@ -88,11 +93,17 @@ body {
 	bottom: 0;
 	border-right: 1px solid #474747;
 	background: #333;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 18px;
 }
 
 #tool_bar ul {
 	margin: 0;
-	padding: 10px 10px 0;
+	padding: 0 10px;
+	width: 50px;
 }
 
 #tool_bar ul li {
@@ -114,6 +125,7 @@ body {
 	background-repeat: no-repeat;
 }
 
+#tool_bar a.toolbar-help-toggle,
 #tool_bar a.toolbar-newMap,
 #tool_bar a.toolbar-import,
 #tool_bar a.toolbar-export,
@@ -121,6 +133,7 @@ body {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	font-size: 16px;
 }
 
 #tool_bar ul li a:hover {
@@ -129,6 +142,7 @@ body {
 	text-decoration:none;
 }
 
+#tool_bar a.toolbar-help-toggle:hover,
 #tool_bar a.toolbar-newMap:hover,
 #tool_bar a.toolbar-import:hover,
 #tool_bar a.toolbar-export:hover,
