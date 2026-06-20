@@ -33,6 +33,7 @@ var eventHandler_middlePanStartX = 0, eventHandler_middlePanStartY = 0;
 var eventHandler_armawebtronPreviewUrl = "https://armawebtron.github.io/Armawebtron/main/";
 var eventHandler_armawebtronPreviewTimer = null;
 var eventHandler_armawebtronSettingsCustomCfgPath = "tampermonkey/settings_custom.cfg";
+var eventHandler_tooltipsPinned = false;
 var eventHandler_armawebtronSettingsCustomCfgFallback = [
     "SP_NUM_AIS 0",
     "ARENA_AXES 8",
@@ -129,7 +130,247 @@ function eventHandler_mergePreviewSettings(mapSettingsCustomCfg, fileSettingsCus
     return settings.join("\n");
 }
 
+function eventHandler_getMapSpawns() {
+    var spawns = [];
+    for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
+        if(aamap_objects[i] instanceof Spawn) {
+            spawns.push(aamap_objects[i]);
+        }
+    }
+
+    return spawns;
+}
+
+function eventHandler_getMapWalls() {
+    var walls = [];
+    for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
+        if(aamap_objects[i] instanceof Wall && aamap_objects[i].points.length >= 2) {
+            walls.push(aamap_objects[i]);
+        }
+    }
+
+    return walls;
+}
+
+function eventHandler_pointsAreSame(a, b) {
+    return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
+}
+
+function eventHandler_getClosedWallPolygons(walls) {
+    var polygons = [];
+    for(var i = 0, ii = walls.length; i < ii; i++) {
+        var points = walls[i].points;
+        if(points.length >= 4 && eventHandler_pointsAreSame(points[0], points[points.length - 1])) {
+            polygons.push(points);
+        }
+    }
+
+    return polygons;
+}
+
+function eventHandler_pointInPolygon(point, polygon) {
+    var inside = false;
+    for(var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        var pi = polygon[i];
+        var pj = polygon[j];
+        var intersects = ((pi.y > point.y) != (pj.y > point.y)) &&
+            (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x);
+        if(intersects) inside = !inside;
+    }
+
+    return inside;
+}
+
+function eventHandler_getPreviewValidationError() {
+    var spawns = eventHandler_getMapSpawns();
+    if(spawns.length == 0) {
+        return "Add at least one spawn before play testing.";
+    }
+
+    var walls = eventHandler_getMapWalls();
+    if(walls.length == 0) {
+        return "Add at least one wall before play testing.";
+    }
+
+    var polygons = eventHandler_getClosedWallPolygons(walls);
+    if(polygons.length == 0) {
+        return "Add a closed wall perimeter before play testing.";
+    }
+
+    for(var i = 0, ii = spawns.length; i < ii; i++) {
+        var inside = false;
+        for(var j = 0, jj = polygons.length; j < jj; j++) {
+            if(eventHandler_pointInPolygon(spawns[i], polygons[j])) {
+                inside = true;
+                break;
+            }
+        }
+        if(!inside) {
+            return "Every spawn must be inside a closed wall perimeter.";
+        }
+    }
+
+    return "";
+}
+
+function eventHandler_setTooltipText(element, text) {
+    var $element = $(element);
+    $element.attr("data-original-title", text);
+    $element.attr("aria-label", text);
+    if($element.data("bs.tooltip")) {
+        $element.tooltip("fixTitle");
+    }
+}
+
+function eventHandler_getTooltipElements() {
+    return $('[rel=tooltip]').filter(function() {
+        return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
+    });
+}
+
+function eventHandler_initTooltips(trigger) {
+    eventHandler_getTooltipElements().tooltip({
+        container: "body",
+        trigger: trigger || "hover",
+        viewport: {
+            selector: "body",
+            padding: 4
+        }
+    });
+}
+
+function eventHandler_resetTooltips(trigger) {
+    $('[rel=tooltip]').tooltip("destroy");
+    $(".tooltip").remove();
+    eventHandler_initTooltips(trigger);
+}
+
+function eventHandler_updatePreviewButtonState() {
+    var error = eventHandler_getPreviewValidationError();
+    var button = document.getElementById("armawebtron-preview-open");
+    var tooltipTarget = document.getElementById("armawebtron-preview-open-tooltip");
+    if(!button || !tooltipTarget) return;
+
+    button.disabled = error != "";
+    tooltipTarget.className = error ? "disabled-button-tooltip disabled" : "disabled-button-tooltip";
+    eventHandler_setTooltipText(tooltipTarget, error || "Open preview");
+}
+
+function eventHandler_getBootstrapTooltip($element) {
+    var tooltip = $element.data("bs.tooltip");
+    if(!tooltip) return null;
+    if(tooltip.$tip) return tooltip.$tip;
+    if(typeof tooltip.tip == "function") return tooltip.tip();
+    return null;
+}
+
+function eventHandler_rectsOverlap(a, b) {
+    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+function eventHandler_getPaddedRect(element, padding) {
+    var rect = element.getBoundingClientRect();
+    padding = padding || 0;
+    return {
+        left: rect.left - padding,
+        right: rect.right + padding,
+        top: rect.top - padding,
+        bottom: rect.bottom + padding,
+        width: rect.width + padding * 2,
+        height: rect.height + padding * 2
+    };
+}
+
+function eventHandler_repositionPinnedTooltip($tip, usedRects, placement) {
+    var tip = $tip[0];
+    var rect = eventHandler_getPaddedRect(tip, 4);
+    var left = parseFloat($tip.css("left")) || rect.left;
+    var top = parseFloat($tip.css("top")) || rect.top;
+
+    for(var i = 0, ii = usedRects.length; i < ii; i++) {
+        var used = usedRects[i];
+        if(!eventHandler_rectsOverlap(rect, used)) {
+            continue;
+        }
+
+        if(placement == "top" || placement == "bottom") {
+            left += used.right - rect.left + 4;
+        } else {
+            top += used.bottom - rect.top + 4;
+        }
+
+        $tip.css({
+            left: left,
+            top: top
+        });
+        rect = eventHandler_getPaddedRect(tip, 4);
+    }
+
+    var maxLeft = window.innerWidth - rect.width - 4;
+    var maxTop = window.innerHeight - rect.height - 4;
+    left = Math.max(4, Math.min(left, maxLeft));
+    top = Math.max(4, Math.min(top, maxTop));
+    $tip.css({
+        left: left,
+        top: top
+    });
+
+    return eventHandler_getPaddedRect(tip, 4);
+}
+
+function eventHandler_showPinnedTooltips() {
+    var $tooltips = eventHandler_getPinnedTooltipElements();
+    var usedRects = [];
+
+    $tooltips.tooltip("show");
+    setTimeout(function() {
+        $tooltips.each(function() {
+            var $tip = eventHandler_getBootstrapTooltip($(this));
+            if(!$tip || !$tip.length || !$tip.is(":visible")) return;
+
+            var placement = ($(this).attr("data-placement") || "right").split(" ")[0];
+            usedRects.push(eventHandler_repositionPinnedTooltip($tip, usedRects, placement));
+        });
+    }, 0);
+}
+
+function eventHandler_getPinnedTooltipElements() {
+    var $sidebar = $("#tool_bar [rel=tooltip]").filter(function() {
+        return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
+    });
+    var $topBar = $("#top-settings-bar [rel=tooltip]").filter(function() {
+        return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
+    });
+    var $bottomBar = $(".info [rel=tooltip]").filter(function() {
+        return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
+    });
+    var error = eventHandler_getPreviewValidationError();
+    var $previewError = error ? $("#armawebtron-preview-open-tooltip:visible") : $();
+
+    return $sidebar.add($topBar).add($bottomBar).add($previewError);
+}
+
+function eventHandler_togglePinnedTooltips() {
+    eventHandler_tooltipsPinned = !eventHandler_tooltipsPinned;
+    if(eventHandler_tooltipsPinned) {
+        $(".toolbar-help-toggle").addClass("toolbar-tool-active");
+        eventHandler_setTooltipText($(".toolbar-help-toggle")[0], "Hide Tooltips");
+        eventHandler_resetTooltips("manual");
+        eventHandler_showPinnedTooltips();
+    } else {
+        $(".toolbar-help-toggle").removeClass("toolbar-tool-active");
+        eventHandler_setTooltipText($(".toolbar-help-toggle")[0], "Show Tooltips");
+        eventHandler_resetTooltips("hover");
+    }
+}
+
 function eventHandler_previewInArmawebtron() {
+    var validationError = eventHandler_getPreviewValidationError();
+    if(validationError) {
+        eventHandler_updatePreviewButtonState();
+        return;
+    }
+
     var map = eventHandler_getExportMap();
     var previewUrl = eventHandler_getArmawebtronPreviewUrl();
     var previewWindow = window.open(previewUrl, "vectron-armawebtron-preview");
@@ -206,6 +447,7 @@ function eventHandler_previewInArmawebtron() {
 function eventHandler_init() {
 
     var $contextMenu = $("#contextMenu");
+    eventHandler_initTooltips("hover");
 
     $(document).on("mousedown", function(e) {
         var active = document.activeElement;
@@ -730,6 +972,12 @@ function eventHandler_init() {
         vectron_panX = 0;
         vectron_panY = 0;
         vectron_render();
+    });
+
+    $(".toolbar-help-toggle").mouseup(function(e) {
+        e.preventDefault();
+        eventHandler_togglePinnedTooltips();
+        $("#zones-menu").hide();
     });
 
     $(".toolbar-toolSpawn").mouseup(function(e) {
@@ -1705,10 +1953,14 @@ function eventHandler_init() {
         var btn = this;
         var popover = document.getElementById("armawebtron-preview-popover");
         var rect = btn.getBoundingClientRect();
+        eventHandler_updatePreviewButtonState();
         popover.style.left = (rect.right + 8) + 'px';
         popover.style.top  = rect.top + 'px';
         popover.style.display = 'block';
         document.getElementById("new-map-popover").style.display = 'none';
+        if(eventHandler_tooltipsPinned) {
+            eventHandler_showPinnedTooltips();
+        }
         $("#zones-menu").hide();
     });
 

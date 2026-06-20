@@ -49,13 +49,13 @@
     </head>
     <body class="noscroll">
         <div class="info" style="display:none">
-            <span class="info-section"><b>cursor</b>&nbsp;<span class="var">x:&nbsp;<span id="cursor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="cursor-y">0</span></span></span>
+            <span class="info-section info-cursor-section"><b>cursor</b>&nbsp;<span class="var">x:&nbsp;<span id="cursor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="cursor-y">0</span></span></span>
             <span class="info-sep">|</span>
-            <span class="info-section info-zoom-section"><b>zoom:</b>&nbsp;<select id="zoom-percent-select" title="Zoom percent"></select><button id="zoom-reset-100" class="info-icon-btn" type="button" title="Zoom 100%" aria-label="Zoom 100%"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button></span>
+            <span class="info-section info-zoom-section"><b>zoom:</b>&nbsp;<select id="zoom-percent-select" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Zoom percent"></select><button id="zoom-reset-100" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Zoom 100%" aria-label="Zoom 100%"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button></span>
             <span class="info-sep">|</span>
-            <span class="info-section info-grid-section"><b>grid:</b>&nbsp;<select id="grid-spacing-select" title="Grid size"></select><button id="grid-size-lock" class="info-icon-btn" type="button" title="Lock grid rendering size" aria-label="Lock grid rendering size"><span class="grid-size-lock-icon grid-size-lock-icon-unlocked" aria-hidden="true"></span></button></span>
+            <span class="info-section info-grid-section"><b>grid:</b>&nbsp;<select id="grid-spacing-select" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Grid size"></select><button id="grid-size-lock" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Lock grid rendering size" aria-label="Lock grid rendering size"><span class="grid-size-lock-icon grid-size-lock-icon-unlocked" aria-hidden="true"></span></button></span>
             <span class="info-sep">|</span>
-            <span class="info-section info-anchor-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" title="Return to origin" aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
+            <span class="info-section info-anchor-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Return to origin" aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
         </div>
 
         <div id="control_box">
@@ -198,7 +198,7 @@
                                 <tr><td><b>Author</b></td><td>Author name included in the exported file</td></tr>
                                 <tr><td><b>Category</b></td><td>Map category (e.g. <i>racing</i>, <i>sumo</i>)</td></tr>
                                 <tr><td><b>Revision</b></td><td>Map version number. Servers and clients cache maps; increment this each time you update so the new version is downloaded.</td></tr>
-                                <tr><td><b>DTD</b></td><td>The DTD file the map is validated against. Common values: <code>sty.dtd</code>, <code>map-0.2.8.dtd</code>, <code>aacockpit-0.1.dtd</code>. Type freely or pick from the dropdown.</td></tr>
+                                <tr><td><b>DTD</b></td><td>The DTD file the map is validated against. Common values: <code>sty.dtd</code>, <code>map-0.2.8.dtd</code>, <code>aacockpit-0.1.dtd</code>. Don't change this unless you know what you're doing.</td></tr>
                                 <tr><td><b>Axes ☐</b></td><td>Number of axes (turning directions). <i>axes = 360 / angle</i>. Check the box to include this in the exported map file.</td></tr>
                             </tbody>
                         </table>
@@ -295,27 +295,27 @@
         </div>
         <div id="top-settings-bar">
             <span class="tsb-field">
-                <label for="map_name" title="What should this map be called?">Name</label>
+                <label for="map_name" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="What should this map be called?">Name</label>
                 <input type="text" class="tsb-input" id="map_name" placeholder="Map name">
             </span>
             <span class="tsb-sep">|</span>
             <span class="tsb-field">
-                <label for="map_author" title="Who created this map?">Author</label>
+                <label for="map_author" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Who created this map?">Author</label>
                 <input type="text" class="tsb-input" id="map_author" placeholder="Author">
             </span>
             <span class="tsb-sep">|</span>
             <span class="tsb-field">
-                <label for="map_category" title="What the map is for; examples: racing, sumo">Category</label>
+                <label for="map_category" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="What the map is for; examples: racing, sumo">Category</label>
                 <input type="text" class="tsb-input" id="map_category" placeholder="Category" default="maps">
             </span>
             <span class="tsb-sep">|</span>
             <span class="tsb-field">
-                <label for="map_version" title="The current revision of the map. Clients and servers will automatically download and cache maps and they do NOT re-download the same file even after you update it. Change this every time you update the map.">Revision</label>
+                <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The current revision of the map. Clients and servers cache map files. Change this every time you update the map.">Revision</label>
                 <input type="text" class="tsb-input tsb-input-sm" id="map_version" placeholder="Version">
             </span>
             <span class="tsb-sep">|</span>
             <span class="tsb-field">
-                <label for="map_dtd" title="The DTD file this map is verified against.">DTD</label>
+                <label for="map_dtd" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The DTD file this map is verified against. Don't change this unless you know what you're doing.">DTD</label>
                 <input type="text" class="tsb-input" id="map_dtd" placeholder="sty.dtd" default="sty.dtd" list="dtds">
                 <datalist id="dtds">
                     <option value="sty.dtd"/>
@@ -329,8 +329,8 @@
                 </datalist>
             </span>
             <span class="tsb-sep">|</span>
-            <span class="tsb-field" title="Map axes: controls the number of turning directions. axes = 360 / angle. Check the box to force axes in the map file.">
-                <label for="map_axes_forced" title="Force axes in map file?"><input class="form-check-input" id="map_axes_forced" type="checkbox" /> Axes</label>
+            <span class="tsb-field" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Map axes control turning directions. Check the box to force axes in the map file.">
+                <label for="map_axes_forced"><input class="form-check-input" id="map_axes_forced" type="checkbox" /> Axes</label>
                 <input type="number" class="tsb-input tsb-input-sm" id="map_axes" name="map_axes" min="2" max="360" value="4" />
             </span>
         </div>
@@ -468,11 +468,6 @@
             </ul>
             <ul>
                 <li>
-                    <a class="toolbar-toolXml" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="XML Editor"></a>
-                </li>
-            </ul>
-            <ul>
-                <li>
                     <a class="toolbar-newMap" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="New Map"><i class="fa-regular fa-file" aria-hidden="true"></i></a>
                 </li>
                 <li>
@@ -488,6 +483,14 @@
             <ul>
                 <li>
                     <a class="toolbar-actionHistory" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Action History"></a>
+                </li>
+                <li>
+                    <a class="toolbar-toolXml" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="XML Editor"></a>
+                </li>
+            </ul>
+            <ul>
+                <li>
+                    <a class="toolbar-help-toggle" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Show Tooltips"><i class="fa-solid fa-question" aria-hidden="true"></i></a>
                 </li>
                 <li>
                     <a class="toolbar-gui-open" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Settings"></a>
@@ -525,9 +528,6 @@
 
         <script type="text/javascript" src="./js/libs/bootstrap.min.js"></script>
         <script type="text/javascript" src="./js/tour.js"></script>
-        <script>
-        $('[rel=tooltip]').tooltip();
-        </script>
 
         <div id="xml-editor-overlay">
             <div id="xml-editor-box">
@@ -564,7 +564,7 @@
                 </ol>
                 <div class="armawebtron-preview-popover-actions">
                     <a id="armawebtron-userscript-link" class="btn btn-sm btn-default" href="./tampermonkey/armawebtron-vectron-preview.user.js" target="_blank" rel="noopener">Userscript</a>
-                    <button id="armawebtron-preview-open" class="btn btn-sm btn-primary">Open Preview</button>
+                    <span id="armawebtron-preview-open-tooltip" class="disabled-button-tooltip" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Open preview"><button id="armawebtron-preview-open" class="btn btn-sm btn-primary">Open Preview</button></span>
                     <button id="armawebtron-preview-cancel" class="btn btn-sm btn-default">Cancel</button>
                 </div>
             </div>

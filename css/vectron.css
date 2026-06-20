@@ -55,16 +55,21 @@ body.noscroll {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
-	gap: 16px;
+	justify-content: center;
+	gap: 18px;
 	height: 26px;
 	z-index: 10;
 	box-sizing: border-box;
+	font-variant-numeric: tabular-nums;
 }
 .info b {
 	margin-right: 2px;
+	flex: 0 0 auto;
 }
 .info .var {
-	display: inline;
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
 	overflow: visible;
 	word-break: normal;
 	height: auto;
@@ -79,12 +84,17 @@ body.noscroll {
   width:50px;
   /*border-right:1px solid #e5e5e5;*/
   background:#333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
 }
 
 #tool_bar ul {
-  margin:0; padding:10px 10px;
-  padding-bottom:0;
-
+  margin:0;
+  padding:0 10px;
+  width: 50px;
 }
 
 #tool_bar ul li {
@@ -652,29 +662,47 @@ body.noscroll {
   opacity: 1;
 }
 
+.tooltip {
+  z-index: 10000;
+}
+
 /* Info bar fixed-width value spans to prevent layout shift */
 .info #cursor-x,
 .info #cursor-y,
 .info #anchor-x,
 .info #anchor-y {
   display: inline-block;
-  min-width: 40px;
+  width: 64px;
   text-align: left;
 }
 .info #zoom {
   display: inline-block;
-  min-width: 32px;
-  text-align: left;
+  width: 36px;
+  text-align: right;
 }
 .info #spacing {
   display: inline-block;
-  min-width: 24px;
-  text-align: left;
+  width: 36px;
+  text-align: right;
+}
+.info-cursor-section {
+  width: 234px;
+  justify-content: center;
 }
 .info-grid-section,
 .info-zoom-section,
 .info-anchor-section {
   gap: 6px;
+  justify-content: center;
+}
+.info-zoom-section {
+  width: 158px;
+}
+.info-grid-section {
+  width: 148px;
+}
+.info-anchor-section {
+  width: 254px;
 }
 #grid-spacing-select,
 #zoom-percent-select {
@@ -710,6 +738,15 @@ body.noscroll {
   background: #555;
   border-color: #888;
 }
+.disabled-button-tooltip {
+  display: inline-flex;
+}
+.disabled-button-tooltip.disabled {
+  cursor: not-allowed;
+}
+.disabled-button-tooltip.disabled > button {
+  pointer-events: none;
+}
 .grid-size-lock-icon {
   width: 18px;
   height: 18px;
@@ -732,7 +769,7 @@ body.noscroll {
 }
 .info-sep {
   opacity: 0.35;
-  padding: 0 2px;
+  padding: 0 6px;
   user-select: none;
 }
 
@@ -972,7 +1009,7 @@ button.vt-tool-grid-row,
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 14px;
 }
 
 .wall-tool-mode-btn .vt-tool-name,
@@ -1076,7 +1113,11 @@ button.vt-tool-grid-row,
 .toolbar-armawebtron-preview {
   background-image: none;
 }
+.toolbar-help-toggle {
+  background-image: none;
+}
 
+#tool_bar a.toolbar-help-toggle,
 #tool_bar a.toolbar-newMap,
 #tool_bar a.toolbar-import,
 #tool_bar a.toolbar-export,
@@ -1087,6 +1128,7 @@ button.vt-tool-grid-row,
   font-size: 16px;
 }
 
+#tool_bar a.toolbar-help-toggle:hover,
 #tool_bar a.toolbar-newMap:hover,
 #tool_bar a.toolbar-import:hover,
 #tool_bar a.toolbar-export:hover,
@@ -1229,6 +1271,7 @@ button.vt-tool-grid-row,
   border-bottom: 1px solid #ccc;
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 0 10px;
   gap: 6px;
   z-index: 5;
@@ -1277,7 +1320,7 @@ button.vt-tool-grid-row,
 
 .tsb-sep {
   opacity: 0.35;
-  padding: 0 2px;
+  padding: 0 6px;
   user-select: none;
   flex-shrink: 0;
 }
