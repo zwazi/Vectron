@@ -30,7 +30,178 @@ var eventHandler_contextMenu = false;
 var eventHandler_middlePanning = false;
 var eventHandler_middleClickX = 0, eventHandler_middleClickY = 0;
 var eventHandler_middlePanStartX = 0, eventHandler_middlePanStartY = 0;
+var eventHandler_armawebtronPreviewUrl = "https://armawebtron.github.io/Armawebtron/main/";
+var eventHandler_armawebtronPreviewTimer = null;
+var eventHandler_armawebtronSettingsCustomCfgPath = "tampermonkey/settings_custom.cfg";
+var eventHandler_armawebtronSettingsCustomCfgFallback = [
+    "SP_NUM_AIS 0",
+    "ARENA_AXES 8",
+    "ZONE_HEIGHT 1",
+    "ZONE_SEGMENTS 20",
+    "ZONE_SEG_LENGTH 1",
+    "SIZE_FACTOR 0",
+    "CYCLE_WALL_TIME 999",
+    "WALLS_LENGTH 1",
+    "CYCLE_ACCEL_OFFSET .00999999",
+    "CYCLE_DELAY .0009",
+    "CYCLE_SPEED_DECAY_ABOVE .2",
+    "CYCLE_BRAKE_REFILL 1",
+    "CYCLE_RUBBER 100",
+    "CYCLE_ACCEL 0",
+    "CYCLE_ACCEL_ENEMY 0",
+    "CYCLE_ACCEL_SLINGSHOT 0",
+    "CYCLE_RUBBER_MINDISTANCE 0",
+    "CYCLE_BRAKE 50",
+    "CYCLE_RUBBER_TIME 5",
+    "CYCLE_RUBBER_LEGACY 0",
+    "CYCLE_RUBBER_MINDISTANCE .0009999",
+    "CYCLE_SPEED_DECAY_BELOW .2",
+    "CYCLE_SPEED_MIN 0",
+    "CYCLE_SPEED 125"
+].join("\n");
 
+function eventHandler_getExportMap() {
+    var mapName = $("#map_name").val().trim() || "map";
+    var mapAuthor = $("#map_author").val().trim();
+    var mapCategory = $("#map_category").val().trim();
+    var mapVersion = $("#map_version").val().trim() || "1";
+    var mapDtd = $("#map_dtd").val().trim() || "sty.dtd";
+    var mapAxes = parseInt($("#map_axes").val().trim()) || 4;
+    var mapSets = $("#map_settings").val().split("\n");
+    var map = aamap_buildXml(mapName, mapAuthor, mapCategory, mapVersion, mapDtd, mapAxes, mapSets);
+
+    map.settingsCustomCfg = mapSets.filter(function(setting) {
+        return setting.trim() != "";
+    }).join("\n");
+
+    return map;
+}
+
+function eventHandler_getArmawebtronPreviewUrl() {
+    if(typeof window.vectron_armawebtronPreviewUrl == "string" && window.vectron_armawebtronPreviewUrl.trim()) {
+        return window.vectron_armawebtronPreviewUrl.trim();
+    }
+
+    var savedUrl = localStorage.getItem("vectron_armawebtronPreviewUrl");
+    if(savedUrl && savedUrl.trim()) {
+        return savedUrl.trim();
+    }
+
+    return eventHandler_armawebtronPreviewUrl;
+}
+
+function eventHandler_getArmawebtronSettingsCustomCfg() {
+    if(typeof fetch != "function") {
+        return Promise.resolve("");
+    }
+
+    return fetch(eventHandler_armawebtronSettingsCustomCfgPath + "?_=" + Date.now(), {
+        cache: "no-store"
+    }).then(function(response) {
+        if(!response.ok) {
+            gui_writeLog("Using bundled settings_custom.cfg fallback for preview.");
+            return eventHandler_armawebtronSettingsCustomCfgFallback;
+        }
+
+        return response.text().then(function(text) {
+            if(text.trim() == "") {
+                gui_writeLog("Using bundled settings_custom.cfg fallback for preview.");
+                return eventHandler_armawebtronSettingsCustomCfgFallback;
+            }
+
+            return text;
+        });
+    }).catch(function() {
+        gui_writeLog("Could not load tampermonkey/settings_custom.cfg; using bundled fallback.");
+        return eventHandler_armawebtronSettingsCustomCfgFallback;
+    });
+}
+
+function eventHandler_mergePreviewSettings(mapSettingsCustomCfg, fileSettingsCustomCfg) {
+    var settings = [];
+    if(mapSettingsCustomCfg && mapSettingsCustomCfg.trim()) {
+        settings.push(mapSettingsCustomCfg.trim());
+    }
+    if(fileSettingsCustomCfg && fileSettingsCustomCfg.trim()) {
+        settings.push(fileSettingsCustomCfg.trim());
+    }
+
+    return settings.join("\n");
+}
+
+function eventHandler_previewInArmawebtron() {
+    var map = eventHandler_getExportMap();
+    var previewUrl = eventHandler_getArmawebtronPreviewUrl();
+    var previewWindow = window.open(previewUrl, "vectron-armawebtron-preview");
+
+    if(!previewWindow) {
+        gui_writeLog("Armawebtron preview popup was blocked.");
+        return;
+    }
+
+    if(eventHandler_armawebtronPreviewTimer != null) {
+        clearInterval(eventHandler_armawebtronPreviewTimer);
+        eventHandler_armawebtronPreviewTimer = null;
+    }
+
+    var sentCount = 0;
+    var maxSends = 80;
+
+    function stopSending() {
+        if(eventHandler_armawebtronPreviewTimer != null) {
+            clearInterval(eventHandler_armawebtronPreviewTimer);
+            eventHandler_armawebtronPreviewTimer = null;
+        }
+        window.removeEventListener("message", onPreviewMessage);
+    }
+
+    function onPreviewMessage(event) {
+        if(!event.data || event.data.type != "vectron-map-preview-ack") {
+            return;
+        }
+
+        stopSending();
+        if(event.data.ok) {
+            gui_writeLog("Sent map to Armawebtron preview. Settings applied: " + (event.data.appliedSettings || 0) + ".");
+            if(event.data.unknownSettings && event.data.unknownSettings.length > 0) {
+                gui_writeLog("Settings not defined by Armawebtron: " + event.data.unknownSettings.join(", "));
+            }
+        } else {
+            gui_writeLog("Armawebtron preview rejected the map: " + (event.data.error || "unknown error"));
+        }
+    }
+
+    function sendPreviewMap(payload) {
+        if(previewWindow.closed || sentCount >= maxSends) {
+            stopSending();
+            return;
+        }
+
+        previewWindow.postMessage(payload, "*");
+        sentCount++;
+    }
+
+    window.addEventListener("message", onPreviewMessage);
+    gui_writeLog("Loading settings_custom.cfg for Armawebtron preview.");
+    eventHandler_getArmawebtronSettingsCustomCfg().then(function(fileSettingsCustomCfg) {
+        var payload = {
+            type: "vectron-map-preview",
+            source: "Vectron",
+            version: 1,
+            fileName: map.fileName,
+            xml: map.xml,
+            settingsCustomCfg: eventHandler_mergePreviewSettings(map.settingsCustomCfg, fileSettingsCustomCfg)
+        };
+
+        gui_writeLog("Sending map and custom settings to Armawebtron preview.");
+        setTimeout(function() {
+            sendPreviewMap(payload);
+        }, 500);
+        eventHandler_armawebtronPreviewTimer = setInterval(function() {
+            sendPreviewMap(payload);
+        }, 500);
+    });
+}
 
 function eventHandler_init() {
 
@@ -544,6 +715,21 @@ function eventHandler_init() {
 
     $("#grid-size-lock").on("click", function() {
         gridSizeControls_setLocked(!vectron_grid_render_locked);
+    });
+
+    $("#zoom-percent-select").on("change", function() {
+        zoomControls_setPercent(parseFloat(this.value));
+    });
+
+    $("#zoom-reset-100").on("click", function() {
+        clearZoomPreview();
+        zoomControls_setPercent(100);
+    });
+
+    $("#anchor-reset-origin").on("click", function() {
+        vectron_panX = 0;
+        vectron_panY = 0;
+        vectron_render();
     });
 
     $(".toolbar-toolSpawn").mouseup(function(e) {
@@ -1453,6 +1639,7 @@ function eventHandler_init() {
         popover.style.left = (rect.right + 8) + 'px';
         popover.style.top  = rect.top + 'px';
         popover.style.display = 'block';
+        document.getElementById("armawebtron-preview-popover").style.display = 'none';
         $("#zones-menu").hide();
     });
 
@@ -1509,15 +1696,39 @@ function eventHandler_init() {
 
     // Export button (toolbar)
     $(".toolbar-export").mouseup(function(e) {
-        var mapName = $("#map_name").val().trim() || "map";
-        var mapAuthor = $("#map_author").val().trim();
-        var mapCategory = $("#map_category").val().trim();
-        var mapVersion = $("#map_version").val().trim() || "1";
-        var mapDtd = $("#map_dtd").val().trim() || "sty.dtd";
-        var mapAxes = parseInt($("#map_axes").val().trim()) || 4;
-        var mapSets = $("#map_settings").val().split("\n");
-        aamap_save(mapName, mapAuthor, mapCategory, mapVersion, mapDtd, mapAxes, mapSets);
+        var map = eventHandler_getExportMap();
+        vectron_saveTextAsFile(map.xml, map.fileName);
         $("#zones-menu").hide();
+    });
+
+    $(".toolbar-armawebtron-preview").mouseup(function(e) {
+        var btn = this;
+        var popover = document.getElementById("armawebtron-preview-popover");
+        var rect = btn.getBoundingClientRect();
+        popover.style.left = (rect.right + 8) + 'px';
+        popover.style.top  = rect.top + 'px';
+        popover.style.display = 'block';
+        document.getElementById("new-map-popover").style.display = 'none';
+        $("#zones-menu").hide();
+    });
+
+    $("#armawebtron-preview-open").mouseup(function(e) {
+        document.getElementById("armawebtron-preview-popover").style.display = 'none';
+        eventHandler_previewInArmawebtron();
+        $("#zones-menu").hide();
+    });
+
+    $("#armawebtron-preview-cancel").mouseup(function(e) {
+        document.getElementById("armawebtron-preview-popover").style.display = 'none';
+    });
+
+    $(document).on("mousedown.armawebtronpreviewpopover", function(e) {
+        var pop = document.getElementById("armawebtron-preview-popover");
+        if(pop && pop.style.display !== 'none' &&
+           !$(e.target).closest("#armawebtron-preview-popover").length &&
+           !$(e.target).closest(".toolbar-armawebtron-preview").length) {
+            pop.style.display = 'none';
+        }
     });
 
 }

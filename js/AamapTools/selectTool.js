@@ -57,39 +57,40 @@ var selectTool_sets = [];
 
 var selectTool_hoveredSet = null;
 var selectTool_hoveredAamapObj = null;
+var SELECT_TOOL_HIGHLIGHT_OFFSET = 5;
+var SELECT_TOOL_HIGHLIGHT_STROKE_WIDTH = SELECT_TOOL_HIGHLIGHT_OFFSET * 2;
+var SELECT_TOOL_HIT_TOLERANCE = SELECT_TOOL_HIGHLIGHT_OFFSET;
+var SELECT_TOOL_HIT_WIDTH = SELECT_TOOL_HIT_TOLERANCE * 2;
 
 function selectTool_setGlowAttrs(aamapObject, attrs) {
     if(aamapObject && aamapObject.glowObj) aamapObject.glowObj.attr(attrs);
 }
 
 function selectTool_defaultGlowAttrs(aamapObject) {
-    if(aamapObject && aamapObject.isSelected) {
-        return {
-            "stroke-opacity": 0.75,
-            "fill-opacity": 0.05,
-            cursor: "pointer"
-        };
-    }
-    return {
+    var attrs = {
         "stroke-opacity": 0,
         "fill-opacity": 0,
         cursor: "default"
     };
+    if(aamapObject && aamapObject.isSelected) {
+        attrs["stroke-opacity"] = 0.75;
+        attrs["fill-opacity"] = aamapObject instanceof Zone ? 0.18 : 0;
+        attrs.cursor = "pointer";
+    }
+    return attrs;
 }
 
 function selectTool_hoverGlowAttrs(aamapObject) {
-    if(aamapObject && aamapObject.isSelected) {
-        return {
-            "stroke-opacity": 0.95,
-            "fill-opacity": 0.08,
-            cursor: "pointer"
-        };
-    }
-    return {
+    var attrs = {
         "stroke-opacity": 0.45,
-        "fill-opacity": 0.08,
+        "fill-opacity": aamapObject instanceof Zone ? 0.12 : 0,
         cursor: "pointer"
     };
+    if(aamapObject && aamapObject.isSelected) {
+        attrs["stroke-opacity"] = 0.95;
+        attrs["fill-opacity"] = aamapObject instanceof Zone ? 0.25 : 0;
+    }
+    return attrs;
 }
 
 function selectTool_beginRenderCycle() {
@@ -101,14 +102,20 @@ function selectTool_beginRenderCycle() {
 }
 
 function selectTool_pointInGlow(aamapObject, x, y) {
-    if(!aamapObject || !aamapObject.glowObj) return false;
-    var bbox = aamapObject.glowObj.getBBox();
-    if(!bbox || !isFinite(bbox.x) || !isFinite(bbox.y) || !isFinite(bbox.width) || !isFinite(bbox.height)) return false;
-    return x >= bbox.x && x <= bbox.x + bbox.width && y >= bbox.y && y <= bbox.y + bbox.height;
+    if(!aamapObject) return false;
+    if(aamapObject instanceof Wall) return selectTool_pointNearWall(aamapObject, x, y, SELECT_TOOL_HIT_TOLERANCE);
+    if(aamapObject instanceof Zone) return selectTool_pointInZoneHitArea(aamapObject, x, y, SELECT_TOOL_HIT_TOLERANCE);
+    if(aamapObject instanceof Spawn) return selectTool_pointNearSpawn(aamapObject, x, y, SELECT_TOOL_HIT_TOLERANCE);
+    return false;
 }
 
 function selectTool_glowArea(aamapObject) {
     if(!aamapObject || !aamapObject.glowObj) return Infinity;
+    if(aamapObject instanceof Wall) return Math.max(1, selectTool_wallScreenLength(aamapObject)) * SELECT_TOOL_HIT_WIDTH;
+    if(aamapObject instanceof Zone) {
+        var r = Math.max(1, aamapObject.radius * vectron_zoom);
+        return 2 * Math.PI * r * SELECT_TOOL_HIT_WIDTH;
+    }
     var bbox = aamapObject.glowObj.getBBox();
     if(!bbox || !isFinite(bbox.width) || !isFinite(bbox.height)) return Infinity;
     return bbox.width * bbox.height;
@@ -123,8 +130,12 @@ function selectTool_findSetForObject(aamapObject) {
 }
 
 function selectTool_resolveHoveredSetFromCursor() {
-    var x = cursor_realX;
-    var y = cursor_realY;
+    var x = cursor_neverSnappedX;
+    var y = cursor_neverSnappedY;
+    if(x === undefined || y === undefined) {
+        x = cursor_realX;
+        y = cursor_realY;
+    }
     var bestObj = null;
     var bestArea = Infinity;
 
@@ -173,6 +184,137 @@ function selectTool_removeSelectionBox(aamapObject) {
         aamapObject.glowObj.remove();
         aamapObject.glowObj = null;
     }
+}
+
+function selectTool_screenPointFromMapPoint(point) {
+    return {
+        x: aamap_realX(point.x),
+        y: aamap_realY(point.y)
+    };
+}
+
+function selectTool_distanceToScreenSegment(px, py, a, b) {
+    var dx = b.x - a.x;
+    var dy = b.y - a.y;
+    var len2 = dx * dx + dy * dy;
+    var t = 0;
+    if(len2 > 1e-12) {
+        t = ((px - a.x) * dx + (py - a.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+    }
+    var nx = a.x + t * dx;
+    var ny = a.y + t * dy;
+    var ddx = px - nx;
+    var ddy = py - ny;
+    return Math.sqrt(ddx * ddx + ddy * ddy);
+}
+
+function selectTool_screenPixelsToMapUnits(pixels) {
+    return pixels / Math.max(vectron_zoom, 1e-9);
+}
+
+function selectTool_expandMapRect(params, pixels) {
+    var pad = selectTool_screenPixelsToMapUnits(pixels);
+    return [
+        params[0] - pad,
+        params[1] + pad,
+        params[2] + pad,
+        params[3] - pad
+    ];
+}
+
+function selectTool_pointNearWall(wall, screenX, screenY, tolerance) {
+    if(!wall || !wall.points || wall.points.length < 2) return false;
+    for(var i = 0; i < wall.points.length - 1; i++) {
+        if(selectTool_distanceToScreenSegment(
+            screenX,
+            screenY,
+            selectTool_screenPointFromMapPoint(wall.points[i]),
+            selectTool_screenPointFromMapPoint(wall.points[i + 1])
+        ) <= tolerance) return true;
+    }
+    return false;
+}
+
+function selectTool_wallScreenLength(wall) {
+    var length = 0;
+    if(!wall || !wall.points) return length;
+    for(var i = 0; i < wall.points.length - 1; i++) {
+        var a = selectTool_screenPointFromMapPoint(wall.points[i]);
+        var b = selectTool_screenPointFromMapPoint(wall.points[i + 1]);
+        var dx = b.x - a.x;
+        var dy = b.y - a.y;
+        length += Math.sqrt(dx * dx + dy * dy);
+    }
+    return length;
+}
+
+function selectTool_pointInZoneHitArea(zone, screenX, screenY, tolerance) {
+    if(!zone) return false;
+    var cx = aamap_realX(zone.x);
+    var cy = aamap_realY(zone.y);
+    var radius = zone.radius * vectron_zoom;
+    var dx = screenX - cx;
+    var dy = screenY - cy;
+    return Math.sqrt(dx * dx + dy * dy) <= radius + tolerance;
+}
+
+function selectTool_spawnScreenPoints(spawn) {
+    var x = aamap_realX(spawn.x);
+    var y = aamap_realY(spawn.y);
+    var scale = 16;
+    var angle = -Math.atan2(spawn.yDir, spawn.xDir);
+    var cos = Math.cos(angle);
+    var sin = Math.sin(angle);
+
+    function rotate(localX, localY) {
+        return {
+            x: x + localX * cos - localY * sin,
+            y: y + localX * sin + localY * cos
+        };
+    }
+
+    return [
+        [rotate(0, 0), rotate(-scale / 2, 0)],
+        [rotate(-scale / 2, 0), rotate(scale / 2, 0)],
+        [rotate(scale / 2, 0), rotate(0, -scale / 3)],
+        [rotate(scale / 2, 0), rotate(0, scale / 3)]
+    ];
+}
+
+function selectTool_pointNearSpawn(spawn, screenX, screenY, tolerance) {
+    if(!spawn) return false;
+    var segments = selectTool_spawnScreenPoints(spawn);
+    for(var i = 0; i < segments.length; i++) {
+        if(selectTool_distanceToScreenSegment(screenX, screenY, segments[i][0], segments[i][1]) <= tolerance) return true;
+    }
+    return false;
+}
+
+function selectTool_wallGlowPath(wall) {
+    var arr = [];
+    if(!wall || !wall.points || wall.points.length < 2) return arr;
+    for(var i = 0; i < wall.points.length; i++) {
+        arr.push(i === 0 ? "M" : "L");
+        arr.push(aamap_realX(wall.points[i].x));
+        arr.push(aamap_realY(wall.points[i].y));
+    }
+    return arr;
+}
+
+function selectTool_spawnGlowPath(spawn) {
+    var x = aamap_realX(spawn.x);
+    var y = aamap_realY(spawn.y);
+    var scale = 16;
+    return [
+        "M", x, y,
+        "L", x - scale / 2, y,
+             x + scale / 2, y,
+        "M", x + scale / 2, y,
+        "L", x, y - scale / 3,
+        "M", x + scale / 2, y,
+        "L", x, y + scale / 3
+    ];
 }
 
 function selectTool_removeSelectedGlowRects() {
@@ -452,7 +594,8 @@ function selectTool_selectArea(xStart, yStart, xEnd, yEnd, select)
     );
     
     selectedObjs = [];
-    var params = selectTool_orderCorners( xStart, yStart, xEnd, yEnd ); 
+    var params = selectTool_orderCorners( xStart, yStart, xEnd, yEnd );
+    var hitParams = selectTool_expandMapRect(params, SELECT_TOOL_HIT_TOLERANCE);
 
     //params = [left, top, right, bottom]
     for( var i = 0; i < aamap_objects.length; i++ ) {
@@ -465,7 +608,7 @@ function selectTool_selectArea(xStart, yStart, xEnd, yEnd, select)
             for(var j = 0; j < curObj.points.length - 1; j++) {
                 var p1 = curObj.points[j];
                 var p2 = curObj.points[j+1];
-                if(selectTool_lineIntersectsRect(p1, p2, params[0], params[1], params[2], params[3])) {
+                if(selectTool_lineIntersectsRect(p1, p2, hitParams[0], hitParams[1], hitParams[2], hitParams[3])) {
                     selectFunc();
                     break;
                 }
@@ -474,15 +617,15 @@ function selectTool_selectArea(xStart, yStart, xEnd, yEnd, select)
         
         else if(curObj instanceof Zone) {
 
-            if(selectTool_circIntersectsRect(new WallPoint(curObj.x, curObj.y), curObj.radius, 
-                params[0], params[1], params[2], params[3])) {
+            if(selectTool_circIntersectsRect(new WallPoint(curObj.x, curObj.y), curObj.radius,
+                hitParams[0], hitParams[1], hitParams[2], hitParams[3])) {
                 selectFunc();
             }
-        } 
-        
+        }
+
         else {
-            if( params[0] - 0.05 <= curObj.x && curObj.x <= params[2] + 0.05 &&
-                params[1] + 0.05 >= curObj.y && curObj.y >= params[3] - 0.05 ) {
+            if( hitParams[0] <= curObj.x && curObj.x <= hitParams[2] &&
+                hitParams[1] >= curObj.y && curObj.y >= hitParams[3] ) {
                 selectFunc();
             }
         }
@@ -717,20 +860,29 @@ function selectTool_circIntersectsRect(p1, r, x0, y0, x1, y1) {
 }
 
 function selectTool_addInvisibleGlow(aamapObject) {
-    var bbox = aamapObject.obj.getBBox();
-    if(!bbox || !isFinite(bbox.x) || !isFinite(bbox.y) || !isFinite(bbox.width) || !isFinite(bbox.height)) return;
-    var pad = Math.min(Math.max(10, Math.round(14 / vectron_zoom)), 80);
-    aamapObject.glowObj = vectron_screen.rect(
-        bbox.x - pad,
-        bbox.y - pad,
-        Math.max(1, bbox.width + pad * 2),
-        Math.max(1, bbox.height + pad * 2)
-    ).attr({
-        stroke: "#375ffc",
-        "stroke-width": 1,
+    var color = config_isDark ? "#77bbff" : "#375ffc";
+    if(aamapObject instanceof Wall) {
+        aamapObject.glowObj = vectron_screen.path(selectTool_wallGlowPath(aamapObject));
+    } else if(aamapObject instanceof Zone) {
+        aamapObject.glowObj = vectron_screen.circle(
+            aamap_realX(aamapObject.x),
+            aamap_realY(aamapObject.y),
+            Math.max(0, aamapObject.radius * vectron_zoom)
+        );
+    } else if(aamapObject instanceof Spawn) {
+        aamapObject.glowObj = vectron_screen.path(selectTool_spawnGlowPath(aamapObject))
+            .transform("R" + aamapObject.toDegrees());
+    }
+    if(!aamapObject.glowObj) return;
+    aamapObject.glowObj.attr({
+        stroke: color,
+        "stroke-width": SELECT_TOOL_HIGHLIGHT_STROKE_WIDTH,
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
         "stroke-opacity": 0,
-        fill: "#375ffc",
-        "fill-opacity": 0
+        fill: aamapObject instanceof Zone ? color : "none",
+        "fill-opacity": 0,
+        cursor: "default"
     });
     selectTool_setGlowAttrs(aamapObject, selectTool_defaultGlowAttrs(aamapObject));
     aamapObject.glowObj.insertBefore(aamapObject.obj);
@@ -752,24 +904,8 @@ function selectTool_addHoverSet(aamapObject) {
 }
 
 function selectTool_addHoverSetSelected(aamapObject) {
-    var bbox = aamapObject.obj.getBBox();
-    if(!bbox || !isFinite(bbox.x) || !isFinite(bbox.y) || !isFinite(bbox.width) || !isFinite(bbox.height)) return;
-    var pad = Math.min(Math.max(12, Math.round(18 / vectron_zoom)), 90);
-    aamapObject.glowObj = vectron_screen.rect(
-        bbox.x - pad,
-        bbox.y - pad,
-        Math.max(1, bbox.width + pad * 2),
-        Math.max(1, bbox.height + pad * 2)
-    ).attr({
-        stroke: config_isDark ? "#77bbff" : "#375ffc",
-        "stroke-width": 1,
-        "stroke-opacity": 0,
-        fill: config_isDark ? "#77bbff" : "#375ffc",
-        "fill-opacity": 0
-    });
-    selectTool_setGlowAttrs(aamapObject, selectTool_defaultGlowAttrs(aamapObject));
-    aamapObject.glowObj.insertBefore(aamapObject.obj);
-    aamapObject.obj.toFront();
+    selectTool_addInvisibleGlow(aamapObject);
+    if(!aamapObject.glowObj) return;
     var set = vectron_screen.set().push(aamapObject.obj, aamapObject.glowObj);
     selectTool_sets.push(set);
     set.hoverset(vectron_screen, selectTool_hoverInSelected, selectTool_hoverOutSelected);

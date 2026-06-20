@@ -61,7 +61,8 @@ body {
 	height: auto;
 	white-space: nowrap;
 }
-#grid-spacing-select {
+#grid-spacing-select,
+#zoom-percent-select {
 	background: #252525;
 	color: #eee;
 	border-color: #555;
@@ -115,7 +116,8 @@ body {
 
 #tool_bar a.toolbar-newMap,
 #tool_bar a.toolbar-import,
-#tool_bar a.toolbar-export {
+#tool_bar a.toolbar-export,
+#tool_bar a.toolbar-armawebtron-preview {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -129,7 +131,8 @@ body {
 
 #tool_bar a.toolbar-newMap:hover,
 #tool_bar a.toolbar-import:hover,
-#tool_bar a.toolbar-export:hover {
+#tool_bar a.toolbar-export:hover,
+#tool_bar a.toolbar-armawebtron-preview:hover {
 	background-color:#1b1b1b;
 	color:#fff;
 }
@@ -145,6 +148,27 @@ body {
 	opacity: 0.3;
 	cursor: no-drop;
 	color: #ccc;
+}
+
+#new-map-popover,
+#armawebtron-preview-popover {
+	background: #252525;
+	border-color: #555;
+	color: #eee;
+	box-shadow: 2px 4px 12px rgba(0,0,0,0.45);
+}
+
+#armawebtron-preview-popover .btn-default,
+#new-map-popover .btn-default {
+	background: #333;
+	border-color: #666;
+	color: #eee;
+}
+
+#armawebtron-preview-popover .btn-default:hover,
+#new-map-popover .btn-default:hover {
+	background: #444;
+	color: #fff;
 }
 
 #xml-editor-box {

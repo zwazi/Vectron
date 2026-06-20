@@ -671,10 +671,13 @@ body.noscroll {
   min-width: 24px;
   text-align: left;
 }
-.info-grid-section {
+.info-grid-section,
+.info-zoom-section,
+.info-anchor-section {
   gap: 6px;
 }
-#grid-spacing-select {
+#grid-spacing-select,
+#zoom-percent-select {
   height: 20px;
   min-width: 56px;
   color: #eee;
@@ -683,6 +686,9 @@ body.noscroll {
   border-radius: 3px;
   font-size: 12px;
   padding: 0 4px;
+}
+#zoom-percent-select {
+  min-width: 68px;
 }
 .info-icon-btn {
   width: 22px;
@@ -703,6 +709,20 @@ body.noscroll {
   color: #fff;
   background: #555;
   border-color: #888;
+}
+.grid-size-lock-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+.grid-size-lock-icon-locked {
+  background-image: url('../images/Lock/Lock.png');
+}
+.grid-size-lock-icon-unlocked {
+  background-image: url('../images/Lock/Unlock.png');
 }
 .info-section {
   display: inline-flex;
@@ -1053,10 +1073,14 @@ button.vt-tool-grid-row,
 .toolbar-export {
   background-image: none;
 }
+.toolbar-armawebtron-preview {
+  background-image: none;
+}
 
 #tool_bar a.toolbar-newMap,
 #tool_bar a.toolbar-import,
-#tool_bar a.toolbar-export {
+#tool_bar a.toolbar-export,
+#tool_bar a.toolbar-armawebtron-preview {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1065,7 +1089,8 @@ button.vt-tool-grid-row,
 
 #tool_bar a.toolbar-newMap:hover,
 #tool_bar a.toolbar-import:hover,
-#tool_bar a.toolbar-export:hover {
+#tool_bar a.toolbar-export:hover,
+#tool_bar a.toolbar-armawebtron-preview:hover {
   background-color: #1b1b1b;
   text-decoration: none;
 }
@@ -1121,8 +1146,9 @@ button.vt-tool-grid-row,
   right: 100%;
 }
 
-/* New-map confirmation popover */
-#new-map-popover {
+/* Toolbar popovers */
+#new-map-popover,
+#armawebtron-preview-popover {
   position: fixed;
   z-index: 500;
   background: #fff;
@@ -1132,17 +1158,36 @@ button.vt-tool-grid-row,
   padding: 0;
   min-width: 210px;
 }
-.new-map-popover-body {
+#armawebtron-preview-popover {
+  width: 330px;
+}
+.new-map-popover-body,
+.armawebtron-preview-popover-body {
   padding: 12px 14px 10px;
 }
-.new-map-popover-body p {
+.new-map-popover-body p,
+.armawebtron-preview-popover-body p {
   margin: 0 0 10px;
   font-size: 13px;
   line-height: 1.4;
 }
-.new-map-popover-actions {
+.armawebtron-preview-popover-body strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.armawebtron-preview-popover-body ol {
+  margin: 0 0 10px 18px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.new-map-popover-actions,
+.armawebtron-preview-popover-actions {
   display: flex;
   gap: 8px;
+}
+.armawebtron-preview-popover-actions {
+  flex-wrap: wrap;
 }
 
 /* Dark theme overrides for new popover and XML header */
