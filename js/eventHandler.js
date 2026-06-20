@@ -156,12 +156,121 @@ function eventHandler_pointsAreSame(a, b) {
     return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
 }
 
+function eventHandler_pointKey(point) {
+    return (Math.round(point.x * 1e6) / 1e6) + "," + (Math.round(point.y * 1e6) / 1e6);
+}
+
+function eventHandler_addWallGraphPoint(graph, point) {
+    var key = eventHandler_pointKey(point);
+    if(!graph.points[key]) {
+        graph.points[key] = {
+            key: key,
+            x: point.x,
+            y: point.y,
+            neighbors: []
+        };
+    }
+
+    return graph.points[key];
+}
+
+function eventHandler_addWallGraphSegment(graph, a, b) {
+    if(eventHandler_pointsAreSame(a, b)) {
+        return;
+    }
+
+    var pointA = eventHandler_addWallGraphPoint(graph, a);
+    var pointB = eventHandler_addWallGraphPoint(graph, b);
+    pointA.neighbors.push(pointB.key);
+    pointB.neighbors.push(pointA.key);
+}
+
+function eventHandler_getWallGraphComponents(graph) {
+    var components = [];
+    var visited = {};
+
+    Object.keys(graph.points).forEach(function(startKey) {
+        if(visited[startKey]) {
+            return;
+        }
+
+        var stack = [startKey];
+        var component = [];
+        visited[startKey] = true;
+
+        while(stack.length > 0) {
+            var key = stack.pop();
+            var point = graph.points[key];
+            component.push(point);
+            for(var i = 0, ii = point.neighbors.length; i < ii; i++) {
+                var neighborKey = point.neighbors[i];
+                if(!visited[neighborKey]) {
+                    visited[neighborKey] = true;
+                    stack.push(neighborKey);
+                }
+            }
+        }
+
+        components.push(component);
+    });
+
+    return components;
+}
+
+function eventHandler_componentToPolygon(component, graph) {
+    if(component.length < 3) {
+        return null;
+    }
+
+    for(var i = 0, ii = component.length; i < ii; i++) {
+        if(component[i].neighbors.length != 2) {
+            return null;
+        }
+    }
+
+    var polygon = [];
+    var start = component[0];
+    var previousKey = null;
+    var currentKey = start.key;
+    var guard = 0;
+
+    while(guard++ <= component.length) {
+        var current = graph.points[currentKey];
+        polygon.push(current);
+        var nextKey = current.neighbors[0] == previousKey ? current.neighbors[1] : current.neighbors[0];
+        previousKey = currentKey;
+        currentKey = nextKey;
+
+        if(currentKey == start.key) {
+            polygon.push(start);
+            return polygon;
+        }
+    }
+
+    return null;
+}
+
 function eventHandler_getClosedWallPolygons(walls) {
     var polygons = [];
+    var graph = {
+        points: {}
+    };
+
     for(var i = 0, ii = walls.length; i < ii; i++) {
         var points = walls[i].points;
         if(points.length >= 4 && eventHandler_pointsAreSame(points[0], points[points.length - 1])) {
             polygons.push(points);
+        }
+        for(var j = 1, jj = points.length; j < jj; j++) {
+            eventHandler_addWallGraphSegment(graph, points[j - 1], points[j]);
+        }
+    }
+
+    var components = eventHandler_getWallGraphComponents(graph);
+    for(var k = 0, kk = components.length; k < kk; k++) {
+        var polygon = eventHandler_componentToPolygon(components[k], graph);
+        if(polygon) {
+            polygons.push(polygon);
         }
     }
 
@@ -254,6 +363,24 @@ function eventHandler_updatePreviewButtonState() {
     button.disabled = error != "";
     tooltipTarget.className = error ? "disabled-button-tooltip disabled" : "disabled-button-tooltip";
     eventHandler_setTooltipText(tooltipTarget, error || "Open preview");
+}
+
+function eventHandler_refreshPreviewButtonTooltip() {
+    var $target = $("#armawebtron-preview-open-tooltip");
+    if(!$target.length || !$target.is(":visible")) {
+        return;
+    }
+
+    $target.tooltip("destroy");
+    $target.tooltip({
+        container: "body",
+        trigger: eventHandler_tooltipsPinned ? "manual" : "hover focus",
+        placement: "top",
+        viewport: {
+            selector: "body",
+            padding: 4
+        }
+    });
 }
 
 function eventHandler_getBootstrapTooltip($element) {
@@ -1953,10 +2080,11 @@ function eventHandler_init() {
         var btn = this;
         var popover = document.getElementById("armawebtron-preview-popover");
         var rect = btn.getBoundingClientRect();
-        eventHandler_updatePreviewButtonState();
         popover.style.left = (rect.right + 8) + 'px';
         popover.style.top  = rect.top + 'px';
         popover.style.display = 'block';
+        eventHandler_updatePreviewButtonState();
+        eventHandler_refreshPreviewButtonTooltip();
         document.getElementById("new-map-popover").style.display = 'none';
         if(eventHandler_tooltipsPinned) {
             eventHandler_showPinnedTooltips();
