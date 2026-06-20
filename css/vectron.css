@@ -740,6 +740,7 @@ body.noscroll {
 }
 .disabled-button-tooltip {
   display: inline-flex;
+  cursor: pointer;
 }
 .disabled-button-tooltip.disabled {
   cursor: not-allowed;
