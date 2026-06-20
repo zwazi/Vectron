@@ -73,6 +73,7 @@ function vectron_init() {
     eventHandler_init();
     
     config_load();
+    zoomControls_init();
     gridSizeControls_init();
 
     vectron_render();
@@ -128,7 +129,11 @@ function vectron_format_zoom(z) {
 
 function vectron_write_info()
 {
-    document.getElementById("zoom").innerText = vectron_format_zoom(vectron_zoom);
+    var zoomText = document.getElementById("zoom");
+    if(zoomText) zoomText.innerText = vectron_format_zoom(vectron_zoom);
+    if(document.getElementById("zoom-percent-select")) {
+        zoomControls_sync();
+    }
     if(document.getElementById("grid-spacing-select")) {
         gridSizeControls_sync();
     }
@@ -165,9 +170,13 @@ function gridSizeControls_sync() {
         select.value = valueText;
     }
     if(lockBtn) {
+        var lockIcon = lockBtn.querySelector(".grid-size-lock-icon");
         lockBtn.className = "info-icon-btn" + (vectron_grid_render_locked ? " active" : "");
         lockBtn.title = vectron_grid_render_locked ? "Unlock grid rendering size" : "Lock grid rendering size";
         lockBtn.setAttribute("aria-label", lockBtn.title);
+        if(lockIcon) {
+            lockIcon.className = "grid-size-lock-icon " + (vectron_grid_render_locked ? "grid-size-lock-icon-locked" : "grid-size-lock-icon-unlocked");
+        }
     }
 }
 
@@ -193,6 +202,45 @@ function gridSizeControls_setLocked(locked) {
         vectron_grid_spacing = vectron_getAutoGridSpacing(vectron_grid_spacing);
         vectron_grid_render_spacing = vectron_grid_spacing;
     }
+    vectron_render();
+}
+
+function zoomControls_sync() {
+    var select = document.getElementById("zoom-percent-select");
+    if(!select) return;
+    var value = vectron_format_zoom(vectron_zoom);
+    if(select.value !== value) {
+        var found = false;
+        for(var i = 0; i < select.options.length; i++) {
+            if(select.options[i].value === value) found = true;
+        }
+        if(!found) {
+            var option = document.createElement("option");
+            option.value = value;
+            option.textContent = value + "%";
+            select.appendChild(option);
+        }
+        select.value = value;
+    }
+}
+
+function zoomControls_init() {
+    var select = document.getElementById("zoom-percent-select");
+    if(!select) return;
+    var values = [10, 25, 50, 75, 100, 125, 150, 200, 300, 400, 800, 1600];
+    select.innerHTML = "";
+    for(var i = 0; i < values.length; i++) {
+        var option = document.createElement("option");
+        option.value = String(values[i]);
+        option.textContent = String(values[i]) + "%";
+        select.appendChild(option);
+    }
+    zoomControls_sync();
+}
+
+function zoomControls_setPercent(percent) {
+    if(isNaN(percent) || percent <= 0) return;
+    vectron_zoom = percent / 100;
     vectron_render();
 }
 

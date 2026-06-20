@@ -35,7 +35,7 @@ function aamap_init() {
     aamap_render();
 }
 
-function aamap_save(name, author, category, version, dtd, axes, settings) {
+function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
     var fileName = name + "-" + version + ".aamap.xml";
 
     function indentLines(str, prefix) {
@@ -47,13 +47,23 @@ function aamap_save(name, author, category, version, dtd, axes, settings) {
     xml += '<!DOCTYPE Resource SYSTEM "' + dtd + '">'+"\n";
     xml += '<Resource type="aamap" name="'+ name +'" version="'+ version +'" author="'+ author +'" category="'+ category +'">'+"\n";
     xml += '  <Map version="0.2.8">'+"\n";
-    if(settings.length > 0)
+    var mapSettings = [];
+    for(var i = 0, ii = settings.length; i < ii; i++)
+    {
+        if(settings[i].trim() != "")
+        {
+            mapSettings.push(settings[i]);
+        }
+    }
+
+    if(mapSettings.length > 0)
     {
         xml += "    <Settings>\n";
-        for(var i = 0, ii = settings.length; i < ii; i++)
+        for(var i = 0, ii = mapSettings.length; i < ii; i++)
         {
-            var point = settings[i].indexOf(" ");
-            var setting = settings[i].slice(0,point), value = settings[i].slice(point+1);
+            var point = mapSettings[i].indexOf(" ");
+            var setting = point == -1 ? mapSettings[i] : mapSettings[i].slice(0, point);
+            var value = point == -1 ? "" : mapSettings[i].slice(point + 1);
             xml += "      <Setting name=\""+setting+"\" value=\""+value+"\" />\n";
         }
         xml += "    </Settings>\n";
@@ -74,7 +84,15 @@ function aamap_save(name, author, category, version, dtd, axes, settings) {
     xml += '</Resource>\n';
     xml += "<!-- Exported from Vectron 1.1 -->";
 
-    vectron_saveTextAsFile(xml, fileName);
+    return {
+        fileName: fileName,
+        xml: xml
+    };
+}
+
+function aamap_save(name, author, category, version, dtd, axes, settings) {
+    var map = aamap_buildXml(name, author, category, version, dtd, axes, settings);
+    vectron_saveTextAsFile(map.xml, map.fileName);
 }
 
 function aamap_render() {
