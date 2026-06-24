@@ -82,7 +82,12 @@ function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
     xml += '    </World>\n';
     xml += '  </Map>\n';
     xml += '</Resource>\n';
-    xml += "<!-- Exported from Vectron 1.1 -->";
+    xml += "<!-- Exported from Vectron 1.1 -->\n";
+    xml += "<!-- Use at: zwazi.github.io/Vectron -->\n";
+    xml += "<!-- Source Code: github.com/zwazi/Vectron -->\n";
+    xml += "\n";
+    xml += "<!-- Alternate Version: https://vectron.armanelgtron.tk/ -->\n";
+    xml += "<!-- Source Code: https://gitlab.com/Armanelgtron/Vectron/ -->";
 
     return {
         fileName: fileName,
@@ -307,6 +312,7 @@ function aamap_drawGrid() {
         aamap_grid.remove();
     }
 
+    if(!vectron_grid_visible) return;
     if(vectron_grid_spacing <= 0) return;
 
     if(config_autoAdjustGridSpacing && !vectron_grid_render_locked)

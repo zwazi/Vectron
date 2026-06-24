@@ -101,6 +101,24 @@
         }, []);
     }
 
+    function applyArmawebtronSetting(aw, name, value) {
+        try {
+            if(aw.conf[name] && typeof aw.conf[name].set == "function") {
+                aw.conf[name].set(value);
+                return true;
+            }
+
+            if(typeof aw.settings[name] != "undefined") {
+                aw.settings[name] = value;
+                return true;
+            }
+        } catch(e) {
+            console.warn("Vectron preview could not apply setting " + name + ".", e);
+        }
+
+        return false;
+    }
+
     function applySettingsCustomCfg(aw, settingsCustomCfg) {
         var settings = parseSettingsCustomCfg(settingsCustomCfg);
         var cfg = settings.map(function(setting) {
@@ -130,7 +148,7 @@
                 continue;
             }
 
-            if(typeof aw.conf[name] == "undefined" && typeof aw.settings[name] == "undefined") {
+            if(!applyArmawebtronSetting(aw, name, settings[i].value)) {
                 result.unknown.push(name);
                 aw.settings[name] = settings[i].value;
             }
