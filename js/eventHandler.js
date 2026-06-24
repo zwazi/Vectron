@@ -1859,31 +1859,18 @@ function eventHandler_init() {
 
     function eventHandler_increaseSizeShortcut(e) {
         if(!aamap_active) return;
-        if(vectron_currentTool == "zone") {
-            zoneTool_radius = Math.floor(zoneTool_radius) + vectron_grid_spacing;
-            zoneTool_guide();
-        } else {
-            gridSizeControls_step(1);
-        }
+        gridSizeControls_step(1);
         return false;
     }
 
     function eventHandler_decreaseSizeShortcut(e) {
         if(!aamap_active) return;
-        if(vectron_currentTool == "zone") {
-            if(zoneTool_radius > 0) {
-                zoneTool_radius = Math.floor(zoneTool_radius) - vectron_grid_spacing;
-                zoneTool_guide();
-            }
-        } else {
-            gridSizeControls_step(-1);
-        }
+        gridSizeControls_step(-1);
         return false;
     }
 
     $(document).on("keydown.sizeShortcuts", function(e) {
         if(e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
-        if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
 
         if(e.key === "=" || e.key === "+" || e.code === "NumpadAdd" || e.code === "NumpadEqual") {
             if(eventHandler_increaseSizeShortcut(e) === false) e.preventDefault();

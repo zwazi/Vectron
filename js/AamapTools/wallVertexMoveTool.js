@@ -43,6 +43,9 @@ var wallVertexMoveTool_origPositions = [];
 /** Map coordinates of the cursor at drag start */
 var wallVertexMoveTool_dragStartMapX = 0;
 var wallVertexMoveTool_dragStartMapY = 0;
+var wallVertexMoveTool_dragStartRealX = 0;
+var wallVertexMoveTool_dragStartRealY = 0;
+var wallVertexMoveTool_hasDragged = false;
 
 /** Box selection state */
 var wallVertexMoveTool_isBoxSelecting = false;
@@ -176,6 +179,9 @@ function wallVertexMoveTool_start() {
     });
     wallVertexMoveTool_dragStartMapX = aamap_mapX(cursor_realX);
     wallVertexMoveTool_dragStartMapY = aamap_mapY(cursor_realY);
+    wallVertexMoveTool_dragStartRealX = cursor_neverSnappedX;
+    wallVertexMoveTool_dragStartRealY = cursor_neverSnappedY;
+    wallVertexMoveTool_hasDragged = false;
 
     // Keep single-drag variables for compatibility
     wallVertexMoveTool_dragWall = hit.wall;
@@ -184,6 +190,23 @@ function wallVertexMoveTool_start() {
     wallVertexMoveTool_origY = hit.wall.points[hit.ptIdx].y;
     vectron_toolActive = true;
     wallVertexMoveTool_drawDots();
+}
+
+function wallVertexMoveTool_getDragDelta() {
+    var curMapX = aamap_mapX(cursor_snap ? cursor_realX : cursor_neverSnappedX);
+    var curMapY = aamap_mapY(cursor_snap ? cursor_realY : cursor_neverSnappedY);
+
+    if(cursor_snap) {
+        return {
+            dx: curMapX - wallVertexMoveTool_origX,
+            dy: curMapY - wallVertexMoveTool_origY
+        };
+    }
+
+    return {
+        dx: curMapX - wallVertexMoveTool_dragStartMapX,
+        dy: curMapY - wallVertexMoveTool_dragStartMapY
+    };
 }
 
 /**
@@ -273,10 +296,14 @@ function wallVertexMoveTool_progress() {
 
     if(wallVertexMoveTool_dragWall == null) return;
 
-    var curMapX = aamap_mapX(cursor_realX);
-    var curMapY = aamap_mapY(cursor_realY);
-    var dx = curMapX - wallVertexMoveTool_dragStartMapX;
-    var dy = curMapY - wallVertexMoveTool_dragStartMapY;
+    var dragRealDx = cursor_neverSnappedX - wallVertexMoveTool_dragStartRealX;
+    var dragRealDy = cursor_neverSnappedY - wallVertexMoveTool_dragStartRealY;
+    if(!wallVertexMoveTool_hasDragged && Math.sqrt(dragRealDx * dragRealDx + dragRealDy * dragRealDy) < 2) return;
+    wallVertexMoveTool_hasDragged = true;
+
+    var delta = wallVertexMoveTool_getDragDelta();
+    var dx = delta.dx;
+    var dy = delta.dy;
 
     // Move all selected vertices by the same delta from their original positions
     var renderedWalls = new Set();
@@ -334,10 +361,17 @@ function wallVertexMoveTool_complete() {
 
     if(wallVertexMoveTool_dragWall == null) return;
 
-    var curMapX = aamap_mapX(cursor_realX);
-    var curMapY = aamap_mapY(cursor_realY);
-    var dx = curMapX - wallVertexMoveTool_dragStartMapX;
-    var dy = curMapY - wallVertexMoveTool_dragStartMapY;
+    if(!wallVertexMoveTool_hasDragged) {
+        wallVertexMoveTool_dragWall = null;
+        wallVertexMoveTool_dragPtIdx = -1;
+        vectron_toolActive = false;
+        wallVertexMoveTool_drawDots();
+        return;
+    }
+
+    var delta = wallVertexMoveTool_getDragDelta();
+    var dx = delta.dx;
+    var dy = delta.dy;
 
     // Build final positions
     var capturedOrig  = wallVertexMoveTool_origPositions.map(function(o) {
