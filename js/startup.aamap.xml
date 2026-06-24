@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>
 <!DOCTYPE Resource SYSTEM "sty.dtd">
-<Resource type="aamap" name="VectronTextTest" version="0.1" author="zwazi" category="test">
+<Resource type="aamap" name="Vectron" version="0.1" author="zwazi" category="test">
   <Map version="0.2.8">
     <Settings>
       <Setting name="" value="" />
