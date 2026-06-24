@@ -26,6 +26,7 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 var eventHandler_space = false;
 var eventHandler_shift = false;
+var eventHandler_ctrl = false;
 var eventHandler_contextMenu = false;
 var eventHandler_middlePanning = false;
 var eventHandler_middleClickX = 0, eventHandler_middleClickY = 0;
@@ -332,9 +333,7 @@ function eventHandler_setTooltipText(element, text) {
 }
 
 function eventHandler_getTooltipElements() {
-    return $('[rel=tooltip]').filter(function() {
-        return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
-    });
+    return $('[rel=tooltip]');
 }
 
 function eventHandler_initTooltips(trigger) {
@@ -585,6 +584,13 @@ function eventHandler_init() {
 
     $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden'])", function(e) {
         if (e.key !== "Enter" || e.isDefaultPrevented()) return;
+        if ($(this).closest("#wall-tool-window").length && vectron_currentTool === "wall") {
+            e.preventDefault();
+            this.blur();
+            $(this).trigger("change");
+            wallTool_finishWall();
+            return;
+        }
         e.preventDefault();
         this.blur();
         $(this).trigger("change");
@@ -1086,8 +1092,30 @@ function eventHandler_init() {
         gridSizeControls_setLocked(!vectron_grid_render_locked);
     });
 
+    $("#grid-size-decrease").on("click", function() {
+        gridSizeControls_step(-1);
+    });
+
+    $("#grid-size-increase").on("click", function() {
+        gridSizeControls_step(1);
+    });
+
+    $("#snap-to-grid-toggle").on("click", function() {
+        snapControls_toggle();
+    });
+
     $("#zoom-percent-select").on("change", function() {
         zoomControls_setPercent(parseFloat(this.value));
+    });
+
+    $("#zoom-percent-decrease").on("click", function() {
+        clearZoomPreview();
+        zoomControls_step(-1);
+    });
+
+    $("#zoom-percent-increase").on("click", function() {
+        clearZoomPreview();
+        zoomControls_step(1);
     });
 
     $("#zoom-reset-100").on("click", function() {
@@ -1406,30 +1434,8 @@ function eventHandler_init() {
         aamap_fitToScreen();
     });
 
-    $(".toolbar-toolUnlock-list .toolbar-toolUnlock").mouseup(function(e) {
-        cursor_snap = true;
-        $('.toolbar-toolUnlock-list').css('display','none');
-        $('.toolbar-toolLock-list').css('display','block');
-        $("#zones-menu").hide();
-    });
-
-    $(".toolbar-toolLock-list .toolbar-toolLock").mouseup(function(e) {
-        cursor_snap = false;
-        $('.toolbar-toolLock-list').css('display','none');
-        $('.toolbar-toolUnlock-list').css('display','block');
-        $("#zones-menu").hide();
-    });
-
     $("#contextMenu .toolbar-toolLock").mouseup(function(e) {
-        if(!cursor_snap) {
-            $('.toolbar-toolUnlock-list').css('display','none');
-            $('.toolbar-toolLock-list').css('display','block');
-
-        } else {
-            $('.toolbar-toolLock-list').css('display','none');
-            $('.toolbar-toolUnlock-list').css('display','block');
-        }
-        cursor_snap = !cursor_snap;
+        snapControls_toggle();
         $("#zones-menu").hide();
     });
 
@@ -1609,6 +1615,7 @@ function eventHandler_init() {
         if(!aamap_active) {
             return;
         }
+        eventHandler_ctrl = e.ctrlKey || e.metaKey;
         switch (e.which) {
             case 1:
                 if(vectron_currentTool == "select" && !vectron_toolActive) {
@@ -1801,10 +1808,16 @@ function eventHandler_init() {
                 gui_writeLog("Shift up.");
                 eventHandler_shift = false;
             }
+            if ((evt.keyCode == 17 || evt.keyCode == 91 || evt.keyCode == 93) && eventHandler_ctrl) {
+                eventHandler_ctrl = false;
+            }
         }).keydown(function(evt) {
             if (evt.keyCode == 16 && !eventHandler_shift) {
                 gui_writeLog("shift down.");
                 eventHandler_shift = true;
+            }
+            if ((evt.ctrlKey || evt.metaKey || evt.keyCode == 17 || evt.keyCode == 91 || evt.keyCode == 93) && !eventHandler_ctrl) {
+                eventHandler_ctrl = true;
             }
         });
     });
@@ -1844,43 +1857,38 @@ function eventHandler_init() {
         }
     });
 
-    Mousetrap.bind('=', function(e) {
-       if(!aamap_active) return;
-
+    function eventHandler_increaseSizeShortcut(e) {
+        if(!aamap_active) return;
         if(vectron_currentTool == "zone") {
             zoneTool_radius = Math.floor(zoneTool_radius) + vectron_grid_spacing;
             zoneTool_guide();
+        } else {
+            gridSizeControls_step(1);
         }
-    }, 'keydown');
+        return false;
+    }
 
-    Mousetrap.bind('+', function(e) {
+    function eventHandler_decreaseSizeShortcut(e) {
         if(!aamap_active) return;
-
-        if(vectron_currentTool == "zone") {
-            zoneTool_radius += 0.1*vectron_grid_spacing;
-            zoneTool_guide();
-        }
-    }, 'keydown');
-
-    Mousetrap.bind('-', function(e) {
-        if(!aamap_active) return;
-
         if(vectron_currentTool == "zone") {
             if(zoneTool_radius > 0) {
                 zoneTool_radius = Math.floor(zoneTool_radius) - vectron_grid_spacing;
                 zoneTool_guide();
             }
+        } else {
+            gridSizeControls_step(-1);
         }
-    });
+        return false;
+    }
 
-    Mousetrap.bind('_', function(e) {
-        if(!aamap_active) return;
+    $(document).on("keydown.sizeShortcuts", function(e) {
+        if(e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
+        if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
 
-        if(vectron_currentTool == "zone") {
-            if(zoneTool_radius > 0) {
-                zoneTool_radius -= 0.1*vectron_grid_spacing;
-                zoneTool_guide();
-            }
+        if(e.key === "=" || e.key === "+" || e.code === "NumpadAdd" || e.code === "NumpadEqual") {
+            if(eventHandler_increaseSizeShortcut(e) === false) e.preventDefault();
+        } else if(e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") {
+            if(eventHandler_decreaseSizeShortcut(e) === false) e.preventDefault();
         }
     });
 

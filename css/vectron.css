@@ -227,10 +227,14 @@ body.noscroll {
 
 .toolbar-toolLock {
   background-image:url('../images/Lock/Lock.png');
+  background-color: #7f2626;
+  border: 1px solid #d96565;
 }
 
 .toolbar-toolUnlock {
   background-image:url('../images/Lock/Unlock.png');
+  background-color: #236b35;
+  border: 1px solid #65c77a;
 }
 
 .toolbar-toolZoomIn {
@@ -294,10 +298,6 @@ body.noscroll {
 #tool_bar li a.toolbar-toolScaleDown {
   font-size:20px;
 }
-
-#tool_bar ul li.toolbar-toolLock-list {   display:block; }
-#tool_bar ul li.toolbar-toolUnlock-list {   display:none; }
-
 
 /* Keep the settings window within the viewport and clear of the top/bottom bars. */
 #control_box {
@@ -696,10 +696,10 @@ body.noscroll {
   justify-content: center;
 }
 .info-zoom-section {
-  width: 158px;
+  width: 208px;
 }
 .info-grid-section {
-  width: 148px;
+  width: 226px;
 }
 .info-anchor-section {
   width: 254px;
@@ -737,6 +737,29 @@ body.noscroll {
   color: #fff;
   background: #555;
   border-color: #888;
+}
+.grid-control-spaced {
+  margin-left: 8px;
+}
+.info-icon-btn.lock-state-locked {
+  background: #7f2626;
+  border-color: #d96565;
+  color: #fff;
+}
+.info-icon-btn.lock-state-unlocked {
+  background: #236b35;
+  border-color: #65c77a;
+  color: #fff;
+}
+.info-icon-btn.lock-state-locked:hover,
+.info-icon-btn.lock-state-locked:focus {
+  background: #9a3030;
+  border-color: #f07f7f;
+}
+.info-icon-btn.lock-state-unlocked:hover,
+.info-icon-btn.lock-state-unlocked:focus {
+  background: #2b7f40;
+  border-color: #7de392;
 }
 .disabled-button-tooltip {
   display: inline-flex;
@@ -1074,10 +1097,17 @@ button.vt-tool-grid-row,
 }
 
 #wall-tool-points-list.vt-tool-input {
+  grid-column: 2 / 4;
   display: block;
   width: 100%;
-  max-height: 200px;
+  max-height: 150px;
   overflow-y: auto;
+}
+
+#wall-tool-points-section > #wall-tool-points-label {
+  grid-column: 2 / 4;
+  align-items: flex-end;
+  min-height: 22px;
 }
 
 .vt-tool-actions-row > .vt-tool-name,
