@@ -1333,6 +1333,7 @@ function wallTool_updatePointsList() {
             }
         })(i);
     }
+    listEl.scrollTop = listEl.scrollHeight;
 }
 
 

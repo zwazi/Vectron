@@ -238,14 +238,7 @@ function keybinds_apply() {
     bindKey(vectron_keybinds.zone,       function(){ if(vectron_currentTool!='zone') vectron_connectTool('zone'); });
     bindKey(vectron_keybinds.spawn,      function(){ vectron_connectTool('spawn'); });
     bindKey(vectron_keybinds.snap,       function(){
-        cursor_snap = !cursor_snap;
-        if(cursor_snap){
-            $('.toolbar-toolUnlock-list').hide();
-            $('.toolbar-toolLock-list').show();
-        } else {
-            $('.toolbar-toolLock-list').hide();
-            $('.toolbar-toolUnlock-list').show();
-        }
+        snapControls_toggle();
     });
     bindKey(vectron_keybinds.split,           function(){ vectron_connectTool('split'); });
     bindKey(vectron_keybinds.join,            function(){ vectron_connectTool('join'); });
@@ -262,7 +255,7 @@ function keybinds_updateOverlays() {
         wall:           '.toolbar-toolWall',
         zone:           '.toolbar-toolZone',
         spawn:          '.toolbar-toolSpawn',
-        snap:           '.toolbar-toolLock, .toolbar-toolUnlock',
+        snap:           '#snap-to-grid-toggle',
         split:          '.toolbar-toolSplit',
         join:           '.toolbar-toolJoin',
         wallVertexMove: '.toolbar-toolWallVertexMove'
