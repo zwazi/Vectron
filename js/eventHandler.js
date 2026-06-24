@@ -72,9 +72,15 @@ function eventHandler_getExportMap() {
     var mapSets = $("#map_settings").val().split("\n");
     var map = aamap_buildXml(mapName, mapAuthor, mapCategory, mapVersion, mapDtd, mapAxes, mapSets);
 
-    map.settingsCustomCfg = mapSets.filter(function(setting) {
+    var mapSettingsCustomCfg = mapSets.filter(function(setting) {
         return setting.trim() != "";
-    }).join("\n");
+    });
+
+    if($("#map_axes_forced")[0].checked) {
+        mapSettingsCustomCfg.push("ARENA_AXES " + mapAxes);
+    }
+
+    map.settingsCustomCfg = mapSettingsCustomCfg.join("\n");
 
     return map;
 }
@@ -121,11 +127,11 @@ function eventHandler_getArmawebtronSettingsCustomCfg() {
 
 function eventHandler_mergePreviewSettings(mapSettingsCustomCfg, fileSettingsCustomCfg) {
     var settings = [];
-    if(mapSettingsCustomCfg && mapSettingsCustomCfg.trim()) {
-        settings.push(mapSettingsCustomCfg.trim());
-    }
     if(fileSettingsCustomCfg && fileSettingsCustomCfg.trim()) {
         settings.push(fileSettingsCustomCfg.trim());
+    }
+    if(mapSettingsCustomCfg && mapSettingsCustomCfg.trim()) {
+        settings.push(mapSettingsCustomCfg.trim());
     }
 
     return settings.join("\n");
@@ -1104,6 +1110,10 @@ function eventHandler_init() {
         snapControls_toggle();
     });
 
+    $("#grid-visibility-toggle").on("click", function() {
+        gridVisibilityControls_toggle();
+    });
+
     $("#zoom-percent-select").on("change", function() {
         zoomControls_setPercent(parseFloat(this.value));
     });
@@ -1871,10 +1881,11 @@ function eventHandler_init() {
 
     $(document).on("keydown.sizeShortcuts", function(e) {
         if(e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
+        if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
 
-        if(e.key === "=" || e.key === "+" || e.code === "NumpadAdd" || e.code === "NumpadEqual") {
+        if(e.key === "=" || e.code === "NumpadAdd" || e.code === "NumpadEqual") {
             if(eventHandler_increaseSizeShortcut(e) === false) e.preventDefault();
-        } else if(e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") {
+        } else if(e.key === "-" || e.code === "NumpadSubtract") {
             if(eventHandler_decreaseSizeShortcut(e) === false) e.preventDefault();
         }
     });

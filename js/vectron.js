@@ -37,6 +37,7 @@ var vectron_toolActive = false;
 var vectron_grid_spacing = 16;
 var vectron_grid_render_locked = false;
 var vectron_grid_render_spacing = 16;
+var vectron_grid_visible = true;
 var vectron_zoom = 1;//15
 var vectron_panX = 0;
 var vectron_panY = 0;
@@ -141,6 +142,9 @@ function vectron_write_info()
     }
     if(document.getElementById("snap-to-grid-toggle")) {
         snapControls_sync();
+    }
+    if(document.getElementById("grid-visibility-toggle")) {
+        gridVisibilityControls_sync();
     }
     
     document.getElementById("anchor-x").innerText = vectron_format_coord(-(vectron_panX));
@@ -262,6 +266,30 @@ function snapControls_setEnabled(enabled) {
 
 function snapControls_toggle() {
     snapControls_setEnabled(!cursor_snap);
+}
+
+function gridVisibilityControls_sync() {
+    var gridBtn = document.getElementById("grid-visibility-toggle");
+    if(!gridBtn) return;
+
+    var gridTitle = vectron_grid_visible ? "Hide grid lines" : "Show grid lines";
+    gridBtn.className = "info-icon-btn " + (vectron_grid_visible ? "lock-state-unlocked" : "lock-state-locked");
+    if(typeof eventHandler_setTooltipText == "function") {
+        eventHandler_setTooltipText(gridBtn, gridTitle);
+    } else {
+        gridBtn.setAttribute("data-original-title", gridTitle);
+        gridBtn.setAttribute("aria-label", gridTitle);
+    }
+}
+
+function gridVisibilityControls_setVisible(visible) {
+    vectron_grid_visible = visible;
+    gridVisibilityControls_sync();
+    vectron_render();
+}
+
+function gridVisibilityControls_toggle() {
+    gridVisibilityControls_setVisible(!vectron_grid_visible);
 }
 
 function zoomControls_sync() {
