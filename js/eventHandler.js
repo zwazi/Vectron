@@ -413,29 +413,75 @@ function eventHandler_getPaddedRect(element, padding) {
     };
 }
 
-function eventHandler_repositionPinnedTooltip($tip, usedRects, placement) {
+function eventHandler_getTooltipPointer(element, placement) {
+    var rect = element.getBoundingClientRect();
+    if(placement == "top" || placement == "bottom") {
+        return rect.left + rect.width / 2;
+    }
+    return rect.top + rect.height / 2;
+}
+
+function eventHandler_alignPinnedTooltipArrow($tip, element, placement) {
+    var $arrow = $tip.find(".tooltip-arrow");
+    if(!$arrow.length) return;
+
+    var tipRect = $tip[0].getBoundingClientRect();
+    var pointer = eventHandler_getTooltipPointer(element, placement);
+    if(placement == "top" || placement == "bottom") {
+        var arrowLeft = Math.max(8, Math.min(pointer - tipRect.left, tipRect.width - 8));
+        $arrow.css({
+            left: arrowLeft + "px",
+            marginLeft: "-5px"
+        });
+    } else {
+        var arrowTop = Math.max(8, Math.min(pointer - tipRect.top, tipRect.height - 8));
+        $arrow.css({
+            top: arrowTop + "px",
+            marginTop: "-5px"
+        });
+    }
+}
+
+function eventHandler_nudgePinnedTooltipAwayFromTarget(rect, used, placement) {
+    var gap = 6;
+    if(placement == "top") {
+        return { left: rect.left, top: used.top - rect.height - gap };
+    }
+    if(placement == "bottom") {
+        return { left: rect.left, top: used.bottom + gap };
+    }
+    if(placement == "left") {
+        return { left: used.left - rect.width - gap, top: rect.top };
+    }
+    return { left: used.right + gap, top: rect.top };
+}
+
+function eventHandler_repositionPinnedTooltip($tip, element, usedRects, placement) {
     var tip = $tip[0];
     var rect = eventHandler_getPaddedRect(tip, 4);
     var left = parseFloat($tip.css("left")) || rect.left;
     var top = parseFloat($tip.css("top")) || rect.top;
 
-    for(var i = 0, ii = usedRects.length; i < ii; i++) {
-        var used = usedRects[i];
-        if(!eventHandler_rectsOverlap(rect, used)) {
-            continue;
-        }
+    var changed = true;
+    var guard = 0;
+    while(changed && guard++ < 20) {
+        changed = false;
+        for(var i = 0, ii = usedRects.length; i < ii; i++) {
+            var used = usedRects[i];
+            if(!eventHandler_rectsOverlap(rect, used)) {
+                continue;
+            }
 
-        if(placement == "top" || placement == "bottom") {
-            left += used.right - rect.left + 4;
-        } else {
-            top += used.bottom - rect.top + 4;
+            var next = eventHandler_nudgePinnedTooltipAwayFromTarget(rect, used, placement);
+            left = next.left;
+            top = next.top;
+            $tip.css({
+                left: left,
+                top: top
+            });
+            rect = eventHandler_getPaddedRect(tip, 4);
+            changed = true;
         }
-
-        $tip.css({
-            left: left,
-            top: top
-        });
-        rect = eventHandler_getPaddedRect(tip, 4);
     }
 
     var maxLeft = window.innerWidth - rect.width - 4;
@@ -446,6 +492,7 @@ function eventHandler_repositionPinnedTooltip($tip, usedRects, placement) {
         left: left,
         top: top
     });
+    eventHandler_alignPinnedTooltipArrow($tip, element, placement);
 
     return eventHandler_getPaddedRect(tip, 4);
 }
@@ -461,7 +508,7 @@ function eventHandler_showPinnedTooltips() {
             if(!$tip || !$tip.length || !$tip.is(":visible")) return;
 
             var placement = ($(this).attr("data-placement") || "right").split(" ")[0];
-            usedRects.push(eventHandler_repositionPinnedTooltip($tip, usedRects, placement));
+            usedRects.push(eventHandler_repositionPinnedTooltip($tip, this, usedRects, placement));
         });
     }, 0);
 }
