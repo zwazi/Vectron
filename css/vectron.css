@@ -11,10 +11,6 @@
   display: none;
 }
 
-#canvas_container.blur {
-    -webkit-filter: blur(2px);
-}
-
 html, body { margin:0; }
 
 body.noscroll {
@@ -133,12 +129,6 @@ body.noscroll {
 #gui-tab li a:active {
   outline: none;
 }
-
-#tool_bar ul li a.highlight {
-    border:2px solid white;
-    border-right: 0;
-}
-
 
 #tool_bar ul li a {
   background-size:cover;
@@ -285,10 +275,6 @@ body.noscroll {
     font-size: 18px;
     position:relative;
     top:3px;
-}
-
-.shepherd-cancel-link {
-    font-family: sans-serif;
 }
 
 #tool_bar li a.toolbar-toolScaleUp {
