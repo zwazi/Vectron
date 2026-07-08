@@ -39,6 +39,7 @@ var eventHandler_pinnedTooltipGap = 6;
 var eventHandler_pinnedTooltipArrowMargin = 8;
 var eventHandler_pinnedTooltipArrowOffset = -5;
 var eventHandler_pinnedTooltipMaxCollisionSteps = 20;
+var eventHandler_pinnedTooltipConnectorClass = "tooltip-connector";
 var eventHandler_tooltipPlacementTop = "top";
 var eventHandler_tooltipPlacementBottom = "bottom";
 var eventHandler_tooltipPlacementLeft = "left";
@@ -364,6 +365,7 @@ function eventHandler_initTooltips(trigger) {
 function eventHandler_resetTooltips(trigger) {
     $('[rel=tooltip]').tooltip("destroy");
     $(".tooltip").remove();
+    eventHandler_removePinnedTooltipConnectors();
     eventHandler_initTooltips(trigger);
 }
 
@@ -520,10 +522,63 @@ function eventHandler_repositionPinnedTooltip($tip, element, usedRects, placemen
     return eventHandler_getPaddedRect(tip, 4);
 }
 
+function eventHandler_clamp(value, min, max) {
+    return Math.max(min, Math.min(value, max));
+}
+
+function eventHandler_removePinnedTooltipConnectors() {
+    $("." + eventHandler_pinnedTooltipConnectorClass).remove();
+}
+
+function eventHandler_getPinnedTooltipConnectorThickness() {
+    var fallbackThickness = 2;
+    if(typeof window.getComputedStyle !== "function") {
+        return fallbackThickness;
+    }
+
+    var configuredThickness = parseFloat(window.getComputedStyle(document.documentElement).getPropertyValue("--tooltip-connector-thickness"));
+    if(isNaN(configuredThickness) || configuredThickness <= 0) {
+        return fallbackThickness;
+    }
+
+    return configuredThickness;
+}
+
+function eventHandler_getClosestRectPoint(sourceRect, targetRect) {
+    var targetCenterX = targetRect.left + targetRect.width / 2;
+    var targetCenterY = targetRect.top + targetRect.height / 2;
+    return {
+        x: eventHandler_clamp(targetCenterX, sourceRect.left, sourceRect.left + sourceRect.width),
+        y: eventHandler_clamp(targetCenterY, sourceRect.top, sourceRect.top + sourceRect.height)
+    };
+}
+
+function eventHandler_drawPinnedTooltipConnector($tip, element) {
+    var targetRect = element.getBoundingClientRect();
+    var tipRect = $tip[0].getBoundingClientRect();
+    var start = eventHandler_getClosestRectPoint(targetRect, tipRect);
+    var end = eventHandler_getClosestRectPoint(tipRect, targetRect);
+    var deltaX = end.x - start.x;
+    var deltaY = end.y - start.y;
+    var length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    var connectorThickness = eventHandler_getPinnedTooltipConnectorThickness();
+    if(length <= connectorThickness) {
+        return;
+    }
+
+    $("<div></div>").addClass(eventHandler_pinnedTooltipConnectorClass).css({
+        left: start.x + "px",
+        top: (start.y - connectorThickness / 2) + "px",
+        width: length + "px",
+        transform: "rotate(" + Math.atan2(deltaY, deltaX) + "rad)"
+    }).appendTo("body");
+}
+
 function eventHandler_showPinnedTooltips() {
     var $tooltips = eventHandler_getPinnedTooltipElements();
     var usedRects = [];
 
+    eventHandler_removePinnedTooltipConnectors();
     $tooltips.tooltip("show");
     setTimeout(function() {
         $tooltips.each(function() {
@@ -532,6 +587,12 @@ function eventHandler_showPinnedTooltips() {
 
             var placement = ($(this).attr("data-placement") || eventHandler_tooltipPlacementRight).split(" ")[0];
             usedRects.push(eventHandler_repositionPinnedTooltip($tip, this, usedRects, placement));
+        });
+        $tooltips.each(function() {
+            var $tip = eventHandler_getBootstrapTooltip($(this));
+            if(!$tip || !$tip.length || !$tip.is(":visible")) return;
+
+            eventHandler_drawPinnedTooltipConnector($tip, this);
         });
     }, 0);
 }
@@ -562,6 +623,7 @@ function eventHandler_togglePinnedTooltips() {
     } else {
         $(".toolbar-help-toggle").removeClass("toolbar-tool-active");
         eventHandler_setTooltipText($(".toolbar-help-toggle")[0], "Show Tooltips");
+        eventHandler_removePinnedTooltipConnectors();
         eventHandler_resetTooltips("hover");
     }
 }
