@@ -558,6 +558,13 @@ function eventHandler_getRectPerimeterPoint(rect, target) {
     };
 }
 
+/**
+ * Calculates the connector endpoint at the visible tooltip arrow for a pinned tooltip.
+ *
+ * @param {jQuery} $tip Bootstrap tooltip element.
+ * @param {string} placement Bootstrap tooltip placement.
+ * @returns {{x:number, y:number}} Viewport-space point where the connector should meet the arrow.
+ */
 function eventHandler_getTooltipArrowPoint($tip, placement) {
     var tipRect = $tip[0].getBoundingClientRect();
     var $arrow = $tip.find(".tooltip-arrow");
@@ -738,14 +745,16 @@ function eventHandler_init() {
     eventHandler_initTooltips("hover");
 
     $(document).on("mousedown", function(e) {
-        if(eventHandler_tooltipsPinned && !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length) {
-            eventHandler_togglePinnedTooltips();
-        }
-
         var active = document.activeElement;
         if(!active || !/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return;
         if(active === e.target || $.contains(active, e.target)) return;
         active.blur();
+    });
+
+    $(document).on("click", function(e) {
+        if(eventHandler_tooltipsPinned && !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length) {
+            eventHandler_togglePinnedTooltips();
+        }
     });
 
     $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden'])", function(e) {
