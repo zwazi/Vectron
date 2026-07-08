@@ -574,7 +574,6 @@ function eventHandler_showPinnedTooltips() {
             var placement = ($(this).attr("data-placement") || eventHandler_tooltipPlacementRight).split(" ")[0];
             usedRects.push(eventHandler_repositionPinnedTooltip($tip, this, usedRects, placement));
         });
-        eventHandler_removePinnedTooltipConnectors();
         $tooltips.each(function() {
             var $tip = eventHandler_getBootstrapTooltip($(this));
             if(!$tip || !$tip.length || !$tip.is(":visible")) return;
