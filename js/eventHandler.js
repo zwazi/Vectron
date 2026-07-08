@@ -532,7 +532,7 @@ function eventHandler_removePinnedTooltipConnectors() {
 
 function eventHandler_getPinnedTooltipConnectorThickness() {
     var fallbackThickness = 2;
-    if(typeof window.getComputedStyle != "function") {
+    if(typeof window.getComputedStyle !== "function") {
         return fallbackThickness;
     }
 
@@ -548,8 +548,8 @@ function eventHandler_getClosestRectPoint(sourceRect, targetRect) {
     var targetCenterX = targetRect.left + targetRect.width / 2;
     var targetCenterY = targetRect.top + targetRect.height / 2;
     return {
-        x: eventHandler_clamp(targetCenterX, sourceRect.left, sourceRect.right),
-        y: eventHandler_clamp(targetCenterY, sourceRect.top, sourceRect.bottom)
+        x: eventHandler_clamp(targetCenterX, sourceRect.left, sourceRect.left + sourceRect.width),
+        y: eventHandler_clamp(targetCenterY, sourceRect.top, sourceRect.top + sourceRect.height)
     };
 }
 
