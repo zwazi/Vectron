@@ -34,6 +34,29 @@ body {
 	background-color: #000;
 }
 
+.tooltip-inner {
+	background-color: #f2f2f2;
+	color: #111;
+	border: 1px solid #777;
+	box-shadow: 0 2px 8px rgba(0,0,0,0.55);
+}
+.tooltip.top .tooltip-arrow {
+	border-top-color: #f2f2f2;
+}
+.tooltip.bottom .tooltip-arrow {
+	border-bottom-color: #f2f2f2;
+}
+.tooltip.left .tooltip-arrow {
+	border-left-color: #f2f2f2;
+}
+.tooltip.right .tooltip-arrow {
+	border-right-color: #f2f2f2;
+}
+.tooltip-connector {
+	background: #ffd65a;
+	box-shadow: 0 0 4px rgba(255,214,90,0.9);
+}
+
 .info {
 	padding: 4px 12px;
 	font-size: 12px;
