@@ -41,12 +41,13 @@ body.noscroll {
 
 :root {
   --tooltip-connector-thickness: 2px;
+  --tooltip-background-color: #000;
 }
 
 .tooltip-connector {
   position: fixed;
   height: var(--tooltip-connector-thickness);
-  background: #2a6496;
+  background: var(--tooltip-background-color);
   border-radius: 999px;
   box-shadow: 0 0 2px rgba(255,255,255,0.8);
   pointer-events: none;
