@@ -326,11 +326,6 @@ function aamap_drawGrid() {
     var originX = vectron_width/2 + (vectron_zoom * vectron_panX);
     var originY = vectron_height/2 - (vectron_zoom * vectron_panY);
 
-    if(gridLayout_isHexShape(config_gridLayout)) {
-        aamap_drawHexGrid(gridSpacing, originX, originY);
-        return;
-    }
-
     var regularArray = [];
     var tenthArray = [];
     var axisXArray = [];
@@ -473,93 +468,6 @@ function aamap_getGridStyle() {
     };
 }
 
-function aamap_drawHexGrid(gridSpacing, originX, originY) {
-    var expandedLeft = -vectron_width;
-    var expandedRight = vectron_width * 2;
-    var expandedTop = -vectron_height;
-    var expandedBottom = vectron_height * 2;
-    var regularArray = [];
-    var tenthArray = [];
-    var axisXArray = [];
-    var axisYArray = [];
-    var h = Math.sqrt(3) * gridSpacing / 2;
-    var layout = config_gridLayout;
-
-    function addLine(target, x1, y1, x2, y2) {
-        target.push("M", x1, y1, "L", x2, y2);
-    }
-
-    function addHexEdges(target, points) {
-        if(layout === 'transverse') {
-            addLine(target, points[0].x, points[0].y, points[1].x, points[1].y);
-            addLine(target, points[1].x, points[1].y, points[2].x, points[2].y);
-            addLine(target, points[2].x, points[2].y, points[3].x, points[3].y);
-        } else {
-            addLine(target, points[5].x, points[5].y, points[0].x, points[0].y);
-            addLine(target, points[0].x, points[0].y, points[1].x, points[1].y);
-            addLine(target, points[1].x, points[1].y, points[2].x, points[2].y);
-        }
-    }
-
-    var minCol, maxCol, minRow, maxRow;
-    if(layout === 'transverse') {
-        minRow = Math.floor((expandedTop - originY) / (1.5 * gridSpacing)) - 3;
-        maxRow = Math.ceil((expandedBottom - originY) / (1.5 * gridSpacing)) + 3;
-        minCol = Math.floor((expandedLeft - originX) / (Math.sqrt(3) * gridSpacing)) - 3;
-        maxCol = Math.ceil((expandedRight - originX) / (Math.sqrt(3) * gridSpacing)) + 3;
-    } else {
-        minCol = Math.floor((expandedLeft - originX) / (1.5 * gridSpacing)) - 3;
-        maxCol = Math.ceil((expandedRight - originX) / (1.5 * gridSpacing)) + 3;
-        minRow = Math.floor((expandedTop - originY) / (2 * h)) - 3;
-        maxRow = Math.ceil((expandedBottom - originY) / (2 * h)) + 3;
-    }
-
-    for(var row = minRow; row <= maxRow; row++) {
-        for(var col = minCol; col <= maxCol; col++) {
-            var center = gridLayout_getHexCenter(layout, col, row, gridSpacing, originX, originY);
-            if(center.x < expandedLeft - 2 * gridSpacing || center.x > expandedRight + 2 * gridSpacing ||
-               center.y < expandedTop - 2 * gridSpacing || center.y > expandedBottom + 2 * gridSpacing) {
-                continue;
-            }
-            var points = gridLayout_getHexVertices(layout, center.x, center.y, gridSpacing);
-            addHexEdges((row % 10 === 0 && col % 10 === 0) ? tenthArray : regularArray, points);
-        }
-    }
-
-    addLine(axisYArray, originX, expandedTop, originX, expandedBottom);
-    addLine(axisXArray, expandedLeft, originY, expandedRight, originY);
-
-    var gridStyle = aamap_getGridStyle();
-    aamap_grid = vectron_screen.set();
-
-    if(regularArray.length > 0) {
-        var reg = vectron_screen.path(regularArray.join(" "))
-            .attr({stroke: gridStyle.narrowColor, "stroke-width": gridStyle.narrowStroke, fill: "none"});
-        reg.node.style.shapeRendering = "crispedges";
-        aamap_grid.push(reg);
-    }
-
-    if(tenthArray.length > 0) {
-        var tenth = vectron_screen.path(tenthArray.join(" "))
-            .attr({stroke: gridStyle.tenthColor, "stroke-width": gridStyle.tenthStroke, fill: "none"});
-        tenth.node.style.shapeRendering = "crispedges";
-        aamap_grid.push(tenth);
-    }
-
-    if(axisYArray.length > 0) {
-        var axY = vectron_screen.path(axisYArray.join(" "))
-            .attr({stroke: gridStyle.axisYColor, "stroke-width": gridStyle.axisYStroke});
-        axY.node.style.shapeRendering = "crispedges";
-        aamap_grid.push(axY);
-    }
-
-    if(axisXArray.length > 0) {
-        var axX = vectron_screen.path(axisXArray.join(" "))
-            .attr({stroke: gridStyle.axisXColor, "stroke-width": gridStyle.axisXStroke});
-        axX.node.style.shapeRendering = "crispedges";
-        aamap_grid.push(axX);
-    }
-}
 
 var entityMap = {
     "&": "&amp;",

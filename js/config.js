@@ -44,7 +44,7 @@ var config_gridAxisYThickness  = 0; // 0 = use default (1)
 var config_gridLayout          = 'square';
 var GRID_LAYOUT_EPSILON        = 1e-6;
 var GRID_LAYOUT_LINE_PADDING   = 1.2;
-var GRID_LAYOUT_VALID_LAYOUTS  = ['square', 'triangle', 'diamond', 'hex', 'transverse'];
+var GRID_LAYOUT_VALID_LAYOUTS  = ['square', 'triangle', 'diamond'];
 
 function gridLayout_getLineAngles(layout) {
     switch(layout) {
@@ -56,87 +56,6 @@ function gridLayout_getLineAngles(layout) {
         default:
             return [0, Math.PI / 2];
     }
-}
-
-function gridLayout_isHexShape(layout) {
-    return layout === 'hex' || layout === 'transverse';
-}
-
-function gridLayout_getHexVertices(layout, centerX, centerY, spacing) {
-    var points = [];
-    var h = Math.sqrt(3) * spacing / 2;
-
-    if(layout === 'transverse') {
-        var pointyOffsets = [
-            [0, -spacing], [h, -spacing / 2], [h, spacing / 2],
-            [0, spacing], [-h, spacing / 2], [-h, -spacing / 2]
-        ];
-        for(var p = 0; p < pointyOffsets.length; p++) {
-            points.push({ x: centerX + pointyOffsets[p][0], y: centerY + pointyOffsets[p][1] });
-        }
-        return points;
-    }
-
-    var flatOffsets = [
-        [spacing, 0], [spacing / 2, h], [-spacing / 2, h],
-        [-spacing, 0], [-spacing / 2, -h], [spacing / 2, -h]
-    ];
-    for(var f = 0; f < flatOffsets.length; f++) {
-        points.push({ x: centerX + flatOffsets[f][0], y: centerY + flatOffsets[f][1] });
-    }
-    return points;
-}
-
-function gridLayout_getHexCenter(layout, col, row, spacing, originX, originY) {
-    var h = Math.sqrt(3) * spacing / 2;
-    if(layout === 'transverse') {
-        return {
-            x: originX + Math.sqrt(3) * spacing * (col + (Math.abs(row % 2) ? 0.5 : 0)),
-            y: originY + 1.5 * spacing * row
-        };
-    }
-    return {
-        x: originX + 1.5 * spacing * col,
-        y: originY + 2 * h * (row + (Math.abs(col % 2) ? 0.5 : 0))
-    };
-}
-
-function gridLayout_snapToHexGrid(x, y, spacing, originX, originY) {
-    var layout = config_gridLayout;
-    var h = Math.sqrt(3) * spacing / 2;
-    var relX = x - originX;
-    var relY = y - originY;
-    var approxCol, approxRow;
-
-    if(layout === 'transverse') {
-        approxRow = Math.round(relY / (1.5 * spacing));
-        approxCol = Math.round(relX / (Math.sqrt(3) * spacing) - (Math.abs(approxRow % 2) ? 0.5 : 0));
-    } else {
-        approxCol = Math.round(relX / (1.5 * spacing));
-        approxRow = Math.round(relY / (2 * h) - (Math.abs(approxCol % 2) ? 0.5 : 0));
-    }
-
-    var bestX = x;
-    var bestY = y;
-    var bestDist = Infinity;
-    for(var row = approxRow - 3; row <= approxRow + 3; row++) {
-        for(var col = approxCol - 3; col <= approxCol + 3; col++) {
-            var center = gridLayout_getHexCenter(layout, col, row, spacing, originX, originY);
-            var points = gridLayout_getHexVertices(layout, center.x, center.y, spacing);
-            for(var i = 0; i < points.length; i++) {
-                var dx = points[i].x - x;
-                var dy = points[i].y - y;
-                var dist = dx * dx + dy * dy;
-                if(dist < bestDist) {
-                    bestDist = dist;
-                    bestX = points[i].x;
-                    bestY = points[i].y;
-                }
-            }
-        }
-    }
-
-    return { x: bestX, y: bestY };
 }
 
 /**
@@ -151,10 +70,6 @@ function gridLayout_snapToHexGrid(x, y, spacing, originX, originY) {
  * @returns {{x:number, y:number}} Screen-space snapped position.
  */
 function gridLayout_snapPoint(x, y, spacing, originX, originY) {
-    if(gridLayout_isHexShape(config_gridLayout)) {
-        return gridLayout_snapToHexGrid(x, y, spacing, originX, originY);
-    }
-
     var families = gridLayout_getLineAngles(config_gridLayout);
     var relX = x - originX;
     var relY = y - originY;
