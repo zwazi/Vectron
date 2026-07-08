@@ -62,6 +62,86 @@ function gridLayout_getLineAngles(layout) {
     }
 }
 
+function gridLayout_isPolygonShape(layout) {
+    return layout === 'octagon' || layout === 'penta';
+}
+
+function gridLayout_getPolygonSides(layout) {
+    if(layout === 'octagon') return 8;
+    if(layout === 'penta') return 5;
+    return 0;
+}
+
+function gridLayout_getPolygonRowSpacing(layout, spacing) {
+    return layout === 'penta' ? spacing * 0.82 : spacing;
+}
+
+function gridLayout_getPolygonColumnOffset(layout, row, spacing) {
+    return layout === 'penta' && Math.abs(row % 2) === 1 ? spacing / 2 : 0;
+}
+
+function gridLayout_getPolygonRadius(layout, spacing) {
+    if(layout === 'octagon') return spacing / (2 * Math.cos(Math.PI / 8));
+    if(layout === 'penta') return spacing * 0.46;
+    return spacing / 2;
+}
+
+function gridLayout_getPolygonRotation(layout) {
+    if(layout === 'octagon') return Math.PI / 8;
+    if(layout === 'penta') return -Math.PI / 2;
+    return 0;
+}
+
+function gridLayout_getPolygonPoints(layout, centerX, centerY, spacing) {
+    var sides = gridLayout_getPolygonSides(layout);
+    var radius = gridLayout_getPolygonRadius(layout, spacing);
+    var rotation = gridLayout_getPolygonRotation(layout);
+    var points = [];
+
+    for(var i = 0; i < sides; i++) {
+        var angle = rotation + i * Math.PI * 2 / sides;
+        points.push({
+            x: centerX + Math.cos(angle) * radius,
+            y: centerY + Math.sin(angle) * radius
+        });
+    }
+
+    return points;
+}
+
+function gridLayout_snapToPolygonGrid(x, y, spacing, originX, originY) {
+    var rowSpacing = gridLayout_getPolygonRowSpacing(config_gridLayout, spacing);
+    var nearestRow = Math.round((y - originY) / rowSpacing);
+    var bestX = x;
+    var bestY = y;
+    var bestDist = Infinity;
+
+    for(var row = nearestRow - 3; row <= nearestRow + 3; row++) {
+        var offset = gridLayout_getPolygonColumnOffset(config_gridLayout, row, spacing);
+        var nearestCol = Math.round((x - originX - offset) / spacing);
+        for(var col = nearestCol - 3; col <= nearestCol + 3; col++) {
+            var centerX = originX + offset + col * spacing;
+            var centerY = originY + row * rowSpacing;
+            var points = gridLayout_getPolygonPoints(config_gridLayout, centerX, centerY, spacing);
+            for(var i = 0; i < points.length; i++) {
+                var dx = points[i].x - x;
+                var dy = points[i].y - y;
+                var dist = dx * dx + dy * dy;
+                if(dist < bestDist) {
+                    bestDist = dist;
+                    bestX = points[i].x;
+                    bestY = points[i].y;
+                }
+            }
+        }
+    }
+
+    return {
+        x: bestX,
+        y: bestY
+    };
+}
+
 /**
  * Snap a screen-space cursor position to the nearest intersection of the
  * active grid layout's line families.
@@ -74,6 +154,10 @@ function gridLayout_getLineAngles(layout) {
  * @returns {{x:number, y:number}} Screen-space snapped position.
  */
 function gridLayout_snapPoint(x, y, spacing, originX, originY) {
+    if(gridLayout_isPolygonShape(config_gridLayout)) {
+        return gridLayout_snapToPolygonGrid(x, y, spacing, originX, originY);
+    }
+
     var families = gridLayout_getLineAngles(config_gridLayout);
     var relX = x - originX;
     var relY = y - originY;

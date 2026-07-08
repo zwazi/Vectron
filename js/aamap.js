@@ -323,6 +323,13 @@ function aamap_drawGrid() {
 
     var renderSpacing = vectron_grid_render_locked ? vectron_grid_render_spacing : vectron_grid_spacing;
     var gridSpacing = vectron_zoom * renderSpacing;
+    var originX = vectron_width/2 + (vectron_zoom * vectron_panX);
+    var originY = vectron_height/2 - (vectron_zoom * vectron_panY);
+
+    if(gridLayout_isPolygonShape(config_gridLayout)) {
+        aamap_drawPolygonGrid(gridSpacing, originX, originY);
+        return;
+    }
 
     var regularArray = [];
     var tenthArray = [];
@@ -330,8 +337,6 @@ function aamap_drawGrid() {
     var axisYArray = [];
 
     var families = gridLayout_getLineAngles(config_gridLayout);
-    var originX = vectron_width/2 + (vectron_zoom * vectron_panX);
-    var originY = vectron_height/2 - (vectron_zoom * vectron_panY);
     var expandedLeft = -vectron_width;
     var expandedRight = vectron_width * 2;
     var expandedTop = -vectron_height;
@@ -417,47 +422,127 @@ function aamap_drawGrid() {
         }
     });
 
-    // Draw regular grid lines — use configurable color/thickness
-    var defaultNarrowColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
-    var defaultTenthColor  = config_isDark ? '#7f7f7f' : '#7f7f7f';
-    var narrowColor  = config_gridNarrowColor  || defaultNarrowColor;
-    var tenthColor   = config_gridTenthColor   || defaultTenthColor;
-    var axisXColor   = config_gridAxisXColor   || '#2244cc';
-    var axisYColor   = config_gridAxisYColor   || '#cc2222';
-
-    var narrowStroke  = config_gridNarrowThickness  > 0 ? config_gridNarrowThickness  : 1;
-    var tenthStroke   = config_gridTenthThickness   > 0 ? config_gridTenthThickness   : 1;
-    var axisXStroke   = config_gridAxisXThickness   > 0 ? config_gridAxisXThickness   : 1;
-    var axisYStroke   = config_gridAxisYThickness   > 0 ? config_gridAxisYThickness   : 1;
+    var gridStyle = aamap_getGridStyle();
 
     aamap_grid = vectron_screen.set();
 
     if(regularArray.length > 0) {
-        var reg = vectron_screen.path(regularArray)
-            .attr({stroke: narrowColor, "stroke-width": narrowStroke});
+        var reg = vectron_screen.path(regularArray.join(" "))
+            .attr({stroke: gridStyle.narrowColor, "stroke-width": gridStyle.narrowStroke});
         reg.node.style.shapeRendering = "crispedges";
         aamap_grid.push(reg);
     }
 
     if(tenthArray.length > 0) {
-        var tenth = vectron_screen.path(tenthArray)
-            .attr({stroke: tenthColor, "stroke-width": tenthStroke});
+        var tenth = vectron_screen.path(tenthArray.join(" "))
+            .attr({stroke: gridStyle.tenthColor, "stroke-width": gridStyle.tenthStroke});
         tenth.node.style.shapeRendering = "crispedges";
         aamap_grid.push(tenth);
     }
 
     // Draw Y-axis (x=0) — vertical line
     if(axisYArray.length > 0) {
-        var axY = vectron_screen.path(axisYArray)
-            .attr({stroke: axisYColor, "stroke-width": axisYStroke});
+        var axY = vectron_screen.path(axisYArray.join(" "))
+            .attr({stroke: gridStyle.axisYColor, "stroke-width": gridStyle.axisYStroke});
         axY.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axY);
     }
 
     // Draw X-axis (y=0) — horizontal line
     if(axisXArray.length > 0) {
-        var axX = vectron_screen.path(axisXArray)
-            .attr({stroke: axisXColor, "stroke-width": axisXStroke});
+        var axX = vectron_screen.path(axisXArray.join(" "))
+            .attr({stroke: gridStyle.axisXColor, "stroke-width": gridStyle.axisXStroke});
+        axX.node.style.shapeRendering = "crispedges";
+        aamap_grid.push(axX);
+    }
+}
+
+function aamap_getGridStyle() {
+    var defaultNarrowColor = config_isDark ? '#1a1a1a' : '#d6d6ec';
+    var defaultTenthColor  = config_isDark ? '#7f7f7f' : '#7f7f7f';
+
+    return {
+        narrowColor: config_gridNarrowColor || defaultNarrowColor,
+        tenthColor: config_gridTenthColor || defaultTenthColor,
+        axisXColor: config_gridAxisXColor || '#2244cc',
+        axisYColor: config_gridAxisYColor || '#cc2222',
+        narrowStroke: config_gridNarrowThickness > 0 ? config_gridNarrowThickness : 1,
+        tenthStroke: config_gridTenthThickness > 0 ? config_gridTenthThickness : 1,
+        axisXStroke: config_gridAxisXThickness > 0 ? config_gridAxisXThickness : 1,
+        axisYStroke: config_gridAxisYThickness > 0 ? config_gridAxisYThickness : 1
+    };
+}
+
+function aamap_drawPolygonGrid(gridSpacing, originX, originY) {
+    var expandedLeft = -vectron_width;
+    var expandedRight = vectron_width * 2;
+    var expandedTop = -vectron_height;
+    var expandedBottom = vectron_height * 2;
+    var rowSpacing = gridLayout_getPolygonRowSpacing(config_gridLayout, gridSpacing);
+    var regularArray = [];
+    var tenthArray = [];
+    var axisXArray = [];
+    var axisYArray = [];
+
+    function addLine(target, x1, y1, x2, y2) {
+        target.push("M", x1, y1, "L", x2, y2);
+    }
+
+    function addPolygon(target, points) {
+        if(points.length == 0) return;
+        target.push("M", points[0].x, points[0].y);
+        for(var i = 1; i < points.length; i++) {
+            target.push("L", points[i].x, points[i].y);
+        }
+        target.push("Z");
+    }
+
+    var minRow = Math.floor((expandedTop - originY) / rowSpacing) - 2;
+    var maxRow = Math.ceil((expandedBottom - originY) / rowSpacing) + 2;
+
+    for(var row = minRow; row <= maxRow; row++) {
+        var offset = gridLayout_getPolygonColumnOffset(config_gridLayout, row, gridSpacing);
+        var minCol = Math.floor((expandedLeft - originX - offset) / gridSpacing) - 2;
+        var maxCol = Math.ceil((expandedRight - originX - offset) / gridSpacing) + 2;
+        for(var col = minCol; col <= maxCol; col++) {
+            var centerX = originX + offset + col * gridSpacing;
+            var centerY = originY + row * rowSpacing;
+            var points = gridLayout_getPolygonPoints(config_gridLayout, centerX, centerY, gridSpacing);
+            var category = (row % 10 === 0 && col % 10 === 0) ? "tenth" : "regular";
+            addPolygon(category === "tenth" ? tenthArray : regularArray, points);
+        }
+    }
+
+    addLine(axisYArray, originX, expandedTop, originX, expandedBottom);
+    addLine(axisXArray, expandedLeft, originY, expandedRight, originY);
+
+    var gridStyle = aamap_getGridStyle();
+    aamap_grid = vectron_screen.set();
+
+    if(regularArray.length > 0) {
+        var reg = vectron_screen.path(regularArray.join(" "))
+            .attr({stroke: gridStyle.narrowColor, "stroke-width": gridStyle.narrowStroke, fill: "none"});
+        reg.node.style.shapeRendering = "crispedges";
+        aamap_grid.push(reg);
+    }
+
+    if(tenthArray.length > 0) {
+        var tenth = vectron_screen.path(tenthArray.join(" "))
+            .attr({stroke: gridStyle.tenthColor, "stroke-width": gridStyle.tenthStroke, fill: "none"});
+        tenth.node.style.shapeRendering = "crispedges";
+        aamap_grid.push(tenth);
+    }
+
+    if(axisYArray.length > 0) {
+        var axY = vectron_screen.path(axisYArray.join(" "))
+            .attr({stroke: gridStyle.axisYColor, "stroke-width": gridStyle.axisYStroke});
+        axY.node.style.shapeRendering = "crispedges";
+        aamap_grid.push(axY);
+    }
+
+    if(axisXArray.length > 0) {
+        var axX = vectron_screen.path(axisXArray.join(" "))
+            .attr({stroke: gridStyle.axisXColor, "stroke-width": gridStyle.axisXStroke});
         axX.node.style.shapeRendering = "crispedges";
         aamap_grid.push(axX);
     }
