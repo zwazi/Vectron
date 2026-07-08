@@ -531,8 +531,17 @@ function eventHandler_removePinnedTooltipConnectors() {
 }
 
 function eventHandler_getPinnedTooltipConnectorThickness() {
-    var thickness = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tooltip-connector-thickness"));
-    return thickness || 2;
+    var fallbackThickness = 2;
+    if(typeof window.getComputedStyle != "function") {
+        return fallbackThickness;
+    }
+
+    var configuredThickness = parseFloat(window.getComputedStyle(document.documentElement).getPropertyValue("--tooltip-connector-thickness"));
+    if(isNaN(configuredThickness) || configuredThickness <= 0) {
+        return fallbackThickness;
+    }
+
+    return configuredThickness;
 }
 
 function eventHandler_getClosestRectPoint(sourceRect, targetRect) {
