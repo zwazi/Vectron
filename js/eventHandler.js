@@ -35,6 +35,14 @@ var eventHandler_armawebtronPreviewUrl = "https://armawebtron.github.io/Armawebt
 var eventHandler_armawebtronPreviewTimer = null;
 var eventHandler_armawebtronSettingsCustomCfgPath = "tampermonkey/settings_custom.cfg";
 var eventHandler_tooltipsPinned = false;
+var eventHandler_pinnedTooltipGap = 6;
+var eventHandler_pinnedTooltipArrowMargin = 8;
+var eventHandler_pinnedTooltipArrowOffset = -5;
+var eventHandler_pinnedTooltipMaxCollisionSteps = 20;
+var eventHandler_tooltipPlacementTop = "top";
+var eventHandler_tooltipPlacementBottom = "bottom";
+var eventHandler_tooltipPlacementLeft = "left";
+var eventHandler_tooltipPlacementRight = "right";
 var eventHandler_armawebtronSettingsCustomCfgFallback = [
     "SP_NUM_AIS 0",
     "ARENA_AXES 8",
@@ -413,29 +421,90 @@ function eventHandler_getPaddedRect(element, padding) {
     };
 }
 
-function eventHandler_repositionPinnedTooltip($tip, usedRects, placement) {
+function eventHandler_isVerticalTooltipPlacement(placement) {
+    if(placement === eventHandler_tooltipPlacementTop || placement === eventHandler_tooltipPlacementBottom) {
+        return true;
+    }
+    return false;
+}
+
+function eventHandler_getTooltipPointer(element, placement) {
+    var rect = element.getBoundingClientRect();
+    if(eventHandler_isVerticalTooltipPlacement(placement)) {
+        return rect.left + rect.width / 2;
+    }
+    return rect.top + rect.height / 2;
+}
+
+function eventHandler_clampTooltipArrow(pointerOffset, dimension) {
+    return Math.max(eventHandler_pinnedTooltipArrowMargin, Math.min(pointerOffset, dimension - eventHandler_pinnedTooltipArrowMargin));
+}
+
+function eventHandler_alignPinnedTooltipArrow($tip, element, placement) {
+    var $arrow = $tip.find(".tooltip-arrow");
+    if(!$arrow.length) return undefined;
+
+    var tipRect = $tip[0].getBoundingClientRect();
+    var pointer = eventHandler_getTooltipPointer(element, placement);
+    if(eventHandler_isVerticalTooltipPlacement(placement)) {
+        var arrowLeft = eventHandler_clampTooltipArrow(pointer - tipRect.left, tipRect.width);
+        $arrow.css({
+            left: arrowLeft + "px",
+            marginLeft: eventHandler_pinnedTooltipArrowOffset + "px"
+        });
+    } else {
+        var arrowTop = eventHandler_clampTooltipArrow(pointer - tipRect.top, tipRect.height);
+        $arrow.css({
+            top: arrowTop + "px",
+            marginTop: eventHandler_pinnedTooltipArrowOffset + "px"
+        });
+    }
+}
+
+function eventHandler_nudgePinnedTooltipAwayFromTarget(rect, used, placement) {
+    if(placement === eventHandler_tooltipPlacementTop) {
+        return { left: rect.left, top: used.top - rect.height - eventHandler_pinnedTooltipGap };
+    }
+    if(placement === eventHandler_tooltipPlacementBottom) {
+        return { left: rect.left, top: used.bottom + eventHandler_pinnedTooltipGap };
+    }
+    if(placement === eventHandler_tooltipPlacementLeft) {
+        return { left: used.left - rect.width - eventHandler_pinnedTooltipGap, top: rect.top };
+    }
+    return { left: used.right + eventHandler_pinnedTooltipGap, top: rect.top };
+}
+
+function eventHandler_repositionPinnedTooltip($tip, element, usedRects, placement) {
     var tip = $tip[0];
     var rect = eventHandler_getPaddedRect(tip, 4);
     var left = parseFloat($tip.css("left")) || rect.left;
     var top = parseFloat($tip.css("top")) || rect.top;
 
-    for(var i = 0, ii = usedRects.length; i < ii; i++) {
-        var used = usedRects[i];
-        if(!eventHandler_rectsOverlap(rect, used)) {
-            continue;
-        }
+    var changed = true;
+    var guard = 0;
+    while(changed && guard++ < eventHandler_pinnedTooltipMaxCollisionSteps) {
+        changed = false;
+        var processedRects = new Set();
+        for(var i = 0, ii = usedRects.length; i < ii; i++) {
+            var used = usedRects[i];
+            if(processedRects.has(used)) {
+                continue;
+            }
+            processedRects.add(used);
+            if(!eventHandler_rectsOverlap(rect, used)) {
+                continue;
+            }
 
-        if(placement == "top" || placement == "bottom") {
-            left += used.right - rect.left + 4;
-        } else {
-            top += used.bottom - rect.top + 4;
+            var next = eventHandler_nudgePinnedTooltipAwayFromTarget(rect, used, placement);
+            left = next.left;
+            top = next.top;
+            $tip.css({
+                left: left,
+                top: top
+            });
+            rect = eventHandler_getPaddedRect(tip, 4);
+            changed = true;
         }
-
-        $tip.css({
-            left: left,
-            top: top
-        });
-        rect = eventHandler_getPaddedRect(tip, 4);
     }
 
     var maxLeft = window.innerWidth - rect.width - 4;
@@ -446,6 +515,7 @@ function eventHandler_repositionPinnedTooltip($tip, usedRects, placement) {
         left: left,
         top: top
     });
+    eventHandler_alignPinnedTooltipArrow($tip, element, placement);
 
     return eventHandler_getPaddedRect(tip, 4);
 }
@@ -460,8 +530,8 @@ function eventHandler_showPinnedTooltips() {
             var $tip = eventHandler_getBootstrapTooltip($(this));
             if(!$tip || !$tip.length || !$tip.is(":visible")) return;
 
-            var placement = ($(this).attr("data-placement") || "right").split(" ")[0];
-            usedRects.push(eventHandler_repositionPinnedTooltip($tip, usedRects, placement));
+            var placement = ($(this).attr("data-placement") || eventHandler_tooltipPlacementRight).split(" ")[0];
+            usedRects.push(eventHandler_repositionPinnedTooltip($tip, this, usedRects, placement));
         });
     }, 0);
 }
