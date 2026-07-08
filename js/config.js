@@ -44,7 +44,7 @@ var config_gridAxisYThickness  = 0; // 0 = use default (1)
 var config_gridLayout          = 'square';
 var GRID_LAYOUT_EPSILON        = 1e-6;
 var GRID_LAYOUT_LINE_PADDING   = 1.2;
-var GRID_LAYOUT_VALID_LAYOUTS  = ['square', 'triangle', 'diamond', 'hex', 'transversehex'];
+var GRID_LAYOUT_VALID_LAYOUTS  = ['square', 'triangle', 'diamond', 'hex', 'transverse_hex'];
 
 function gridLayout_getLineAngles(layout) {
     switch(layout) {
@@ -59,14 +59,14 @@ function gridLayout_getLineAngles(layout) {
 }
 
 function gridLayout_isHexShape(layout) {
-    return layout === 'hex' || layout === 'transversehex';
+    return layout === 'hex' || layout === 'transverse_hex';
 }
 
 function gridLayout_getHexVertices(layout, centerX, centerY, spacing) {
     var points = [];
     var h = Math.sqrt(3) * spacing / 2;
 
-    if(layout === 'transversehex') {
+    if(layout === 'transverse_hex') {
         var pointyOffsets = [
             [0, -spacing], [h, -spacing / 2], [h, spacing / 2],
             [0, spacing], [-h, spacing / 2], [-h, -spacing / 2]
@@ -89,7 +89,7 @@ function gridLayout_getHexVertices(layout, centerX, centerY, spacing) {
 
 function gridLayout_getHexCenter(layout, col, row, spacing, originX, originY) {
     var h = Math.sqrt(3) * spacing / 2;
-    if(layout === 'transversehex') {
+    if(layout === 'transverse_hex') {
         return {
             x: originX + Math.sqrt(3) * spacing * (col + (Math.abs(row % 2) ? 0.5 : 0)),
             y: originY + 1.5 * spacing * row
@@ -108,7 +108,7 @@ function gridLayout_snapToHexGrid(x, y, spacing, originX, originY) {
     var relY = y - originY;
     var approxCol, approxRow;
 
-    if(layout === 'transversehex') {
+    if(layout === 'transverse_hex') {
         approxRow = Math.round(relY / (1.5 * spacing));
         approxCol = Math.round(relX / (Math.sqrt(3) * spacing) - (Math.abs(approxRow % 2) ? 0.5 : 0));
     } else {

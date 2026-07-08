@@ -752,7 +752,9 @@ function eventHandler_init() {
     });
 
     $(document).on("click", function(e) {
-        if(eventHandler_tooltipsPinned && !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length) {
+        if(eventHandler_tooltipsPinned &&
+           !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length &&
+           !$(e.target).closest(".tooltip").length) {
             eventHandler_togglePinnedTooltips();
         }
     });

@@ -490,7 +490,7 @@ function aamap_drawHexGrid(gridSpacing, originX, originY) {
     }
 
     function addHexEdges(target, points) {
-        if(layout === 'transversehex') {
+        if(layout === 'transverse_hex') {
             addLine(target, points[0].x, points[0].y, points[1].x, points[1].y);
             addLine(target, points[1].x, points[1].y, points[2].x, points[2].y);
             addLine(target, points[2].x, points[2].y, points[3].x, points[3].y);
@@ -502,7 +502,7 @@ function aamap_drawHexGrid(gridSpacing, originX, originY) {
     }
 
     var minCol, maxCol, minRow, maxRow;
-    if(layout === 'transversehex') {
+    if(layout === 'transverse_hex') {
         minRow = Math.floor((expandedTop - originY) / (1.5 * gridSpacing)) - 3;
         maxRow = Math.ceil((expandedBottom - originY) / (1.5 * gridSpacing)) + 3;
         minCol = Math.floor((expandedLeft - originX) / (Math.sqrt(3) * gridSpacing)) - 3;
