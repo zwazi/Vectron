@@ -317,24 +317,6 @@ function eventHandler_getPreviewValidationError() {
         return "Add at least one wall before play testing.";
     }
 
-    var polygons = eventHandler_getClosedWallPolygons(walls);
-    if(polygons.length == 0) {
-        return "Add a closed wall perimeter before play testing.";
-    }
-
-    for(var i = 0, ii = spawns.length; i < ii; i++) {
-        var inside = false;
-        for(var j = 0, jj = polygons.length; j < jj; j++) {
-            if(eventHandler_pointInPolygon(spawns[i], polygons[j])) {
-                inside = true;
-                break;
-            }
-        }
-        if(!inside) {
-            return "Every spawn must be inside a closed wall perimeter.";
-        }
-    }
-
     return "";
 }
 
