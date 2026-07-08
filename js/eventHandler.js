@@ -40,6 +40,7 @@ var eventHandler_pinnedTooltipArrowMargin = 8;
 var eventHandler_pinnedTooltipArrowOffset = -5;
 var eventHandler_pinnedTooltipMaxCollisionSteps = 20;
 var eventHandler_pinnedTooltipConnectorClass = "tooltip-connector";
+var eventHandler_pinnedTooltipHelpToggleSelector = ".toolbar-help-toggle";
 var eventHandler_tooltipPlacementTop = "top";
 var eventHandler_tooltipPlacementBottom = "bottom";
 var eventHandler_tooltipPlacementLeft = "left";
@@ -639,13 +640,13 @@ function eventHandler_getPinnedTooltipElements() {
 function eventHandler_togglePinnedTooltips() {
     eventHandler_tooltipsPinned = !eventHandler_tooltipsPinned;
     if(eventHandler_tooltipsPinned) {
-        $(".toolbar-help-toggle").addClass("toolbar-tool-active");
-        eventHandler_setTooltipText($(".toolbar-help-toggle")[0], "Hide Tooltips");
+        $(eventHandler_pinnedTooltipHelpToggleSelector).addClass("toolbar-tool-active");
+        eventHandler_setTooltipText($(eventHandler_pinnedTooltipHelpToggleSelector)[0], "Hide Tooltips");
         eventHandler_resetTooltips("manual");
         eventHandler_showPinnedTooltips();
     } else {
-        $(".toolbar-help-toggle").removeClass("toolbar-tool-active");
-        eventHandler_setTooltipText($(".toolbar-help-toggle")[0], "Show Tooltips");
+        $(eventHandler_pinnedTooltipHelpToggleSelector).removeClass("toolbar-tool-active");
+        eventHandler_setTooltipText($(eventHandler_pinnedTooltipHelpToggleSelector)[0], "Show Tooltips");
         eventHandler_removePinnedTooltipConnectors();
         eventHandler_resetTooltips("hover");
     }
@@ -737,7 +738,7 @@ function eventHandler_init() {
     eventHandler_initTooltips("hover");
 
     $(document).on("mousedown", function(e) {
-        if(eventHandler_tooltipsPinned && !$(e.target).closest(".toolbar-help-toggle").length) {
+        if(eventHandler_tooltipsPinned && !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length) {
             eventHandler_togglePinnedTooltips();
         }
 
@@ -1298,7 +1299,7 @@ function eventHandler_init() {
         vectron_render();
     });
 
-    $(".toolbar-help-toggle").mouseup(function(e) {
+    $(eventHandler_pinnedTooltipHelpToggleSelector).mouseup(function(e) {
         e.preventDefault();
         eventHandler_togglePinnedTooltips();
         $("#zones-menu").hide();

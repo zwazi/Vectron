@@ -44,6 +44,7 @@ var config_gridAxisYThickness  = 0; // 0 = use default (1)
 var config_gridLayout          = 'square';
 var GRID_LAYOUT_EPSILON        = 1e-6;
 var GRID_LAYOUT_LINE_PADDING   = 1.2;
+var GRID_LAYOUT_VALID_LAYOUTS  = ['square', 'triangle', 'diamond', 'hex', 'transverseHex'];
 
 function gridLayout_getLineAngles(layout) {
     switch(layout) {
@@ -384,7 +385,7 @@ function config_load()
     config_gridAxisXThickness  = parseFloat(_config_get('gridAxisXThickness'))  || 0;
     config_gridAxisYThickness  = parseFloat(_config_get('gridAxisYThickness'))  || 0;
     config_gridLayout          = _config_get('gridLayout') || 'square';
-    if(['square', 'triangle', 'diamond', 'hex', 'transverseHex'].indexOf(config_gridLayout) < 0) {
+    if(GRID_LAYOUT_VALID_LAYOUTS.indexOf(config_gridLayout) < 0) {
         config_gridLayout = 'square';
         _config_set('gridLayout', config_gridLayout);
     }
