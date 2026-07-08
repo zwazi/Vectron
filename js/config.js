@@ -44,18 +44,41 @@ var config_gridAxisYThickness  = 0; // 0 = use default (1)
 var config_gridLayout          = 'square';
 var GRID_LAYOUT_EPSILON        = 1e-6;
 var GRID_LAYOUT_LINE_PADDING   = 1.2;
-var GRID_LAYOUT_VALID_LAYOUTS  = ['square', 'triangle', 'diamond'];
+var GRID_LAYOUT_VALID_LAYOUTS  = ['square', 'triangle', 'diamond', 'crisscross'];
 
-function gridLayout_getLineAngles(layout) {
+function gridLayout_getLineFamilies(layout, spacing) {
     switch(layout) {
         case 'triangle':
-            return [0, Math.PI / 3, 2 * Math.PI / 3];
+            return [
+                { angle: 0, spacing: spacing },
+                { angle: Math.PI / 3, spacing: spacing },
+                { angle: 2 * Math.PI / 3, spacing: spacing }
+            ];
         case 'diamond':
-            return [Math.PI / 4, 3 * Math.PI / 4];
+            return [
+                { angle: Math.PI / 4, spacing: spacing },
+                { angle: 3 * Math.PI / 4, spacing: spacing }
+            ];
+        case 'crisscross':
+            return [
+                { angle: 0, spacing: spacing },
+                { angle: Math.PI / 2, spacing: spacing },
+                { angle: Math.PI / 4, spacing: spacing / Math.SQRT2 },
+                { angle: 3 * Math.PI / 4, spacing: spacing / Math.SQRT2 }
+            ];
         case 'square':
         default:
-            return [0, Math.PI / 2];
+            return [
+                { angle: 0, spacing: spacing },
+                { angle: Math.PI / 2, spacing: spacing }
+            ];
     }
+}
+
+function gridLayout_getLineAngles(layout) {
+    return gridLayout_getLineFamilies(layout, 1).map(function(family) {
+        return family.angle;
+    });
 }
 
 /**
@@ -70,7 +93,7 @@ function gridLayout_getLineAngles(layout) {
  * @returns {{x:number, y:number}} Screen-space snapped position.
  */
 function gridLayout_snapPoint(x, y, spacing, originX, originY) {
-    var families = gridLayout_getLineAngles(config_gridLayout);
+    var families = gridLayout_getLineFamilies(config_gridLayout, spacing);
     var relX = x - originX;
     var relY = y - originY;
     var bestX = relX;
@@ -79,17 +102,18 @@ function gridLayout_snapPoint(x, y, spacing, originX, originY) {
     var lineValues = [];
 
     for(var i = 0; i < families.length; i++) {
-        var angle = families[i];
+        var angle = families[i].angle;
+        var familySpacing = families[i].spacing;
         // The normal vector is perpendicular to the line direction, so dotting
         // it with the point gives the signed distance from the origin-facing line.
         var nx = -Math.sin(angle);
         var ny = Math.cos(angle);
-        lineValues[i] = Math.round((relX * nx + relY * ny) / spacing) * spacing;
+        lineValues[i] = Math.round((relX * nx + relY * ny) / familySpacing) * familySpacing;
     }
 
     for(var a = 0; a < families.length; a++) {
         for(var b = a + 1; b < families.length; b++) {
-            var angleA = families[a], angleB = families[b];
+            var angleA = families[a].angle, angleB = families[b].angle;
             var ax = -Math.sin(angleA), ay = Math.cos(angleA);
             var bx = -Math.sin(angleB), by = Math.cos(angleB);
             var det = ax * by - ay * bx;
