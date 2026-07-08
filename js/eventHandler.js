@@ -35,6 +35,10 @@ var eventHandler_armawebtronPreviewUrl = "https://armawebtron.github.io/Armawebt
 var eventHandler_armawebtronPreviewTimer = null;
 var eventHandler_armawebtronSettingsCustomCfgPath = "tampermonkey/settings_custom.cfg";
 var eventHandler_tooltipsPinned = false;
+var eventHandler_pinnedTooltipGap = 6;
+var eventHandler_pinnedTooltipArrowMargin = 8;
+var eventHandler_pinnedTooltipArrowOffset = -5;
+var eventHandler_pinnedTooltipMaxCollisionSteps = 20;
 var eventHandler_armawebtronSettingsCustomCfgFallback = [
     "SP_NUM_AIS 0",
     "ARENA_AXES 8",
@@ -415,7 +419,7 @@ function eventHandler_getPaddedRect(element, padding) {
 
 function eventHandler_getTooltipPointer(element, placement) {
     var rect = element.getBoundingClientRect();
-    if(placement == "top" || placement == "bottom") {
+    if(placement === "top" || placement === "bottom") {
         return rect.left + rect.width / 2;
     }
     return rect.top + rect.height / 2;
@@ -427,33 +431,32 @@ function eventHandler_alignPinnedTooltipArrow($tip, element, placement) {
 
     var tipRect = $tip[0].getBoundingClientRect();
     var pointer = eventHandler_getTooltipPointer(element, placement);
-    if(placement == "top" || placement == "bottom") {
-        var arrowLeft = Math.max(8, Math.min(pointer - tipRect.left, tipRect.width - 8));
+    if(placement === "top" || placement === "bottom") {
+        var arrowLeft = Math.max(eventHandler_pinnedTooltipArrowMargin, Math.min(pointer - tipRect.left, tipRect.width - eventHandler_pinnedTooltipArrowMargin));
         $arrow.css({
             left: arrowLeft + "px",
-            marginLeft: "-5px"
+            marginLeft: eventHandler_pinnedTooltipArrowOffset + "px"
         });
     } else {
-        var arrowTop = Math.max(8, Math.min(pointer - tipRect.top, tipRect.height - 8));
+        var arrowTop = Math.max(eventHandler_pinnedTooltipArrowMargin, Math.min(pointer - tipRect.top, tipRect.height - eventHandler_pinnedTooltipArrowMargin));
         $arrow.css({
             top: arrowTop + "px",
-            marginTop: "-5px"
+            marginTop: eventHandler_pinnedTooltipArrowOffset + "px"
         });
     }
 }
 
 function eventHandler_nudgePinnedTooltipAwayFromTarget(rect, used, placement) {
-    var gap = 6;
-    if(placement == "top") {
-        return { left: rect.left, top: used.top - rect.height - gap };
+    if(placement === "top") {
+        return { left: rect.left, top: used.top - rect.height - eventHandler_pinnedTooltipGap };
     }
-    if(placement == "bottom") {
-        return { left: rect.left, top: used.bottom + gap };
+    if(placement === "bottom") {
+        return { left: rect.left, top: used.bottom + eventHandler_pinnedTooltipGap };
     }
-    if(placement == "left") {
-        return { left: used.left - rect.width - gap, top: rect.top };
+    if(placement === "left") {
+        return { left: used.left - rect.width - eventHandler_pinnedTooltipGap, top: rect.top };
     }
-    return { left: used.right + gap, top: rect.top };
+    return { left: used.right + eventHandler_pinnedTooltipGap, top: rect.top };
 }
 
 function eventHandler_repositionPinnedTooltip($tip, element, usedRects, placement) {
@@ -464,7 +467,7 @@ function eventHandler_repositionPinnedTooltip($tip, element, usedRects, placemen
 
     var changed = true;
     var guard = 0;
-    while(changed && guard++ < 20) {
+    while(changed && guard++ < eventHandler_pinnedTooltipMaxCollisionSteps) {
         changed = false;
         for(var i = 0, ii = usedRects.length; i < ii; i++) {
             var used = usedRects[i];
