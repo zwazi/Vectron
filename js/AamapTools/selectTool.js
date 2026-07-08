@@ -377,8 +377,10 @@ function selectTool_start() {
                 selectTool_hoveredAamapObj = aamap_objects[i];
                 selectTool_clickedAlreadySelected = selectTool_hoveredAamapObj.isSelected;
                 if(!selectTool_additiveSelection) {
-                    selectTool_deselectAll();
-                    selectTool_addToSelection(selectTool_hoveredAamapObj);
+                    if(!selectTool_clickedAlreadySelected) {
+                        selectTool_deselectAll();
+                        selectTool_addToSelection(selectTool_hoveredAamapObj);
+                    }
                 } else if(shouldAddToSelected) {
                     selectTool_addToSelection(selectTool_hoveredAamapObj);
                 }
@@ -963,6 +965,5 @@ var selectTool_hoverOutSelected = function(evt) {
     selectTool_resolveHoveredSetFromCursor();
     gui_writeLog("NUll now");
 }
-
 
 
