@@ -331,7 +331,7 @@ function aamap_drawGrid() {
     var axisXArray = [];
     var axisYArray = [];
 
-    var families = gridLayout_getLineAngles(config_gridLayout);
+    var families = gridLayout_getLineFamilies(config_gridLayout, gridSpacing);
     var expandedLeft = -vectron_width;
     var expandedRight = vectron_width * 2;
     var expandedTop = -vectron_height;
@@ -390,7 +390,12 @@ function aamap_drawGrid() {
         return "regular";
     }
 
-    families.forEach(function(angle) {
+    var hasOriginXAxis = false;
+    var hasOriginYAxis = false;
+
+    families.forEach(function(family) {
+        var angle = family.angle;
+        var familySpacing = family.spacing;
         var nx = -Math.sin(angle), ny = Math.cos(angle);
         var dx = Math.cos(angle), dy = Math.sin(angle);
         var minProj = Infinity, maxProj = -Infinity;
@@ -401,21 +406,34 @@ function aamap_drawGrid() {
             if(proj > maxProj) maxProj = proj;
         }
 
-        var kMin = Math.floor(minProj / gridSpacing) - 1;
-        var kMax = Math.ceil(maxProj / gridSpacing) + 1;
+        var kMin = Math.floor(minProj / familySpacing) - 1;
+        var kMax = Math.ceil(maxProj / familySpacing) + 1;
         for(var k = kMin; k <= kMax; k++) {
-            var offset = k * gridSpacing;
+            var offset = k * familySpacing;
             var centerX = originX + nx * offset;
             var centerY = originY + ny * offset;
             var clipped = lineIntersectionsWithExpandedViewport(centerX, centerY, dx, dy);
             if(!clipped) continue;
             var category = lineCategory(angle, k);
-            if(category === "axisX") addLine(axisXArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
-            else if(category === "axisY") addLine(axisYArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
+            if(category === "axisX") {
+                hasOriginXAxis = true;
+                addLine(axisXArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
+            }
+            else if(category === "axisY") {
+                hasOriginYAxis = true;
+                addLine(axisYArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
+            }
             else if(category === "tenth") addLine(tenthArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
             else addLine(regularArray, clipped.x1, clipped.y1, clipped.x2, clipped.y2);
         }
     });
+
+    if(!hasOriginYAxis && originX >= expandedLeft && originX <= expandedRight) {
+        addLine(axisYArray, originX, expandedTop, originX, expandedBottom);
+    }
+    if(!hasOriginXAxis && originY >= expandedTop && originY <= expandedBottom) {
+        addLine(axisXArray, expandedLeft, originY, expandedRight, originY);
+    }
 
     var gridStyle = aamap_getGridStyle();
 
