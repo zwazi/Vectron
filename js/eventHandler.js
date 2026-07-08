@@ -40,6 +40,7 @@ var eventHandler_pinnedTooltipArrowMargin = 8;
 var eventHandler_pinnedTooltipArrowOffset = -5;
 var eventHandler_pinnedTooltipMaxCollisionSteps = 20;
 var eventHandler_pinnedTooltipConnectorClass = "tooltip-connector";
+var eventHandler_pinnedTooltipHelpToggleSelector = ".toolbar-help-toggle";
 var eventHandler_tooltipPlacementTop = "top";
 var eventHandler_tooltipPlacementBottom = "bottom";
 var eventHandler_tooltipPlacementLeft = "left";
@@ -557,13 +558,36 @@ function eventHandler_getRectPerimeterPoint(rect, target) {
     };
 }
 
-function eventHandler_drawPinnedTooltipConnector($tip, element) {
-    var targetRect = element.getBoundingClientRect();
+/**
+ * Calculates the connector endpoint at the visible tooltip arrow for a pinned tooltip.
+ *
+ * @param {jQuery} $tip Bootstrap tooltip element.
+ * @param {string} placement Bootstrap tooltip placement.
+ * @returns {{x:number, y:number}} Viewport-space point where the connector should meet the arrow.
+ */
+function eventHandler_getTooltipArrowPoint($tip, placement) {
     var tipRect = $tip[0].getBoundingClientRect();
-    var targetCenter = eventHandler_getRectCenter(targetRect);
-    var tipCenter = eventHandler_getRectCenter(tipRect);
-    var start = eventHandler_getRectPerimeterPoint(targetRect, tipCenter);
-    var end = eventHandler_getRectPerimeterPoint(tipRect, targetCenter);
+    var $arrow = $tip.find(".tooltip-arrow");
+    var arrowRect = $arrow.length ? $arrow[0].getBoundingClientRect() : null;
+    var arrowCenterX = arrowRect ? arrowRect.left + arrowRect.width / 2 : tipRect.left + tipRect.width / 2;
+    var arrowCenterY = arrowRect ? arrowRect.top + arrowRect.height / 2 : tipRect.top + tipRect.height / 2;
+
+    if(placement === eventHandler_tooltipPlacementTop) {
+        return { x: arrowCenterX, y: tipRect.bottom };
+    }
+    if(placement === eventHandler_tooltipPlacementBottom) {
+        return { x: arrowCenterX, y: tipRect.top };
+    }
+    if(placement === eventHandler_tooltipPlacementLeft) {
+        return { x: tipRect.right, y: arrowCenterY };
+    }
+    return { x: tipRect.left, y: arrowCenterY };
+}
+
+function eventHandler_drawPinnedTooltipConnector($tip, element, placement) {
+    var targetRect = element.getBoundingClientRect();
+    var end = eventHandler_getTooltipArrowPoint($tip, placement);
+    var start = eventHandler_getRectPerimeterPoint(targetRect, end);
     var deltaX = end.x - start.x;
     var deltaY = end.y - start.y;
     var length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -598,7 +622,8 @@ function eventHandler_showPinnedTooltips() {
             var $tip = eventHandler_getBootstrapTooltip($(this));
             if(!$tip || !$tip.length || !$tip.is(":visible")) return;
 
-            eventHandler_drawPinnedTooltipConnector($tip, this);
+            var placement = ($(this).attr("data-placement") || eventHandler_tooltipPlacementRight).split(" ")[0];
+            eventHandler_drawPinnedTooltipConnector($tip, this, placement);
         });
     }, 0);
 }
@@ -622,13 +647,13 @@ function eventHandler_getPinnedTooltipElements() {
 function eventHandler_togglePinnedTooltips() {
     eventHandler_tooltipsPinned = !eventHandler_tooltipsPinned;
     if(eventHandler_tooltipsPinned) {
-        $(".toolbar-help-toggle").addClass("toolbar-tool-active");
-        eventHandler_setTooltipText($(".toolbar-help-toggle")[0], "Hide Tooltips");
+        $(eventHandler_pinnedTooltipHelpToggleSelector).addClass("toolbar-tool-active");
+        eventHandler_setTooltipText($(eventHandler_pinnedTooltipHelpToggleSelector)[0], "Hide Tooltips");
         eventHandler_resetTooltips("manual");
         eventHandler_showPinnedTooltips();
     } else {
-        $(".toolbar-help-toggle").removeClass("toolbar-tool-active");
-        eventHandler_setTooltipText($(".toolbar-help-toggle")[0], "Show Tooltips");
+        $(eventHandler_pinnedTooltipHelpToggleSelector).removeClass("toolbar-tool-active");
+        eventHandler_setTooltipText($(eventHandler_pinnedTooltipHelpToggleSelector)[0], "Show Tooltips");
         eventHandler_removePinnedTooltipConnectors();
         eventHandler_resetTooltips("hover");
     }
@@ -724,6 +749,14 @@ function eventHandler_init() {
         if(!active || !/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return;
         if(active === e.target || $.contains(active, e.target)) return;
         active.blur();
+    });
+
+    $(document).on("click.pinnedTooltips", function(e) {
+        if(eventHandler_tooltipsPinned &&
+           !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length &&
+           !$(e.target).closest(".tooltip").length) {
+            eventHandler_togglePinnedTooltips();
+        }
     });
 
     $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden'])", function(e) {
@@ -1277,7 +1310,7 @@ function eventHandler_init() {
         vectron_render();
     });
 
-    $(".toolbar-help-toggle").mouseup(function(e) {
+    $(eventHandler_pinnedTooltipHelpToggleSelector).mouseup(function(e) {
         e.preventDefault();
         eventHandler_togglePinnedTooltips();
         $("#zones-menu").hide();

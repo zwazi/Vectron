@@ -55,9 +55,6 @@ body {
 .tooltip.right .tooltip-arrow {
 	border-right-color: #f2f2f2;
 }
-.tooltip-connector {
-	box-shadow: 0 0 4px rgba(242,242,242,0.9);
-}
 
 .info {
 	padding: 4px 12px;
