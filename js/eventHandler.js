@@ -39,6 +39,10 @@ var eventHandler_pinnedTooltipGap = 6;
 var eventHandler_pinnedTooltipArrowMargin = 8;
 var eventHandler_pinnedTooltipArrowOffset = -5;
 var eventHandler_pinnedTooltipMaxCollisionSteps = 20;
+var eventHandler_tooltipPlacementTop = "top";
+var eventHandler_tooltipPlacementBottom = "bottom";
+var eventHandler_tooltipPlacementLeft = "left";
+var eventHandler_tooltipPlacementRight = "right";
 var eventHandler_armawebtronSettingsCustomCfgFallback = [
     "SP_NUM_AIS 0",
     "ARENA_AXES 8",
@@ -419,10 +423,14 @@ function eventHandler_getPaddedRect(element, padding) {
 
 function eventHandler_getTooltipPointer(element, placement) {
     var rect = element.getBoundingClientRect();
-    if(placement === "top" || placement === "bottom") {
+    if(placement === eventHandler_tooltipPlacementTop || placement === eventHandler_tooltipPlacementBottom) {
         return rect.left + rect.width / 2;
     }
     return rect.top + rect.height / 2;
+}
+
+function eventHandler_clampTooltipArrow(pointerOffset, dimension) {
+    return Math.max(eventHandler_pinnedTooltipArrowMargin, Math.min(pointerOffset, dimension - eventHandler_pinnedTooltipArrowMargin));
 }
 
 function eventHandler_alignPinnedTooltipArrow($tip, element, placement) {
@@ -431,14 +439,14 @@ function eventHandler_alignPinnedTooltipArrow($tip, element, placement) {
 
     var tipRect = $tip[0].getBoundingClientRect();
     var pointer = eventHandler_getTooltipPointer(element, placement);
-    if(placement === "top" || placement === "bottom") {
-        var arrowLeft = Math.max(eventHandler_pinnedTooltipArrowMargin, Math.min(pointer - tipRect.left, tipRect.width - eventHandler_pinnedTooltipArrowMargin));
+    if(placement === eventHandler_tooltipPlacementTop || placement === eventHandler_tooltipPlacementBottom) {
+        var arrowLeft = eventHandler_clampTooltipArrow(pointer - tipRect.left, tipRect.width);
         $arrow.css({
             left: arrowLeft + "px",
             marginLeft: eventHandler_pinnedTooltipArrowOffset + "px"
         });
     } else {
-        var arrowTop = Math.max(eventHandler_pinnedTooltipArrowMargin, Math.min(pointer - tipRect.top, tipRect.height - eventHandler_pinnedTooltipArrowMargin));
+        var arrowTop = eventHandler_clampTooltipArrow(pointer - tipRect.top, tipRect.height);
         $arrow.css({
             top: arrowTop + "px",
             marginTop: eventHandler_pinnedTooltipArrowOffset + "px"
@@ -447,13 +455,13 @@ function eventHandler_alignPinnedTooltipArrow($tip, element, placement) {
 }
 
 function eventHandler_nudgePinnedTooltipAwayFromTarget(rect, used, placement) {
-    if(placement === "top") {
+    if(placement === eventHandler_tooltipPlacementTop) {
         return { left: rect.left, top: used.top - rect.height - eventHandler_pinnedTooltipGap };
     }
-    if(placement === "bottom") {
+    if(placement === eventHandler_tooltipPlacementBottom) {
         return { left: rect.left, top: used.bottom + eventHandler_pinnedTooltipGap };
     }
-    if(placement === "left") {
+    if(placement === eventHandler_tooltipPlacementLeft) {
         return { left: used.left - rect.width - eventHandler_pinnedTooltipGap, top: rect.top };
     }
     return { left: used.right + eventHandler_pinnedTooltipGap, top: rect.top };
@@ -467,14 +475,19 @@ function eventHandler_repositionPinnedTooltip($tip, element, usedRects, placemen
 
     var changed = true;
     var guard = 0;
+    var processedRects = [];
     while(changed && guard++ < eventHandler_pinnedTooltipMaxCollisionSteps) {
         changed = false;
         for(var i = 0, ii = usedRects.length; i < ii; i++) {
             var used = usedRects[i];
+            if(processedRects.indexOf(used) >= 0) {
+                continue;
+            }
             if(!eventHandler_rectsOverlap(rect, used)) {
                 continue;
             }
 
+            processedRects.push(used);
             var next = eventHandler_nudgePinnedTooltipAwayFromTarget(rect, used, placement);
             left = next.left;
             top = next.top;
@@ -484,6 +497,7 @@ function eventHandler_repositionPinnedTooltip($tip, element, usedRects, placemen
             });
             rect = eventHandler_getPaddedRect(tip, 4);
             changed = true;
+            break;
         }
     }
 
