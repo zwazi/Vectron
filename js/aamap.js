@@ -326,8 +326,8 @@ function aamap_drawGrid() {
     var originX = vectron_width/2 + (vectron_zoom * vectron_panX);
     var originY = vectron_height/2 - (vectron_zoom * vectron_panY);
 
-    if(gridLayout_isPolygonShape(config_gridLayout)) {
-        aamap_drawPolygonGrid(gridSpacing, originX, originY);
+    if(gridLayout_isHexShape(config_gridLayout)) {
+        aamap_drawHexGrid(gridSpacing, originX, originY);
         return;
     }
 
@@ -473,43 +473,56 @@ function aamap_getGridStyle() {
     };
 }
 
-function aamap_drawPolygonGrid(gridSpacing, originX, originY) {
+function aamap_drawHexGrid(gridSpacing, originX, originY) {
     var expandedLeft = -vectron_width;
     var expandedRight = vectron_width * 2;
     var expandedTop = -vectron_height;
     var expandedBottom = vectron_height * 2;
-    var rowSpacing = gridLayout_getPolygonRowSpacing(config_gridLayout, gridSpacing);
     var regularArray = [];
     var tenthArray = [];
     var axisXArray = [];
     var axisYArray = [];
+    var h = Math.sqrt(3) * gridSpacing / 2;
+    var layout = config_gridLayout;
 
     function addLine(target, x1, y1, x2, y2) {
         target.push("M", x1, y1, "L", x2, y2);
     }
 
-    function addPolygon(target, points) {
-        if(points.length == 0) return;
-        target.push("M", points[0].x, points[0].y);
-        for(var i = 1; i < points.length; i++) {
-            target.push("L", points[i].x, points[i].y);
+    function addHexEdges(target, points) {
+        if(layout === 'transverseHex') {
+            addLine(target, points[0].x, points[0].y, points[1].x, points[1].y);
+            addLine(target, points[1].x, points[1].y, points[2].x, points[2].y);
+            addLine(target, points[2].x, points[2].y, points[3].x, points[3].y);
+        } else {
+            addLine(target, points[5].x, points[5].y, points[0].x, points[0].y);
+            addLine(target, points[0].x, points[0].y, points[1].x, points[1].y);
+            addLine(target, points[1].x, points[1].y, points[2].x, points[2].y);
         }
-        target.push("Z");
     }
 
-    var minRow = Math.floor((expandedTop - originY) / rowSpacing) - 2;
-    var maxRow = Math.ceil((expandedBottom - originY) / rowSpacing) + 2;
+    var minCol, maxCol, minRow, maxRow;
+    if(layout === 'transverseHex') {
+        minRow = Math.floor((expandedTop - originY) / (1.5 * gridSpacing)) - 3;
+        maxRow = Math.ceil((expandedBottom - originY) / (1.5 * gridSpacing)) + 3;
+        minCol = Math.floor((expandedLeft - originX) / (Math.sqrt(3) * gridSpacing)) - 3;
+        maxCol = Math.ceil((expandedRight - originX) / (Math.sqrt(3) * gridSpacing)) + 3;
+    } else {
+        minCol = Math.floor((expandedLeft - originX) / (1.5 * gridSpacing)) - 3;
+        maxCol = Math.ceil((expandedRight - originX) / (1.5 * gridSpacing)) + 3;
+        minRow = Math.floor((expandedTop - originY) / (2 * h)) - 3;
+        maxRow = Math.ceil((expandedBottom - originY) / (2 * h)) + 3;
+    }
 
     for(var row = minRow; row <= maxRow; row++) {
-        var offset = gridLayout_getPolygonColumnOffset(config_gridLayout, row, gridSpacing);
-        var minCol = Math.floor((expandedLeft - originX - offset) / gridSpacing) - 2;
-        var maxCol = Math.ceil((expandedRight - originX - offset) / gridSpacing) + 2;
         for(var col = minCol; col <= maxCol; col++) {
-            var centerX = originX + offset + col * gridSpacing;
-            var centerY = originY + row * rowSpacing;
-            var points = gridLayout_getPolygonPoints(config_gridLayout, centerX, centerY, gridSpacing);
-            var category = (row % 10 === 0 && col % 10 === 0) ? "tenth" : "regular";
-            addPolygon(category === "tenth" ? tenthArray : regularArray, points);
+            var center = gridLayout_getHexCenter(layout, col, row, gridSpacing, originX, originY);
+            if(center.x < expandedLeft - 2 * gridSpacing || center.x > expandedRight + 2 * gridSpacing ||
+               center.y < expandedTop - 2 * gridSpacing || center.y > expandedBottom + 2 * gridSpacing) {
+                continue;
+            }
+            var points = gridLayout_getHexVertices(layout, center.x, center.y, gridSpacing);
+            addHexEdges((row % 10 === 0 && col % 10 === 0) ? tenthArray : regularArray, points);
         }
     }
 

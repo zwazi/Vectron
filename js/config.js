@@ -47,82 +47,81 @@ var GRID_LAYOUT_LINE_PADDING   = 1.2;
 
 function gridLayout_getLineAngles(layout) {
     switch(layout) {
-        case 'hex':
         case 'triangle':
-            // Both layouts use the same 60° line families; only the visual
-            // interpretation of the cells differs.
             return [0, Math.PI / 3, 2 * Math.PI / 3];
-        case 'octagon':
-            return [0, Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4];
-        case 'penta':
-            return [0, Math.PI / 5, 2 * Math.PI / 5, 3 * Math.PI / 5, 4 * Math.PI / 5];
+        case 'diamond':
+            return [Math.PI / 4, 3 * Math.PI / 4];
         case 'square':
         default:
             return [0, Math.PI / 2];
     }
 }
 
-function gridLayout_isPolygonShape(layout) {
-    return layout === 'octagon' || layout === 'penta';
+function gridLayout_isHexShape(layout) {
+    return layout === 'hex' || layout === 'transverseHex';
 }
 
-function gridLayout_getPolygonSides(layout) {
-    if(layout === 'octagon') return 8;
-    if(layout === 'penta') return 5;
-    return 0;
-}
-
-function gridLayout_getPolygonRowSpacing(layout, spacing) {
-    return layout === 'penta' ? spacing * 0.82 : spacing;
-}
-
-function gridLayout_getPolygonColumnOffset(layout, row, spacing) {
-    return layout === 'penta' && Math.abs(row % 2) === 1 ? spacing / 2 : 0;
-}
-
-function gridLayout_getPolygonRadius(layout, spacing) {
-    if(layout === 'octagon') return spacing / (2 * Math.cos(Math.PI / 8));
-    if(layout === 'penta') return spacing * 0.46;
-    return spacing / 2;
-}
-
-function gridLayout_getPolygonRotation(layout) {
-    if(layout === 'octagon') return Math.PI / 8;
-    if(layout === 'penta') return -Math.PI / 2;
-    return 0;
-}
-
-function gridLayout_getPolygonPoints(layout, centerX, centerY, spacing) {
-    var sides = gridLayout_getPolygonSides(layout);
-    var radius = gridLayout_getPolygonRadius(layout, spacing);
-    var rotation = gridLayout_getPolygonRotation(layout);
+function gridLayout_getHexVertices(layout, centerX, centerY, spacing) {
     var points = [];
+    var h = Math.sqrt(3) * spacing / 2;
 
-    for(var i = 0; i < sides; i++) {
-        var angle = rotation + i * Math.PI * 2 / sides;
-        points.push({
-            x: centerX + Math.cos(angle) * radius,
-            y: centerY + Math.sin(angle) * radius
-        });
+    if(layout === 'transverseHex') {
+        var pointyOffsets = [
+            [0, -spacing], [h, -spacing / 2], [h, spacing / 2],
+            [0, spacing], [-h, spacing / 2], [-h, -spacing / 2]
+        ];
+        for(var p = 0; p < pointyOffsets.length; p++) {
+            points.push({ x: centerX + pointyOffsets[p][0], y: centerY + pointyOffsets[p][1] });
+        }
+        return points;
     }
 
+    var flatOffsets = [
+        [spacing, 0], [spacing / 2, h], [-spacing / 2, h],
+        [-spacing, 0], [-spacing / 2, -h], [spacing / 2, -h]
+    ];
+    for(var f = 0; f < flatOffsets.length; f++) {
+        points.push({ x: centerX + flatOffsets[f][0], y: centerY + flatOffsets[f][1] });
+    }
     return points;
 }
 
-function gridLayout_snapToPolygonGrid(x, y, spacing, originX, originY) {
-    var rowSpacing = gridLayout_getPolygonRowSpacing(config_gridLayout, spacing);
-    var nearestRow = Math.round((y - originY) / rowSpacing);
+function gridLayout_getHexCenter(layout, col, row, spacing, originX, originY) {
+    var h = Math.sqrt(3) * spacing / 2;
+    if(layout === 'transverseHex') {
+        return {
+            x: originX + Math.sqrt(3) * spacing * (col + (Math.abs(row % 2) ? 0.5 : 0)),
+            y: originY + 1.5 * spacing * row
+        };
+    }
+    return {
+        x: originX + 1.5 * spacing * col,
+        y: originY + 2 * h * (row + (Math.abs(col % 2) ? 0.5 : 0))
+    };
+}
+
+function gridLayout_snapToHexGrid(x, y, spacing, originX, originY) {
+    var layout = config_gridLayout;
+    var h = Math.sqrt(3) * spacing / 2;
+    var relX = x - originX;
+    var relY = y - originY;
+    var approxCol, approxRow;
+
+    if(layout === 'transverseHex') {
+        approxRow = Math.round(relY / (1.5 * spacing));
+        approxCol = Math.round(relX / (Math.sqrt(3) * spacing) - (Math.abs(approxRow % 2) ? 0.5 : 0));
+    } else {
+        approxCol = Math.round(relX / (1.5 * spacing));
+        approxRow = Math.round(relY / (2 * h) - (Math.abs(approxCol % 2) ? 0.5 : 0));
+    }
+
     var bestX = x;
     var bestY = y;
     var bestDist = Infinity;
-
-    for(var row = nearestRow - 3; row <= nearestRow + 3; row++) {
-        var offset = gridLayout_getPolygonColumnOffset(config_gridLayout, row, spacing);
-        var nearestCol = Math.round((x - originX - offset) / spacing);
-        for(var col = nearestCol - 3; col <= nearestCol + 3; col++) {
-            var centerX = originX + offset + col * spacing;
-            var centerY = originY + row * rowSpacing;
-            var points = gridLayout_getPolygonPoints(config_gridLayout, centerX, centerY, spacing);
+    for(var row = approxRow - 3; row <= approxRow + 3; row++) {
+        for(var col = approxCol - 3; col <= approxCol + 3; col++) {
+            var center = gridLayout_getHexCenter(layout, col, row, spacing, originX, originY);
+            var points = gridLayout_getHexVertices(layout, center.x, center.y, spacing);
             for(var i = 0; i < points.length; i++) {
                 var dx = points[i].x - x;
                 var dy = points[i].y - y;
@@ -136,10 +135,7 @@ function gridLayout_snapToPolygonGrid(x, y, spacing, originX, originY) {
         }
     }
 
-    return {
-        x: bestX,
-        y: bestY
-    };
+    return { x: bestX, y: bestY };
 }
 
 /**
@@ -154,8 +150,8 @@ function gridLayout_snapToPolygonGrid(x, y, spacing, originX, originY) {
  * @returns {{x:number, y:number}} Screen-space snapped position.
  */
 function gridLayout_snapPoint(x, y, spacing, originX, originY) {
-    if(gridLayout_isPolygonShape(config_gridLayout)) {
-        return gridLayout_snapToPolygonGrid(x, y, spacing, originX, originY);
+    if(gridLayout_isHexShape(config_gridLayout)) {
+        return gridLayout_snapToHexGrid(x, y, spacing, originX, originY);
     }
 
     var families = gridLayout_getLineAngles(config_gridLayout);
@@ -268,7 +264,8 @@ function _config_set_disable(item)
 }
 
 
-
+
+
 // ---- Keybinds ----
 var vectron_defaultKeybinds = {
     select: '1',
@@ -387,6 +384,10 @@ function config_load()
     config_gridAxisXThickness  = parseFloat(_config_get('gridAxisXThickness'))  || 0;
     config_gridAxisYThickness  = parseFloat(_config_get('gridAxisYThickness'))  || 0;
     config_gridLayout          = _config_get('gridLayout') || 'square';
+    if(['square', 'triangle', 'diamond', 'hex', 'transverseHex'].indexOf(config_gridLayout) < 0) {
+        config_gridLayout = 'square';
+        _config_set('gridLayout', config_gridLayout);
+    }
     var gridLayoutSelect = document.getElementById('grid-layout-select');
     if(gridLayoutSelect) gridLayoutSelect.value = config_gridLayout;
 

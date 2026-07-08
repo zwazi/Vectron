@@ -557,13 +557,29 @@ function eventHandler_getRectPerimeterPoint(rect, target) {
     };
 }
 
-function eventHandler_drawPinnedTooltipConnector($tip, element) {
-    var targetRect = element.getBoundingClientRect();
+function eventHandler_getTooltipArrowPoint($tip, placement) {
     var tipRect = $tip[0].getBoundingClientRect();
-    var targetCenter = eventHandler_getRectCenter(targetRect);
-    var tipCenter = eventHandler_getRectCenter(tipRect);
-    var start = eventHandler_getRectPerimeterPoint(targetRect, tipCenter);
-    var end = eventHandler_getRectPerimeterPoint(tipRect, targetCenter);
+    var $arrow = $tip.find(".tooltip-arrow");
+    var arrowRect = $arrow.length ? $arrow[0].getBoundingClientRect() : null;
+    var arrowCenterX = arrowRect ? arrowRect.left + arrowRect.width / 2 : tipRect.left + tipRect.width / 2;
+    var arrowCenterY = arrowRect ? arrowRect.top + arrowRect.height / 2 : tipRect.top + tipRect.height / 2;
+
+    if(placement === eventHandler_tooltipPlacementTop) {
+        return { x: arrowCenterX, y: tipRect.bottom };
+    }
+    if(placement === eventHandler_tooltipPlacementBottom) {
+        return { x: arrowCenterX, y: tipRect.top };
+    }
+    if(placement === eventHandler_tooltipPlacementLeft) {
+        return { x: tipRect.right, y: arrowCenterY };
+    }
+    return { x: tipRect.left, y: arrowCenterY };
+}
+
+function eventHandler_drawPinnedTooltipConnector($tip, element, placement) {
+    var targetRect = element.getBoundingClientRect();
+    var end = eventHandler_getTooltipArrowPoint($tip, placement);
+    var start = eventHandler_getRectPerimeterPoint(targetRect, end);
     var deltaX = end.x - start.x;
     var deltaY = end.y - start.y;
     var length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -598,7 +614,8 @@ function eventHandler_showPinnedTooltips() {
             var $tip = eventHandler_getBootstrapTooltip($(this));
             if(!$tip || !$tip.length || !$tip.is(":visible")) return;
 
-            eventHandler_drawPinnedTooltipConnector($tip, this);
+            var placement = ($(this).attr("data-placement") || eventHandler_tooltipPlacementRight).split(" ")[0];
+            eventHandler_drawPinnedTooltipConnector($tip, this, placement);
         });
     }, 0);
 }
@@ -720,6 +737,10 @@ function eventHandler_init() {
     eventHandler_initTooltips("hover");
 
     $(document).on("mousedown", function(e) {
+        if(eventHandler_tooltipsPinned && !$(e.target).closest(".toolbar-help-toggle").length) {
+            eventHandler_togglePinnedTooltips();
+        }
+
         var active = document.activeElement;
         if(!active || !/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return;
         if(active === e.target || $.contains(active, e.target)) return;
