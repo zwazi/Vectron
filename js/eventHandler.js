@@ -40,7 +40,6 @@ var eventHandler_pinnedTooltipArrowMargin = 8;
 var eventHandler_pinnedTooltipArrowOffset = -5;
 var eventHandler_pinnedTooltipMaxCollisionSteps = 20;
 var eventHandler_pinnedTooltipConnectorClass = "tooltip-connector";
-var eventHandler_pinnedTooltipConnectorThickness = 2;
 var eventHandler_tooltipPlacementTop = "top";
 var eventHandler_tooltipPlacementBottom = "bottom";
 var eventHandler_tooltipPlacementLeft = "left";
@@ -531,6 +530,11 @@ function eventHandler_removePinnedTooltipConnectors() {
     $("." + eventHandler_pinnedTooltipConnectorClass).remove();
 }
 
+function eventHandler_getPinnedTooltipConnectorThickness() {
+    var thickness = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tooltip-connector-thickness"));
+    return thickness || 2;
+}
+
 function eventHandler_getClosestRectPoint(sourceRect, targetRect) {
     var targetCenterX = targetRect.left + targetRect.width / 2;
     var targetCenterY = targetRect.top + targetRect.height / 2;
@@ -548,13 +552,14 @@ function eventHandler_drawPinnedTooltipConnector($tip, element) {
     var deltaX = end.x - start.x;
     var deltaY = end.y - start.y;
     var length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    if(length <= eventHandler_pinnedTooltipConnectorThickness) {
+    var connectorThickness = eventHandler_getPinnedTooltipConnectorThickness();
+    if(length <= connectorThickness) {
         return;
     }
 
     $("<div></div>").addClass(eventHandler_pinnedTooltipConnectorClass).css({
         left: start.x + "px",
-        top: (start.y - eventHandler_pinnedTooltipConnectorThickness / 2) + "px",
+        top: (start.y - connectorThickness / 2) + "px",
         width: length + "px",
         transform: "rotate(" + Math.atan2(deltaY, deltaX) + "rad)"
     }).appendTo("body");

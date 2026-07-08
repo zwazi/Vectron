@@ -39,11 +39,15 @@ body.noscroll {
   width: 0;
 }
 
+:root {
+  --tooltip-connector-thickness: 2px;
+}
+
 .tooltip-connector {
   position: fixed;
-  height: 2px;
+  height: var(--tooltip-connector-thickness);
   background: #2a6496;
-  border-radius: 2px;
+  border-radius: 999px;
   box-shadow: 0 0 2px rgba(255,255,255,0.8);
   pointer-events: none;
   transform-origin: 0 50%;
