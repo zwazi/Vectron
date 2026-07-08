@@ -421,9 +421,16 @@ function eventHandler_getPaddedRect(element, padding) {
     };
 }
 
+function eventHandler_isVerticalTooltipPlacement(placement) {
+    if(placement === eventHandler_tooltipPlacementTop || placement === eventHandler_tooltipPlacementBottom) {
+        return true;
+    }
+    return false;
+}
+
 function eventHandler_getTooltipPointer(element, placement) {
     var rect = element.getBoundingClientRect();
-    if(placement === eventHandler_tooltipPlacementTop || placement === eventHandler_tooltipPlacementBottom) {
+    if(eventHandler_isVerticalTooltipPlacement(placement)) {
         return rect.left + rect.width / 2;
     }
     return rect.top + rect.height / 2;
@@ -439,7 +446,7 @@ function eventHandler_alignPinnedTooltipArrow($tip, element, placement) {
 
     var tipRect = $tip[0].getBoundingClientRect();
     var pointer = eventHandler_getTooltipPointer(element, placement);
-    if(placement === eventHandler_tooltipPlacementTop || placement === eventHandler_tooltipPlacementBottom) {
+    if(eventHandler_isVerticalTooltipPlacement(placement)) {
         var arrowLeft = eventHandler_clampTooltipArrow(pointer - tipRect.left, tipRect.width);
         $arrow.css({
             left: arrowLeft + "px",
@@ -475,19 +482,19 @@ function eventHandler_repositionPinnedTooltip($tip, element, usedRects, placemen
 
     var changed = true;
     var guard = 0;
-    var processedRects = [];
+    var processedRects = new Set();
     while(changed && guard++ < eventHandler_pinnedTooltipMaxCollisionSteps) {
         changed = false;
         for(var i = 0, ii = usedRects.length; i < ii; i++) {
             var used = usedRects[i];
-            if(processedRects.indexOf(used) >= 0) {
+            if(processedRects.has(used)) {
                 continue;
             }
             if(!eventHandler_rectsOverlap(rect, used)) {
                 continue;
             }
 
-            processedRects.push(used);
+            processedRects.add(used);
             var next = eventHandler_nudgePinnedTooltipAwayFromTarget(rect, used, placement);
             left = next.left;
             top = next.top;
