@@ -751,7 +751,7 @@ function eventHandler_init() {
         active.blur();
     });
 
-    $(document).on("click", function(e) {
+    $(document).on("click.pinnedTooltips", function(e) {
         if(eventHandler_tooltipsPinned &&
            !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length &&
            !$(e.target).closest(".tooltip").length) {
