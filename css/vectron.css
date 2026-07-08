@@ -39,6 +39,17 @@ body.noscroll {
   width: 0;
 }
 
+.tooltip-connector {
+  position: fixed;
+  height: 2px;
+  background: #2a6496;
+  border-radius: 2px;
+  box-shadow: 0 0 2px rgba(255,255,255,0.8);
+  pointer-events: none;
+  transform-origin: 0 50%;
+  z-index: 1069;
+}
+
 .info {
 	padding: 4px 12px;
 	font-size: 12px;
