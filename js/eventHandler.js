@@ -526,20 +526,44 @@ function eventHandler_getPinnedTooltipConnectorThickness() {
     return configuredThickness;
 }
 
-function eventHandler_getClosestRectPoint(sourceRect, targetRect) {
-    var targetCenterX = targetRect.left + targetRect.width / 2;
-    var targetCenterY = targetRect.top + targetRect.height / 2;
+function eventHandler_getRectCenter(rect) {
     return {
-        x: eventHandler_clamp(targetCenterX, sourceRect.left, sourceRect.left + sourceRect.width),
-        y: eventHandler_clamp(targetCenterY, sourceRect.top, sourceRect.top + sourceRect.height)
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+    };
+}
+
+function eventHandler_getRectPerimeterPoint(rect, target) {
+    var center = eventHandler_getRectCenter(rect);
+    var dx = target.x - center.x;
+    var dy = target.y - center.y;
+    var halfWidth = rect.width / 2;
+    var halfHeight = rect.height / 2;
+
+    if(Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
+        return {
+            x: center.x,
+            y: center.y
+        };
+    }
+
+    var scaleX = Math.abs(dx) > 1e-6 ? halfWidth / Math.abs(dx) : Infinity;
+    var scaleY = Math.abs(dy) > 1e-6 ? halfHeight / Math.abs(dy) : Infinity;
+    var scale = Math.min(scaleX, scaleY);
+
+    return {
+        x: center.x + dx * scale,
+        y: center.y + dy * scale
     };
 }
 
 function eventHandler_drawPinnedTooltipConnector($tip, element) {
     var targetRect = element.getBoundingClientRect();
     var tipRect = $tip[0].getBoundingClientRect();
-    var start = eventHandler_getClosestRectPoint(targetRect, tipRect);
-    var end = eventHandler_getClosestRectPoint(tipRect, targetRect);
+    var targetCenter = eventHandler_getRectCenter(targetRect);
+    var tipCenter = eventHandler_getRectCenter(tipRect);
+    var start = eventHandler_getRectPerimeterPoint(targetRect, tipCenter);
+    var end = eventHandler_getRectPerimeterPoint(tipRect, targetCenter);
     var deltaX = end.x - start.x;
     var deltaY = end.y - start.y;
     var length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
