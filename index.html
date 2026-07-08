@@ -58,9 +58,9 @@
             <div id="control-box-header">Settings <span id="control-box-close" title="Close">✕</span></div>
             <div id="gui-content">
                 <ul id="gui-tab" class="nav nav-tabs">
-                    <li class="active"><a href="#gui-settings" data-toggle="tab">Map Settings</a></li>
+                    <li class="active"><a href="#gui-config" data-toggle="tab">Configure</a></li>
+                    <li><a href="#gui-settings" data-toggle="tab">Map Settings</a></li>
                     <li><a href="#gui-adjustment" data-toggle="tab">Adjust Map</a></li>
-                    <li><a href="#gui-config" data-toggle="tab">Configure</a></li>
                     <li class="dropdown">
                         <a href="#" id="gui-dropdown" class="dropdown-toggle" data-toggle="dropdown">Help <b class="caret"></b></a>
                         <ul class="dropdown-menu" role="menu" aria-labelledby="gui-dropdown">
@@ -72,7 +72,7 @@
                 </ul>
                 <div id="gui-tab-content" class="tab-content">
 
-                    <div class="tab-pane fade in active" id="gui-settings">
+                    <div class="tab-pane fade" id="gui-settings">
                       <div class="form-group" title="Settings. This is NOT the place to stick all of your configuration files; rather any settings that must be for whatever reason tied with the map.">
                         <label>Map Settings</label>
                         <div id="map-settings-search-row" style="display:flex;gap:6px;margin-bottom:6px;position:relative;">
@@ -202,9 +202,9 @@
                         <p class="cfg-section-label">Settings Menu Tabs</p>
                         <table class="table table-bordered" style="font-size:12px;">
                             <tbody>
+                                <tr><td><b>Configure</b></td><td>Theme, info bar, action history, grid shape/colors, and keybinds.</td></tr>
                                 <tr><td><b>Map Settings</b></td><td>Settings tags embedded in the map file (not your server config).</td></tr>
                                 <tr><td><b>Adjust Map</b></td><td>Scale, rotate, translate, or center all objects at once. "Center over 0,0" moves all objects so their group center lands on the world origin.</td></tr>
-                                <tr><td><b>Configure</b></td><td>Theme, info bar, action history, grid shape/colors, and keybinds.</td></tr>
                             </tbody>
                         </table>
 
@@ -222,7 +222,7 @@
                     </div>
 
 
-                    <div class="tab-pane fade" id="gui-config">
+                    <div class="tab-pane fade in active" id="gui-config">
                       <p class="cfg-section-label">Display</p>
                       <div class="checkbox cfg-checkbox">
                         <label><input type="checkbox" id="dark-theme" name="dark-theme"> Enable dark theme</label>
@@ -248,10 +248,11 @@
                       <div class="form-group cfg-form-group">
                         <label for="grid-layout-select">Grid Shape</label>
                         <select class="form-control" id="grid-layout-select" name="grid-layout-select" onchange="config_gridLayout=this.value;_config_set('gridLayout',this.value);vectron_render();">
+                          <option value="hex">Tessellated Hexagon</option>
+                          <option value="transverseHex">Transverse Hexagon</option>
                           <option value="square">Square</option>
-                          <option value="octagon">Octagon (8)</option>
-                          <option value="triangle">Triangle (3)</option>
-                          <option value="penta">Pentagon (5)</option>
+                          <option value="diamond">Diamond</option>
+                          <option value="triangle">Triangle</option>
                         </select>
                       </div>
                       <hr class="cfg-divider" />
