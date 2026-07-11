@@ -138,6 +138,10 @@ function xml_process_piece(xml)
         {
             case "rubber":
                 option = zone.attr("rubberVal");
+                break;
+            case "checkpoint":
+                option = zone.find("Checkpoint").attr("id");
+                break;
             default:
                 option = undefined;
         }
