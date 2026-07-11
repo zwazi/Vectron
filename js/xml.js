@@ -140,7 +140,7 @@ function xml_process_piece(xml)
                 option = zone.attr("rubberVal");
                 break;
             case "checkpoint":
-                option = zone.find("Checkpoint").attr("id");
+                option = parseInt(zone.find("Checkpoint").attr("id"), 10);
                 break;
             default:
                 option = undefined;

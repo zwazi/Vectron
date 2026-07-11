@@ -136,7 +136,7 @@ function Zone(x, y, radius, growth, type, option) {
     this.getShapeSpecial = function()
     {
         if(zoneTool_typeArray[this.type][0] == "checkpoint") {
-            return '\n    <Checkpoint id="' + this.option + '" time="0"/>';
+            return '\n    <Checkpoint id="' + parseInt(this.option, 10) + '" time="0"/>';
         }
         return "";
     }
