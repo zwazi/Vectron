@@ -33,13 +33,25 @@ var xml_category;
 var xml_wallheight = 4;
 var xml_axes = 4;
 var xml_settings = [];
+var xml_latest_read_id = 0;
 
 function xml_init() {
 
     $('#files').change(function(e) {
-        aamap_objects = [];
         xml_handle(e);
-        gui_writeLog("Loading.");
+    });
+
+    window.addEventListener("dragover", function(e) {
+        e.preventDefault();
+    });
+    window.addEventListener("drop", function(e) {
+        e.preventDefault();
+        var files = e.dataTransfer && e.dataTransfer.files;
+        if(!files || !files.length) return;
+        xml_handleFile(files[0]);
+        if(files.length > 1) {
+            gui_writeLog("Only the first dropped map will be loaded.");
+        }
     });
 }  
 
@@ -176,11 +188,22 @@ function xml_load() {
 }
 
 function xml_handle(evt) {
+    if(!evt.target.files.length) return;
+    xml_handleFile(evt.target.files[0]);
+}
+
+function xml_handleFile(file) {
     var reader = new FileReader();
-    reader.readAsText(evt.target.files[0]);
-    var result;
-    var self = this;
+    var thisReadId = ++xml_latest_read_id;
+    aamap_objects = [];
+    gui_writeLog("Loading.");
     reader.onload = function(evt) {
+       if(thisReadId !== xml_latest_read_id) return;
        xml_process(this.result);
     };
+    reader.onerror = function() {
+       if(thisReadId !== xml_latest_read_id) return;
+       gui_writeLog("Could not read map file.");
+    };
+    reader.readAsText(file);
 }

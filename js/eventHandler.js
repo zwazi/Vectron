@@ -2241,9 +2241,7 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
     $("#toolbar-files").change(function(e) {
-        aamap_objects = [];
         xml_handle(e);
-        gui_writeLog("Loading.");
     });
 
     // Export button (toolbar)
