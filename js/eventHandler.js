@@ -2242,7 +2242,6 @@ function eventHandler_init() {
     });
     $("#toolbar-files").change(function(e) {
         xml_handle(e);
-        gui_writeLog("Loading.");
     });
 
     // Export button (toolbar)

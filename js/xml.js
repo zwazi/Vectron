@@ -33,12 +33,12 @@ var xml_category;
 var xml_wallheight = 4;
 var xml_axes = 4;
 var xml_settings = [];
+var xml_fileReadSequence = 0;
 
 function xml_init() {
 
     $('#files').change(function(e) {
         xml_handle(e);
-        gui_writeLog("Loading.");
     });
 
     window.addEventListener("dragover", function(e) {
@@ -48,7 +48,9 @@ function xml_init() {
         e.preventDefault();
         if(!e.dataTransfer || !e.dataTransfer.files.length) return;
         xml_handleFile(e.dataTransfer.files[0]);
-        gui_writeLog("Loading dropped map.");
+        if(e.dataTransfer.files.length > 1) {
+            gui_writeLog("Only the first dropped map will be loaded.");
+        }
     });
 }  
 
@@ -191,9 +193,16 @@ function xml_handle(evt) {
 
 function xml_handleFile(file) {
     var reader = new FileReader();
-    reader.readAsText(file);
+    var readSequence = ++xml_fileReadSequence;
+    aamap_objects = [];
+    gui_writeLog("Loading.");
     reader.onload = function(evt) {
-       aamap_objects = [];
+       if(readSequence !== xml_fileReadSequence) return;
        xml_process(this.result);
     };
+    reader.onerror = function() {
+       if(readSequence !== xml_fileReadSequence) return;
+       gui_writeLog("Could not read map file.");
+    };
+    reader.readAsText(file);
 }
