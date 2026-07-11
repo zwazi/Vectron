@@ -33,7 +33,7 @@ var xml_category;
 var xml_wallheight = 4;
 var xml_axes = 4;
 var xml_settings = [];
-var xml_file_read_sequence = 0;
+var xml_latest_read_id = 0;
 
 function xml_init() {
 
@@ -194,15 +194,15 @@ function xml_handle(evt) {
 
 function xml_handleFile(file) {
     var reader = new FileReader();
-    var readSequence = ++xml_file_read_sequence;
+    var thisReadId = ++xml_latest_read_id;
     aamap_objects = [];
     gui_writeLog("Loading.");
     reader.onload = function(evt) {
-       if(readSequence !== xml_file_read_sequence) return;
+       if(thisReadId !== xml_latest_read_id) return;
        xml_process(this.result);
     };
     reader.onerror = function() {
-       if(readSequence !== xml_file_read_sequence) return;
+       if(thisReadId !== xml_latest_read_id) return;
        gui_writeLog("Could not read map file.");
     };
     reader.readAsText(file);
