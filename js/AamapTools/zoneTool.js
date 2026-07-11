@@ -30,7 +30,8 @@ var zoneTool_typeArray = {
     1: ["win", "#00a800"],
     2: ["target", "#00ff00"],
     3: ["rubber", "#ffc12b"],
-    4: ["fortress", "#62bef6"]
+    4: ["fortress", "#62bef6"],
+    5: ["checkpoint", "#9b59b6"]
 }
 
 var zoneTool_whatType = {
@@ -38,7 +39,8 @@ var zoneTool_whatType = {
     "win":1,
     "target":2,
     "rubber":3,
-    "fortress":4
+    "fortress":4,
+    "checkpoint":5
 }
 
 var zoneTool_radius = 1;
@@ -85,6 +87,11 @@ function zoneTool_updateRubberBar() {
     } else {
         $("#zone-rubber-setting").hide();
     }
+    if(zoneTool_type === 5) {
+        $("#zone-checkpoint-setting").show();
+    } else {
+        $("#zone-checkpoint-setting").hide();
+    }
     vectron_render();
 }
 
@@ -127,6 +134,15 @@ function zoneTool_guide() {
 
 
 function zoneTool_complete() {
+    if(zoneTool_type === 5) {
+        var checkpointOrder = Number($("#dCheckpointOrder").val());
+        if(!isFinite(checkpointOrder) || checkpointOrder <= 0 ||
+            Math.floor(checkpointOrder) !== checkpointOrder) {
+            gui_writeLog("Checkpoint order must be a positive whole number.");
+            return;
+        }
+    }
+
     // Quick placement: place zone at cursor with preset radius in one click
     if ($("#zone-quick-placement-toggle").is(":checked")) {
         var quickR = parseFloat($("#zone-quick-size").val());

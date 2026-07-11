@@ -138,6 +138,14 @@ function xml_process_piece(xml)
         {
             case "rubber":
                 option = zone.attr("rubberVal");
+                break;
+            case "checkpoint":
+                option = Number(zone.find("Checkpoint").attr("id"));
+                if(!isFinite(option) || option <= 0 || Math.floor(option) !== option) {
+                    gui_writeLog("Skipped checkpoint zone with invalid order.");
+                    return;
+                }
+                break;
             default:
                 option = undefined;
         }

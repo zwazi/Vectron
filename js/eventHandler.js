@@ -1144,7 +1144,7 @@ function eventHandler_init() {
     $(document).on("click", ".zone-type-btn", function(e) {
         e.stopPropagation();
         var type = parseInt($(this).data("type"));
-        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress"];
+        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress", "Checkpoint"];
         vectron_connectTool("zone");
         zoneTool_type = type;
         zoneTool_guide();
@@ -2027,7 +2027,7 @@ function eventHandler_init() {
 
         if(vectron_currentTool == "zone") {
             zoneTool_type += 1;
-            if(zoneTool_type > 4) {
+            if(zoneTool_type > 5) {
                 zoneTool_type = 0;
             }
            gui_writeLog('Zone Tool Toggled: '

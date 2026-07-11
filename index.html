@@ -389,12 +389,18 @@
                     <button class="btn btn-xs zone-type-btn zone-type-target vt-tool-grid-row" data-type="2" aria-label="Target zone" data-tooltip-title="Target Zone" data-tooltip-desc="Place a target zone for objective-style maps."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/TargetZone.png" alt=""></span><span class="vt-tool-name">Target Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
                     <button class="btn btn-xs zone-type-btn zone-type-rubber vt-tool-grid-row" data-type="3" aria-label="Rubber zone" data-tooltip-title="Rubber Zone" data-tooltip-desc="Place a rubber zone with configurable rubber behavior."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/RubberZone.png" alt=""></span><span class="vt-tool-name">Rubber Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
                     <button class="btn btn-xs zone-type-btn zone-type-fortress vt-tool-grid-row" data-type="4" aria-label="Fortress zone" data-tooltip-title="Fortress Zone" data-tooltip-desc="Place a fortress zone for conquest-style gameplay."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/FortressZone.png" alt=""></span><span class="vt-tool-name">Fortress Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                    <button class="btn btn-xs zone-type-btn zone-type-checkpoint vt-tool-grid-row" data-type="5" aria-label="Checkpoint zone" data-tooltip-title="Checkpoint Zone" data-tooltip-desc="Place an ordered checkpoint zone for race maps."><span class="vt-tool-icon"><img src="./images/ObjectTools/ZoneBase.png" alt=""></span><span class="vt-tool-name">Checkpoint Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
                 </div>
                 <div id="zone-tool-settings" class="vt-tool-grid">
                     <div id="zone-rubber-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-dashboard" aria-hidden="true"></span></span>
                         <label class="vt-tool-name" for="dRubberVal">Rubber Value</label>
                         <span class="vt-tool-input"><input type="number" id="dRubberVal" name="dRubberVal" value="2" step="0.1" min="0" /></span>
+                    </div>
+                    <div id="zone-checkpoint-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-sort-by-order" aria-hidden="true"></span></span>
+                        <label class="vt-tool-name" for="dCheckpointOrder">Order</label>
+                        <span class="vt-tool-input"><input type="number" id="dCheckpointOrder" name="dCheckpointOrder" value="1" step="1" min="1" required /></span>
                     </div>
                     <div id="zone-quick-placement" class="vt-tool-grid-row vt-setting-row">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-screenshot" aria-hidden="true"></span></span>
