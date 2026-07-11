@@ -135,9 +135,9 @@ function zoneTool_guide() {
 
 function zoneTool_complete() {
     if(zoneTool_type === 5) {
-        var checkpointOrder = parseInt($("#dCheckpointOrder").val(), 10);
-        if(isNaN(checkpointOrder) || checkpointOrder <= 0 ||
-            checkpointOrder.toString() !== $("#dCheckpointOrder").val().trim()) {
+        var checkpointOrder = Number($("#dCheckpointOrder").val());
+        if(!isFinite(checkpointOrder) || checkpointOrder <= 0 ||
+            Math.floor(checkpointOrder) !== checkpointOrder) {
             gui_writeLog("Checkpoint order must be a positive whole number.");
             return;
         }
