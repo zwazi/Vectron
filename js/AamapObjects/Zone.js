@@ -54,7 +54,7 @@ function Zone(x, y, radius, growth, type, option) {
             this.option = ( option !== undefined )?option:parseFloat($("#dRubberVal").val());
             break;
         case "checkpoint":
-            this.option = ( option !== undefined )?parseInt(option, 10):parseInt($("#dCheckpointOrder").val(), 10);
+            this.option = Number(( option !== undefined )?option:$("#dCheckpointOrder").val());
             break;
         default:
             this.option = ( option !== undefined )?option:0;
@@ -135,8 +135,8 @@ function Zone(x, y, radius, growth, type, option) {
 
     this.getShapeSpecial = function()
     {
-        if(zoneTool_typeArray[this.type][0] == "checkpoint") {
-            return '\n    <Checkpoint id="' + parseInt(this.option, 10) + '" time="0"/>';
+        if(zoneTool_typeArray[this.type][0] === "checkpoint") {
+            return '\n    <Checkpoint id="' + this.option + '" time="0"/>';
         }
         return "";
     }
