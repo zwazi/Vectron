@@ -37,9 +37,18 @@ var xml_settings = [];
 function xml_init() {
 
     $('#files').change(function(e) {
-        aamap_objects = [];
         xml_handle(e);
         gui_writeLog("Loading.");
+    });
+
+    window.addEventListener("dragover", function(e) {
+        e.preventDefault();
+    });
+    window.addEventListener("drop", function(e) {
+        e.preventDefault();
+        if(!e.dataTransfer || !e.dataTransfer.files.length) return;
+        xml_handleFile(e.dataTransfer.files[0]);
+        gui_writeLog("Loading dropped map.");
     });
 }  
 
@@ -176,11 +185,15 @@ function xml_load() {
 }
 
 function xml_handle(evt) {
+    if(!evt.target.files.length) return;
+    xml_handleFile(evt.target.files[0]);
+}
+
+function xml_handleFile(file) {
     var reader = new FileReader();
-    reader.readAsText(evt.target.files[0]);
-    var result;
-    var self = this;
+    reader.readAsText(file);
     reader.onload = function(evt) {
+       aamap_objects = [];
        xml_process(this.result);
     };
 }
