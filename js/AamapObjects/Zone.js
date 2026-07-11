@@ -53,6 +53,9 @@ function Zone(x, y, radius, growth, type, option) {
         case "rubber":
             this.option = ( option !== undefined )?option:parseFloat($("#dRubberVal").val());
             break;
+        case "checkpoint":
+            this.option = Number(( option !== undefined )?option:$("#dCheckpointOrder").val());
+            break;
         default:
             this.option = ( option !== undefined )?option:0;
             break;
@@ -130,10 +133,18 @@ function Zone(x, y, radius, growth, type, option) {
         return "";
     }
 
+    this.getShapeSpecial = function()
+    {
+        if(zoneTool_typeArray[this.type][0] === "checkpoint") {
+            return '\n    <Checkpoint id="' + this.option + '" time="0"/>';
+        }
+        return "";
+    }
+
     this.getXML = function() {
         return '<Zone effect="' + zoneTool_typeArray[this.type][0] +'"'+this.getSpecial(0)+'>\n' +
                '  <ShapeCircle radius=" '+ (Math.round(this.radius * 1e6)/1e6) +' " growth="'+(Math.round(this.growth * 1e6)/1e6)+'">\n' +
-               '    <Point x="' + (Math.round(this.x * 1e6)/1e6) + '" y="' + (Math.round(this.y * 1e6)/1e6) + '"/>\n' +
+               '    <Point x="' + (Math.round(this.x * 1e6)/1e6) + '" y="' + (Math.round(this.y * 1e6)/1e6) + '"/>' + this.getShapeSpecial() + '\n' +
                '  </ShapeCircle>\n' +
                '</Zone>';
     }
@@ -143,4 +154,3 @@ function Zone(x, y, radius, growth, type, option) {
     }
 
 } 
-
