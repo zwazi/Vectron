@@ -35,6 +35,39 @@ function aamap_init() {
     aamap_render();
 }
 
+function aamap_parseAxisVectors(value) {
+    if(!value || !value.trim()) return [];
+    var vectors = [];
+    var entries = value.split(/[;\n]+/);
+    for(var i = 0; i < entries.length; i++) {
+        if(!entries[i].trim()) continue;
+        var pair = entries[i].trim().split(/\s*,\s*|\s+/);
+        var xdir = Number(pair[0]), ydir = Number(pair[1]);
+        if(pair.length !== 2 || !isFinite(xdir) || !isFinite(ydir)) return null;
+        vectors.push({xdir:xdir, ydir:ydir});
+    }
+    return vectors;
+}
+
+function aamap_getAxesXML(axes, indent) {
+    indent = indent || "";
+    if(!$("#map_axes_forced")[0].checked) return "";
+    var vectors = xml_game_mode === "armaracing" ?
+        aamap_parseAxisVectors($("#map_axis_vectors").val()) : [];
+    if(vectors === null) {
+        gui_writeLog("Ignored invalid Axis vectors; expected x,y pairs separated by semicolons.");
+        vectors = [];
+    }
+    xml_axis_vectors = vectors;
+    if(!vectors.length) return indent + '<Axes number="' + axes + '"/>\n';
+    var xml = indent + '<Axes number="' + vectors.length + '">\n';
+    for(var i = 0; i < vectors.length; i++) {
+        xml += indent + '  <Axis xdir="' + zone_round(vectors[i].xdir) +
+            '" ydir="' + zone_round(vectors[i].ydir) + '"/>\n';
+    }
+    return xml + indent + '</Axes>\n';
+}
+
 function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
     var fileName = name + "-" + version + ".aamap.xml";
 
@@ -70,10 +103,7 @@ function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
     }
     xml += '    <World>\n';
     xml += '      <Field>\n';
-    if($("#map_axes_forced")[0].checked)
-    {
-        xml += '        <Axes number="'+axes+'"/>'+"\n";
-    }
+    xml += aamap_getAxesXML(axes, "        ");
     for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
         xml += indentLines(aamap_objects[i].getXML(), '        ');
         xml += "\n";

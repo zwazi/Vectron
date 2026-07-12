@@ -906,6 +906,15 @@ function eventHandler_init() {
     $('#map_version').on('input change', function() { xml_version = this.value; });
     $('#map_dtd').on('input change', function() { xml_dtd = this.value; });
     $('#map_axes').on('input change', function() { xml_axes = parseInt(this.value) || 4; });
+    $('#map_axis_vectors').on('input change', function() {
+        var vectors = aamap_parseAxisVectors(this.value);
+        if(vectors !== null) xml_axis_vectors = vectors;
+    });
+    $('#map_game_mode').on('change', function() {
+        zoneTool_setGameMode(this.value);
+        gui_writeLog(this.value === "armaracing" ? "Armaracing features enabled." : "Legacy Armagetron features enabled.");
+    });
+    $('#dZoneShape').on('change', zoneTool_updateRubberBar);
     $('#map_settings').on('input change', function() {
         xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
     });
@@ -1144,7 +1153,7 @@ function eventHandler_init() {
     $(document).on("click", ".zone-type-btn", function(e) {
         e.stopPropagation();
         var type = parseInt($(this).data("type"));
-        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress", "Checkpoint"];
+        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress", "Checkpoint", "Speed", "Teleport"];
         vectron_connectTool("zone");
         zoneTool_type = type;
         zoneTool_guide();
@@ -1367,10 +1376,8 @@ function eventHandler_init() {
             xml += '    </Settings>\n';
         }
         xml += '    <World>\n      <Field>\n';
-        if (document.getElementById('map_axes_forced').checked) {
-            var axes = parseInt(document.getElementById('map_axes').value) || 4;
-            xml += '        <Axes number="' + axes + '"/>\n';
-        }
+        var axes = parseInt(document.getElementById('map_axes').value) || 4;
+        xml += aamap_getAxesXML(axes, "        ");
         for (var i = 0; i < aamap_objects.length; i++) {
             xml += xmlEditor_indentLines(aamap_objects[i].getXML(), '        ') + '\n';
         }
@@ -2026,10 +2033,9 @@ function eventHandler_init() {
         if(!aamap_active) return;
 
         if(vectron_currentTool == "zone") {
-            zoneTool_type += 1;
-            if(zoneTool_type > 5) {
-                zoneTool_type = 0;
-            }
+            var availableTypes = xml_game_mode === "armaracing" ? [0, 1, 3, 5, 6, 7] : [0, 1, 2, 3, 4, 5];
+            var currentIndex = availableTypes.indexOf(zoneTool_type);
+            zoneTool_type = availableTypes[(currentIndex + 1) % availableTypes.length];
            gui_writeLog('Zone Tool Toggled: '
                 + zoneTool_typeArray[zoneTool_type][0]);
             zoneTool_guide();
@@ -2207,6 +2213,8 @@ function eventHandler_init() {
         vectron_zoom = 1;
         $("#map_name,#map_author,#map_category,#map_version,#map_dtd,#map_settings").val("");
         $("#map_axes").val("");
+        $("#map_axis_vectors").val("");
+        zoneTool_setGameMode("armagetron");
         $("#map_axes_forced").prop("checked", false);
         xml_name = "";
         xml_author = "";
@@ -2214,6 +2222,7 @@ function eventHandler_init() {
         xml_version = "";
         xml_dtd = "";
         xml_axes = 4;
+        xml_axis_vectors = [];
         xml_settings = [];
         aamap_clearHistory();
         vectron_render();
