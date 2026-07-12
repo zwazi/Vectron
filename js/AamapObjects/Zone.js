@@ -28,6 +28,8 @@ var zone_warning;
 var ZONE_DEFAULT_GROWTH = 0;
 var ZONE_TELEPORT_MARKER_SIZE = 16;
 var ZONE_DIRECTION_EPSILON = 1e-9;
+var ZONE_DEFAULT_XDIR = 1;
+var ZONE_DEFAULT_YDIR = 0;
 
 function zone_round(value) {
     return Math.round(Number(value) * 1e6) / 1e6;
@@ -138,7 +140,8 @@ function Zone(x, y, radius, growth, type, option, details) {
             north:{x:0, y:1}, east:{x:1, y:0},
             south:{x:0, y:-1}, west:{x:-1, y:0}
         };
-        return cardinalDirections[String(this.options.direction).toLowerCase()] || {x:1, y:0};
+        return cardinalDirections[String(this.options.direction).toLowerCase()] ||
+            {x:ZONE_DEFAULT_XDIR, y:ZONE_DEFAULT_YDIR};
     }
 
     this.setTeleportDirection = function(xdir, ydir) {
@@ -178,7 +181,7 @@ function Zone(x, y, radius, growth, type, option, details) {
             var ydir = teleportDirection.y;
             var directionLength = Math.sqrt(xdir * xdir + ydir * ydir);
             if(directionLength <= ZONE_DIRECTION_EPSILON || !isFinite(directionLength)) {
-                xdir = 1; ydir = 0;
+                xdir = ZONE_DEFAULT_XDIR; ydir = ZONE_DEFAULT_YDIR;
             } else {
                 xdir /= directionLength; ydir /= directionLength;
             }
