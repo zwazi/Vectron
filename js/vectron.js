@@ -431,7 +431,7 @@ async function vectron_saveTextAsFile(xml, filename)
     }
     var fileNameToSaveAs = filename;
 
-    if (typeof window.showSaveFilePicker == "function")
+    if (typeof window.showSaveFilePicker === "function")
     {
         try
         {
@@ -448,7 +448,7 @@ async function vectron_saveTextAsFile(xml, filename)
         }
         catch(e)
         {
-            if (e.name != "AbortError")
+            if (e.name !== "AbortError")
             {
                 console.error("Unable to save file.", e);
             }
