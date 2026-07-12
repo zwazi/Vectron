@@ -84,6 +84,8 @@ function zoneTool_removeGuide() {
 
     function zoneTool_resetPlacement() {
         zoneTool_removeGuide();
+        if(zoneTool_pendingZone && aamap_objects.indexOf(zoneTool_pendingZone) < 0 &&
+            zoneTool_pendingZone.obj) zoneTool_pendingZone.obj.remove();
         zoneTool_points = [];
         zoneTool_stage = "shape";
         zoneTool_pendingZone = null;
@@ -177,8 +179,8 @@ function zoneTool_updateRubberBar() {
     $("#zone-teleport-setting").toggle(xml_game_mode === "armaracing" && zoneTool_type === 7);
     var customShape = xml_game_mode === "armaracing" && $("#dZoneShape").val() !== "circle";
     $("#zone-polygon-setting").toggle(xml_game_mode === "armaracing" && $("#dZoneShape").val() === "polygon");
-    $("#zone-quick-placement,#zone-quick-size-row").toggle(!customShape &&
-        (!$("#zone-quick-size-row").is(":visible") || $("#zone-quick-placement-toggle").is(":checked")));
+    $("#zone-quick-placement").toggle(!customShape);
+    $("#zone-quick-size-row").toggle(!customShape && $("#zone-quick-placement-toggle").is(":checked"));
     zoneTool_updateStatus();
     vectron_render();
 }
@@ -192,8 +194,6 @@ function zoneTool_guide() {
     zoneTool_removeGuide();
 
     var color = zoneTool_typeArray[zoneTool_type][1];
-    var mapPoint = {x:aamap_mapX(cursor_realX), y:aamap_mapY(cursor_realY)};
-
     if(zoneTool_stage === "teleport-position") {
         zoneTool_guideObj = vectron_screen.circle(cursor_realX, cursor_realY, 6)
             .attr({"stroke":"#00d9ff", "fill":"#00d9ff", "fill-opacity":0.45});

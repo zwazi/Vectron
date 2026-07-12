@@ -178,10 +178,6 @@ function Zone(x, y, radius, growth, type, option, details) {
         this.y *= factor;
         this.radius *= factor;
         this.growth *= factor;
-        if(this.zoneName === "teleport") {
-            this.options.destination_x *= factor;
-            this.options.destination_y *= factor;
-        }
         if(this.shapeType === "rectangle") {
             this.minx *= factor; this.miny *= factor;
             this.maxx *= factor; this.maxy *= factor;
@@ -204,17 +200,6 @@ function Zone(x, y, radius, growth, type, option, details) {
         var newrad = Math.atan2(this.y,this.x)-rad;
         this.x = dist*Math.cos(newrad);
         this.y = dist*Math.sin(newrad);
-        if(this.zoneName === "teleport") {
-            var destinationDistance = Math.sqrt(
-                Math.pow(this.options.destination_x, 2) + Math.pow(this.options.destination_y, 2));
-            var destinationAngle = Math.atan2(this.options.destination_y,
-                this.options.destination_x) - rad;
-            this.options.destination_x = destinationDistance * Math.cos(destinationAngle);
-            this.options.destination_y = destinationDistance * Math.sin(destinationAngle);
-            var directionAngle = Math.atan2(this.options.ydir, this.options.xdir) - rad;
-            this.options.xdir = Math.cos(directionAngle);
-            this.options.ydir = Math.sin(directionAngle);
-        }
         if(this.shapeType === "polygon") {
             for(var i = 0; i < this.polygonPoints.length; i++) {
                 var point = this.polygonPoints[i];
@@ -245,16 +230,6 @@ function Zone(x, y, radius, growth, type, option, details) {
         {
             this.x = y;
             this.y = -x;
-        }
-        if(this.zoneName === "teleport") {
-            var destinationX = this.options.destination_x;
-            var destinationY = this.options.destination_y;
-            var directionX = this.options.xdir;
-            var directionY = this.options.ydir;
-            this.options.destination_x = dir > 0 ? -destinationY : destinationY;
-            this.options.destination_y = dir > 0 ? destinationX : -destinationX;
-            this.options.xdir = dir > 0 ? -directionY : directionY;
-            this.options.ydir = dir > 0 ? directionX : -directionX;
         }
         if(this.shapeType === "polygon") {
             for(var i = 0; i < this.polygonPoints.length; i++) {
