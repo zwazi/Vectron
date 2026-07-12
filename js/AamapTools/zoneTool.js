@@ -63,6 +63,8 @@ var zoneTool_pendingZone = null;
 var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
 var ZONE_TOOL_MIN_POLYGON_POINTS = 3;
 var ZONE_TOOL_DIRECTION_EPSILON = 1e-9;
+var ZONE_TOOL_DEFAULT_XDIR = 1;
+var ZONE_TOOL_DEFAULT_YDIR = 0;
 var ZONE_TOOL_LEGACY_CHECKPOINT_ORDER = 1;
 var ZONE_TOOL_RACING_CHECKPOINT_ORDER = 0;
 var ZONE_TOOL_LEGACY_TYPES = [0, 1, 2, 3, 4, 5];
@@ -78,49 +80,49 @@ function zoneTool_removeGuide() {
         zoneTool_guideObj.remove();
         zoneTool_guideObj = null;
     }
+}
 
-    function zoneTool_setStatus(message) {
-        $("#zone-tool-status").text(message);
-    }
+function zoneTool_setStatus(message) {
+    $("#zone-tool-status").text(message);
+}
 
-    function zoneTool_resetPlacement() {
-        zoneTool_removeGuide();
-        if(zoneTool_pendingZone && aamap_objects.indexOf(zoneTool_pendingZone) < 0 &&
-            zoneTool_pendingZone.obj) zoneTool_pendingZone.obj.remove();
-        zoneTool_points = [];
-        zoneTool_stage = "shape";
-        zoneTool_pendingZone = null;
-        zoneTool_placingSize = false;
-        vectron_toolActive = false;
-    }
+function zoneTool_resetPlacement() {
+    zoneTool_removeGuide();
+    if(zoneTool_pendingZone && aamap_objects.indexOf(zoneTool_pendingZone) < 0 &&
+        zoneTool_pendingZone.obj) zoneTool_pendingZone.obj.remove();
+    zoneTool_points = [];
+    zoneTool_stage = "shape";
+    zoneTool_pendingZone = null;
+    zoneTool_placingSize = false;
+    vectron_toolActive = false;
+}
 
-    function zoneTool_cancelPlacement() {
-        zoneTool_resetPlacement();
-        zoneTool_updateStatus();
-        zoneTool_guide();
-    }
+function zoneTool_cancelPlacement() {
+    zoneTool_resetPlacement();
+    zoneTool_updateStatus();
+    zoneTool_guide();
+}
 
-    function zoneTool_updateStatus() {
-        var shape = xml_game_mode === "armaracing" ? $("#dZoneShape").val() : "circle";
-        if(zoneTool_stage === "teleport-position") {
-            zoneTool_setStatus("Click the teleport destination.");
-        } else if(zoneTool_stage === "teleport-direction") {
-            zoneTool_setStatus("Click to set the destination direction.");
-        } else if(shape === "polygon") {
-            zoneTool_setStatus(zoneTool_points.length ?
-                "Keep placing vertices; double-click or use Finish Polygon." :
-                "Click to place polygon vertices.");
-        } else if(shape === "rectangle") {
-            zoneTool_setStatus(zoneTool_points.length ?
-                "Click the opposite corner." : "Click the first corner.");
-        } else {
-            zoneTool_setStatus(zoneTool_placingSize ?
-                "Click the circle edge." : "Click the circle center.");
-        }
-        $("#zone-tool-finish").toggle(shape === "polygon" && zoneTool_stage === "shape" &&
-            zoneTool_points.length >= ZONE_TOOL_MIN_POLYGON_POINTS);
-        $("#zone-tool-cancel").toggle(vectron_toolActive);
+function zoneTool_updateStatus() {
+    var shape = xml_game_mode === "armaracing" ? $("#dZoneShape").val() : "circle";
+    if(zoneTool_stage === "teleport-position") {
+        zoneTool_setStatus("Click the teleport destination.");
+    } else if(zoneTool_stage === "teleport-direction") {
+        zoneTool_setStatus("Click to set the destination direction.");
+    } else if(shape === "polygon") {
+        zoneTool_setStatus(zoneTool_points.length ?
+            "Keep placing vertices; double-click or use Finish Polygon." :
+            "Click to place polygon vertices.");
+    } else if(shape === "rectangle") {
+        zoneTool_setStatus(zoneTool_points.length ?
+            "Click the opposite corner." : "Click the first corner.");
+    } else {
+        zoneTool_setStatus(zoneTool_placingSize ?
+            "Click the circle edge." : "Click the circle center.");
     }
+    $("#zone-tool-finish").toggle(shape === "polygon" && zoneTool_stage === "shape" &&
+        zoneTool_points.length >= ZONE_TOOL_MIN_POLYGON_POINTS);
+    $("#zone-tool-cancel").toggle(vectron_toolActive);
 }
 
 function zoneTool_connect() {
@@ -294,9 +296,6 @@ function zoneTool_finishPolygon() {
         return;
     }
     var points = zoneTool_points.slice();
-    while(points.length > ZONE_TOOL_MIN_POLYGON_POINTS &&
-        points[points.length - 1].x === points[points.length - 2].x &&
-        points[points.length - 1].y === points[points.length - 2].y) points.pop();
     var x = 0, y = 0;
     for(var i = 0; i < points.length; i++) { x += points[i].x; y += points[i].y; }
     x /= points.length; y /= points.length;
@@ -338,7 +337,10 @@ function zoneTool_complete() {
         var directionX = aamap_mapX(cursor_realX) - destination.x;
         var directionY = aamap_mapY(cursor_realY) - destination.y;
         var directionLength = Math.sqrt(directionX * directionX + directionY * directionY);
-        if(directionLength <= ZONE_TOOL_DIRECTION_EPSILON) { directionX = 1; directionY = 0; }
+        if(directionLength <= ZONE_TOOL_DIRECTION_EPSILON) {
+            directionX = ZONE_TOOL_DEFAULT_XDIR;
+            directionY = ZONE_TOOL_DEFAULT_YDIR;
+        }
         else { directionX /= directionLength; directionY /= directionLength; }
         zoneTool_pendingZone.options.xdir = directionX;
         zoneTool_pendingZone.options.ydir = directionY;
