@@ -62,9 +62,6 @@ var zoneTool_pendingZone = null;
 
 var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
 var ZONE_TOOL_MIN_POLYGON_POINTS = 3;
-var ZONE_TOOL_DIRECTION_EPSILON = 1e-9;
-var ZONE_TOOL_DEFAULT_XDIR = 1;
-var ZONE_TOOL_DEFAULT_YDIR = 0;
 var ZONE_TOOL_LEGACY_CHECKPOINT_ORDER = 1;
 var ZONE_TOOL_RACING_CHECKPOINT_ORDER = 0;
 var ZONE_TOOL_LEGACY_TYPES = [0, 1, 2, 3, 4, 5];
@@ -88,8 +85,9 @@ function zoneTool_setStatus(message) {
 
 function zoneTool_resetPlacement() {
     zoneTool_removeGuide();
-    if(zoneTool_pendingZone && aamap_objects.indexOf(zoneTool_pendingZone) < 0 &&
-        zoneTool_pendingZone.obj) zoneTool_pendingZone.obj.remove();
+    if(zoneTool_pendingZone && aamap_objects.indexOf(zoneTool_pendingZone) < 0) {
+        _aamap_removeObj(zoneTool_pendingZone);
+    }
     zoneTool_points = [];
     zoneTool_stage = "shape";
     zoneTool_pendingZone = null;
@@ -299,7 +297,7 @@ function zoneTool_finishPolygon() {
     var x = 0, y = 0;
     for(var i = 0; i < points.length; i++) { x += points[i].x; y += points[i].y; }
     x /= points.length; y /= points.length;
-    var details = zoneTool_buildDetails(x, y, 1);
+    var details = zoneTool_buildDetails();
     details.polygonScale = 1;
     // ShapePolygon stores an absolute origin followed by vertices local to that origin.
     details.polygonPoints = points.map(function(point) {
@@ -338,10 +336,10 @@ function zoneTool_complete() {
         var directionX = aamap_mapX(cursor_realX) - destination.x;
         var directionY = aamap_mapY(cursor_realY) - destination.y;
         var directionLength = Math.sqrt(directionX * directionX + directionY * directionY);
-        if(directionLength <= ZONE_TOOL_DIRECTION_EPSILON) {
-            // Clicking on the destination itself keeps the format's default eastward direction.
-            directionX = ZONE_TOOL_DEFAULT_XDIR;
-            directionY = ZONE_TOOL_DEFAULT_YDIR;
+        if(directionLength <= ZONE_DIRECTION_EPSILON) {
+            // A click very close to the destination keeps the default eastward direction.
+            directionX = ZONE_DEFAULT_XDIR;
+            directionY = ZONE_DEFAULT_YDIR;
         }
         else { directionX /= directionLength; directionY /= directionLength; }
         zoneTool_pendingZone.options.xdir = directionX;
@@ -380,7 +378,7 @@ function zoneTool_complete() {
             gui_writeLog("Rectangle width and height must be greater than 0.");
             return;
         }
-        var rectangleDetails = zoneTool_buildDetails(0, 0, 1);
+        var rectangleDetails = zoneTool_buildDetails();
         rectangleDetails.minx = Math.min(first.x, clickPoint.x);
         rectangleDetails.miny = Math.min(first.y, clickPoint.y);
         rectangleDetails.maxx = Math.max(first.x, clickPoint.x);
@@ -396,7 +394,7 @@ function zoneTool_complete() {
         if (isNaN(quickR) || quickR <= 0) quickR = 32;
         var cx = aamap_mapX(cursor_realX);
         var cy = aamap_mapY(cursor_realY);
-        var quickDetails = zoneTool_buildDetails(cx, cy, quickR);
+        var quickDetails = zoneTool_buildDetails();
         if(!quickDetails) return;
         var newZone = new Zone(cx, cy, quickR, ZONE_DEFAULT_GROWTH, zoneTool_type,
             zoneTool_getOption(), quickDetails);
@@ -441,7 +439,7 @@ function zoneTool_complete() {
         }
     }
 
-    var details = zoneTool_buildDetails(newX, newY, radius);
+    var details = zoneTool_buildDetails();
     if(!details) return;
     var newZone = new Zone(newX, newY, radius, ZONE_DEFAULT_GROWTH, zoneTool_type,
         zoneTool_getOption(), details);
@@ -461,7 +459,7 @@ function zoneTool_getOption() {
     return 0;
 }
 
-function zoneTool_buildDetails(x, y, size) {
+function zoneTool_buildDetails() {
     var details = {
         zoneName: zoneTool_typeArray[zoneTool_type][0],
         shapeType: xml_game_mode === "armaracing" ? $("#dZoneShape").val() : "circle",
@@ -477,10 +475,7 @@ function zoneTool_buildDetails(x, y, size) {
     details.endTick = endTick === "" ? undefined : Number(endTick);
     details.trigger = $("#dZoneTrigger").val();
 
-    if(details.shapeType === "rectangle") {
-        details.minx = x - size; details.miny = y - size;
-        details.maxx = x + size; details.maxy = y + size;
-    } else if(details.shapeType === "polygon") {
+    if(details.shapeType === "polygon") {
         details.polygonScale = 1;
         details.polygonPoints = [];
     }
