@@ -285,7 +285,8 @@ function zoneTool_buildDetails(x, y, size) {
             var pair = tokens[i].split(",");
             var px = Number(pair[0]), py = Number(pair[1]);
             if(pair.length !== 2 || !isFinite(px) || !isFinite(py)) {
-                gui_writeLog("Polygon points must be space-separated x,y pairs.");
+                gui_writeLog("Invalid polygon point " + (i + 1) + ' ("' + tokens[i] +
+                    '"); use space-separated x,y pairs.');
                 return null;
             }
             details.polygonPoints.push({x:px, y:py});

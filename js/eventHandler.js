@@ -1153,13 +1153,12 @@ function eventHandler_init() {
     $(document).on("click", ".zone-type-btn", function(e) {
         e.stopPropagation();
         var type = parseInt($(this).data("type"));
-        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress", "Checkpoint", "Speed", "Teleport"];
         vectron_connectTool("zone");
         zoneTool_type = type;
         zoneTool_guide();
         zoneTool_updateRubberBar();
         zoneTool_updateWindowActiveType();
-        gui_writeLog(typeNames[type] + 'Zone selected.');
+        gui_writeLog(zoneTool_typeArray[type][0] + ' zone selected.');
     });
 
     // Quick placement toggle
