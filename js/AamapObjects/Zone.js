@@ -76,6 +76,7 @@ function Zone(x, y, radius, growth, type, option, details) {
     if(this.shapeType === "rectangle") {
         this.x = (this.minx + this.maxx) / 2;
         this.y = (this.miny + this.maxy) / 2;
+        // The selection system uses radius as a bounding circle for non-circular zones.
         this.radius = Math.sqrt(Math.pow(this.maxx - this.minx, 2) + Math.pow(this.maxy - this.miny, 2)) / 2;
     } else if(this.shapeType === "polygon") {
         var maxRadius = 0;

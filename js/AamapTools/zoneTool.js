@@ -59,9 +59,11 @@ var zoneTool_centerMapY = 0;
 
 var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
 var ZONE_TOOL_MIN_POLYGON_POINTS = 3;
+var ZONE_TOOL_LEGACY_CHECKPOINT_ORDER = 1;
+var ZONE_TOOL_RACING_CHECKPOINT_ORDER = 0;
 
 function zoneTool_validCheckpointOrder(value, racing) {
-    var minimum = racing ? 0 : 1;
+    var minimum = racing ? ZONE_TOOL_RACING_CHECKPOINT_ORDER : ZONE_TOOL_LEGACY_CHECKPOINT_ORDER;
     return isFinite(value) && value >= minimum && Math.floor(value) === value;
 }
 
@@ -90,9 +92,16 @@ function zoneTool_setGameMode(mode) {
         .attr("max", xml_game_mode === "armaracing" ? 65535 : 360);
     if(xml_game_mode !== "armaracing" && zoneTool_type > 5) zoneTool_type = 0;
     var checkpoint = $("#dCheckpointOrder");
-    checkpoint.attr("min", xml_game_mode === "armaracing" ? 0 : 1);
-    if(xml_game_mode === "armaracing" && Number(checkpoint.val()) === 1) checkpoint.val(0);
-    if(xml_game_mode !== "armaracing" && Number(checkpoint.val()) < 1) checkpoint.val(1);
+    checkpoint.attr("min", xml_game_mode === "armaracing" ?
+        ZONE_TOOL_RACING_CHECKPOINT_ORDER : ZONE_TOOL_LEGACY_CHECKPOINT_ORDER);
+    if(xml_game_mode === "armaracing" &&
+        Number(checkpoint.val()) === ZONE_TOOL_LEGACY_CHECKPOINT_ORDER) {
+        checkpoint.val(ZONE_TOOL_RACING_CHECKPOINT_ORDER);
+    }
+    if(xml_game_mode !== "armaracing" &&
+        Number(checkpoint.val()) < ZONE_TOOL_LEGACY_CHECKPOINT_ORDER) {
+        checkpoint.val(ZONE_TOOL_LEGACY_CHECKPOINT_ORDER);
+    }
     zoneTool_updateRubberBar();
     zoneTool_updateWindowActiveType();
 }
@@ -166,7 +175,8 @@ function zoneTool_guide() {
 function zoneTool_complete() {
     if(zoneTool_type === 5) {
         var checkpointOrder = Number($("#dCheckpointOrder").val());
-        var minimumOrder = xml_game_mode === "armaracing" ? 0 : 1;
+        var minimumOrder = xml_game_mode === "armaracing" ?
+            ZONE_TOOL_RACING_CHECKPOINT_ORDER : ZONE_TOOL_LEGACY_CHECKPOINT_ORDER;
         if(!zoneTool_validCheckpointOrder(checkpointOrder, xml_game_mode === "armaracing")) {
             gui_writeLog("Checkpoint order must be a whole number starting at " + minimumOrder + ".");
             return;
@@ -253,7 +263,9 @@ function zoneTool_numberValue(selector, fallback) {
 }
 
 function zoneTool_getOption() {
-    if(zoneTool_type === 5) return zoneTool_numberValue("#dCheckpointOrder", xml_game_mode === "armaracing" ? 0 : 1);
+    if(zoneTool_type === 5) return zoneTool_numberValue("#dCheckpointOrder",
+        xml_game_mode === "armaracing" ? ZONE_TOOL_RACING_CHECKPOINT_ORDER :
+            ZONE_TOOL_LEGACY_CHECKPOINT_ORDER);
     if(zoneTool_type === 3 && xml_game_mode !== "armaracing") return zoneTool_numberValue("#dRubberVal", 2);
     return 0;
 }
