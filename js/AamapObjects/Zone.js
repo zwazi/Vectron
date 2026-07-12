@@ -52,6 +52,7 @@ function Zone(x, y, radius, growth, type, option, details) {
 
     this.isSelected = false;
     this.glowObj = null;
+    this.destinationObj = null;
 
     this.x = x;
     this.y = y;
@@ -123,6 +124,7 @@ function Zone(x, y, radius, growth, type, option, details) {
     this.render = function() {
         if(this.obj != null) this.obj.remove();
         if(this.glowObj != null) this.glowObj.remove();
+        if(this.destinationObj != null) this.destinationObj.remove();
         
         var color = zoneTool_typeArray[this.type] ? zoneTool_typeArray[this.type][1] : "#888888";
         if(this.shapeType === "circle") {
@@ -140,6 +142,29 @@ function Zone(x, y, radius, growth, type, option, details) {
         this.obj.attr({"stroke": color, "fill": color, "fill-opacity": ".05"});
         this.obj.data("id", this.objectID);
 
+        if(this.zoneName === "teleport" && isFinite(Number(this.options.destination_x)) &&
+            isFinite(Number(this.options.destination_y))) {
+            var destinationX = aamap_realX(Number(this.options.destination_x));
+            var destinationY = aamap_realY(Number(this.options.destination_y));
+            var xdir = Number(this.options.xdir);
+            var ydir = Number(this.options.ydir);
+            if(!isFinite(xdir) || !isFinite(ydir) || (xdir === 0 && ydir === 0)) {
+                xdir = 1; ydir = 0;
+            }
+            var directionLength = Math.sqrt(xdir * xdir + ydir * ydir);
+            xdir /= directionLength; ydir /= directionLength;
+            var markerSize = 16;
+            this.destinationObj = vectron_screen.path([
+                "M", destinationX - xdir * markerSize / 2, destinationY - ydir * markerSize / 2,
+                "L", destinationX + xdir * markerSize / 2, destinationY + ydir * markerSize / 2,
+                "L", destinationX + xdir * markerSize / 6 - ydir * markerSize / 3,
+                     destinationY + ydir * markerSize / 6 + xdir * markerSize / 3,
+                "M", destinationX + xdir * markerSize / 2, destinationY + ydir * markerSize / 2,
+                "L", destinationX + xdir * markerSize / 6 + ydir * markerSize / 3,
+                     destinationY + ydir * markerSize / 6 - xdir * markerSize / 3
+            ]).attr({"stroke":"#00d9ff", "stroke-width":2});
+        }
+
 
         if(this.isSelected) {
             selectTool_addHoverSetSelected(this);
@@ -153,6 +178,10 @@ function Zone(x, y, radius, growth, type, option, details) {
         this.y *= factor;
         this.radius *= factor;
         this.growth *= factor;
+        if(this.zoneName === "teleport") {
+            this.options.destination_x *= factor;
+            this.options.destination_y *= factor;
+        }
         if(this.shapeType === "rectangle") {
             this.minx *= factor; this.miny *= factor;
             this.maxx *= factor; this.maxy *= factor;
@@ -175,6 +204,17 @@ function Zone(x, y, radius, growth, type, option, details) {
         var newrad = Math.atan2(this.y,this.x)-rad;
         this.x = dist*Math.cos(newrad);
         this.y = dist*Math.sin(newrad);
+        if(this.zoneName === "teleport") {
+            var destinationDistance = Math.sqrt(
+                Math.pow(this.options.destination_x, 2) + Math.pow(this.options.destination_y, 2));
+            var destinationAngle = Math.atan2(this.options.destination_y,
+                this.options.destination_x) - rad;
+            this.options.destination_x = destinationDistance * Math.cos(destinationAngle);
+            this.options.destination_y = destinationDistance * Math.sin(destinationAngle);
+            var directionAngle = Math.atan2(this.options.ydir, this.options.xdir) - rad;
+            this.options.xdir = Math.cos(directionAngle);
+            this.options.ydir = Math.sin(directionAngle);
+        }
         if(this.shapeType === "polygon") {
             for(var i = 0; i < this.polygonPoints.length; i++) {
                 var point = this.polygonPoints[i];
@@ -205,6 +245,16 @@ function Zone(x, y, radius, growth, type, option, details) {
         {
             this.x = y;
             this.y = -x;
+        }
+        if(this.zoneName === "teleport") {
+            var destinationX = this.options.destination_x;
+            var destinationY = this.options.destination_y;
+            var directionX = this.options.xdir;
+            var directionY = this.options.ydir;
+            this.options.destination_x = dir > 0 ? -destinationY : destinationY;
+            this.options.destination_y = dir > 0 ? destinationX : -destinationX;
+            this.options.xdir = dir > 0 ? -directionY : directionY;
+            this.options.ydir = dir > 0 ? directionX : -directionX;
         }
         if(this.shapeType === "polygon") {
             for(var i = 0; i < this.polygonPoints.length; i++) {
