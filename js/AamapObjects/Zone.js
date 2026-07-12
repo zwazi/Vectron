@@ -121,6 +121,31 @@ function Zone(x, y, radius, growth, type, option, details) {
         return [];
     }
 
+    this.getTeleportDirection = function() {
+        var xdir = Number(this.options.xdir);
+        var ydir = Number(this.options.ydir);
+        if(isFinite(xdir) && isFinite(ydir) && (xdir !== 0 || ydir !== 0)) {
+            return {x:xdir, y:ydir};
+        }
+        var angle = Number(this.options.angle);
+        if(isFinite(angle)) {
+            var radians = angle * Math.PI / 180;
+            return {x:Math.cos(radians), y:Math.sin(radians)};
+        }
+        var cardinalDirections = {
+            north:{x:0, y:1}, east:{x:1, y:0},
+            south:{x:0, y:-1}, west:{x:-1, y:0}
+        };
+        return cardinalDirections[String(this.options.direction).toLowerCase()] || {x:1, y:0};
+    }
+
+    this.setTeleportDirection = function(xdir, ydir) {
+        this.options.xdir = xdir;
+        this.options.ydir = ydir;
+        delete this.options.angle;
+        delete this.options.direction;
+    }
+
     this.render = function() {
         if(this.obj != null) this.obj.remove();
         if(this.glowObj != null) this.glowObj.remove();
@@ -146,11 +171,9 @@ function Zone(x, y, radius, growth, type, option, details) {
             isFinite(Number(this.options.destination_y))) {
             var destinationX = aamap_realX(Number(this.options.destination_x));
             var destinationY = aamap_realY(Number(this.options.destination_y));
-            var xdir = Number(this.options.xdir);
-            var ydir = Number(this.options.ydir);
-            if(!isFinite(xdir) || !isFinite(ydir) || (xdir === 0 && ydir === 0)) {
-                xdir = 1; ydir = 0;
-            }
+            var teleportDirection = this.getTeleportDirection();
+            var xdir = teleportDirection.x;
+            var ydir = teleportDirection.y;
             var directionLength = Math.sqrt(xdir * xdir + ydir * ydir);
             xdir /= directionLength; ydir /= directionLength;
             var markerSize = 16;
@@ -178,6 +201,10 @@ function Zone(x, y, radius, growth, type, option, details) {
         this.y *= factor;
         this.radius *= factor;
         this.growth *= factor;
+        if(this.zoneName === "teleport") {
+            this.options.destination_x = Number(this.options.destination_x) * factor;
+            this.options.destination_y = Number(this.options.destination_y) * factor;
+        }
         if(this.shapeType === "rectangle") {
             this.minx *= factor; this.miny *= factor;
             this.maxx *= factor; this.maxy *= factor;
@@ -200,6 +227,19 @@ function Zone(x, y, radius, growth, type, option, details) {
         var newrad = Math.atan2(this.y,this.x)-rad;
         this.x = dist*Math.cos(newrad);
         this.y = dist*Math.sin(newrad);
+        if(this.zoneName === "teleport") {
+            var destinationX = Number(this.options.destination_x);
+            var destinationY = Number(this.options.destination_y);
+            this.options.destination_x = destinationX * Math.cos(-rad) -
+                destinationY * Math.sin(-rad);
+            this.options.destination_y = destinationX * Math.sin(-rad) +
+                destinationY * Math.cos(-rad);
+            var teleportDirection = this.getTeleportDirection();
+            this.setTeleportDirection(
+                teleportDirection.x * Math.cos(-rad) - teleportDirection.y * Math.sin(-rad),
+                teleportDirection.x * Math.sin(-rad) + teleportDirection.y * Math.cos(-rad)
+            );
+        }
         if(this.shapeType === "polygon") {
             for(var i = 0; i < this.polygonPoints.length; i++) {
                 var point = this.polygonPoints[i];
@@ -230,6 +270,17 @@ function Zone(x, y, radius, growth, type, option, details) {
         {
             this.x = y;
             this.y = -x;
+        }
+        if(this.zoneName === "teleport") {
+            var destinationX = Number(this.options.destination_x);
+            var destinationY = Number(this.options.destination_y);
+            var teleportDirection = this.getTeleportDirection();
+            this.options.destination_x = dir > 0 ? -destinationY : destinationY;
+            this.options.destination_y = dir > 0 ? destinationX : -destinationX;
+            this.setTeleportDirection(
+                dir > 0 ? -teleportDirection.y : teleportDirection.y,
+                dir > 0 ? teleportDirection.x : -teleportDirection.x
+            );
         }
         if(this.shapeType === "polygon") {
             for(var i = 0; i < this.polygonPoints.length; i++) {

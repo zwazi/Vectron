@@ -62,6 +62,7 @@ var zoneTool_pendingZone = null;
 
 var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
 var ZONE_TOOL_MIN_POLYGON_POINTS = 3;
+var ZONE_TOOL_DIRECTION_EPSILON = 1e-9;
 var ZONE_TOOL_LEGACY_CHECKPOINT_ORDER = 1;
 var ZONE_TOOL_RACING_CHECKPOINT_ORDER = 0;
 var ZONE_TOOL_LEGACY_TYPES = [0, 1, 2, 3, 4, 5];
@@ -337,7 +338,7 @@ function zoneTool_complete() {
         var directionX = aamap_mapX(cursor_realX) - destination.x;
         var directionY = aamap_mapY(cursor_realY) - destination.y;
         var directionLength = Math.sqrt(directionX * directionX + directionY * directionY);
-        if(directionLength <= 1e-9) { directionX = 1; directionY = 0; }
+        if(directionLength <= ZONE_TOOL_DIRECTION_EPSILON) { directionX = 1; directionY = 0; }
         else { directionX /= directionLength; directionY /= directionLength; }
         zoneTool_pendingZone.options.xdir = directionX;
         zoneTool_pendingZone.options.ydir = directionY;
