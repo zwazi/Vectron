@@ -27,6 +27,7 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 var zone_warning;
 var ZONE_DEFAULT_GROWTH = 0;
 var ZONE_TELEPORT_MARKER_SIZE = 16;
+var ZONE_DIRECTION_EPSILON = 1e-9;
 
 function zone_round(value) {
     return Math.round(Number(value) * 1e6) / 1e6;
@@ -176,7 +177,11 @@ function Zone(x, y, radius, growth, type, option, details) {
             var xdir = teleportDirection.x;
             var ydir = teleportDirection.y;
             var directionLength = Math.sqrt(xdir * xdir + ydir * ydir);
-            xdir /= directionLength; ydir /= directionLength;
+            if(directionLength <= ZONE_DIRECTION_EPSILON || !isFinite(directionLength)) {
+                xdir = 1; ydir = 0;
+            } else {
+                xdir /= directionLength; ydir /= directionLength;
+            }
             var markerSize = ZONE_TELEPORT_MARKER_SIZE;
             this.destinationObj = vectron_screen.path([
                 "M", destinationX - xdir * markerSize / 2, destinationY - ydir * markerSize / 2,
