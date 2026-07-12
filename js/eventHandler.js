@@ -2032,7 +2032,8 @@ function eventHandler_init() {
         if(!aamap_active) return;
 
         if(vectron_currentTool == "zone") {
-            var availableTypes = xml_game_mode === "armaracing" ? [0, 1, 3, 5, 6, 7] : [0, 1, 2, 3, 4, 5];
+            var availableTypes = xml_game_mode === "armaracing" ?
+                ZONE_TOOL_RACING_TYPES : ZONE_TOOL_LEGACY_TYPES;
             var currentIndex = availableTypes.indexOf(zoneTool_type);
             zoneTool_type = availableTypes[(currentIndex + 1) % availableTypes.length];
            gui_writeLog('Zone Tool Toggled: '

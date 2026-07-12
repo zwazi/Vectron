@@ -179,7 +179,7 @@ function xml_process_piece(xml)
             return;
         }
         var radius = circle.length ? Number(circle.attr("radius")) : 0;
-        var growth = circle.attr("growth") === undefined ? 0 : Number(circle.attr("growth"));
+        var growth = circle.attr("growth") === undefined ? ZONE_DEFAULT_GROWTH : Number(circle.attr("growth"));
         if(circle.length && (!isFinite(radius) || !isFinite(growth))) {
             gui_writeLog("Skipped zone with non-numeric circle geometry.");
             return;
@@ -204,7 +204,7 @@ function xml_process_piece(xml)
             case "checkpoint":
                 // Armaracing uses zero-based Zone order; legacy maps use positive Checkpoint id.
                 option = zone.attr("order") !== undefined ? Number(zone.attr("order")) :
-                    Number(circle.children("Checkpoint").attr("id"));
+                    Number(zone.find("Checkpoint").first().attr("id"));
                 if(!zoneTool_validCheckpointOrder(option, zone.attr("order") !== undefined)) {
                     gui_writeLog("Skipped checkpoint zone with invalid order.");
                     return;
