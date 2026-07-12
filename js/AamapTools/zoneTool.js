@@ -61,6 +61,8 @@ var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
 var ZONE_TOOL_MIN_POLYGON_POINTS = 3;
 var ZONE_TOOL_LEGACY_CHECKPOINT_ORDER = 1;
 var ZONE_TOOL_RACING_CHECKPOINT_ORDER = 0;
+var ZONE_TOOL_LEGACY_TYPES = [0, 1, 2, 3, 4, 5];
+var ZONE_TOOL_RACING_TYPES = [0, 1, 3, 5, 6, 7];
 
 function zoneTool_validCheckpointOrder(value, racing) {
     var minimum = racing ? ZONE_TOOL_RACING_CHECKPOINT_ORDER : ZONE_TOOL_LEGACY_CHECKPOINT_ORDER;
@@ -191,7 +193,7 @@ function zoneTool_complete() {
         var cy = aamap_mapY(cursor_realY);
         var quickDetails = zoneTool_buildDetails(cx, cy, quickR);
         if(!quickDetails) return;
-        var newZone = new Zone(cx, cy, quickR, 0, zoneTool_type,
+        var newZone = new Zone(cx, cy, quickR, ZONE_DEFAULT_GROWTH, zoneTool_type,
             zoneTool_getOption(), quickDetails);
         aamap_add(newZone);
         aamap_recordAction({
@@ -243,7 +245,7 @@ function zoneTool_complete() {
 
     var details = zoneTool_buildDetails(newX, newY, radius);
     if(!details) return;
-    var newZone = new Zone(newX, newY, radius, 0, zoneTool_type,
+    var newZone = new Zone(newX, newY, radius, ZONE_DEFAULT_GROWTH, zoneTool_type,
         zoneTool_getOption(), details);
     aamap_add(newZone);
     aamap_recordAction({

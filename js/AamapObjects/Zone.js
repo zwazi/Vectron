@@ -25,6 +25,7 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 var zone_warning;
+var ZONE_DEFAULT_GROWTH = 0;
 
 function zone_round(value) {
     return Math.round(Number(value) * 1e6) / 1e6;
@@ -250,7 +251,7 @@ function Zone(x, y, radius, growth, type, option, details) {
     }
 
     this.getXML = function() {
-        var legacy = typeof xml_game_mode === "undefined" || xml_game_mode !== "armaracing";
+        var legacy = xml_game_mode !== "armaracing";
         var attributes = legacy ? ' effect="' + zone_xmlAttr(this.zoneName) + '"' :
             ' type="' + zone_xmlAttr(this.zoneName) + '"';
         if(legacy && this.zoneName === "rubber") {
