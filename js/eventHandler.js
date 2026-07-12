@@ -914,7 +914,13 @@ function eventHandler_init() {
         zoneTool_setGameMode(this.value);
         gui_writeLog(this.value === "armaracing" ? "Armaracing features enabled." : "Legacy Armagetron features enabled.");
     });
-    $('#dZoneShape').on('change', zoneTool_updateRubberBar);
+    $('#dZoneShape').on('change', function() {
+        zoneTool_resetPlacement();
+        zoneTool_updateRubberBar();
+        zoneTool_guide();
+    });
+    $(document).on("click", "#zone-tool-finish", zoneTool_finishPolygon);
+    $(document).on("click", "#zone-tool-cancel", zoneTool_cancelPlacement);
     $('#map_settings').on('input change', function() {
         xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
     });
@@ -1794,6 +1800,9 @@ function eventHandler_init() {
         e.preventDefault();
         if(aamap_active && vectron_currentTool == "wall" && vectron_toolActive) {
             wallTool_complete();
+        } else if(aamap_active && vectron_currentTool == "zone" &&
+            zoneTool_stage === "shape" && $("#dZoneShape").val() === "polygon") {
+            zoneTool_finishPolygon();
         }
     });
 
@@ -2070,11 +2079,8 @@ function eventHandler_init() {
     Mousetrap.bind('escape', function(e) {
         // Priority: cancel active tool / switch to select → deselect
         // NOTE: Escape does NOT close the settings menu or the XML editor.
-        if(vectron_currentTool == "zone" && zoneTool_placingSize) {
-            zoneTool_placingSize = false;
-            vectron_toolActive = false;
-            if(zoneTool_guideObj != null) { zoneTool_guideObj.remove(); zoneTool_guideObj = null; }
-            zoneTool_guide();
+        if(vectron_currentTool == "zone" && vectron_toolActive) {
+            zoneTool_cancelPlacement();
             return false;
         }
         if(vectron_currentTool == "wall" && vectron_toolActive) {

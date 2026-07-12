@@ -412,8 +412,8 @@
                     </div>
                     <div id="zone-polygon-setting" class="vt-tool-grid-row vt-setting-row armaracing-only" style="display:none;">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-edit"></span></span>
-                        <label class="vt-tool-name" for="dPolygonPoints">Local Points</label>
-                        <span class="vt-tool-input"><input type="text" id="dPolygonPoints" value="-1,-1 1,-1 1,1 -1,1" title="Space-separated local x,y vertices" /></span>
+                        <span class="vt-tool-name">Vertices</span>
+                        <span class="vt-tool-input">Place points on the map</span>
                     </div>
                     <div id="zone-rubber-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-dashboard" aria-hidden="true"></span></span>
@@ -459,6 +459,16 @@
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-record" aria-hidden="true"></span></span>
                         <label class="vt-tool-name" for="zone-quick-size">Size Radius</label>
                         <span class="vt-tool-input"><input type="number" id="zone-quick-size" value="32" min="1" step="1" /></span>
+                    </div>
+                    <div class="vt-tool-grid-row vt-setting-row">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-map-marker"></span></span>
+                        <span class="vt-tool-name">Placement</span>
+                        <span id="zone-tool-status" class="vt-tool-input" role="status" aria-live="polite" aria-label="Zone placement instructions"></span>
+                    </div>
+                    <div class="vt-tool-grid-row vt-setting-row vt-tool-actions-row">
+                        <span class="vt-tool-icon"></span>
+                        <span class="vt-tool-name">Action</span>
+                        <span class="vt-tool-input vt-tool-actions"><button id="zone-tool-finish" class="btn btn-sm btn-primary" style="display:none;">Finish Polygon</button><button id="zone-tool-cancel" class="btn btn-sm btn-default" style="display:none;">Cancel</button></span>
                     </div>
                 </div>
             </div>
