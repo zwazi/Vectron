@@ -414,7 +414,7 @@ window.onload = function() {
     console.log(vectron_width);
 }
 
-function vectron_saveTextAsFile(xml, filename)
+async function vectron_saveTextAsFile(xml, filename)
 {
     var textToWrite = xml;
     var textFileAsBlob;
@@ -430,6 +430,31 @@ function vectron_saveTextAsFile(xml, filename)
         console.log(textFileAsBlob);
     }
     var fileNameToSaveAs = filename;
+
+    if (typeof window.showSaveFilePicker === "function")
+    {
+        try
+        {
+            var fileHandle = await window.showSaveFilePicker({
+                suggestedName: fileNameToSaveAs,
+                types: [{
+                    description: "XML file",
+                    accept: {"text/xml": [".xml"]}
+                }]
+            });
+            var writable = await fileHandle.createWritable();
+            await writable.write(textFileAsBlob);
+            await writable.close();
+        }
+        catch(e)
+        {
+            if (e.name !== "AbortError")
+            {
+                console.error("Unable to save file.", e);
+            }
+        }
+        return;
+    }
 
     var downloadLink = document.createElement("a");
     downloadLink.download = fileNameToSaveAs;
