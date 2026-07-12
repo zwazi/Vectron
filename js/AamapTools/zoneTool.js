@@ -301,6 +301,7 @@ function zoneTool_finishPolygon() {
     x /= points.length; y /= points.length;
     var details = zoneTool_buildDetails(x, y, 1);
     details.polygonScale = 1;
+    // ShapePolygon stores an absolute origin followed by vertices local to that origin.
     details.polygonPoints = points.map(function(point) {
         return {x:point.x - x, y:point.y - y};
     });
@@ -338,6 +339,7 @@ function zoneTool_complete() {
         var directionY = aamap_mapY(cursor_realY) - destination.y;
         var directionLength = Math.sqrt(directionX * directionX + directionY * directionY);
         if(directionLength <= ZONE_TOOL_DIRECTION_EPSILON) {
+            // Clicking on the destination itself keeps the format's default eastward direction.
             directionX = ZONE_TOOL_DEFAULT_XDIR;
             directionY = ZONE_TOOL_DEFAULT_YDIR;
         }
@@ -354,6 +356,7 @@ function zoneTool_complete() {
     var clickPoint = {x:aamap_mapX(cursor_realX), y:aamap_mapY(cursor_realY)};
     if(shape === "polygon") {
         var previous = zoneTool_points[zoneTool_points.length - 1];
+        // A finishing double-click produces two mouse-up events at the same vertex.
         if(!previous || previous.x !== clickPoint.x || previous.y !== clickPoint.y) {
             zoneTool_points.push(clickPoint);
         }
