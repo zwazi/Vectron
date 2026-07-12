@@ -482,3 +482,4 @@ async function vectron_saveTextAsFile(xml, filename)
 function vectron_destroyClickedElement(event) {
     document.body.removeChild(event.target);
 }
+
