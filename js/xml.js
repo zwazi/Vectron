@@ -44,7 +44,8 @@ function xml_detectGameMode(parsed) {
         return "armaracing";
     }
     for(var i = 0; i < xml_settings.length; i++) {
-        if(/^(RACING_)?(PROGRAM|USER|ADMIN|ARCHITECT)_TIME |^(BRONZE|SILVER|GOLD|AUTHOR)_TIME /i.test(xml_settings[i])) {
+        var settingName = xml_settings[i].trim().split(/\s+/, 1)[0];
+        if(/^(?:(?:RACING_)?(?:PROGRAM|USER|ADMIN|ARCHITECT)_TIME|(?:BRONZE|SILVER|GOLD|AUTHOR)_TIME)$/i.test(settingName)) {
             return "armaracing";
         }
     }
@@ -230,8 +231,9 @@ function xml_process_piece(xml)
             var center = circle.children("Point").first();
             x = Number(center.attr("x"));
             y = Number(center.attr("y"));
-            ptsx.push(x - radius, x + radius);
-            ptsy.push(y - radius, y + radius);
+            var circleExtent = radius + Math.abs(growth);
+            ptsx.push(x - circleExtent, x + circleExtent);
+            ptsy.push(y - circleExtent, y + circleExtent);
         } else if(rectangle.length) {
             details.minx = Number(rectangle.attr("minx"));
             details.miny = Number(rectangle.attr("miny"));
