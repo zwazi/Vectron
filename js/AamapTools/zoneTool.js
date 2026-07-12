@@ -58,6 +58,12 @@ var zoneTool_centerMapX = 0;
 var zoneTool_centerMapY = 0;
 
 var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
+var ZONE_TOOL_MIN_POLYGON_POINTS = 3;
+
+function zoneTool_validCheckpointOrder(value, racing) {
+    var minimum = racing ? 0 : 1;
+    return isFinite(value) && value >= minimum && Math.floor(value) === value;
+}
 
 function zoneTool_removeGuide() {
     if(zoneTool_guideObj != null) {
@@ -161,8 +167,7 @@ function zoneTool_complete() {
     if(zoneTool_type === 5) {
         var checkpointOrder = Number($("#dCheckpointOrder").val());
         var minimumOrder = xml_game_mode === "armaracing" ? 0 : 1;
-        if(!isFinite(checkpointOrder) || checkpointOrder < minimumOrder ||
-            Math.floor(checkpointOrder) !== checkpointOrder) {
+        if(!zoneTool_validCheckpointOrder(checkpointOrder, xml_game_mode === "armaracing")) {
             gui_writeLog("Checkpoint order must be a whole number starting at " + minimumOrder + ".");
             return;
         }
@@ -285,7 +290,7 @@ function zoneTool_buildDetails(x, y, size) {
             }
             details.polygonPoints.push({x:px, y:py});
         }
-        if(details.polygonPoints.length < 3) {
+        if(details.polygonPoints.length < ZONE_TOOL_MIN_POLYGON_POINTS) {
             gui_writeLog("Polygon zones require at least three local points.");
             return null;
         }

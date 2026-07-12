@@ -87,7 +87,12 @@ function xml_process(xml, suppressHistoryClear) {
     $("#map_axes_forced")[0].checked = false;
     $(parsed).find("Axes").first().each(function() {
         var parsedAxes = parseInt($(this).attr("number"));
-        if(isFinite(parsedAxes)) xml_axes = parsedAxes;
+        if(isFinite(parsedAxes) && parsedAxes >= 1 && parsedAxes <= 65535 &&
+            Math.floor(parsedAxes) === parsedAxes) {
+            xml_axes = parsedAxes;
+        } else if($(this).attr("number") !== undefined) {
+            gui_writeLog("Ignored invalid Axes count.");
+        }
         $(this).children("Axis").each(function() {
             var xdir = Number($(this).attr("xdir"));
             var ydir = Number($(this).attr("ydir"));
@@ -169,8 +174,12 @@ function xml_process_piece(xml)
             gui_writeLog("Skipped zone without a supported shape.");
             return;
         }
-        var radius = Number(circle.attr("radius")) || 0;
-        var growth = Number(circle.attr("growth")) || 0;
+        var radius = circle.length ? Number(circle.attr("radius")) : 0;
+        var growth = circle.attr("growth") === undefined ? 0 : Number(circle.attr("growth"));
+        if(circle.length && (!isFinite(radius) || !isFinite(growth))) {
+            gui_writeLog("Skipped zone with non-numeric circle geometry.");
+            return;
+        }
         var option;
         var details = {
             zoneName: effect,
@@ -191,8 +200,7 @@ function xml_process_piece(xml)
             case "checkpoint":
                 option = zone.attr("order") !== undefined ? Number(zone.attr("order")) :
                     Number(circle.children("Checkpoint").attr("id"));
-                var minimumOrder = zone.attr("order") !== undefined ? 0 : 1;
-                if(!isFinite(option) || option < minimumOrder || Math.floor(option) !== option) {
+                if(!zoneTool_validCheckpointOrder(option, zone.attr("order") !== undefined)) {
                     gui_writeLog("Skipped checkpoint zone with invalid order.");
                     return;
                 }
@@ -225,6 +233,11 @@ function xml_process_piece(xml)
             details.miny = Number(rectangle.attr("miny"));
             details.maxx = Number(rectangle.attr("maxx"));
             details.maxy = Number(rectangle.attr("maxy"));
+            if(!isFinite(details.minx) || !isFinite(details.miny) ||
+                !isFinite(details.maxx) || !isFinite(details.maxy)) {
+                gui_writeLog("Skipped zone with non-numeric rectangle geometry.");
+                return;
+            }
             x = (details.minx + details.maxx) / 2;
             y = (details.miny + details.maxy) / 2;
             ptsx.push(details.minx, details.maxx);
@@ -237,13 +250,19 @@ function xml_process_piece(xml)
             x = Number(origin.attr("x"));
             y = Number(origin.attr("y"));
             details.polygonPoints = [];
+            var invalidPolygon = !isFinite(x) || !isFinite(y);
             polygonPoints.slice(1).each(function() {
                 var localX = Number($(this).attr("x"));
                 var localY = Number($(this).attr("y"));
+                if(!isFinite(localX) || !isFinite(localY)) invalidPolygon = true;
                 details.polygonPoints.push({x:localX, y:localY});
                 ptsx.push(x + localX * details.polygonScale);
                 ptsy.push(y + localY * details.polygonScale);
             });
+            if(invalidPolygon || details.polygonPoints.length < ZONE_TOOL_MIN_POLYGON_POINTS) {
+                gui_writeLog("Skipped polygon zone with invalid static geometry.");
+                return;
+            }
         }
         if(!isFinite(x) || !isFinite(y)) {
             gui_writeLog("Skipped zone with invalid coordinates.");

@@ -268,7 +268,7 @@ function Zone(x, y, radius, growth, type, option, details) {
                     '" destination_y="' + zone_xmlAttr(this.options.destination_y) + '"';
                 if(this.options.angle !== undefined) {
                     attributes += ' angle="' + zone_xmlAttr(this.options.angle) + '"';
-                } else if(this.options.direction) {
+                } else if(this.options.direction !== undefined) {
                     attributes += ' direction="' + zone_xmlAttr(this.options.direction) + '"';
                 } else {
                     attributes += ' xdir="' + zone_xmlAttr(this.options.xdir) +
