@@ -37,6 +37,20 @@ var xml_game_mode = "armagetron";
 var xml_settings = [];
 var xml_latest_read_id = 0;
 
+function xml_detectGameMode(parsed) {
+    if(xml_axis_vectors.length > 0 ||
+        $(parsed).find("Zone[type],Zone[kind],ShapeRectangle,ShapePolygon," +
+            "Zone[priority],Zone[start_tick],Zone[end_tick],Zone[trigger]").length > 0) {
+        return "armaracing";
+    }
+    for(var i = 0; i < xml_settings.length; i++) {
+        if(/^(RACING_)?(PROGRAM|USER|ADMIN|ARCHITECT)_TIME |^(BRONZE|SILVER|GOLD|AUTHOR)_TIME /i.test(xml_settings[i])) {
+            return "armaracing";
+        }
+    }
+    return "armagetron";
+}
+
 function xml_init() {
 
     $('#files').change(function(e) {
@@ -63,7 +77,7 @@ function xml_process(xml, suppressHistoryClear) {
     try {
         parsed = typeof xml === "string" ? $.parseXML(xml) : xml;
     } catch(e) {
-        gui_writeLog("Could not parse map XML.");
+        gui_writeLog("Could not parse map XML: " + e.message);
         return;
     }
     var root = $(parsed.documentElement);
@@ -102,18 +116,7 @@ function xml_process(xml, suppressHistoryClear) {
         $("#map_axes_forced")[0].checked = true;
     });
 
-    var racing = $(parsed).find("Zone[type],Zone[kind],ShapeRectangle,ShapePolygon," +
-        "Zone[priority],Zone[start_tick],Zone[end_tick],Zone[trigger]").length > 0 ||
-        xml_axis_vectors.length > 0;
-    if(!racing) {
-        for(var si = 0; si < xml_settings.length; si++) {
-            if(/^(RACING_|BRONZE_TIME |SILVER_TIME |GOLD_TIME |AUTHOR_TIME )/i.test(xml_settings[si])) {
-                racing = true;
-                break;
-            }
-        }
-    }
-    zoneTool_setGameMode(racing ? "armaracing" : "armagetron");
+    zoneTool_setGameMode(xml_detectGameMode(parsed));
     gui_fillInput();
 
     var pt = xml_process_piece(parsed);
@@ -198,6 +201,7 @@ function xml_process_piece(xml)
                 details.options.duration_ticks = zone.attr("duration_ticks");
                 break;
             case "checkpoint":
+                // Armaracing uses zero-based Zone order; legacy maps use positive Checkpoint id.
                 option = zone.attr("order") !== undefined ? Number(zone.attr("order")) :
                     Number(circle.children("Checkpoint").attr("id"));
                 if(!zoneTool_validCheckpointOrder(option, zone.attr("order") !== undefined)) {
