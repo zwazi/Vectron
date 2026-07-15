@@ -1,7 +1,6 @@
-<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>
-<!DOCTYPE Resource SYSTEM "sty.dtd">
+<?xml version="1.0" encoding="UTF-8"?>
 <Resource type="aamap" name="Vectron" version="0.1" author="zwazi" category="test">
-  <Map version="0.2.8">
+  <Map version="2">
     <World>
       <Field>
         <Axes number="8"/>
@@ -63,8 +62,8 @@
           <Point x="212.627052" y="-70.758214"/>
           <Point x="216" y="-80"/>
         </Wall>
-        <Zone effect="death">
-          <ShapeCircle radius=" 80 " growth="0">
+        <Zone type="death">
+          <ShapeCircle radius="80">
             <Point x="304" y="0"/>
           </ShapeCircle>
         </Zone>
@@ -114,9 +113,4 @@
     </World>
   </Map>
 </Resource>
-<!-- Exported from Vectron 1.1 -->
-<!-- Use at: zwazi.github.io/Vectron -->
-<!-- Source Code: github.com/zwazi/Vectron -->
-
-<!-- Alternate Version: https://vectron.armanelgtron.tk/ -->
-<!-- Source Code: https://gitlab.com/Armanelgtron/Vectron/ -->
+<!-- Bundled with Vectron 1.2 for Arma Racing. -->

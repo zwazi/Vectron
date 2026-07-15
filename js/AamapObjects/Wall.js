@@ -36,11 +36,20 @@ function Wall() {
 
     this.isSelected = false;
     this.glowObj = null;
+    this.level = typeof aamap_activeLevel === "number" ? aamap_activeLevel : 0;
 
     this.points = [];
     this.pathArray = [];
 
     this.height = 4;
+    // null is the editor default: flat walls write a height, while sloped
+    // walls keep the established point-height-only representation. Imported
+    // walls use true/false to preserve exact attribute authorship.
+    this.heightAuthored = null;
+    // Flat walls store one height on <Wall>. Sloped walls store an explicit
+    // height on every <Point>, allowing the top edge to interpolate naturally
+    // along each segment.
+    this.slopedHeight = false;
 
     this.xml = 'Wall';
 
@@ -80,6 +89,7 @@ function Wall() {
 
     this.guide = function() {
         this.guideObj.remove();
+        if(!this.points.length) return;
         var guideArray = []
         guideArray = guideArray.concat(
             [
@@ -95,7 +105,14 @@ function Wall() {
              cursor_realY
             ]
         );
-        this.guideObj = vectron_screen.path(guideArray).attr({stroke: "#aaa"});
+        var cursorPoint = {
+            x:aamap_mapX(cursor_realX),
+            y:aamap_mapY(cursor_realY)
+        };
+        var style = typeof wallTool_getActiveSegmentStyle === "function" ?
+            wallTool_getActiveSegmentStyle(this.points[this.points.length - 1], cursorPoint) :
+            {stroke:"#aaa"};
+        this.guideObj = vectron_screen.path(guideArray).attr(style);
     }
 
     this.scale = function(factor) {
@@ -144,6 +161,16 @@ function Wall() {
         return [(x/this.points.length),(y/this.points.length)];
     }
 
+    this.getBounds = function() {
+        if(!this.points.length) return null;
+        var xs = this.points.map(function(point) { return point.x; });
+        var ys = this.points.map(function(point) { return point.y; });
+        return {
+            minx:Math.min.apply(Math, xs), miny:Math.min.apply(Math, ys),
+            maxx:Math.max.apply(Math, xs), maxy:Math.max.apply(Math, ys)
+        };
+    }
+
     this.move = function(dx, dy) {
         for(var i = 0, ii = this.points.length; i < ii; i++) {
             this.points[i].x = Math.round((this.points[i].x + dx) * 1e6) / 1e6;
@@ -151,22 +178,45 @@ function Wall() {
         }
     }
 
-    this.getXML = function() {
-        var xml = '<Wall height="'+this.height+'">\n';
+    this.getXML = function(includeLevel) {
+        var levelAttribute = includeLevel === false ? '' : ' level="' + this.level + '"';
+        var wallHeight = wall_normalizeHeight(this.height, 4);
+        var writeWallHeight = this.heightAuthored === true ||
+            (this.heightAuthored === null && !this.slopedHeight);
+        var xml = '<Wall' + levelAttribute +
+            (writeWallHeight ? ' height="' + wallHeight + '"' : '') + '>\n';
         for(var i = 0, ii = this.points.length; i < ii; i++) {
-            xml += '  <Point x="' + (Math.round(this.points[i].x * 1e6) / 1e6) + '" y="'+ (Math.round(this.points[i].y * 1e6) / 1e6) + '"/>\n';
+            var explicitPointHeight = Number(this.points[i].height);
+            var pointHeight = this.slopedHeight && isFinite(explicitPointHeight) &&
+                explicitPointHeight >= 0 ?
+                ' height="' + wall_normalizeHeight(explicitPointHeight, wallHeight) + '"' : '';
+            xml += '  <Point x="' + (Math.round(this.points[i].x * 1e6) / 1e6) + '" y="'+ (Math.round(this.points[i].y * 1e6) / 1e6) + '"' + pointHeight + '/>\n';
         }
         xml += '</Wall>';
         return xml;
     }
 
     this.outputFriendlyXML = function() {
-        gui_writeLog(escapeHtml('<Wall height="'+this.height+'">'));
+        var writeWallHeight = this.heightAuthored === true ||
+            (this.heightAuthored === null && !this.slopedHeight);
+        gui_writeLog(escapeHtml('<Wall' + (writeWallHeight ?
+            ' height="'+this.height+'"' : '') + '>'));
         for(var i = 0, ii = this.points.length; i < ii; i++) {
-            gui_writeLog('&nbsp;&nbsp;' + escapeHtml('<Point x="' + this.points[i].x + '" y="'+ this.points[i].y + '"/>'));
+            var explicitPointHeight = Number(this.points[i].height);
+            var pointHeight = this.slopedHeight && isFinite(explicitPointHeight) &&
+                explicitPointHeight >= 0 ?
+                ' height="' + wall_normalizeHeight(explicitPointHeight, this.height) + '"' : '';
+            gui_writeLog('&nbsp;&nbsp;' + escapeHtml('<Point x="' + this.points[i].x + '" y="'+ this.points[i].y + '"' + pointHeight + '/>'));
         }
         gui_writeLog(escapeHtml('</Wall>'));
     }
 
-}  
+}
+
+function wall_normalizeHeight(value, fallback) {
+    value = Number(value);
+    fallback = Number(fallback);
+    if(!isFinite(fallback) || fallback < 0) fallback = 4;
+    return isFinite(value) && value >= 0 ? Math.round(value * 1e6) / 1e6 : fallback;
+}
 

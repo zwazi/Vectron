@@ -104,7 +104,7 @@ function joinTool_findHoveredWall() {
     var bestDist = threshold;
     for (var i = 0; i < aamap_objects.length; i++) {
         var obj = aamap_objects[i];
-        if (!(obj instanceof Wall)) continue;
+        if (!(obj instanceof Wall) || !aamap_isObjectEditable(obj)) continue;
         // nearest point on polyline
         var dist = joinTool_distToWall(obj, mapX, mapY);
         if (dist < bestDist) {
@@ -141,8 +141,16 @@ function joinTool_ptEq(a, b) {
 }
 
 function joinTool_buildMergedWall(wallA, wallB, desc) {
-    var ptsA = wallA.points.slice();
-    var ptsB = wallB.points.slice();
+    var materializeHeights = Number(wallA.height) !== Number(wallB.height) ||
+        wallA.heightAuthored !== wallB.heightAuthored;
+    var ptsA = wallA.points.map(function(point) {
+        return new WallPoint(point.x, point.y,
+            materializeHeights ? wall_normalizeHeight(point.height, wallA.height) : point.height);
+    });
+    var ptsB = wallB.points.map(function(point) {
+        return new WallPoint(point.x, point.y,
+            materializeHeights ? wall_normalizeHeight(point.height, wallB.height) : point.height);
+    });
 
     if (desc.reverseA) ptsA.reverse();
     if (desc.reverseB) ptsB.reverse();
@@ -150,6 +158,10 @@ function joinTool_buildMergedWall(wallA, wallB, desc) {
     var combined = desc.swap ? ptsB.concat(ptsA.slice(1)) : ptsA.concat(ptsB.slice(1));
     var merged = new Wall();
     merged.height = wallA.height;
+    merged.heightAuthored = materializeHeights ? false : wallA.heightAuthored;
+    merged.slopedHeight = !!wallA.slopedHeight || !!wallB.slopedHeight ||
+        Number(wallA.height) !== Number(wallB.height);
+    merged.level = wallA.level;
     merged.points = combined;
     return merged;
 }
@@ -167,7 +179,7 @@ function joinTool_selectArea(xStart, yStart, xEnd, yEnd) {
     var walls = [];
     for (var i = 0; i < aamap_objects.length; i++) {
         var obj = aamap_objects[i];
-        if (!(obj instanceof Wall)) continue;
+        if (!(obj instanceof Wall) || !aamap_isObjectEditable(obj)) continue;
         for (var j = 0; j < obj.points.length - 1; j++) {
             if (selectTool_lineIntersectsRect(obj.points[j], obj.points[j + 1], params[0], params[1], params[2], params[3])) {
                 walls.push(obj);
@@ -275,6 +287,7 @@ function joinTool_completeSelection() {
 
 /** Check if two walls share an endpoint. Returns a join descriptor or null. */
 function joinTool_findJoin(wallA, wallB) {
+    if(!wallA || !wallB || wallA.level !== wallB.level) return null;
     var aFirst = wallA.points[0];
     var aLast  = wallA.points[wallA.points.length - 1];
     var bFirst = wallB.points[0];

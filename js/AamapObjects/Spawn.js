@@ -24,6 +24,52 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+var SPAWN_MARKER_SIZE = 16;
+
+function spawnMarker_cursorPosition() {
+    return {
+        x:Math.round(100 * aamap_mapX(cursor_realX)) / 100,
+        y:Math.round(100 * aamap_mapY(cursor_realY)) / 100
+    };
+}
+
+function spawnMarker_directionFromCursor(x, y, fallbackX, fallbackY) {
+    var targetX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
+    var targetY = cursor_snap ? cursor_realY : cursor_neverSnappedY;
+    var diffX = aamap_mapX(targetX) - x;
+    var diffY = aamap_mapY(targetY) - y;
+    var dist = Math.sqrt(diffX * diffX + diffY * diffY);
+
+    if(dist <= 1e-9) {
+        return {x:fallbackX === undefined ? 1 : fallbackX,
+            y:fallbackY === undefined ? 0 : fallbackY};
+    }
+    return {x:diffX / dist, y:diffY / dist};
+}
+
+function spawnMarker_toDegrees(xdir, ydir) {
+    // Raphael rotates clockwise while atan2 uses counter-clockwise angles.
+    return -Math.atan2(ydir, xdir) / Math.PI * 180;
+}
+
+function spawnMarker_path(x, y, scale) {
+    return [
+        "M", x, y,
+        "L", x - scale / 2, y,
+             x + scale / 2, y,
+        "M", x + scale / 2, y,
+        "L", x, y - scale / 3,
+        "M", x + scale / 2, y,
+        "L", x, y + scale / 3
+    ];
+}
+
+function spawnMarker_create(x, y, xdir, ydir, stroke, fill) {
+    return vectron_screen.path(spawnMarker_path(x, y, SPAWN_MARKER_SIZE))
+        .attr({stroke:stroke, fill:fill === undefined ? stroke : fill})
+        .transform("R" + spawnMarker_toDegrees(xdir, ydir));
+}
+
 function Spawn() {
 
     this.objectID = vectron_objectID;
@@ -36,9 +82,11 @@ function Spawn() {
 
     this.isSelected = false;
     this.glowObj = null;
+    this.level = typeof aamap_activeLevel === "number" ? aamap_activeLevel : 0;
 
-    this.x = Math.round(100*aamap_mapX(cursor_realX))/100;
-    this.y = Math.round(100*aamap_mapY(cursor_realY))/100;
+    var cursorPosition = spawnMarker_cursorPosition();
+    this.x = cursorPosition.x;
+    this.y = cursorPosition.y;
     this.xDir = 1;
     this.yDir = 0;
 
@@ -47,25 +95,14 @@ function Spawn() {
     this.xml = 'Spawn';
 
     this.toDegrees = function() {
-        var rad = Math.atan2(this.yDir, this.xDir);
-        var rotation = rad / Math.PI * 180;
-
-        //Rotates in raphael are clockwise, atan2 is counterclockwise.
-        rotation *= -1;
-        return rotation;
+        return spawnMarker_toDegrees(this.xDir, this.yDir);
     }
 
     this.guideUpdate = function() {
-        // get mouse cursor's distance from spawn's center
-        var targetX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
-        var targetY = cursor_snap ? cursor_realY : cursor_neverSnappedY;
-        var diffX = aamap_mapX(targetX) - this.x;
-        var diffY = aamap_mapY(targetY) - this.y;
-        var dist = Math.sqrt(diffX * diffX + diffY * diffY);
-
-        if(dist <= 1e-9) return;
-        this.xDir = diffX / dist;
-        this.yDir = diffY / dist;
+        var direction = spawnMarker_directionFromCursor(
+            this.x, this.y, this.xDir, this.yDir);
+        this.xDir = direction.x;
+        this.yDir = direction.y;
     }
 
     this.render = function() {
@@ -75,20 +112,8 @@ function Spawn() {
 
         var x = aamap_realX(this.x);
         var y = aamap_realY(this.y);
-        var scale = 16;//vectron_zoom;
-        this.obj = vectron_screen.path(
-                [
-                    "M", x, y,
-                    "L", x - scale/2, y,
-                         x + scale/2, y,
-                    "M", x + scale/2, y,
-                    "L", x, y - scale/3,
-                    "M", x + scale/2, y,
-                    "L", x, y + scale/3
-                ]
-            )
-            .attr({stroke: "#FF8ABE", "fill": "#FF8ABE"})
-            .transform("R" + this.toDegrees());
+        this.obj = spawnMarker_create(
+            x, y, this.xDir, this.yDir, "#FF8ABE", "#FF8ABE");
 
         // override translate function to adjust for rotation
         {
@@ -114,20 +139,8 @@ function Spawn() {
         this.guideUpdate();
         var x = aamap_realX(this.x);
         var y = aamap_realY(this.y);
-        var scale = 16;//vectron_zoom;
-        this.guideObj = vectron_screen.path(
-            [
-                "M", x, y,
-                "L", x - scale/2, y,
-                     x + scale/2, y,
-                "M", x + scale/2, y,
-                "L", x, y - scale/3,
-                "M", x + scale/2, y,
-                "L", x, y + scale/3
-            ]
-        )
-        .attr({stroke: "#FF3333", "fill": "#FF8ABE"})
-        .transform("R" + this.toDegrees());
+        this.guideObj = spawnMarker_create(
+            x, y, this.xDir, this.yDir, "#FF3333", "#FF8ABE");
     }
 
     this.guide();
@@ -170,13 +183,18 @@ function Spawn() {
         return [this.x,this.y];
     }
 
+    this.getBounds = function() {
+        return {minx:this.x, miny:this.y, maxx:this.x, maxy:this.y};
+    }
+
     this.move = function(dx, dy) {
         this.x = Math.round((this.x + dx) * 1e6) / 1e6;
         this.y = Math.round((this.y + dy) * 1e6) / 1e6;
     }
 
-    this.getXML = function() {
-        return '<Spawn x="'+ (Math.round(this.x * 1e6)/1e6) +'" y="'+ (Math.round(this.y * 1e6)/1e6) +'" xdir="'+ (Math.round(this.xDir * 1e6)/1e6) +'" ydir="'+ (Math.round(this.yDir * 1e6)/1e6) +'"/>';
+    this.getXML = function(includeLevel) {
+        var levelAttribute = includeLevel === false ? '' : ' level="' + this.level + '"';
+        return '<Spawn' + levelAttribute + ' x="'+ (Math.round(this.x * 1e6)/1e6) +'" y="'+ (Math.round(this.y * 1e6)/1e6) +'" xdir="'+ (Math.round(this.xDir * 1e6)/1e6) +'" ydir="'+ (Math.round(this.yDir * 1e6)/1e6) +'"/>';
     }
 
     this.outputFriendlyXML = function() {

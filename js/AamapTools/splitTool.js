@@ -40,6 +40,17 @@ var splitTool_hoveredWall = null;
 /** Minimum parametric distance from a segment endpoint to allow splitting (avoids zero-length walls). */
 var SPLIT_ENDPOINT_TOLERANCE = 1e-6;
 
+function splitTool_copyWallPoint(point, fallbackHeight) {
+    return new WallPoint(point.x, point.y, point.height);
+}
+
+function splitTool_copyWallProperties(source, target) {
+    target.height = source.height;
+    target.heightAuthored = source.heightAuthored;
+    target.slopedHeight = !!source.slopedHeight;
+    target.level = source.level;
+}
+
 function splitTool_connect() {
     $(".toolbar-toolSplit").addClass("toolbar-tool-active");
     cursor_active = false;
@@ -110,7 +121,7 @@ function splitTool_findHoveredWall() {
     var bestDist = threshold;
     for (var i = 0; i < aamap_objects.length; i++) {
         var obj = aamap_objects[i];
-        if (!(obj instanceof Wall)) continue;
+        if (!(obj instanceof Wall) || !aamap_isObjectEditable(obj)) continue;
         var pt = splitTool_nearestPointOnWall(obj, mapX, mapY);
         if (pt && pt.dist < bestDist) {
             bestDist = pt.dist;
@@ -210,15 +221,15 @@ function splitTool_click() {
             if (vertexIndex > 0 && vertexIndex < wall.points.length - 1) {
                 // Split at this existing intermediate vertex
                 var wallA = new Wall();
-                wallA.height = wall.height;
+                splitTool_copyWallProperties(wall, wallA);
                 for (var i = 0; i <= vertexIndex; i++) {
-                    wallA.points.push(new WallPoint(wall.points[i].x, wall.points[i].y));
+                    wallA.points.push(splitTool_copyWallPoint(wall.points[i], wall.height));
                 }
 
                 var wallB = new Wall();
-                wallB.height = wall.height;
+                splitTool_copyWallProperties(wall, wallB);
                 for (var i = vertexIndex; i < wall.points.length; i++) {
-                    wallB.points.push(new WallPoint(wall.points[i].x, wall.points[i].y));
+                    wallB.points.push(splitTool_copyWallPoint(wall.points[i], wall.height));
                 }
 
                 var idx = aamap_objects.indexOf(wall);
@@ -263,18 +274,23 @@ function splitTool_click() {
 
         // Build first wall: points[0..seg] + splitPoint
         var wallA = new Wall();
-        wallA.height = wall.height;
+        splitTool_copyWallProperties(wall, wallA);
         for (var i = 0; i <= seg; i++) {
-            wallA.points.push(new WallPoint(wall.points[i].x, wall.points[i].y));
+            wallA.points.push(splitTool_copyWallPoint(wall.points[i], wall.height));
         }
-        wallA.points.push(new WallPoint(splitX, splitY));
+        var splitHeight = wall.slopedHeight ?
+            wall_normalizeHeight(wall.points[seg].height, wall.height) + t *
+                (wall_normalizeHeight(wall.points[seg + 1].height, wall.height) -
+                 wall_normalizeHeight(wall.points[seg].height, wall.height)) :
+            wall.height;
+        wallA.points.push(new WallPoint(splitX, splitY, splitHeight));
 
         // Build second wall: splitPoint + points[seg+1..]
         var wallB = new Wall();
-        wallB.height = wall.height;
-        wallB.points.push(new WallPoint(splitX, splitY));
+        splitTool_copyWallProperties(wall, wallB);
+        wallB.points.push(new WallPoint(splitX, splitY, splitHeight));
         for (var i = seg + 1; i < wall.points.length; i++) {
-            wallB.points.push(new WallPoint(wall.points[i].x, wall.points[i].y));
+            wallB.points.push(splitTool_copyWallPoint(wall.points[i], wall.height));
         }
 
         // Remove original wall and add the two new walls

@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Arma Racing.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -25,7 +25,10 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-var config_isDark = false;
+// Vectron has one visual contract: the dark canvas/editor palette. Keeping the
+// flag true preserves the older object render helpers without retaining a
+// user-selectable light theme or any light-theme state transitions.
+var config_isDark = true;
 var config_scrollWheelZoom = true;
 var config_snapToPosition = true;
 var config_autoAdjustGridSpacing = true;
@@ -141,7 +144,6 @@ function _config_check_default(item)
 {
     switch(item)
     {
-        case "darkTheme": return "true";
         case "showInfoBar": return "true";
         case "showActionHistory": return "true";
         case "zoomStep": return "0.02";
@@ -209,30 +211,46 @@ function _config_set_disable(item)
 // ---- Keybinds ----
 var vectron_defaultKeybinds = {
     select: '1',
-    navigation: '2',
-    wall: '3',
+    wall: '2',
+    floor: '3',
     zone: '4',
     spawn: '5',
-    snap: '6',
+    ramp: '6',
     split: '7',
     join: '8',
-    wallVertexMove: '0'
+    wallVertexMove: '9'
 };
 var vectron_keybinds = {};
+var vectron_sShortcutCount = 0;
+var vectron_sShortcutLastTime = 0;
+var VECTRON_S_SHORTCUT_INTERVAL_MS = 450;
 
 function keybinds_load() {
-    var saved = _config_get('keybinds');
-    if (saved) {
-        try { vectron_keybinds = JSON.parse(saved); } catch(e) {}
-    }
-    // fill in any missing defaults
+    // Tool shortcuts are deliberately fixed so maps can be edited with the
+    // same muscle memory on every Vectron installation. Discard legacy saved
+    // bindings from versions which exposed these keys as preferences.
+    vectron_keybinds = {};
     for (var k in vectron_defaultKeybinds) {
-        if (!vectron_keybinds[k]) vectron_keybinds[k] = vectron_defaultKeybinds[k];
+        vectron_keybinds[k] = vectron_defaultKeybinds[k];
     }
+    _config_set('keybinds', JSON.stringify(vectron_keybinds));
 }
 
-function keybinds_save() {
-    _config_set('keybinds', JSON.stringify(vectron_keybinds));
+function keybinds_nextSAction(now) {
+    now = Number(now);
+    if(!isFinite(now)) now = Date.now();
+    if(now - vectron_sShortcutLastTime > VECTRON_S_SHORTCUT_INTERVAL_MS ||
+        now < vectron_sShortcutLastTime) {
+        vectron_sShortcutCount = 0;
+    }
+    vectron_sShortcutLastTime = now;
+    vectron_sShortcutCount = (vectron_sShortcutCount % 3) + 1;
+    return ["select", "spawn", "split"][vectron_sShortcutCount - 1];
+}
+
+function keybinds_resetSSequence() {
+    vectron_sShortcutCount = 0;
+    vectron_sShortcutLastTime = 0;
 }
 
 function keybinds_apply() {
@@ -240,30 +258,47 @@ function keybinds_apply() {
     var allKeys = new Set();
     for (var k in vectron_defaultKeybinds) allKeys.add(vectron_defaultKeybinds[k]);
     for (var k in vectron_keybinds)        allKeys.add(vectron_keybinds[k]);
+    ["w", "f", "z", "r", "j", "v", "s"].forEach(function(key) {
+        allKeys.add(key);
+    });
     // unbind all tool keys
     allKeys.forEach(function(key) {
         try { Mousetrap.unbind(key); } catch(e) {}
     });
 
-    function bindKey(key, fn) {
+    function bindKey(key, fn, continuesSSequence) {
         if (!key) return;
         Mousetrap.bind(key, function(e) {
             if (!aamap_active) return;
-            fn();
+            if(typeof preview3d_opened !== "undefined" && preview3d_opened) return;
+            if(!continuesSSequence) keybinds_resetSSequence();
+            fn(e);
+            return false;
         }, 'keydown');
     }
 
     bindKey(vectron_keybinds.select,     function(){ vectron_connectTool('select'); });
-    bindKey(vectron_keybinds.navigation, function(){ vectron_connectTool('navigation'); });
     bindKey(vectron_keybinds.wall,       function(){ vectron_connectTool('wall'); });
+    bindKey(vectron_keybinds.floor,      function(){ vectron_connectTool('floor'); });
     bindKey(vectron_keybinds.zone,       function(){ if(vectron_currentTool!='zone') vectron_connectTool('zone'); });
     bindKey(vectron_keybinds.spawn,      function(){ vectron_connectTool('spawn'); });
-    bindKey(vectron_keybinds.snap,       function(){
-        snapControls_toggle();
-    });
     bindKey(vectron_keybinds.split,           function(){ vectron_connectTool('split'); });
     bindKey(vectron_keybinds.join,            function(){ vectron_connectTool('join'); });
+    bindKey(vectron_keybinds.ramp,            function(){ vectron_connectTool('ramp'); });
     bindKey(vectron_keybinds.wallVertexMove,  function(){ vectron_connectTool('wallVertexMove'); });
+
+    // Letter aliases. S is intentionally a rapid-tap cycle: S selects,
+    // S,S chooses Spawn, and S,S,S chooses Split Wall.
+    bindKey('w', function(){ vectron_connectTool('wall'); });
+    bindKey('f', function(){ vectron_connectTool('floor'); });
+    bindKey('z', function(){ if(vectron_currentTool!='zone') vectron_connectTool('zone'); });
+    bindKey('r', function(){ vectron_connectTool('ramp'); });
+    bindKey('j', function(){ vectron_connectTool('join'); });
+    bindKey('v', function(){ vectron_connectTool('wallVertexMove'); });
+    bindKey('s', function(e){
+        if(e && e.repeat) return;
+        vectron_connectTool(keybinds_nextSAction(Date.now()));
+    }, true);
 
     keybinds_updateOverlays();
 }
@@ -272,13 +307,13 @@ function keybinds_updateOverlays() {
     // update small key-label overlays on toolbar buttons
     var map = {
         select:         '.toolbar-toolSelect',
-        navigation:     '.toolbar-toolNavigation',
         wall:           '.toolbar-toolWall',
+        floor:          '.toolbar-toolFloor',
         zone:           '.toolbar-toolZone',
         spawn:          '.toolbar-toolSpawn',
-        snap:           '#snap-to-grid-toggle',
         split:          '.toolbar-toolSplit',
         join:           '.toolbar-toolJoin',
+        ramp:           '.toolbar-toolRamp',
         wallVertexMove: '.toolbar-toolWallVertexMove'
     };
     for (var action in map) {
@@ -295,12 +330,9 @@ function keybinds_updateOverlays() {
 function config_load()
 {
     // load values without changing anything
-    if(_config_check("darkTheme"))
-        enable_dark_theme(true);
-    
     if(_config_check("showInfoBar"))
         show_info_bar(true);
-    
+
     if(_config_check("showActionHistory"))
     {
         actionHistory_show();
@@ -333,53 +365,16 @@ function config_load()
 
     keybinds_load();
     keybinds_apply();
-    keybinds_buildUI();
     gridConfig_buildUI();
 }
 
-
-var __darktheme_has_loaded = false;
-function enable_dark_theme(noset)
-{
-    var theme = document.getElementById("theme");
-    if("onload" in theme && !__darktheme_has_loaded)
-    {
-        theme.onload = function()
-        {
-            config_isDark = true;
-            __darktheme_has_loaded = true;
-            vectron_render();
-        };
-    }
-    else
-    {
-        config_isDark = true;
-        vectron_render();
-    }
-    theme.href = "./css/vectron-dark.css";
-    
-    document.getElementById("dark-theme").checked = true;
-    if(!noset) _config_set_enable("darkTheme");
-}
-function disable_dark_theme(noset)
-{
-    var theme = document.getElementById("theme");
-    if(theme.onload) theme.onload = null;
-    theme.href = "";
-    
-    config_isDark = false;
-    vectron_render();
-    
-    document.getElementById("dark-theme").checked = false;
-    if(!noset) _config_set_disable("darkTheme");
-}
 
 function show_info_bar(noset)
 {
     document.getElementsByClassName("info")[0].style.display = "flex";
     document.getElementById("canvas_container").style.bottom = "26px";
     vectron_render();
-    
+
     document.getElementById("show-info-bar").checked = true;
     if(!noset) _config_set_enable("showInfoBar");
 }
@@ -388,87 +383,9 @@ function hide_info_bar(noset)
     document.getElementsByClassName("info")[0].style.display = "none";
     document.getElementById("canvas_container").style.bottom = "";
     vectron_render();
-    
+
     document.getElementById("show-info-bar").checked = false;
     if(!noset) _config_set_disable("showInfoBar");
-}
-
-function keybinds_buildUI() {
-    var container = document.getElementById('keybinds-config');
-    if (!container) return;
-    container.innerHTML = '';
-
-    var labels = {
-        select: 'Select', navigation: 'Navigation', wall: 'Wall',
-        zone: 'Zone', spawn: 'Spawn', snap: 'Snap',
-        split: 'Split', join: 'Join', wallVertexMove: 'Vertex Move'
-    };
-
-    var grid = document.createElement('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:8px;';
-
-    Object.keys(labels).forEach(function(action) {
-        var row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;';
-
-        var lbl = document.createElement('label');
-        lbl.textContent = labels[action];
-        lbl.style.cssText = 'width:82px;margin:0;font-size:12px;';
-
-        var inp = document.createElement('input');
-        inp.type = 'text';
-        inp.maxLength = 3;
-        inp.value = vectron_keybinds[action] || '';
-        inp.className = 'form-control';
-        inp.style.cssText = 'width:50px;font-family:monospace;display:inline-block;';
-        inp.dataset.action = action;
-
-        var btn = document.createElement('button');
-        btn.textContent = '↺';
-        btn.title = 'Reset';
-        btn.setAttribute('aria-label', 'Reset keybind for ' + labels[action]);
-        btn.className = 'btn btn-xs btn-default';
-        btn.style.marginLeft = '4px';
-
-        // Only show reset button if current value differs from default
-        var defVal = vectron_defaultKeybinds[action] || '';
-        btn.style.display = (inp.value !== defVal) ? '' : 'none';
-
-        btn.onclick = (function(a, i, b) {
-            return function() {
-                i.value = vectron_defaultKeybinds[a] || '';
-                b.style.display = 'none';
-            };
-        })(action, inp, btn);
-
-        inp.addEventListener('input', (function(a, i, b) {
-            return function() {
-                var def = vectron_defaultKeybinds[a] || '';
-                b.style.display = (i.value !== def) ? '' : 'none';
-            };
-        })(action, inp, btn));
-
-        row.appendChild(lbl);
-        row.appendChild(inp);
-        row.appendChild(btn);
-        grid.appendChild(row);
-    });
-
-    container.appendChild(grid);
-
-    var saveBtn = document.createElement('button');
-    saveBtn.textContent = 'Apply Keybinds';
-    saveBtn.className = 'btn btn-sm btn-primary';
-    saveBtn.onclick = function() {
-        var inputs = container.querySelectorAll('input[data-action]');
-        inputs.forEach(function(inp) {
-            vectron_keybinds[inp.dataset.action] = inp.value.trim() || '';
-        });
-        keybinds_save();
-        keybinds_apply();
-        keybinds_buildUI(); // refresh to update reset button visibility
-    };
-    container.appendChild(saveBtn);
 }
 
 function gridConfig_buildUI() {
@@ -477,11 +394,11 @@ function gridConfig_buildUI() {
     container.innerHTML = '';
 
     // Default values for comparison
-    var defaultNarrowLight = '#d6d6ec', defaultNarrowDark = '#1a1a1a';
+    var defaultNarrowDark = '#1a1a1a';
     var defaultAxisX = '#2244cc', defaultAxisY = '#cc2222';
     var defaultThickNarrow = 1, defaultThickTenth = 0.5, defaultThickX = 1, defaultThickY = 1;
 
-    function getDefaultNarrowColor() { return config_isDark ? defaultNarrowDark : defaultNarrowLight; }
+    function getDefaultNarrowColor() { return defaultNarrowDark; }
     function getDefaultTenthColor()  { return getDefaultNarrowColor(); }
 
     var rows = [

@@ -31,9 +31,6 @@ var eventHandler_contextMenu = false;
 var eventHandler_middlePanning = false;
 var eventHandler_middleClickX = 0, eventHandler_middleClickY = 0;
 var eventHandler_middlePanStartX = 0, eventHandler_middlePanStartY = 0;
-var eventHandler_armawebtronPreviewUrl = "https://armawebtron.github.io/Armawebtron/main/";
-var eventHandler_armawebtronPreviewTimer = null;
-var eventHandler_armawebtronSettingsCustomCfgPath = "tampermonkey/settings_custom.cfg";
 var eventHandler_tooltipsPinned = false;
 var eventHandler_pinnedTooltipGap = 6;
 var eventHandler_pinnedTooltipArrowMargin = 8;
@@ -45,280 +42,142 @@ var eventHandler_tooltipPlacementTop = "top";
 var eventHandler_tooltipPlacementBottom = "bottom";
 var eventHandler_tooltipPlacementLeft = "left";
 var eventHandler_tooltipPlacementRight = "right";
-var eventHandler_armawebtronSettingsCustomCfgFallback = [
-    "SP_NUM_AIS 0",
-    "ARENA_AXES 8",
-    "ZONE_HEIGHT 1",
-    "ZONE_SEGMENTS 20",
-    "ZONE_SEG_LENGTH 1",
-    "SIZE_FACTOR 0",
-    "CYCLE_WALL_TIME 999",
-    "WALLS_LENGTH 1",
-    "CYCLE_ACCEL_OFFSET .00999999",
-    "CYCLE_DELAY .0009",
-    "CYCLE_SPEED_DECAY_ABOVE .2",
-    "CYCLE_BRAKE_REFILL 1",
-    "CYCLE_RUBBER 100",
-    "CYCLE_ACCEL 0",
-    "CYCLE_ACCEL_ENEMY 0",
-    "CYCLE_ACCEL_SLINGSHOT 0",
-    "CYCLE_RUBBER_MINDISTANCE 0",
-    "CYCLE_BRAKE 50",
-    "CYCLE_RUBBER_TIME 5",
-    "CYCLE_RUBBER_LEGACY 0",
-    "CYCLE_RUBBER_MINDISTANCE .0009999",
-    "CYCLE_SPEED_DECAY_BELOW .2",
-    "CYCLE_SPEED_MIN 0",
-    "CYCLE_SPEED 125"
-].join("\n");
+var eventHandler_levelDeleteTarget = null;
+var eventHandler_pendingExportMap = null;
+var codeViewer_sourceFormat = "armamap";
+
+function codeViewer_setSourceFormat(format) {
+    codeViewer_sourceFormat = format === "legacy-xml" ? "legacy-xml" : "armamap";
+}
+
+function codeViewer_formatJsonText(source) {
+    var document = typeof source === "string" ? JSON.parse(source) : source;
+    return JSON.stringify(document, null, 2) + "\n";
+}
+
+function codeViewer_formatXmlText(source) {
+    var compact = String(source === undefined || source === null ? "" : source)
+        .trim().replace(/>\s*</g, "><");
+    if(!compact) return "";
+    var lines = compact.replace(/></g, ">\n<").split("\n");
+    var depth = 0;
+    return lines.map(function(rawLine) {
+        var line = rawLine.trim();
+        if(/^<\//.test(line)) depth = Math.max(0, depth - 1);
+        var formatted = new Array(depth + 1).join("  ") + line;
+        var opensElement = /^<[^!?/][^>]*>/.test(line) && !/\/>$/.test(line);
+        var closesOnSameLine = /<\/[^>]+>$/.test(line);
+        if(opensElement && !closesOnSameLine) depth++;
+        return formatted;
+    }).join("\n") + "\n";
+}
 
 function eventHandler_getExportMap() {
     var mapName = $("#map_name").val().trim() || "map";
     var mapAuthor = $("#map_author").val().trim();
-    var mapCategory = $("#map_category").val().trim();
-    var mapVersion = $("#map_version").val().trim() || "1";
-    var mapDtd = $("#map_dtd").val().trim() || "sty.dtd";
-    var mapAxes = parseInt($("#map_axes").val().trim()) || 4;
+    var mapTags = $("#map_category").val().trim();
+    var axesText = $("#map_axes").val().trim();
+    var mapAxes = axesText === "" ? 4 : Number(axesText);
     var mapSets = $("#map_settings").val().split("\n");
-    var map = aamap_buildXml(mapName, mapAuthor, mapCategory, mapVersion, mapDtd, mapAxes, mapSets);
-
-    var mapSettingsCustomCfg = mapSets.filter(function(setting) {
-        return setting.trim() != "";
-    });
-
-    if($("#map_axes_forced")[0].checked) {
-        mapSettingsCustomCfg.push("ARENA_AXES " + mapAxes);
-    }
-
-    map.settingsCustomCfg = mapSettingsCustomCfg.join("\n");
-
+    var map = armamap_build(mapName, mapAuthor, mapTags, "", mapAxes,
+        mapSets, xml_author_password_hash);
+    xml_version = map.document.metadata.revision;
+    $("#map_version").val(xml_version);
     return map;
 }
 
-function eventHandler_getArmawebtronPreviewUrl() {
-    if(typeof window.vectron_armawebtronPreviewUrl == "string" && window.vectron_armawebtronPreviewUrl.trim()) {
-        return window.vectron_armawebtronPreviewUrl.trim();
-    }
-
-    var savedUrl = localStorage.getItem("vectron_armawebtronPreviewUrl");
-    if(savedUrl && savedUrl.trim()) {
-        return savedUrl.trim();
-    }
-
-    return eventHandler_armawebtronPreviewUrl;
+function eventHandler_hasAuthorPasswordForExport() {
+    return xml_isValidAuthorPasswordHash(xml_author_password_hash);
 }
 
-function eventHandler_getArmawebtronSettingsCustomCfg() {
-    if(typeof fetch != "function") {
-        return Promise.resolve("");
-    }
-
-    return fetch(eventHandler_armawebtronSettingsCustomCfgPath + "?_=" + Date.now(), {
-        cache: "no-store"
-    }).then(function(response) {
-        if(!response.ok) {
-            gui_writeLog("Using bundled settings_custom.cfg fallback for preview.");
-            return eventHandler_armawebtronSettingsCustomCfgFallback;
+function eventHandler_scaleMap(factor, label) {
+    factor = Number(factor);
+    if(!isFinite(factor) || factor === 0) return false;
+    var affectedObjs = aamap_objects.slice();
+    aamap_scale(factor);
+    aamap_panCenter();
+    aamap_recordAction({
+        label:label || "Scale map",
+        undo:function() {
+            affectedObjs.forEach(function(object) { object.scale(1 / factor); });
+            aamap_panCenter();
+        },
+        redo:function() {
+            affectedObjs.forEach(function(object) { object.scale(factor); });
+            aamap_panCenter();
         }
+    });
+    return true;
+}
 
-        return response.text().then(function(text) {
-            if(text.trim() == "") {
-                gui_writeLog("Using bundled settings_custom.cfg fallback for preview.");
-                return eventHandler_armawebtronSettingsCustomCfgFallback;
-            }
+function eventHandler_downloadExportMapReady() {
+    if($("#map_author_password").val().length && !xml_author_password_hash) {
+        gui_toast("The author password could not be secured. Export canceled.");
+        return false;
+    }
+    if(!eventHandler_hasAuthorPasswordForExport()) {
+        gui_toast("Set an author-time password in Map Settings before exporting.");
+        gui_writeLog("Export canceled: an author-time password is required.");
+        $("#map_author_password").focus();
+        return false;
+    }
+    var map = eventHandler_getExportMap();
+    if(map.validationErrors && map.validationErrors.length) {
+        gui_toast(map.validationErrors[0]);
+        gui_writeLog(map.validationErrors.join(" "));
+        return false;
+    }
+    if(map.validationWarnings && map.validationWarnings.length) {
+        var warning = map.validationWarnings.join("\n\n");
+        gui_writeLog(map.validationWarnings.join(" "));
+        if(!window.confirm("Export warning\n\n" + warning)) {
+            gui_toast("Export canceled.");
+            return false;
+        }
+    }
+    eventHandler_pendingExportMap = map;
+    $("#export-password-confirm").val("");
+    $("#export-password-error").hide();
+    $("#export-password-popover").css("display", "flex");
+    window.setTimeout(function() { $("#export-password-confirm").focus(); }, 0);
+    return false;
+}
 
-            return text;
+function eventHandler_closeExportPassword() {
+    eventHandler_pendingExportMap = null;
+    $("#export-password-confirm").val("");
+    $("#export-password-error").hide();
+    $("#export-password-popover").hide();
+}
+
+function eventHandler_confirmExportPassword() {
+    var map = eventHandler_pendingExportMap;
+    if(!map) return Promise.resolve(false);
+    var input = document.getElementById("export-password-confirm");
+    var password = input.value;
+    input.value = "";
+    return xml_verifyAuthorPassword(password).then(function(valid) {
+        password = "";
+        if(!valid) {
+            $("#export-password-error").show();
+            input.focus();
+            return false;
+        }
+        vectron_saveTextAsFile(map.text, map.fileName);
+        eventHandler_closeExportPassword();
+        gui_toast("Map exported as " + map.fileName + ".");
+        return true;
+    });
+}
+
+function eventHandler_downloadExportMap() {
+    if(xml_author_password_pending) {
+        gui_toast("Securing author password…");
+        return xml_waitForAuthorPasswordHash().then(function() {
+            return eventHandler_downloadExportMapReady();
         });
-    }).catch(function() {
-        gui_writeLog("Could not load tampermonkey/settings_custom.cfg; using bundled fallback.");
-        return eventHandler_armawebtronSettingsCustomCfgFallback;
-    });
-}
-
-function eventHandler_mergePreviewSettings(mapSettingsCustomCfg, fileSettingsCustomCfg) {
-    var settings = [];
-    if(fileSettingsCustomCfg && fileSettingsCustomCfg.trim()) {
-        settings.push(fileSettingsCustomCfg.trim());
     }
-    if(mapSettingsCustomCfg && mapSettingsCustomCfg.trim()) {
-        settings.push(mapSettingsCustomCfg.trim());
-    }
-
-    return settings.join("\n");
-}
-
-function eventHandler_getMapSpawns() {
-    var spawns = [];
-    for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
-        if(aamap_objects[i] instanceof Spawn) {
-            spawns.push(aamap_objects[i]);
-        }
-    }
-
-    return spawns;
-}
-
-function eventHandler_getMapWalls() {
-    var walls = [];
-    for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
-        if(aamap_objects[i] instanceof Wall && aamap_objects[i].points.length >= 2) {
-            walls.push(aamap_objects[i]);
-        }
-    }
-
-    return walls;
-}
-
-function eventHandler_pointsAreSame(a, b) {
-    return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
-}
-
-function eventHandler_pointKey(point) {
-    return (Math.round(point.x * 1e6) / 1e6) + "," + (Math.round(point.y * 1e6) / 1e6);
-}
-
-function eventHandler_addWallGraphPoint(graph, point) {
-    var key = eventHandler_pointKey(point);
-    if(!graph.points[key]) {
-        graph.points[key] = {
-            key: key,
-            x: point.x,
-            y: point.y,
-            neighbors: []
-        };
-    }
-
-    return graph.points[key];
-}
-
-function eventHandler_addWallGraphSegment(graph, a, b) {
-    if(eventHandler_pointsAreSame(a, b)) {
-        return;
-    }
-
-    var pointA = eventHandler_addWallGraphPoint(graph, a);
-    var pointB = eventHandler_addWallGraphPoint(graph, b);
-    pointA.neighbors.push(pointB.key);
-    pointB.neighbors.push(pointA.key);
-}
-
-function eventHandler_getWallGraphComponents(graph) {
-    var components = [];
-    var visited = {};
-
-    Object.keys(graph.points).forEach(function(startKey) {
-        if(visited[startKey]) {
-            return;
-        }
-
-        var stack = [startKey];
-        var component = [];
-        visited[startKey] = true;
-
-        while(stack.length > 0) {
-            var key = stack.pop();
-            var point = graph.points[key];
-            component.push(point);
-            for(var i = 0, ii = point.neighbors.length; i < ii; i++) {
-                var neighborKey = point.neighbors[i];
-                if(!visited[neighborKey]) {
-                    visited[neighborKey] = true;
-                    stack.push(neighborKey);
-                }
-            }
-        }
-
-        components.push(component);
-    });
-
-    return components;
-}
-
-function eventHandler_componentToPolygon(component, graph) {
-    if(component.length < 3) {
-        return null;
-    }
-
-    for(var i = 0, ii = component.length; i < ii; i++) {
-        if(component[i].neighbors.length != 2) {
-            return null;
-        }
-    }
-
-    var polygon = [];
-    var start = component[0];
-    var previousKey = null;
-    var currentKey = start.key;
-    var guard = 0;
-
-    while(guard++ <= component.length) {
-        var current = graph.points[currentKey];
-        polygon.push(current);
-        var nextKey = current.neighbors[0] == previousKey ? current.neighbors[1] : current.neighbors[0];
-        previousKey = currentKey;
-        currentKey = nextKey;
-
-        if(currentKey == start.key) {
-            polygon.push(start);
-            return polygon;
-        }
-    }
-
-    return null;
-}
-
-function eventHandler_getClosedWallPolygons(walls) {
-    var polygons = [];
-    var graph = {
-        points: {}
-    };
-
-    for(var i = 0, ii = walls.length; i < ii; i++) {
-        var points = walls[i].points;
-        if(points.length >= 4 && eventHandler_pointsAreSame(points[0], points[points.length - 1])) {
-            polygons.push(points);
-        }
-        for(var j = 1, jj = points.length; j < jj; j++) {
-            eventHandler_addWallGraphSegment(graph, points[j - 1], points[j]);
-        }
-    }
-
-    var components = eventHandler_getWallGraphComponents(graph);
-    for(var k = 0, kk = components.length; k < kk; k++) {
-        var polygon = eventHandler_componentToPolygon(components[k], graph);
-        if(polygon) {
-            polygons.push(polygon);
-        }
-    }
-
-    return polygons;
-}
-
-function eventHandler_pointInPolygon(point, polygon) {
-    var inside = false;
-    for(var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        var pi = polygon[i];
-        var pj = polygon[j];
-        var intersects = ((pi.y > point.y) != (pj.y > point.y)) &&
-            (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y) + pi.x);
-        if(intersects) inside = !inside;
-    }
-
-    return inside;
-}
-
-function eventHandler_getPreviewValidationError() {
-    var spawns = eventHandler_getMapSpawns();
-    if(spawns.length == 0) {
-        return "Add at least one spawn before play testing.";
-    }
-
-    var walls = eventHandler_getMapWalls();
-    if(walls.length == 0) {
-        return "Add at least one wall before play testing.";
-    }
-
-    return "";
+    return eventHandler_downloadExportMapReady();
 }
 
 function eventHandler_setTooltipText(element, text) {
@@ -335,13 +194,22 @@ function eventHandler_getTooltipElements() {
 }
 
 function eventHandler_initTooltips(trigger) {
-    eventHandler_getTooltipElements().tooltip({
-        container: "body",
-        trigger: trigger || "hover",
-        viewport: {
-            selector: "body",
-            padding: 4
-        }
+    var defaultTrigger = trigger || "hover";
+    eventHandler_getTooltipElements().each(function() {
+        var $element = $(this);
+        $element.tooltip({
+            container: "body",
+            trigger: defaultTrigger === "manual" ? "manual" :
+                ($element.attr("data-trigger") || defaultTrigger),
+            viewport: {
+                selector: "body",
+                padding: 4
+            }
+        });
+        $element.off(".vectronTooltipViewport")
+            .on("shown.bs.tooltip.vectronTooltipViewport", function() {
+                eventHandler_keepTooltipInViewport($(this));
+            });
     });
 }
 
@@ -352,41 +220,28 @@ function eventHandler_resetTooltips(trigger) {
     eventHandler_initTooltips(trigger);
 }
 
-function eventHandler_updatePreviewButtonState() {
-    var error = eventHandler_getPreviewValidationError();
-    var button = document.getElementById("armawebtron-preview-open");
-    var tooltipTarget = document.getElementById("armawebtron-preview-open-tooltip");
-    if(!button || !tooltipTarget) return;
-
-    button.disabled = error != "";
-    tooltipTarget.className = error ? "disabled-button-tooltip disabled" : "disabled-button-tooltip";
-    eventHandler_setTooltipText(tooltipTarget, error || "Open preview");
-}
-
-function eventHandler_refreshPreviewButtonTooltip() {
-    var $target = $("#armawebtron-preview-open-tooltip");
-    if(!$target.length || !$target.is(":visible")) {
-        return;
-    }
-
-    $target.tooltip("destroy");
-    $target.tooltip({
-        container: "body",
-        trigger: eventHandler_tooltipsPinned ? "manual" : "hover focus",
-        placement: "top",
-        viewport: {
-            selector: "body",
-            padding: 4
-        }
-    });
-}
-
 function eventHandler_getBootstrapTooltip($element) {
     var tooltip = $element.data("bs.tooltip");
     if(!tooltip) return null;
     if(tooltip.$tip) return tooltip.$tip;
     if(typeof tooltip.tip == "function") return tooltip.tip();
     return null;
+}
+
+function eventHandler_getRenderedTooltipPlacement($tip) {
+    var placements = [eventHandler_tooltipPlacementTop, eventHandler_tooltipPlacementBottom,
+        eventHandler_tooltipPlacementLeft, eventHandler_tooltipPlacementRight];
+    for(var index = 0; index < placements.length; index++) {
+        if($tip.hasClass(placements[index])) return placements[index];
+    }
+    return eventHandler_tooltipPlacementTop;
+}
+
+function eventHandler_keepTooltipInViewport($element) {
+    var $tip = eventHandler_getBootstrapTooltip($element);
+    if(!$tip || !$tip.length || !$tip.is(":visible")) return;
+    eventHandler_repositionPinnedTooltip($tip, $element[0], [],
+        eventHandler_getRenderedTooltipPlacement($tip));
 }
 
 function eventHandler_rectsOverlap(a, b) {
@@ -638,10 +493,7 @@ function eventHandler_getPinnedTooltipElements() {
     var $bottomBar = $(".info [rel=tooltip]").filter(function() {
         return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
     });
-    var error = eventHandler_getPreviewValidationError();
-    var $previewError = error ? $("#armawebtron-preview-open-tooltip:visible") : $();
-
-    return $sidebar.add($topBar).add($bottomBar).add($previewError);
+    return $sidebar.add($topBar).add($bottomBar);
 }
 
 function eventHandler_togglePinnedTooltips() {
@@ -659,90 +511,25 @@ function eventHandler_togglePinnedTooltips() {
     }
 }
 
-function eventHandler_previewInArmawebtron() {
-    var validationError = eventHandler_getPreviewValidationError();
-    if(validationError) {
-        eventHandler_updatePreviewButtonState();
-        return;
-    }
-
-    var map = eventHandler_getExportMap();
-    var previewUrl = eventHandler_getArmawebtronPreviewUrl();
-    var previewWindow = window.open(previewUrl, "vectron-armawebtron-preview");
-
-    if(!previewWindow) {
-        gui_writeLog("Armawebtron preview popup was blocked.");
-        return;
-    }
-
-    if(eventHandler_armawebtronPreviewTimer != null) {
-        clearInterval(eventHandler_armawebtronPreviewTimer);
-        eventHandler_armawebtronPreviewTimer = null;
-    }
-
-    var sentCount = 0;
-    var maxSends = 80;
-
-    function stopSending() {
-        if(eventHandler_armawebtronPreviewTimer != null) {
-            clearInterval(eventHandler_armawebtronPreviewTimer);
-            eventHandler_armawebtronPreviewTimer = null;
-        }
-        window.removeEventListener("message", onPreviewMessage);
-    }
-
-    function onPreviewMessage(event) {
-        if(!event.data || event.data.type != "vectron-map-preview-ack") {
-            return;
-        }
-
-        stopSending();
-        if(event.data.ok) {
-            gui_writeLog("Sent map to Armawebtron preview. Settings applied: " + (event.data.appliedSettings || 0) + ".");
-            if(event.data.unknownSettings && event.data.unknownSettings.length > 0) {
-                gui_writeLog("Settings not defined by Armawebtron: " + event.data.unknownSettings.join(", "));
-            }
-        } else {
-            gui_writeLog("Armawebtron preview rejected the map: " + (event.data.error || "unknown error"));
-        }
-    }
-
-    function sendPreviewMap(payload) {
-        if(previewWindow.closed || sentCount >= maxSends) {
-            stopSending();
-            return;
-        }
-
-        previewWindow.postMessage(payload, "*");
-        sentCount++;
-    }
-
-    window.addEventListener("message", onPreviewMessage);
-    gui_writeLog("Loading settings_custom.cfg for Armawebtron preview.");
-    eventHandler_getArmawebtronSettingsCustomCfg().then(function(fileSettingsCustomCfg) {
-        var payload = {
-            type: "vectron-map-preview",
-            source: "Vectron",
-            version: 1,
-            fileName: map.fileName,
-            xml: map.xml,
-            settingsCustomCfg: eventHandler_mergePreviewSettings(map.settingsCustomCfg, fileSettingsCustomCfg)
-        };
-
-        gui_writeLog("Sending map and custom settings to Armawebtron preview.");
-        setTimeout(function() {
-            sendPreviewMap(payload);
-        }, 500);
-        eventHandler_armawebtronPreviewTimer = setInterval(function() {
-            sendPreviewMap(payload);
-        }, 500);
-    });
-}
-
 function eventHandler_init() {
 
     var $contextMenu = $("#contextMenu");
+    if(typeof zoneTool_initSettingTooltips === "function") zoneTool_initSettingTooltips();
     eventHandler_initTooltips("hover");
+
+    function eventHandler_setSettingsOpen(open) {
+        open = !!open;
+        if(open && !gui_active) gui_show();
+        if(!open && gui_active) gui_hide();
+        $(".toolbar-gui-open").toggle(!open);
+        $(".toolbar-gui-close").toggle(open);
+        $("#zones-menu").hide();
+        gui_writeLog("Settings " + (open ? "opened." : "closed."));
+    }
+
+    function eventHandler_toggleSettings() {
+        eventHandler_setSettingsOpen(!gui_active);
+    }
 
     $(document).on("mousedown", function(e) {
         var active = document.activeElement;
@@ -774,7 +561,10 @@ function eventHandler_init() {
     });
 
     $("#canvas_container").on("contextmenu", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         aamap_active = false;
+        eventHandler_contextMenu = true;
         // Show/hide vertex delete based on current tool and selection
         var showVertexDelete = (vectron_currentTool === "wallVertexMove" &&
             !vectron_toolActive &&
@@ -791,7 +581,9 @@ function eventHandler_init() {
                     ) :
                 e.pageY,
         });
-        $contextMenu.fadeIn(150);
+        // A right-button mouseup can arrive after contextmenu. Showing the menu
+        // synchronously prevents that same gesture from racing a fade animation.
+        $contextMenu.stop(true, true).show();
         // Flip submenu to the left if not enough space to the right.
         // Use the actual submenu element width if available, otherwise fall back to min-width (180px) + padding.
         var $submenu = $contextMenu.find('.cm-submenu').first();
@@ -811,47 +603,45 @@ function eventHandler_init() {
             return;
         }
         if(!aamap_active) {
-            $contextMenu.hide();
+            $contextMenu.stop(true, true).hide();
             aamap_active = true;
+            eventHandler_contextMenu = false;
             return;
         }
     });
 
     $contextMenu.on("contextmenu", function(e) {
         aamap_active = true;
-        $contextMenu.fadeOut(150);
+        eventHandler_contextMenu = false;
+        $contextMenu.stop(true, true).hide();
         return false;
     });
 
+    // Submenu toggles and menu actions must not be mistaken for outside body
+    // clicks. Target handlers still run normally before propagation stops.
+    $contextMenu.on("click", function(e) {
+        e.stopPropagation();
+    });
 
-    $('body').on("click", function() {
+
+    $('body').on("click", function(e) {
+        if($(e.target).closest("#contextMenu").length) return;
         if( !aamap_active )
         {
             $contextMenu.hide();
             aamap_active = true;
+            eventHandler_contextMenu = false;
         }
     });
 
 
 
     $(".toolbar-gui-open").mouseup(function(e) {
-        if(!gui_active) {
-            gui_show(); // sets active state
-            $(".toolbar-gui-open").hide();
-            $(".toolbar-gui-close").show();
-        }
-        gui_writeLog('GUI TOGGLE');
-        $("#zones-menu").hide();
+        eventHandler_setSettingsOpen(true);
     });
 
     $(".toolbar-gui-close").mouseup(function(e) {
-        if(gui_active) {
-            gui_hide();
-            $(".toolbar-gui-close").hide();
-            $(".toolbar-gui-open").show();
-        }
-        gui_writeLog('GUI TOGGLE');
-        $("#zones-menu").hide();
+        eventHandler_setSettingsOpen(false);
     });
 
     $(".toolbar-actionHistory").mouseup(function(e) {
@@ -869,71 +659,133 @@ function eventHandler_init() {
     });
 
     $("#gui-export").mouseup(function(e) {
-        var mapName = $("#map_name").val().trim();
-        var mapAuthor = $("#map_author").val().trim();
-        var mapCategory = $("#map_category").val().trim();
-        var mapVersion = $("#map_version").val().trim();
-        var mapDtd = $("#map_dtd").val().trim();
-        var mapAxes = parseInt($("#map_axes").val().trim());
-        var mapSets = $("#map_settings").val().split("\n");
-
-        aamap_save(mapName, mapAuthor, mapCategory, mapVersion, mapDtd, mapAxes, mapSets);
+        eventHandler_downloadExportMap();
     });
 
     $(document).on("click", "#control-box-close", function(e) {
-        if(gui_active) {
-            gui_hide();
-            $(".toolbar-gui-close").hide();
-            $(".toolbar-gui-open").show();
-        }
-        gui_writeLog('GUI TOGGLE');
-        $("#zones-menu").hide();
+        eventHandler_setSettingsOpen(false);
     });
 
     $(document).on("click", "#wall-tool-close", function() {
-        wallTool_disconnect();
+        if(vectron_currentTool === "wall" && vectron_toolActive) wallTool_cancelCurrent();
+        vectron_connectTool("select");
     });
 
     $(document).on("click", "#zone-tool-close", function() {
-        zoneTool_disconnect();
+        if(vectron_currentTool === "zone" && vectron_toolActive) zoneTool_cancelPlacement();
+        vectron_connectTool("select");
+    });
+
+    $(document).on("click", "#ramp-tool-close", function() {
+        if(vectron_currentTool === "ramp" && vectron_toolActive) rampTool_cancelPlacement();
+        vectron_connectTool("select");
+    });
+    $(document).on("click", "#floor-tool-close", function() {
+        if(vectron_currentTool === "floor" && vectron_toolActive) floorTool_cancel();
+        vectron_connectTool("select");
     });
 
 
-    // Sync top bar fields → xml_ variables so the XML editor always shows current values
+    // Sync top bar fields → xml_ variables so the Code Viewer always shows current values
     $('#map_name').on('input change', function() { xml_name = this.value; });
     $('#map_author').on('input change', function() { xml_author = this.value; });
-    $('#map_category').on('input change', function() { xml_category = this.value; });
-    $('#map_version').on('input change', function() { xml_version = this.value; });
-    $('#map_dtd').on('input change', function() { xml_dtd = this.value; });
-    $('#map_axes').on('input change', function() { xml_axes = parseInt(this.value) || 4; });
-    $('#map_axis_vectors').on('input change', function() {
-        var vectors = aamap_parseAxisVectors(this.value);
-        if(vectors !== null) xml_axis_vectors = vectors;
+    $('#map_author_password').on('input change', function() {
+        xml_scheduleAuthorPasswordHash(this.value);
     });
-    $('#map_game_mode').on('change', function() {
-        zoneTool_setGameMode(this.value);
-        gui_writeLog(this.value === "armaracing" ? "Armaracing features enabled." : "Legacy Armagetron features enabled.");
+    $('#map-author-password-toggle').on('click', function() {
+        var input = document.getElementById('map_author_password');
+        var visible = input.type === 'text';
+        input.type = visible ? 'password' : 'text';
+        $(this).attr('aria-label', visible ? 'Show author password' : 'Hide author password')
+            .attr('title', visible ? 'Show author password' : 'Hide author password')
+            .find('i').toggleClass('fa-eye', visible).toggleClass('fa-eye-slash', !visible);
+    });
+    $('#export-password-visibility').on('click', function() {
+        var input = document.getElementById('export-password-confirm');
+        input.type = input.type === 'password' ? 'text' : 'password';
+    });
+    $('#export-password-cancel').on('click', eventHandler_closeExportPassword);
+    $('#export-password-accept').on('click', eventHandler_confirmExportPassword);
+    $('#export-password-confirm').on('keydown', function(event) {
+        if(event.key === 'Enter') { event.preventDefault(); eventHandler_confirmExportPassword(); }
+        if(event.key === 'Escape') { event.preventDefault(); eventHandler_closeExportPassword(); }
+    });
+    $('#map_category').on('input change', function() { xml_category = this.value; });
+    $('#map_axes').on('input change', function() {
+        xml_invalidateAuthorTime();
+        xml_axis_vectors = null;
+        xml_axes = parseInt(this.value) || 4;
+    });
+    $('#map_axes_forced').on('change', function() {
+        xml_invalidateAuthorTime();
+        xml_axis_vectors = null;
     });
     $('#dZoneShape').on('change', function() {
+        if(this.value === "circle") $("#dZoneRotationSpeed").val("0");
         zoneTool_resetPlacement();
-        zoneTool_updateRubberBar();
+        zoneTool_updateSettings();
         zoneTool_guide();
     });
-    $(document).on("click", "#zone-tool-finish", zoneTool_finishPolygon);
+    $('#dCheckpointOrdered').on('change', function() {
+        zoneTool_updateSettings();
+        zoneTool_guide();
+    });
+    $(document).on("click", "#zone-tool-finish", zoneTool_finishCurrent);
     $(document).on("click", "#zone-tool-cancel", zoneTool_cancelPlacement);
+    $('#dZoneLineWidth').on('input change', zoneTool_guide);
+    function eventHandler_applySelectedLineWidth() {
+        var input = document.getElementById('selection-line-zone-width');
+        if(!input) return;
+        if(selectTool_applySelectedLineWidth(input.value)) {
+            input.setCustomValidity('');
+        } else {
+            input.setCustomValidity('Line zone width must be 0 or greater.');
+            input.reportValidity();
+        }
+    }
+    $('#selection-line-zone-width-apply').on('click', eventHandler_applySelectedLineWidth);
+    $('#selection-line-zone-width').on('change', eventHandler_applySelectedLineWidth);
+    $('#selection-line-zone-width').on('keydown', function(event) {
+        if(event.key === 'Enter') {
+            event.preventDefault();
+            eventHandler_applySelectedLineWidth();
+        }
+    });
+    $('#dZoneMoving').on('change', function() {
+        zoneTool_updateSettings();
+        zoneTool_guide();
+    });
+    $('#dZoneMovementMode, #dZoneMovementSpeed, #dZoneRotationSpeed, #dZoneSpawnAtVertices')
+        .on('input change', function() {
+            zoneTool_updateStatus();
+            zoneTool_guide();
+        });
+    $('#dGameSetting').on('change', function() {
+        zoneTool_updateGameSettingValue(true);
+    });
+    $('#symmetry-x-toggle,#symmetry-y-toggle,#symmetry-check-toggle').on('change', function() {
+        var state = aamap_symmetryState();
+        if($("#symmetry-check-toggle").is(":checked") && !state.x && !state.y) {
+            $("#symmetry-check-toggle").prop("checked", false);
+            gui_toast("Choose x=0 or y=0 before enabling symmetry check.");
+        }
+        var lines = [];
+        if(state.x) lines.push("x=0");
+        if(state.y) lines.push("y=0");
+        var checking = aamap_symmetryCheckEnabled();
+        gui_writeLog(lines.length ? (checking ? "Symmetry check mirroring the +X/+Y source across " :
+            "Symmetry enabled across ") + lines.join(" and ") + "." : "Symmetry disabled.");
+        vectron_render();
+    });
     $('#map_settings').on('input change', function() {
-        xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
+        xml_settings = this.value.split('\n').filter(function(s) {
+            var trimmed = s.trim();
+            return trimmed && trimmed.split(/\s+/, 1)[0].toUpperCase() !== 'LANDSCAPE';
+        });
+        xml_invalidateAuthorTime();
     });
 
     // Handle settings changes
-    $("#dark-theme").change(function(box)
-    {
-        if($("#dark-theme").is(':checked'))
-            enable_dark_theme();
-        else
-            disable_dark_theme();
-    });
-
     $("#show-info-bar").change(function(box)
     {
         if($("#show-info-bar").is(':checked'))
@@ -966,15 +818,7 @@ function eventHandler_init() {
     $("#scale_map").mouseup(function(e)
     {
         var factor = parseFloat($("#map_scale").val());
-        if(isNaN(factor) || factor === 0) return;
-        var affectedObjs = aamap_objects.slice();
-        aamap_scale(factor);
-        aamap_panCenter();
-        aamap_recordAction({
-            label: "Scale map",
-            undo: function() { affectedObjs.forEach(function(o){ o.scale(1/factor); }); aamap_panCenter(); },
-            redo: function() { affectedObjs.forEach(function(o){ o.scale(factor); }); aamap_panCenter(); }
-        });
+        eventHandler_scaleMap(factor, "Scale map");
     });
 
     $("#map_rotate_left").mouseup(function(e)
@@ -1032,23 +876,19 @@ function eventHandler_init() {
 
     $("#center_map_origin").mouseup(function(e)
     {
-        var ptsx = [], ptsy = [];
+        var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
         for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
             var obj = aamap_objects[i];
-            if(obj instanceof Zone || obj instanceof Spawn) {
-                ptsx.push(obj.x); ptsy.push(obj.y);
-            } else if(obj instanceof Wall) {
-                for(var j = 0, jj = obj.points.length; j < jj; j++) {
-                    if(obj.points[j] != null) {
-                        ptsx.push(obj.points[j].x);
-                        ptsy.push(obj.points[j].y);
-                    }
-                }
-            }
+            var bounds = typeof obj.getBounds === "function" ? obj.getBounds() : null;
+            if(!bounds) continue;
+            minx = Math.min(minx, bounds.minx);
+            miny = Math.min(miny, bounds.miny);
+            maxx = Math.max(maxx, bounds.maxx);
+            maxy = Math.max(maxy, bounds.maxy);
         }
-        if(ptsx.length === 0) return;
-        var cx = (Math.max.apply(Math, ptsx) + Math.min.apply(Math, ptsx)) / 2;
-        var cy = (Math.max.apply(Math, ptsy) + Math.min.apply(Math, ptsy)) / 2;
+        if(!isFinite(minx) || !isFinite(miny) || !isFinite(maxx) || !isFinite(maxy)) return;
+        var cx = (maxx + minx) / 2;
+        var cy = (maxy + miny) / 2;
         if(cx === 0 && cy === 0) return;
         var dx = -cx, dy = -cy;
         var affectedObjs = aamap_objects.slice();
@@ -1109,7 +949,7 @@ function eventHandler_init() {
         vectron_connectTool("zone");
         zoneTool_type = 0;
         zoneTool_guide();
-        zoneTool_updateRubberBar();
+        zoneTool_updateSettings();
         zoneTool_updateWindowActiveType();
         gui_writeLog('DeathZone selected.');
         $("#zones-menu").hide();
@@ -1119,39 +959,19 @@ function eventHandler_init() {
         vectron_connectTool("zone");
         zoneTool_type = 1;
         zoneTool_guide();
-        zoneTool_updateRubberBar();
+        zoneTool_updateSettings();
         zoneTool_updateWindowActiveType();
         gui_writeLog('WinZone selected.');
         $("#zones-menu").hide();
     });
 
-    $(".toolbar-toolZone-target").mouseup(function(e) {
-        vectron_connectTool("zone");
-        zoneTool_type = 2;
-        zoneTool_guide();
-        zoneTool_updateRubberBar();
-        zoneTool_updateWindowActiveType();
-        gui_writeLog('TargetZone selected.');
-        $("#zones-menu").hide();
-    });
-
-    $(".toolbar-toolZone-fortress").mouseup(function(e) {
-        vectron_connectTool("zone");
-        zoneTool_type = 4;
-        zoneTool_guide();
-        zoneTool_updateRubberBar();
-        zoneTool_updateWindowActiveType();
-        gui_writeLog('FortressZone selected.');
-        $("#zones-menu").hide();
-    });
-
-    $(".toolbar-toolZone-rubber").mouseup(function(e) {
+    $(".toolbar-toolZone-health").mouseup(function(e) {
         vectron_connectTool("zone");
         zoneTool_type = 3;
         zoneTool_guide();
-        zoneTool_updateRubberBar();
+        zoneTool_updateSettings();
         zoneTool_updateWindowActiveType();
-        gui_writeLog('RubberZone selected.');
+        gui_writeLog('HealthZone selected.');
         $("#zones-menu").hide();
     });
 
@@ -1162,18 +982,9 @@ function eventHandler_init() {
         vectron_connectTool("zone");
         zoneTool_type = type;
         zoneTool_guide();
-        zoneTool_updateRubberBar();
+        zoneTool_updateSettings();
         zoneTool_updateWindowActiveType();
         gui_writeLog(zoneTool_typeArray[type][0] + ' zone selected.');
-    });
-
-    // Quick placement toggle
-    $("#zone-quick-placement-toggle").on("change", function() {
-        if ($(this).is(":checked")) {
-            $("#zone-quick-size-row").show();
-        } else {
-            $("#zone-quick-size-row").hide();
-        }
     });
 
     // Finish wall button
@@ -1203,7 +1014,7 @@ function eventHandler_init() {
         $buttons.tooltip({
             html: true,
             container: "body",
-            placement: "right",
+            placement: "auto right",
             trigger: "manual",
             title: function() {
                 return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") + '</div>';
@@ -1229,32 +1040,24 @@ function eventHandler_init() {
     })();
 
     (function initZoneModeTooltips() {
-        var descTimer = null;
         var $buttons = $(".zone-type-btn");
         $buttons.tooltip({
             html: true,
             container: "body",
-            placement: "right",
+            placement: "auto right",
             trigger: "manual",
             title: function() {
-                return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") + '</div>';
+                return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") +
+                    '</div><div class="vt-tooltip-desc">' + ($(this).data("tooltip-desc") || "") + '</div>';
             }
         });
+        $buttons.off(".vectronZoneTooltipViewport")
+            .on("shown.bs.tooltip.vectronZoneTooltipViewport", function() {
+                eventHandler_keepTooltipInViewport($(this));
+            });
         $buttons.on("mouseenter focus", function() {
-            var btn = this;
-            clearTimeout(descTimer);
-            $(btn).tooltip("show");
-            descTimer = setTimeout(function() {
-                var title = $(btn).data("tooltip-title") || "";
-                var desc = $(btn).data("tooltip-desc") || "";
-                var instance = $(btn).data("bs.tooltip") || $(btn).data("tooltip");
-                var $tip = instance ? (instance.$tip || (instance.tip ? instance.tip() : null)) : null;
-                if($tip && $tip.length) {
-                    $tip.find(".tooltip-inner").html('<div class="vt-tooltip-title">' + title + '</div><div class="vt-tooltip-desc">' + desc + '</div>');
-                }
-            }, 1800);
+            $(this).tooltip("show");
         }).on("mouseleave blur", function() {
-            clearTimeout(descTimer);
             $(this).tooltip("hide");
         });
     })();
@@ -1335,6 +1138,135 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
+    $(".toolbar-toolRamp").mouseup(function(e) {
+        vectron_connectTool("ramp");
+        gui_writeLog('Ramp Tool Connected.');
+        $("#zones-menu").hide();
+    });
+    $(".toolbar-toolFloor").mouseup(function(e) {
+        e.preventDefault();
+        vectron_connectTool("floor");
+        gui_writeLog('Floor Tool Connected.');
+        $("#zones-menu").hide();
+    });
+
+    $(document).on("click", "#ramp-tool-cancel", rampTool_cancelPlacement);
+    $(document).on("click", "#floor-tool-finish", floorTool_finish);
+    $(document).on("click", "#floor-tool-cancel", floorTool_cancel);
+
+    $(document).on("click", "#level-menu-toggle", function(e) {
+        e.stopPropagation();
+        var menu = $("#level-menu");
+        var open = !menu.is(":visible");
+        menu.toggle(open);
+        $(this).attr("aria-expanded", open ? "true" : "false");
+    });
+    $(document).on("click", "#level-previous, #level-next", function(e) {
+        e.stopPropagation();
+        var level = Number($(this).attr("data-level"));
+        if(isFinite(level)) aamap_setActiveLevel(level);
+    });
+    $(document).on("click", ".level-select-btn", function(e) {
+        e.stopPropagation();
+        if(aamap_setActiveLevel(Number($(this).attr("data-level")))) {
+            $("#level-menu").hide();
+            $("#level-menu-toggle").attr("aria-expanded", "false");
+        }
+    });
+    $(document).on("click", ".level-eye-btn", function(e) {
+        e.stopPropagation();
+        aamap_toggleLevelVisibility(Number($(this).attr("data-level")));
+    });
+    $(document).on("click", ".level-delete-btn", function(e) {
+        e.stopPropagation();
+        if(this.disabled) return;
+        var level = Number($(this).attr("data-level"));
+        if(!aamap_levelExistsAt(level) || aamap_existingLevels().length <= 1) return;
+        eventHandler_levelDeleteTarget = level;
+        var existing = aamap_existingLevels();
+        var highest = existing[existing.length - 1];
+        var lower = level < highest;
+        var canKeepSparse = lower && level > 0;
+        $("#level-delete-title").text("Delete Level " + level + "?");
+        $("#level-delete-message").text(level === 0 ?
+            "Level 0 is the permanent base. Its objects will be deleted and every higher level will shift down." : lower ?
+            "Every object on this level will be deleted. Choose whether higher numeric levels move down or keep their current IDs and elevations." :
+            "Every object on this level will be deleted. This is the highest level, so its final height gap will also be removed.");
+        $("#level-delete-keep").toggle(canKeepSparse);
+        $("#level-delete-shift").text(lower ? "Delete + shift above down" : "Delete level");
+        var popover = document.getElementById("level-delete-popover");
+        var rect = this.getBoundingClientRect();
+        popover.style.display = "block";
+        var width = popover.offsetWidth || 390;
+        var height = popover.offsetHeight || 150;
+        popover.style.left = Math.max(8, Math.min(window.innerWidth - width - 8,
+            rect.right - width)) + "px";
+        popover.style.top = Math.max(8, rect.top - height - 8) + "px";
+    });
+    $(document).on("click", "#level-delete-shift", function(e) {
+        e.stopPropagation();
+        if(eventHandler_levelDeleteTarget !== null) {
+            aamap_deleteLevel(eventHandler_levelDeleteTarget, true);
+        }
+        eventHandler_levelDeleteTarget = null;
+        $("#level-delete-popover,#level-menu").hide();
+        $("#level-menu-toggle").attr("aria-expanded", "false");
+    });
+    $(document).on("click", "#level-delete-keep", function(e) {
+        e.stopPropagation();
+        if(eventHandler_levelDeleteTarget !== null) {
+            aamap_deleteLevel(eventHandler_levelDeleteTarget, false);
+        }
+        eventHandler_levelDeleteTarget = null;
+        $("#level-delete-popover,#level-menu").hide();
+        $("#level-menu-toggle").attr("aria-expanded", "false");
+    });
+    $(document).on("click", "#level-delete-cancel", function(e) {
+        e.stopPropagation();
+        eventHandler_levelDeleteTarget = null;
+        $("#level-delete-popover").hide();
+    });
+    $(document).on("click", "#level-new, #level-new-quick", function(e) {
+        e.stopPropagation();
+        if(aamap_addLevel()) {
+            $("#level-menu").hide();
+            $("#level-menu-toggle").attr("aria-expanded", "false");
+        }
+    });
+    $(document).on("focusin", ".level-height-input", function() {
+        $(this).data("previous-height", xml_level_heights[Number($(this).attr("data-gap"))]);
+    });
+    $(document).on("change", ".level-height-input", function() {
+        var gap = Number($(this).attr("data-gap"));
+        var height = Number(this.value);
+        if(!isFinite(height) || height <= 0) {
+            gui_toast("Floor height must be greater than 0.");
+            this.value = xml_level_heights[gap] || 8;
+            return;
+        }
+        var previous = Number($(this).data("previous-height"));
+        if(!isFinite(previous) || previous <= 0) previous = xml_level_heights[gap] || 8;
+        if(previous === height) return;
+        xml_level_heights[gap] = height;
+        xml_level_height = xml_level_heights[0] || 8;
+        aamap_recordAction({
+            label:"Change level height",
+            undo:function() { xml_level_heights[gap] = previous; xml_level_height = xml_level_heights[0] || 8; aamap_updateLayerControls(); },
+            redo:function() { xml_level_heights[gap] = height; xml_level_height = xml_level_heights[0] || 8; aamap_updateLayerControls(); }
+        });
+        aamap_updateLayerControls();
+    });
+    $(document).on("mousedown", function(e) {
+        if(!$(e.target).closest("#level-dropdown").length) {
+            $("#level-menu").hide();
+            $("#level-menu-toggle").attr("aria-expanded", "false");
+        }
+        if(!$(e.target).closest("#level-delete-popover,.level-delete-btn").length) {
+            eventHandler_levelDeleteTarget = null;
+            $("#level-delete-popover").hide();
+        }
+    });
+
     $(".toolbar-toolWallVertexMove").mouseup(function(e) {
         vectron_connectTool("wallVertexMove");
         gui_writeLog('Wall Vertex Move Tool Connected.');
@@ -1359,35 +1291,21 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
-    // XML Editor
+    // Code Viewer. The full-map tab follows the format that was opened: native
+    // maps are editable JSON, while an explicitly imported legacy map remains
+    // editable XML for that active editing session. Selection replacement is
+    // intentionally an XML fragment because the object importer supports
+    // lossless, undoable fragment replacement.
     function xmlEditor_indentLines(str, prefix) {
         return str.split('\n').map(function(line) { return prefix + line; }).join('\n');
     }
 
-    function xmlEditor_getFullXML() {
-        var xml = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>\n';
-        xml += '<!DOCTYPE Resource SYSTEM "' + (xml_dtd || 'sty.dtd') + '">\n';
-        xml += '<Resource type="aamap" name="' + (xml_name || '') + '" version="' + (xml_version || '') + '" author="' + (xml_author || '') + '" category="' + (xml_category || '') + '">\n';
-        xml += '  <Map version="0.2.8">\n';
-        var settings = xml_settings.filter(function(s) { return s.trim(); });
-        if (settings.length > 0) {
-            xml += '    <Settings>\n';
-            for (var si = 0; si < settings.length; si++) {
-                var point = settings[si].indexOf(' ');
-                if (point < 0) continue; // skip malformed entries without a value
-                var sname = settings[si].slice(0, point), svalue = settings[si].slice(point + 1);
-                xml += '      <Setting name="' + sname + '" value="' + svalue + '" />\n';
-            }
-            xml += '    </Settings>\n';
+    function xmlEditor_getFullSource() {
+        var map = eventHandler_getExportMap();
+        if(codeViewer_sourceFormat === "legacy-xml") {
+            return codeViewer_formatXmlText(armamap_toCompatibilityXml(map.document));
         }
-        xml += '    <World>\n      <Field>\n';
-        var axes = parseInt(document.getElementById('map_axes').value) || 4;
-        xml += aamap_getAxesXML(axes, "        ");
-        for (var i = 0; i < aamap_objects.length; i++) {
-            xml += xmlEditor_indentLines(aamap_objects[i].getXML(), '        ') + '\n';
-        }
-        xml += '      </Field>\n    </World>\n  </Map>\n</Resource>\n';
-        return xml;
+        return codeViewer_formatJsonText(map.text);
     }
 
     function xmlEditor_getSelectedXML() {
@@ -1397,7 +1315,77 @@ function eventHandler_init() {
             xml += xmlEditor_indentLines(objs[i].getXML(), '  ') + '\n';
         }
         xml += '</Field>';
-        return xml;
+        return codeViewer_formatXmlText(xml);
+    }
+
+    function xmlEditor_updateFormatLabel() {
+        var label;
+        if(xmlEditor_mode === "selected") label = "Selection XML";
+        else label = codeViewer_sourceFormat === "legacy-xml" ? "Legacy XML" : ".armamap JSON";
+        $("#code-viewer-format").text(label);
+    }
+
+    function xmlEditor_captureMapState() {
+        return {
+            objects:aamap_objects.slice(),
+            name:xml_name,
+            author:xml_author,
+            version:xml_version,
+            category:xml_category,
+            authorPasswordHash:xml_author_password_hash,
+            authorPasswordDirty:xml_author_password_dirty,
+            mapValidation:xml_map_validation ?
+                JSON.parse(JSON.stringify(xml_map_validation)) : null,
+            settings:xml_settings.slice(),
+            axes:xml_axes,
+            axisVectors:Array.isArray(xml_axis_vectors) ?
+                xml_axis_vectors.map(function(vector) { return vector.slice(); }) : null,
+            axesForced:$("#map_axes_forced").is(":checked"),
+            levelHeights:xml_level_heights.slice(),
+            activeLevel:aamap_activeLevel,
+            levelVisible:aamap_levelVisible.slice(),
+            levelExists:aamap_levelExists.slice(),
+            panX:vectron_panX,
+            panY:vectron_panY,
+            zoom:vectron_zoom,
+            sourceFormat:codeViewer_sourceFormat
+        };
+    }
+
+    function xmlEditor_restoreMapState(state) {
+        aamap_objects.forEach(aamap_removeObjectVisuals);
+        selectTool_selectedObjs = [];
+        aamap_objects = state.objects;
+        aamap_objects.forEach(function(object) { object.isSelected = false; });
+        xml_name = state.name;
+        xml_author = state.author;
+        xml_version = state.version;
+        xml_category = state.category;
+        xml_author_password_revision++;
+        xml_author_password_pending = null;
+        xml_author_password_hash = state.authorPasswordHash || "";
+        xml_author_password_dirty = !!state.authorPasswordDirty;
+        xml_map_validation = state.mapValidation ?
+            JSON.parse(JSON.stringify(state.mapValidation)) : null;
+        xml_settings = state.settings.slice();
+        xml_axes = state.axes;
+        xml_axis_vectors = state.axisVectors ?
+            state.axisVectors.map(function(vector) { return vector.slice(); }) : null;
+        xml_level_heights = state.levelHeights.slice();
+        xml_level_height = xml_level_heights[0] || 8;
+        aamap_activeLevel = state.activeLevel;
+        aamap_levelVisible = state.levelVisible.slice();
+        aamap_levelExists = state.levelExists ? state.levelExists.slice() :
+            state.levelVisible.map(function() { return true; });
+        vectron_panX = state.panX;
+        vectron_panY = state.panY;
+        vectron_zoom = state.zoom;
+        codeViewer_setSourceFormat(state.sourceFormat);
+        gui_fillInput();
+        $("#map_axes_forced").prop("checked", state.axesForced);
+        aamap_updateLayerControls();
+        vectron_render();
+        actionHistory_update();
     }
 
     var xmlEditor_mode = 'full'; // 'full' or 'selected'
@@ -1411,7 +1399,7 @@ function eventHandler_init() {
             $('#xml-tab-sel-count').text('(' + selectTool_selectedObjs.length + ')');
         } else {
             xmlEditor_mode = 'full';
-            $('#xml-editor-content').val(xmlEditor_getFullXML());
+            $('#xml-editor-content').val(xmlEditor_getFullSource());
         }
         $('#xml-editor-tabs li').removeClass('active');
         $('#xml-tab-' + xmlEditor_mode).addClass('active');
@@ -1421,6 +1409,7 @@ function eventHandler_init() {
         } else {
             $('#xml-tab-selected').removeClass('disabled');
         }
+        xmlEditor_updateFormatLabel();
     }
 
     function xmlEditor_open(preferSelected) {
@@ -1441,8 +1430,15 @@ function eventHandler_init() {
         // Do NOT touch aamap_active — let the canvas remain in its current state
     }
 
-    // Called whenever the selection changes while the XML editor is open
+    window.codeViewer_onMapLoaded = function() {
+        if($('#xml-editor-overlay').hasClass('visible')) xmlEditor_switchTab('full');
+    };
+
+    // Called whenever the selection changes while the Code Viewer is open
     window.xmlEditor_onSelectionChange = function() {
+        if(typeof selectTool_updateSelectionProperties === 'function') {
+            selectTool_updateSelectionProperties();
+        }
         if (!$('#xml-editor-overlay').hasClass('visible')) return;
         var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
         if (xmlEditor_mode === 'selected') {
@@ -1485,62 +1481,119 @@ function eventHandler_init() {
         }
     }
 
+    function xmlEditor_parseFullSource(content) {
+        if(codeViewer_sourceFormat === "armamap") {
+            var nativeDocument = JSON.parse(content);
+            // Applying code is an intentional edit. Generate its new revision
+            // before running the normal import verifier; dropped/imported files
+            // still arrive through armamap_process and must match as authored.
+            armamap_applyRevision(nativeDocument);
+            // Conversion performs the same canonical field validation used by
+            // import before any current map state is replaced.
+            return {
+                document:nativeDocument,
+                compatibilityXml:armamap_toCompatibilityXml(nativeDocument)
+            };
+        }
+        $.parseXML(content);
+        return content;
+    }
+
     function xmlEditor_apply() {
         var content = $('#xml-editor-content').val();
         var errDiv = document.getElementById('xml-editor-error');
 
-        // Validate XML (display fixed message, not user content)
         var isFragment = (xmlEditor_mode === 'selected');
-        if(xmlEditor_validateXML(content, isFragment)) {
-            errDiv.textContent = "Invalid XML: please check your syntax and try again.";
-            errDiv.style.display = '';
-            return;
+        var parsedFullSource = null;
+        if(isFragment) {
+            if(!xmlEditor_selectedSnapshot.length) {
+                errDiv.textContent = "Select at least one map object before applying selection code.";
+                errDiv.style.display = '';
+                return;
+            }
+            if(xmlEditor_validateXML(content, true)) {
+                errDiv.textContent = "Invalid selection XML: please check your syntax and try again.";
+                errDiv.style.display = '';
+                return;
+            }
+        } else {
+            try {
+                parsedFullSource = xmlEditor_parseFullSource(content);
+            } catch(error) {
+                errDiv.textContent = codeViewer_sourceFormat === "armamap" ?
+                    "Invalid .armamap JSON: check the syntax and map values." :
+                    "Invalid legacy XML: please check your syntax and try again.";
+                errDiv.style.display = '';
+                return;
+            }
         }
         errDiv.style.display = 'none';
 
-        // Save old state for undo
-        var oldObjects = aamap_objects.slice();
+        // Save the whole authored map state; importing source changes metadata,
+        // floor configuration, axes, and the viewport as well as geometry.
+        var oldState = xmlEditor_captureMapState();
 
-        if (xmlEditor_mode === 'selected' && xmlEditor_selectedSnapshot.length > 0) {
-            aamap_objects = aamap_objects.diff(xmlEditor_selectedSnapshot);
-            xmlEditor_selectedSnapshot.forEach(function(e) {
-                if (e.obj) e.obj.remove();
-                if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
-            });
-            xml_process_piece(content);
-            vectron_render();
-        } else {
-            aamap_objects = [];
-            xml_process(content, true); // suppress history clear
-            vectron_render();
-        }
-
-        var newObjects = aamap_objects.slice();
-
-        // Record XML edit as an undoable action
-        aamap_redoStack = [];
-        aamap_recordAction({
-            label: "Edit XML",
-            undo: function() {
-                aamap_objects.forEach(function(e) {
-                    if(e.obj) e.obj.remove();
-                    if(e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
+        try {
+            if (xmlEditor_mode === 'selected' && xmlEditor_selectedSnapshot.length > 0) {
+                aamap_objects = aamap_objects.diff(xmlEditor_selectedSnapshot);
+                xmlEditor_selectedSnapshot.forEach(function(e) {
+                    e.isSelected = false;
+                    aamap_removeObjectVisuals(e);
                 });
-                aamap_objects = oldObjects;
+                selectTool_selectedObjs = [];
+                var replacementStart = aamap_objects.length;
+                xml_process_piece(content);
+                var replacements = aamap_objects.slice(replacementStart);
+                replacements.forEach(function(object) { object.isSelected = true; });
+                selectTool_selectedObjs = replacements.slice();
+                xmlEditor_selectedSnapshot = replacements.slice();
                 vectron_render();
-                actionHistory_update();
-            },
-            redo: function() {
-                aamap_objects.forEach(function(e) {
-                    if(e.obj) e.obj.remove();
-                    if(e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
-                });
-                aamap_objects = newObjects;
+            } else {
+                vectron_forceSelectTool();
+                aamap_objects = [];
+                if(codeViewer_sourceFormat === "armamap") {
+                    armamap_process(parsedFullSource.document, true,
+                        parsedFullSource.compatibilityXml);
+                } else {
+                    xml_process(parsedFullSource, true);
+                }
                 vectron_render();
             }
-        });
+        } catch(error) {
+            xmlEditor_restoreMapState(oldState);
+            errDiv.textContent = "The code could not be applied because it contains invalid map data.";
+            errDiv.style.display = '';
+            return;
+        }
 
-        xmlEditor_close();
+        var newState = xmlEditor_captureMapState();
+
+        // Record the code edit as an undoable action.
+        aamap_redoStack = [];
+        aamap_recordAction({
+            label: "Edit code",
+            undo: function() {
+                xmlEditor_restoreMapState(oldState);
+            },
+            redo: function() {
+                xmlEditor_restoreMapState(newState);
+            }
+        });
+        // Keep the editor open so authors can apply and continue iterating.
+        // Refresh from the applied model so normalization performed by the
+        // importer is immediately visible in the same tab.
+        if(xmlEditor_mode === "selected" && selectTool_selectedObjs.length) {
+            xmlEditor_selectedSnapshot = selectTool_selectedObjs.slice();
+            $("#xml-editor-content").val(xmlEditor_getSelectedXML());
+            $("#xml-tab-sel-count").text("(" + selectTool_selectedObjs.length + ")");
+        } else {
+            xmlEditor_mode = "full";
+            $("#xml-editor-content").val(xmlEditor_getFullSource());
+            $("#xml-editor-tabs li").removeClass("active");
+            $("#xml-tab-full").addClass("active");
+        }
+        xmlEditor_updateFormatLabel();
+        $("#xml-editor-overlay").addClass("visible");
     }
 
     $(".toolbar-toolXml").mouseup(function(e) {
@@ -1548,6 +1601,36 @@ function eventHandler_init() {
         xmlEditor_open(hasSelected);
         $("#zones-menu").hide();
     });
+
+    document.addEventListener("keydown", function(e) {
+        var isBackquote = e.key === "`" || e.key === "~" || e.code === "Backquote";
+        var isPreviewShortcut = (e.key === "i" || e.key === "I" || e.code === "KeyI") &&
+            !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey;
+        if((!isBackquote && !isPreviewShortcut) || e.ctrlKey || e.altKey || e.metaKey) return;
+        var target = e.target;
+        if(target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) ||
+            target.isContentEditable)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if(isPreviewShortcut) {
+            if(aamap_active && typeof preview3d_open === "function" &&
+                (typeof preview3d_opened === "undefined" || !preview3d_opened)) {
+                preview3d_open();
+            }
+            return;
+        }
+        if(e.shiftKey || e.key === "~") {
+            eventHandler_toggleSettings();
+            return;
+        }
+        if($("#xml-editor-overlay").hasClass("visible")) {
+            xmlEditor_close();
+            return;
+        }
+        var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
+        xmlEditor_open(hasSelected);
+        $("#zones-menu").hide();
+    }, true);
 
     $("#xml-editor-close").mouseup(function(e) {
         xmlEditor_close();
@@ -1561,7 +1644,7 @@ function eventHandler_init() {
         xmlEditor_apply();
     });
 
-    // Make XML editor draggable via its header
+    // Make the Code Viewer draggable via its header
     (function() {
         var box = document.getElementById('xml-editor-box');
         var header = document.getElementById('xml-editor-header');
@@ -1666,14 +1749,12 @@ function eventHandler_init() {
     // Need better icons for these.
 
     $(".toolbar-toolScaleUp").mouseup(function(e) {
-        aamap_scale(2);
-        aamap_panCenter();
+        eventHandler_scaleMap(2, "Scale map up");
         $("#zones-menu").hide();
     });
 
     $(".toolbar-toolScaleDown").mouseup(function(e) {
-        aamap_scale(0.5);
-        aamap_panCenter();
+        eventHandler_scaleMap(0.5, "Scale map down");
         $("#zones-menu").hide();
     });
 
@@ -1753,8 +1834,12 @@ function eventHandler_init() {
     $("#canvas_container").mouseup(function(e) {
         e.preventDefault();
         if(!aamap_active) {
-            $contextMenu.fadeOut(150);
+            // Do not treat the right-button release that opened the menu as an
+            // outside click. This was the source of the immediate-close bug.
+            if(e.which === 3 && eventHandler_contextMenu) return;
+            $contextMenu.stop(true, true).hide();
             aamap_active = true;
+            eventHandler_contextMenu = false;
             return;
         }
         switch (e.which) {
@@ -1767,6 +1852,10 @@ function eventHandler_init() {
                     if(!vectron_toolActive)
                         spawnTool_start();
                     else spawnTool_complete();
+                } else if(vectron_currentTool == "ramp") {
+                    rampTool_click();
+                } else if(vectron_currentTool == "floor") {
+                    floorTool_click();
                 } else if(vectron_currentTool == "select" && vectron_toolActive) {
                     selectTool_complete();
                 } else if(vectron_currentTool == "navigation" && vectron_toolActive) {
@@ -1801,8 +1890,11 @@ function eventHandler_init() {
         if(aamap_active && vectron_currentTool == "wall" && vectron_toolActive) {
             wallTool_complete();
         } else if(aamap_active && vectron_currentTool == "zone" &&
-            zoneTool_stage === "shape" && $("#dZoneShape").val() === "polygon") {
-            zoneTool_finishPolygon();
+            ((zoneTool_stage === "shape" && $("#dZoneShape").val() === "polygon") ||
+                zoneTool_stage === "movement-path")) {
+            zoneTool_finishCurrent();
+        } else if(aamap_active && vectron_currentTool == "floor" && vectron_toolActive) {
+            floorTool_finish();
         }
     });
 
@@ -1864,6 +1956,10 @@ function eventHandler_init() {
             wallTool_renderCurrent();
         } else if(vectron_currentTool == "zone") {
             zoneTool_guide();
+        } else if(vectron_currentTool == "ramp") {
+            rampTool_guide();
+        } else if(vectron_currentTool == "floor") {
+            floorTool_renderCurrent();
         } else if(vectron_currentTool == "spawn") {
             if(spawnTool_currentObj != null)
                 spawnTool_currentObj.guide();
@@ -2037,20 +2133,32 @@ function eventHandler_init() {
 
     });
 
+    Mousetrap.bind('shift+f', function(e) {
+        if(aamap_active && vectron_currentTool == "floor" && vectron_toolActive) {
+            floorTool_finish();
+            return false;
+        }
+    });
+
      Mousetrap.bind('shift+z', function(e) {
         if(!aamap_active) return;
 
         if(vectron_currentTool == "zone") {
-            var availableTypes = xml_game_mode === "armaracing" ?
-                ZONE_TOOL_RACING_TYPES : ZONE_TOOL_LEGACY_TYPES;
+            var availableTypes = ZONE_TOOL_TYPES;
             var currentIndex = availableTypes.indexOf(zoneTool_type);
             zoneTool_type = availableTypes[(currentIndex + 1) % availableTypes.length];
            gui_writeLog('Zone Tool Toggled: '
                 + zoneTool_typeArray[zoneTool_type][0]);
             zoneTool_guide();
-            zoneTool_updateRubberBar();
+        zoneTool_updateSettings();
             zoneTool_updateWindowActiveType();
         }
+    });
+
+    Mousetrap.bind('l', function(e) {
+        if(!aamap_active) return;
+        aamap_setActiveLevel(aamap_cycleExistingLevel(aamap_activeLevel, 1));
+        return false;
     });
 
     function eventHandler_increaseSizeShortcut(e) {
@@ -2078,13 +2186,21 @@ function eventHandler_init() {
 
     Mousetrap.bind('escape', function(e) {
         // Priority: cancel active tool / switch to select → deselect
-        // NOTE: Escape does NOT close the settings menu or the XML editor.
+        // NOTE: Escape does NOT close the settings menu or the Code Viewer.
         if(vectron_currentTool == "zone" && vectron_toolActive) {
             zoneTool_cancelPlacement();
             return false;
         }
         if(vectron_currentTool == "wall" && vectron_toolActive) {
             wallTool_cancelCurrent();
+            return false;
+        }
+        if(vectron_currentTool == "ramp" && vectron_toolActive) {
+            rampTool_cancelPlacement();
+            return false;
+        }
+        if(vectron_currentTool == "floor" && vectron_toolActive) {
+            floorTool_cancel();
             return false;
         }
         if(vectron_toolActive) {
@@ -2192,68 +2308,94 @@ function eventHandler_init() {
     // Wall height bar: update wall height input on change
     $("#dWallHeight").on("change input", function() {
         $(this).val(wallTool_getHeight());
+        if(!wallTool_isSlopedHeightEnabled()) $("#dWallPointHeight").val($(this).val());
     });
 
-    // New map button (toolbar) — show popover instead of native confirm
-    $(".toolbar-newMap").mouseup(function(e) {
-        if(gui_active) { gui_hide(); $(".toolbar-gui-close").hide(); $(".toolbar-gui-open").show(); }
-        var btn = this;
-        var popover = document.getElementById("new-map-popover");
-        var rect = btn.getBoundingClientRect();
-        popover.style.left = (rect.right + 8) + 'px';
-        popover.style.top  = rect.top + 'px';
-        popover.style.display = 'block';
-        document.getElementById("armawebtron-preview-popover").style.display = 'none';
-        $("#zones-menu").hide();
+    $("#dWallSlopedHeight").on("change", function() {
+        var enabled = wallTool_isSlopedHeightEnabled();
+        if(enabled && !Number($("#dWallPointHeight").val())) {
+            $("#dWallPointHeight").val(wallTool_getHeight());
+        }
+        if(wallTool_currentObj) {
+            wallTool_currentObj.slopedHeight = enabled;
+            wallTool_currentObj.height = wallTool_getHeight();
+            if(enabled) {
+                var fallback = wallTool_getPointHeight();
+                wallTool_currentObj.points.forEach(function(point) {
+                    point.height = wall_normalizeHeight(point.height, fallback);
+                });
+            }
+        }
+        wallTool_updateWindow();
+        wallTool_updatePointsList();
+        wallTool_renderCurrent();
+    });
+    $("#dWallPointHeight").on("change input", function() {
+        $(this).val(wallTool_getPointHeight());
     });
 
-    $("#new-map-confirm").mouseup(function(e) {
-        document.getElementById("new-map-popover").style.display = 'none';
+    function eventHandler_createBlankMap() {
+        var previousMap = xmlEditor_captureMapState();
+        eventHandler_setSettingsOpen(false);
+        xmlEditor_close();
+        vectron_forceSelectTool();
         aamap_objects.forEach(function(obj) {
-            if(obj.obj) obj.obj.remove();
-            if(obj.glowObj) { obj.glowObj.remove(); obj.glowObj = null; }
+            aamap_removeObjectVisuals(obj);
         });
+        selectTool_selectedObjs = [];
         aamap_objects = [];
         vectron_panX = 0;
         vectron_panY = 0;
         vectron_zoom = 1;
-        $("#map_name,#map_author,#map_category,#map_version,#map_dtd,#map_settings").val("");
+        $("#map_name,#map_author,#map_author_password,#map_category,#map_version,#map_settings").val("");
         $("#map_axes").val("");
-        $("#map_axis_vectors").val("");
-        zoneTool_setGameMode("armagetron");
         $("#map_axes_forced").prop("checked", false);
         xml_name = "";
         xml_author = "";
+        xml_author_password_revision++;
+        xml_author_password_pending = null;
+        xml_author_password_hash = "";
+        xml_author_password_dirty = false;
+        xml_map_validation = null;
         xml_category = "";
         xml_version = "";
-        xml_dtd = "";
         xml_axes = 4;
-        xml_axis_vectors = [];
+        xml_axis_vectors = null;
         xml_settings = [];
-        aamap_clearHistory();
+        xml_level_height = 8;
+        aamap_activeLevel = 0;
+        aamap_levelVisible = [true];
+        aamap_levelExists = [true];
+        xml_level_heights = [];
+        codeViewer_setSourceFormat("armamap");
+        gui_fillInput();
+        $("#map_axes_forced").prop("checked", false);
+        aamap_updateLayerControls();
         vectron_render();
+        var blankMap = xmlEditor_captureMapState();
+        aamap_recordAction({
+            label:"New map",
+            undo:function() { xmlEditor_restoreMapState(previousMap); },
+            redo:function() { xmlEditor_restoreMapState(blankMap); }
+        });
         gui_writeLog("New map created.");
+    }
+
+    // New maps are immediate and fully undoable; there is no destructive
+    // confirmation dialog.
+    $(".toolbar-newMap").mouseup(function(e) {
+        eventHandler_createBlankMap();
     });
 
-    $("#new-map-cancel").mouseup(function(e) {
-        document.getElementById("new-map-popover").style.display = 'none';
-    });
-
-    // Close new-map popover when clicking elsewhere
-    $(document).on("mousedown.newmappopover", function(e) {
-        var pop = document.getElementById("new-map-popover");
-        if(pop && pop.style.display !== 'none' &&
-           !$(e.target).closest("#new-map-popover").length &&
-           !$(e.target).closest(".toolbar-newMap").length) {
-            pop.style.display = 'none';
-        }
-    });
-
-    // Import button (toolbar)
-    $(".toolbar-import").mouseup(function(e) {
+    function eventHandler_openImport() {
         $("#toolbar-files").val("");
         $("#toolbar-files").click();
         $("#zones-menu").hide();
+    }
+
+    // Import button (toolbar)
+    $(".toolbar-import").mouseup(function(e) {
+        eventHandler_openImport();
     });
     $("#toolbar-files").change(function(e) {
         xml_handle(e);
@@ -2261,46 +2403,26 @@ function eventHandler_init() {
 
     // Export button (toolbar)
     $(".toolbar-export").mouseup(function(e) {
-        var map = eventHandler_getExportMap();
-        vectron_saveTextAsFile(map.xml, map.fileName);
+        eventHandler_downloadExportMap();
         $("#zones-menu").hide();
     });
 
-    $(".toolbar-armawebtron-preview").mouseup(function(e) {
-        var btn = this;
-        var popover = document.getElementById("armawebtron-preview-popover");
-        var rect = btn.getBoundingClientRect();
-        popover.style.left = (rect.right + 8) + 'px';
-        popover.style.top  = rect.top + 'px';
-        popover.style.display = 'block';
-        eventHandler_updatePreviewButtonState();
-        eventHandler_refreshPreviewButtonTooltip();
-        document.getElementById("new-map-popover").style.display = 'none';
-        if(eventHandler_tooltipsPinned) {
-            eventHandler_showPinnedTooltips();
-        }
+    Mousetrap.bind('mod+n', function() {
+        if(!aamap_active) return;
+        eventHandler_createBlankMap();
+        return false;
+    });
+    Mousetrap.bind('mod+o', function() {
+        if(!aamap_active) return;
+        eventHandler_openImport();
+        return false;
+    });
+    Mousetrap.bind('mod+s', function() {
+        if(!aamap_active) return;
+        eventHandler_downloadExportMap();
         $("#zones-menu").hide();
+        return false;
     });
-
-    $("#armawebtron-preview-open").mouseup(function(e) {
-        document.getElementById("armawebtron-preview-popover").style.display = 'none';
-        eventHandler_previewInArmawebtron();
-        $("#zones-menu").hide();
-    });
-
-    $("#armawebtron-preview-cancel").mouseup(function(e) {
-        document.getElementById("armawebtron-preview-popover").style.display = 'none';
-    });
-
-    $(document).on("mousedown.armawebtronpreviewpopover", function(e) {
-        var pop = document.getElementById("armawebtron-preview-popover");
-        if(pop && pop.style.display !== 'none' &&
-           !$(e.target).closest("#armawebtron-preview-popover").length &&
-           !$(e.target).closest(".toolbar-armawebtron-preview").length) {
-            pop.style.display = 'none';
-        }
-    });
-
 }
 
 var __resize_timeout;

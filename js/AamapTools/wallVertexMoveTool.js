@@ -25,6 +25,7 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 var wallVertexMoveTool_dots = null;
+var wallVertexMoveTool_angleGuides = null;
 var wallVertexMoveTool_dragWall = null;
 var wallVertexMoveTool_dragPtIdx = -1;
 var wallVertexMoveTool_origX = 0;
@@ -68,6 +69,7 @@ function wallVertexMoveTool_connect() {
 
 function wallVertexMoveTool_disconnect() {
     wallVertexMoveTool_clearBoxGuide();
+    wallVertexMoveTool_clearAngleGuides();
     if(wallVertexMoveTool_dots != null) {
         wallVertexMoveTool_dots.remove();
         wallVertexMoveTool_dots = null;
@@ -80,6 +82,40 @@ function wallVertexMoveTool_disconnect() {
     wallVertexMoveTool_isBoxSelecting = false;
     vectron_toolActive = false;
     $(".toolbar-toolWallVertexMove").removeClass("toolbar-tool-active");
+}
+
+function wallVertexMoveTool_clearAngleGuides() {
+    if(wallVertexMoveTool_angleGuides != null) {
+        wallVertexMoveTool_angleGuides.remove();
+        wallVertexMoveTool_angleGuides = null;
+    }
+}
+
+/** Highlight diagonal segments touching the vertices currently being edited. */
+function wallVertexMoveTool_drawAngleGuides() {
+    wallVertexMoveTool_clearAngleGuides();
+    if(typeof wallTool_isGridDiagonalSegment !== "function" ||
+        wallVertexMoveTool_selectedVertices.length === 0) return;
+
+    wallVertexMoveTool_angleGuides = vectron_screen.set();
+    var drawn = {};
+    for(var i = 0; i < wallVertexMoveTool_selectedVertices.length; i++) {
+        var selected = wallVertexMoveTool_selectedVertices[i];
+        for(var offset = -1; offset <= 0; offset++) {
+            var segmentIndex = selected.ptIdx + offset;
+            if(segmentIndex < 0 || segmentIndex + 1 >= selected.wall.points.length) continue;
+            var key = selected.wall.objectID + ":" + segmentIndex;
+            if(drawn[key]) continue;
+            drawn[key] = true;
+            var start = selected.wall.points[segmentIndex];
+            var end = selected.wall.points[segmentIndex + 1];
+            if(!wallTool_isGridDiagonalSegment(start, end)) continue;
+            wallVertexMoveTool_angleGuides.push(vectron_screen.path([
+                "M", aamap_realX(start.x), aamap_realY(start.y),
+                "L", aamap_realX(end.x), aamap_realY(end.y)
+            ]).attr({stroke:"#00cfff", "stroke-width":4, "stroke-dasharray":"--"}));
+        }
+    }
 }
 
 function wallVertexMoveTool_clearBoxGuide() {
@@ -104,10 +140,11 @@ function wallVertexMoveTool_drawDots() {
     if(wallVertexMoveTool_dots != null) {
         wallVertexMoveTool_dots.remove();
     }
+    wallVertexMoveTool_drawAngleGuides();
     wallVertexMoveTool_dots = vectron_screen.set();
     for(var i = 0; i < aamap_objects.length; i++) {
         var obj = aamap_objects[i];
-        if(obj instanceof Wall) {
+        if(obj instanceof Wall && aamap_isObjectEditable(obj)) {
             for(var j = 0; j < obj.points.length; j++) {
                 var rx = aamap_realX(obj.points[j].x);
                 var ry = aamap_realY(obj.points[j].y);
@@ -135,7 +172,7 @@ function wallVertexMoveTool_findVertex(realX, realY) {
     var bestDist = wallVertexMoveTool_threshold;
     for(var i = 0; i < aamap_objects.length; i++) {
         var obj = aamap_objects[i];
-        if(!(obj instanceof Wall)) continue;
+        if(!(obj instanceof Wall) || !aamap_isObjectEditable(obj)) continue;
         for(var j = 0; j < obj.points.length; j++) {
             var rx = aamap_realX(obj.points[j].x);
             var ry = aamap_realY(obj.points[j].y);
@@ -338,7 +375,7 @@ function wallVertexMoveTool_complete() {
         wallVertexMoveTool_selectedVertices = [];
         for (var i = 0; i < aamap_objects.length; i++) {
             var obj = aamap_objects[i];
-            if (!(obj instanceof Wall)) continue;
+            if (!(obj instanceof Wall) || !aamap_isObjectEditable(obj)) continue;
             for (var j = 0; j < obj.points.length; j++) {
                 var pt = obj.points[j];
                 if (pt.x >= mapX1 && pt.x <= mapX2 && pt.y >= mapY1 && pt.y <= mapY2) {

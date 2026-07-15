@@ -26,7 +26,6 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 var zone_warning;
 var ZONE_DEFAULT_GROWTH = 0;
-var ZONE_TELEPORT_MARKER_SIZE = 16;
 var ZONE_DIRECTION_EPSILON = 1e-9;
 var ZONE_DEFAULT_XDIR = 1;
 var ZONE_DEFAULT_YDIR = 0;
@@ -38,6 +37,31 @@ function zone_round(value) {
 function zone_xmlAttr(value) {
     return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;")
         .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Return the authored footprint without extending it beyond either endpoint.
+ * A zero-width ShapeLine is intentionally represented by its two endpoints;
+ * positive widths produce the four corners of a closed rectangular box.
+ */
+function zone_lineFootprintPoints(lineStart, lineEnd, width) {
+    var start = {x:Number(lineStart.x), y:Number(lineStart.y)};
+    var end = {x:Number(lineEnd.x), y:Number(lineEnd.y)};
+    var lineWidth = Number(width);
+    var dx = end.x - start.x;
+    var dy = end.y - start.y;
+    var length = Math.sqrt(dx * dx + dy * dy);
+    if(!(lineWidth > 0) || !(length > ZONE_DIRECTION_EPSILON)) {
+        return [start, end];
+    }
+    var offsetX = -dy / length * lineWidth / 2;
+    var offsetY = dx / length * lineWidth / 2;
+    return [
+        {x:start.x + offsetX, y:start.y + offsetY},
+        {x:end.x + offsetX, y:end.y + offsetY},
+        {x:end.x - offsetX, y:end.y - offsetY},
+        {x:start.x - offsetX, y:start.y - offsetY}
+    ];
 }
 
 function Zone(x, y, radius, growth, type, option, details) {
@@ -57,6 +81,15 @@ function Zone(x, y, radius, growth, type, option, details) {
     this.isSelected = false;
     this.glowObj = null;
     this.destinationObj = null;
+    this.destinationGlowObj = null;
+    this.teleportLinkObj = null;
+    this.movementPathObj = null;
+    this.checkpointLabelOutlineObj = null;
+    this.checkpointLabelObj = null;
+    var requestedLevel = Number(details.level);
+    this.level = isFinite(requestedLevel) && requestedLevel >= 0 &&
+        Math.floor(requestedLevel) === requestedLevel ? requestedLevel :
+        (typeof aamap_activeLevel === "number" ? aamap_activeLevel : 0);
 
     this.x = x;
     this.y = y;
@@ -66,11 +99,27 @@ function Zone(x, y, radius, growth, type, option, details) {
     this.type = type;
     this.zoneName = details.zoneName || (zoneTool_typeArray[this.type] ? zoneTool_typeArray[this.type][0] : "unknown");
     this.shapeType = details.shapeType || "circle";
-    this.priority = details.priority;
-    this.startTick = details.startTick;
-    this.endTick = details.endTick;
     this.trigger = details.trigger || "";
+    this.activeStartTick = details.activeStartTick === undefined ? null :
+        Number(details.activeStartTick);
+    this.activeEndTick = details.activeEndTick === undefined ? null :
+        Number(details.activeEndTick);
     this.options = details.options || {};
+    var requestedMovementSpeed = Number(details.movementSpeed);
+    var requestedRotationSpeed = Number(details.rotationSpeed);
+    this.movementSpeed = isFinite(requestedMovementSpeed) ? requestedMovementSpeed : 20;
+    // Rotation still affects a moving circle's path/orientation state even
+    // though the circle silhouette itself is rotationally symmetric.  Keep
+    // imported values so a load/export round trip cannot change the map ID.
+    this.rotationSpeed = isFinite(requestedRotationSpeed) ? requestedRotationSpeed : 0;
+    this.movementMode = ["circular", "ping_pong", "instant"].indexOf(details.movementMode) >= 0 ?
+        details.movementMode : "circular";
+    this.spawnAtVertices = details.spawnAtVertices === true ||
+        details.spawnAtVertices === 1 || details.spawnAtVertices === "1" ||
+        String(details.spawnAtVertices).toLowerCase() === "true";
+    this.movementPath = (details.movementPath || []).map(function(point) {
+        return {x:Number(point.x), y:Number(point.y)};
+    });
 
     this.minx = details.minx;
     this.miny = details.miny;
@@ -78,6 +127,32 @@ function Zone(x, y, radius, growth, type, option, details) {
     this.maxy = details.maxy;
     this.polygonScale = details.polygonScale === undefined ? 1 : Number(details.polygonScale);
     this.polygonPoints = details.polygonPoints || [];
+
+    var linePoints = details.linePoints || [];
+    var suppliedLineStart = details.lineStart || linePoints[0];
+    var suppliedLineEnd = details.lineEnd || linePoints[1];
+    var suppliedLineWidth = details.lineWidth;
+    if(suppliedLineWidth === undefined) suppliedLineWidth = details.width;
+    if(suppliedLineWidth === undefined) suppliedLineWidth = details.thickness;
+    suppliedLineWidth = Number(suppliedLineWidth);
+    this.lineWidth = isFinite(suppliedLineWidth) && suppliedLineWidth >= 0 ? suppliedLineWidth : 1;
+    this.lineStart = suppliedLineStart ? {
+        x:Number(suppliedLineStart.x), y:Number(suppliedLineStart.y)
+    } : {x:Number(x), y:Number(y)};
+    this.lineEnd = suppliedLineEnd ? {
+        x:Number(suppliedLineEnd.x), y:Number(suppliedLineEnd.y)
+    } : {x:Number(x) + 1, y:Number(y)};
+
+    this.updateLineBounds = function() {
+        this.x = (this.lineStart.x + this.lineEnd.x) / 2;
+        this.y = (this.lineStart.y + this.lineEnd.y) / 2;
+        var lineDx = this.lineEnd.x - this.lineStart.x;
+        var lineDy = this.lineEnd.y - this.lineStart.y;
+        // Retain a coarse bounding circle for editor code that has not yet
+        // adopted shape-specific bounds and hit testing.
+        this.radius = Math.sqrt(lineDx * lineDx + lineDy * lineDy +
+            this.lineWidth * this.lineWidth) / 2;
+    };
 
     if(this.shapeType === "rectangle") {
         this.x = (this.minx + this.maxx) / 2;
@@ -93,15 +168,15 @@ function Zone(x, y, radius, growth, type, option, details) {
             ));
         }
         this.radius = maxRadius;
+    } else if(this.shapeType === "line") {
+        this.updateLineBounds();
     }
-    
+
     switch(this.zoneName)
     {
-        case "rubber":
-            this.option = ( option !== undefined )?option:parseFloat($("#dRubberVal").val());
-            break;
         case "checkpoint":
-            this.option = Number(( option !== undefined )?option:$("#dCheckpointOrder").val());
+            this.option = Number(( option !== undefined ) ? option :
+                Number($("#dCheckpointOrder").val()));
             break;
         default:
             this.option = ( option !== undefined )?option:0;
@@ -122,7 +197,39 @@ function Zone(x, y, radius, growth, type, option, details) {
                 return {x:this.x + point.x * this.polygonScale, y:this.y + point.y * this.polygonScale};
             }, this);
         }
+        if(this.shapeType === "line") {
+            return [
+                {x:this.lineStart.x, y:this.lineStart.y},
+                {x:this.lineEnd.x, y:this.lineEnd.y}
+            ];
+        }
         return [];
+    }
+
+    this.getLineFootprintPoints = function() {
+        return zone_lineFootprintPoints(this.lineStart, this.lineEnd, this.lineWidth);
+    };
+
+    this.getShapeCenter = function() {
+        if(this.shapeType === "rectangle") {
+            return {x:(Number(this.minx) + Number(this.maxx)) / 2,
+                y:(Number(this.miny) + Number(this.maxy)) / 2};
+        }
+        if(this.shapeType === "line") {
+            return {x:(Number(this.lineStart.x) + Number(this.lineEnd.x)) / 2,
+                y:(Number(this.lineStart.y) + Number(this.lineEnd.y)) / 2};
+        }
+        if(this.shapeType !== "polygon") return {x:Number(this.x), y:Number(this.y)};
+
+        var points = this.getMapPoints();
+        if(!points.length) return {x:Number(this.x), y:Number(this.y)};
+        // Match the runtime's shared zone-icon/checkpoint center exactly:
+        // polygon centers are the arithmetic mean of their world vertices.
+        // An imported polygon's authored anchor need not equal that mean.
+        var total = points.reduce(function(sum, point) {
+            sum.x += point.x; sum.y += point.y; return sum;
+        }, {x:0, y:0});
+        return {x:total.x / points.length, y:total.y / points.length};
     }
 
     this.getTeleportDirection = function() {
@@ -137,8 +244,8 @@ function Zone(x, y, radius, growth, type, option, details) {
             return {x:Math.cos(radians), y:Math.sin(radians)};
         }
         var cardinalDirections = {
-            north:{x:0, y:1}, east:{x:1, y:0},
-            south:{x:0, y:-1}, west:{x:-1, y:0}
+            north:{x:0, y:1}, n:{x:0, y:1}, east:{x:1, y:0}, e:{x:1, y:0},
+            south:{x:0, y:-1}, s:{x:0, y:-1}, west:{x:-1, y:0}, w:{x:-1, y:0}
         };
         return cardinalDirections[String(this.options.direction).toLowerCase()] ||
             {x:ZONE_DEFAULT_XDIR, y:ZONE_DEFAULT_YDIR};
@@ -155,11 +262,59 @@ function Zone(x, y, radius, growth, type, option, details) {
         if(this.obj != null) this.obj.remove();
         if(this.glowObj != null) this.glowObj.remove();
         if(this.destinationObj != null) this.destinationObj.remove();
-        
+        if(this.destinationGlowObj != null) this.destinationGlowObj.remove();
+        if(this.teleportLinkObj != null) this.teleportLinkObj.remove();
+        this.destinationObj = null;
+        this.destinationGlowObj = null;
+        this.teleportLinkObj = null;
+        if(this.movementPathObj != null) this.movementPathObj.remove();
+        if(this.checkpointLabelOutlineObj != null) this.checkpointLabelOutlineObj.remove();
+        if(this.checkpointLabelObj != null) this.checkpointLabelObj.remove();
+        this.checkpointLabelOutlineObj = null;
+        this.checkpointLabelObj = null;
+
         var color = zoneTool_typeArray[this.type] ? zoneTool_typeArray[this.type][1] : "#888888";
+        if(this.movementPath.length) {
+            this.movementPathObj = vectron_screen.set();
+            var movementSegments = [];
+            for(var movementIndex = 1; movementIndex < this.movementPath.length; movementIndex++) {
+                movementSegments.push([this.movementPath[movementIndex - 1],
+                    this.movementPath[movementIndex]]);
+            }
+            if(this.movementMode === "circular" && this.movementPath.length >= 2) {
+                movementSegments.push([this.movementPath[this.movementPath.length - 1],
+                    this.movementPath[0]]);
+            }
+            for(var movementSegmentIndex = 0;
+                movementSegmentIndex < movementSegments.length; movementSegmentIndex++) {
+                var segment = movementSegments[movementSegmentIndex];
+                var segmentStyle = {
+                    "stroke":color, "stroke-width":2, "stroke-dasharray":"--..",
+                    "stroke-opacity":0.72, "fill":"none", "arrow-end":"classic-wide-long"
+                };
+                if(this.movementMode === "ping_pong") {
+                    segmentStyle["arrow-start"] = "classic-wide-long";
+                }
+                this.movementPathObj.push(vectron_screen.path([
+                    "M", aamap_realX(segment[0].x), aamap_realY(segment[0].y),
+                    "L", aamap_realX(segment[1].x), aamap_realY(segment[1].y)
+                ]).attr(segmentStyle));
+            }
+        }
         if(this.shapeType === "circle") {
             this.obj = vectron_screen.circle(aamap_realX(this.x),
                 aamap_realY(this.y), this.radius*vectron_zoom);
+        } else if(this.shapeType === "line") {
+            var lineRenderPoints = this.getLineFootprintPoints();
+            var lineRenderPath = [];
+            for(var linePointIndex = 0; linePointIndex < lineRenderPoints.length;
+                linePointIndex++) {
+                lineRenderPath.push(linePointIndex ? "L" : "M",
+                    aamap_realX(lineRenderPoints[linePointIndex].x),
+                    aamap_realY(lineRenderPoints[linePointIndex].y));
+            }
+            if(this.lineWidth > 0) lineRenderPath.push("Z");
+            this.obj = vectron_screen.path(lineRenderPath);
         } else {
             var points = this.getMapPoints();
             var path = "";
@@ -169,8 +324,83 @@ function Zone(x, y, radius, growth, type, option, details) {
             if(points.length) path += "Z";
             this.obj = vectron_screen.path(path);
         }
-        this.obj.attr({"stroke": color, "fill": color, "fill-opacity": ".05"});
+        if(this.shapeType === "line") {
+            this.obj.attr({
+                "stroke":color,
+                "stroke-width":1,
+                "stroke-linecap":"butt",
+                "stroke-linejoin":"miter",
+                "stroke-opacity":0.3,
+                "fill":this.lineWidth > 0 ? color : "none",
+                "fill-opacity":this.lineWidth > 0 ? 0.05 : 0
+            });
+        } else {
+            this.obj.attr({"stroke": color, "fill": color, "fill-opacity": ".05"});
+        }
         this.obj.data("id", this.objectID);
+        if(this.zoneName === "checkpoint") {
+            var checkpointCenter = this.getShapeCenter();
+            var checkpointTextX = aamap_realX(checkpointCenter.x);
+            var checkpointTextY = aamap_realY(checkpointCenter.y);
+            var checkpointText = Number(this.option) === 0 ? "ANY" : String(Number(this.option));
+            // Raphael/SVG draws strokes through the glyph itself. A separate
+            // outline behind an opaque foreground guarantees that the number
+            // stays white and readable on the permanently dark canvas.
+            this.checkpointLabelOutlineObj = vectron_screen.text(
+                checkpointTextX, checkpointTextY, checkpointText
+            ).attr({
+                fill:"none", stroke:"#000000", "stroke-width":5,
+                "font-size":20, "font-weight":"bold", "stroke-linejoin":"round"
+            });
+            this.checkpointLabelObj = vectron_screen.text(
+                checkpointTextX, checkpointTextY, checkpointText
+            ).attr({
+                fill:"#ffffff", stroke:"none", "font-size":20, "font-weight":"bold"
+            });
+            if(this.checkpointLabelOutlineObj.node) {
+                this.checkpointLabelOutlineObj.node.style.pointerEvents = "none";
+            }
+            if(this.checkpointLabelObj.node) {
+                this.checkpointLabelObj.node.style.pointerEvents = "none";
+            }
+        }
+        if(this.spawnAtVertices && this.movementPathObj && this.movementPath.length &&
+            this.obj && typeof this.obj.clone === "function") {
+            var movementAnchor = this.movementPath[0];
+            // Show each additional moving copy at its reset-time phase. These
+            // are authoring ghosts only; every copy advances along the path.
+            for(var vertexIndex = 1; vertexIndex < this.movementPath.length; vertexIndex++) {
+                var vertex = this.movementPath[vertexIndex];
+                var vertexCopy = this.obj.clone().attr({
+                    "stroke-opacity":0.48, "fill-opacity":0.025, "stroke-dasharray":"."
+                });
+                vertexCopy.transform("t" +
+                    (aamap_realX(vertex.x) - aamap_realX(movementAnchor.x)) + "," +
+                    (aamap_realY(vertex.y) - aamap_realY(movementAnchor.y)));
+                this.movementPathObj.push(vertexCopy);
+                if(this.checkpointLabelOutlineObj &&
+                    typeof this.checkpointLabelOutlineObj.clone === "function") {
+                    var checkpointOutlineCopy = this.checkpointLabelOutlineObj.clone()
+                        .attr({opacity:0.72});
+                    checkpointOutlineCopy.transform("t" +
+                        (aamap_realX(vertex.x) - aamap_realX(movementAnchor.x)) + "," +
+                        (aamap_realY(vertex.y) - aamap_realY(movementAnchor.y)));
+                    if(checkpointOutlineCopy.node) {
+                        checkpointOutlineCopy.node.style.pointerEvents = "none";
+                    }
+                    this.movementPathObj.push(checkpointOutlineCopy);
+                }
+                if(this.checkpointLabelObj &&
+                    typeof this.checkpointLabelObj.clone === "function") {
+                    var checkpointCopy = this.checkpointLabelObj.clone().attr({opacity:0.72});
+                    checkpointCopy.transform("t" +
+                        (aamap_realX(vertex.x) - aamap_realX(movementAnchor.x)) + "," +
+                        (aamap_realY(vertex.y) - aamap_realY(movementAnchor.y)));
+                    if(checkpointCopy.node) checkpointCopy.node.style.pointerEvents = "none";
+                    this.movementPathObj.push(checkpointCopy);
+                }
+            }
+        }
 
         if(this.zoneName === "teleport" && isFinite(Number(this.options.destination_x)) &&
             isFinite(Number(this.options.destination_y))) {
@@ -185,16 +415,25 @@ function Zone(x, y, radius, growth, type, option, details) {
             } else {
                 xdir /= directionLength; ydir /= directionLength;
             }
-            var markerSize = ZONE_TELEPORT_MARKER_SIZE;
-            this.destinationObj = vectron_screen.path([
-                "M", destinationX - xdir * markerSize / 2, destinationY - ydir * markerSize / 2,
-                "L", destinationX + xdir * markerSize / 2, destinationY + ydir * markerSize / 2,
-                "L", destinationX + xdir * markerSize / 6 - ydir * markerSize / 3,
-                     destinationY + ydir * markerSize / 6 + xdir * markerSize / 3,
-                "M", destinationX + xdir * markerSize / 2, destinationY + ydir * markerSize / 2,
-                "L", destinationX + xdir * markerSize / 6 + ydir * markerSize / 3,
-                     destinationY + ydir * markerSize / 6 - xdir * markerSize / 3
-            ]).attr({"stroke":"#00d9ff", "stroke-width":2});
+            if(this.isSelected) {
+                var teleportSourceCenter = this.getShapeCenter();
+                this.teleportLinkObj = vectron_screen.path([
+                    "M", aamap_realX(teleportSourceCenter.x),
+                    aamap_realY(teleportSourceCenter.y),
+                    "L", destinationX, destinationY
+                ]).attr({
+                    stroke:color, "stroke-width":2, "stroke-dasharray":"--..",
+                    "stroke-opacity":0.8, fill:"none", "arrow-end":"classic-wide-long"
+                });
+                if(this.teleportLinkObj.node) {
+                    this.teleportLinkObj.node.style.pointerEvents = "none";
+                }
+                if(typeof this.teleportLinkObj.insertBefore === "function") {
+                    this.teleportLinkObj.insertBefore(this.obj);
+                }
+            }
+            this.destinationObj = spawnMarker_create(
+                destinationX, destinationY, xdir, ydir, color, color);
         }
 
 
@@ -203,6 +442,10 @@ function Zone(x, y, radius, growth, type, option, details) {
         } else if(vectron_currentTool == "select") {
             selectTool_addHoverSet(this);
         }
+        if(vectron_currentTool == "select" &&
+            typeof selectTool_addTeleportDestinationHoverSet === "function") {
+            selectTool_addTeleportDestinationHoverSet(this);
+        }
     }
 
     this.scale = function(factor) {
@@ -210,6 +453,10 @@ function Zone(x, y, radius, growth, type, option, details) {
         this.y *= factor;
         this.radius *= factor;
         this.growth *= factor;
+        for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
+            this.movementPath[movementIndex].x *= factor;
+            this.movementPath[movementIndex].y *= factor;
+        }
         if(this.zoneName === "teleport") {
             this.options.destination_x = Number(this.options.destination_x) * factor;
             this.options.destination_y = Number(this.options.destination_y) * factor;
@@ -219,6 +466,11 @@ function Zone(x, y, radius, growth, type, option, details) {
             this.maxx *= factor; this.maxy *= factor;
         } else if(this.shapeType === "polygon") {
             this.polygonScale *= factor;
+        } else if(this.shapeType === "line") {
+            this.lineStart.x *= factor; this.lineStart.y *= factor;
+            this.lineEnd.x *= factor; this.lineEnd.y *= factor;
+            this.lineWidth *= Math.abs(factor);
+            this.updateLineBounds();
         }
     }
 
@@ -236,6 +488,12 @@ function Zone(x, y, radius, growth, type, option, details) {
         var newrad = Math.atan2(this.y,this.x)-rad;
         this.x = dist*Math.cos(newrad);
         this.y = dist*Math.sin(newrad);
+        for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
+            var movementX = this.movementPath[movementIndex].x;
+            var movementY = this.movementPath[movementIndex].y;
+            this.movementPath[movementIndex].x = movementX * Math.cos(-rad) - movementY * Math.sin(-rad);
+            this.movementPath[movementIndex].y = movementX * Math.sin(-rad) + movementY * Math.cos(-rad);
+        }
         if(this.zoneName === "teleport") {
             var destinationX = Number(this.options.destination_x);
             var destinationY = Number(this.options.destination_y);
@@ -256,6 +514,15 @@ function Zone(x, y, radius, growth, type, option, details) {
                 point.x = px * Math.cos(-rad) - py * Math.sin(-rad);
                 point.y = px * Math.sin(-rad) + py * Math.cos(-rad);
             }
+        } else if(this.shapeType === "line") {
+            var lineCos = Math.cos(-rad), lineSin = Math.sin(-rad);
+            var startX = this.lineStart.x, startY = this.lineStart.y;
+            var endX = this.lineEnd.x, endY = this.lineEnd.y;
+            this.lineStart.x = startX * lineCos - startY * lineSin;
+            this.lineStart.y = startX * lineSin + startY * lineCos;
+            this.lineEnd.x = endX * lineCos - endY * lineSin;
+            this.lineEnd.y = endX * lineSin + endY * lineCos;
+            this.updateLineBounds();
         }
     }
 
@@ -280,6 +547,12 @@ function Zone(x, y, radius, growth, type, option, details) {
             this.x = y;
             this.y = -x;
         }
+        for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
+            var movementX = this.movementPath[movementIndex].x;
+            var movementY = this.movementPath[movementIndex].y;
+            this.movementPath[movementIndex].x = dir > 0 ? -movementY : movementY;
+            this.movementPath[movementIndex].y = dir > 0 ? movementX : -movementX;
+        }
         if(this.zoneName === "teleport") {
             var destinationX = Number(this.options.destination_x);
             var destinationY = Number(this.options.destination_y);
@@ -297,6 +570,14 @@ function Zone(x, y, radius, growth, type, option, details) {
                 this.polygonPoints[i].x = dir > 0 ? -py : py;
                 this.polygonPoints[i].y = dir > 0 ? px : -px;
             }
+        } else if(this.shapeType === "line") {
+            var startX = this.lineStart.x, startY = this.lineStart.y;
+            var endX = this.lineEnd.x, endY = this.lineEnd.y;
+            this.lineStart.x = dir > 0 ? -startY : startY;
+            this.lineStart.y = dir > 0 ? startX : -startX;
+            this.lineEnd.x = dir > 0 ? -endY : endY;
+            this.lineEnd.y = dir > 0 ? endX : -endX;
+            this.updateLineBounds();
         }
     }
 
@@ -305,16 +586,102 @@ function Zone(x, y, radius, growth, type, option, details) {
         return [this.x,this.y];
     }
 
+    this.getBounds = function(visibleLevels) {
+        var bounds;
+        if(this.shapeType === "circle") {
+            var extent = Math.abs(this.radius) + Math.abs(this.growth);
+            bounds = {minx:this.x - extent, miny:this.y - extent,
+                maxx:this.x + extent, maxy:this.y + extent};
+        } else if(this.shapeType === "rectangle") {
+            bounds = {minx:Math.min(this.minx, this.maxx), miny:Math.min(this.miny, this.maxy),
+                maxx:Math.max(this.minx, this.maxx), maxy:Math.max(this.miny, this.maxy)};
+        } else if(this.shapeType === "line") {
+            var lineBoundsPoints = this.getLineFootprintPoints();
+            var lineBoundsX = lineBoundsPoints.map(function(point) { return point.x; });
+            var lineBoundsY = lineBoundsPoints.map(function(point) { return point.y; });
+            bounds = {minx:Math.min.apply(Math, lineBoundsX),
+                miny:Math.min.apply(Math, lineBoundsY),
+                maxx:Math.max.apply(Math, lineBoundsX),
+                maxy:Math.max.apply(Math, lineBoundsY)};
+        } else {
+            var points = this.getMapPoints();
+            if(points.length) {
+                var xs = points.map(function(point) { return point.x; });
+                var ys = points.map(function(point) { return point.y; });
+                bounds = {minx:Math.min.apply(Math, xs),
+                    miny:Math.min.apply(Math, ys),
+                    maxx:Math.max.apply(Math, xs),
+                    maxy:Math.max.apply(Math, ys)};
+            }
+        }
+
+        var sourceLevel = aamap_normalizeLevel(this.level, 0);
+        if(visibleLevels && !visibleLevels[sourceLevel]) bounds = null;
+        if(this.zoneName === "teleport") {
+            var destinationLevel = aamap_normalizeLevel(
+                this.options.destination_level, sourceLevel);
+            var destinationX = Number(this.options.destination_x);
+            var destinationY = Number(this.options.destination_y);
+            if((!visibleLevels || visibleLevels[destinationLevel]) &&
+                isFinite(destinationX) && isFinite(destinationY)) {
+                if(!bounds) {
+                    bounds = {minx:destinationX, miny:destinationY,
+                        maxx:destinationX, maxy:destinationY};
+                } else {
+                    bounds.minx = Math.min(bounds.minx, destinationX);
+                    bounds.miny = Math.min(bounds.miny, destinationY);
+                    bounds.maxx = Math.max(bounds.maxx, destinationX);
+                    bounds.maxy = Math.max(bounds.maxy, destinationY);
+                }
+            }
+        }
+        if(bounds && this.movementPath.length && (!visibleLevels || visibleLevels[sourceLevel])) {
+            for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
+                var movementPoint = this.movementPath[movementIndex];
+                if(!isFinite(movementPoint.x) || !isFinite(movementPoint.y)) continue;
+                bounds.minx = Math.min(bounds.minx, movementPoint.x);
+                bounds.miny = Math.min(bounds.miny, movementPoint.y);
+                bounds.maxx = Math.max(bounds.maxx, movementPoint.x);
+                bounds.maxy = Math.max(bounds.maxy, movementPoint.y);
+            }
+        }
+        return bounds || null;
+    }
+
     this.move = function(dx, dy) {
         this.x = Math.round((this.x + dx) * 1e6) / 1e6;
         this.y = Math.round((this.y + dy) * 1e6) / 1e6;
+        for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
+            this.movementPath[movementIndex].x = zone_round(this.movementPath[movementIndex].x + dx);
+            this.movementPath[movementIndex].y = zone_round(this.movementPath[movementIndex].y + dy);
+        }
         if(this.shapeType === "rectangle") {
             this.minx += dx; this.maxx += dx;
             this.miny += dy; this.maxy += dy;
+        } else if(this.shapeType === "line") {
+            this.lineStart.x = zone_round(this.lineStart.x + dx);
+            this.lineStart.y = zone_round(this.lineStart.y + dy);
+            this.lineEnd.x = zone_round(this.lineEnd.x + dx);
+            this.lineEnd.y = zone_round(this.lineEnd.y + dy);
+            this.updateLineBounds();
+        }
+        if(this.zoneName === "teleport") {
+            var destinationX = Number(this.options.destination_x);
+            var destinationY = Number(this.options.destination_y);
+            if(isFinite(destinationX) && isFinite(destinationY)) {
+                this.options.destination_x = zone_round(destinationX + dx);
+                this.options.destination_y = zone_round(destinationY + dy);
+            }
         }
     }
 
-    this.getShapeXML = function(legacy) {
+    this.getShapeXML = function() {
+        if(this.shapeType === "line") {
+            return '<ShapeLine width="' + zone_round(this.lineWidth) + '">\n' +
+                '  <Point x="' + zone_round(this.lineStart.x) + '" y="' + zone_round(this.lineStart.y) + '"/>\n' +
+                '  <Point x="' + zone_round(this.lineEnd.x) + '" y="' + zone_round(this.lineEnd.y) + '"/>\n' +
+                '</ShapeLine>';
+        }
         if(this.shapeType === "rectangle") {
             return '<ShapeRectangle minx="' + zone_round(this.minx) + '" miny="' + zone_round(this.miny) +
                 '" maxx="' + zone_round(this.maxx) + '" maxy="' + zone_round(this.maxy) + '"/>';
@@ -328,52 +695,70 @@ function Zone(x, y, radius, growth, type, option, details) {
             }
             return polygon + '\n</ShapePolygon>';
         }
-        var checkpoint = legacy && this.zoneName === "checkpoint" ?
-            '\n  <Checkpoint id="' + zone_round(this.option) + '" time="0"/>' : "";
-        return '<ShapeCircle radius="' + zone_round(this.radius) + '" growth="' + zone_round(this.growth) + '">\n' +
-            '  <Point x="' + zone_round(this.x) + '" y="' + zone_round(this.y) + '"/>' + checkpoint +
+        return '<ShapeCircle radius="' + zone_round(this.radius) + '">\n' +
+            '  <Point x="' + zone_round(this.x) + '" y="' + zone_round(this.y) + '"/>' +
             '\n</ShapeCircle>';
     }
 
-    this.getXML = function() {
-        var legacy = xml_game_mode !== "armaracing";
-        var attributes = legacy ? ' effect="' + zone_xmlAttr(this.zoneName) + '"' :
+    this.getXML = function(includeLevel) {
+        var attributes = (includeLevel === false ? '' : ' level="' + this.level + '"') +
             ' type="' + zone_xmlAttr(this.zoneName) + '"';
-        if(legacy && this.zoneName === "rubber") {
-            attributes += ' rubberVal="' + zone_xmlAttr(this.option) + '"';
-        }
-        if(!legacy) {
-            if(this.zoneName === "checkpoint") attributes += ' order="' + zone_xmlAttr(this.option) + '"';
-            if(this.zoneName === "speed") {
-                attributes += ' delta_mps="' + zone_xmlAttr(this.options.delta_mps) +
-                    '" duration_ticks="' + zone_xmlAttr(this.options.duration_ticks) + '"';
-            } else if(this.zoneName === "rubber") {
-                attributes += ' delta="' + zone_xmlAttr(this.options.delta) +
-                    '" duration_ticks="' + zone_xmlAttr(this.options.duration_ticks) + '"';
-            } else if(this.zoneName === "teleport") {
-                attributes += ' destination_x="' + zone_xmlAttr(this.options.destination_x) +
-                    '" destination_y="' + zone_xmlAttr(this.options.destination_y) + '"';
-                if(this.options.angle !== undefined) {
-                    attributes += ' angle="' + zone_xmlAttr(this.options.angle) + '"';
-                } else if(this.options.direction !== undefined) {
-                    attributes += ' direction="' + zone_xmlAttr(this.options.direction) + '"';
-                } else {
-                    attributes += ' xdir="' + zone_xmlAttr(this.options.xdir) +
-                        '" ydir="' + zone_xmlAttr(this.options.ydir) + '"';
-                }
+        if(this.zoneName === "checkpoint") attributes += ' order="' + zone_xmlAttr(this.option) + '"';
+        if(this.zoneName === "speed") {
+            attributes += ' delta_mps="' + zone_xmlAttr(this.options.delta_mps) +
+                '" duration_ticks="' + zone_xmlAttr(this.options.duration_ticks) + '"';
+        } else if(this.zoneName === "rubber") {
+            attributes += ' delta="' + zone_xmlAttr(this.options.delta) +
+                '" duration_ticks="' + zone_xmlAttr(this.options.duration_ticks) + '"';
+        } else if(this.zoneName === "health") {
+            attributes += ' delta="' + zone_xmlAttr(this.options.delta) + '"';
+        } else if(this.zoneName === "setting") {
+            attributes += ' setting="' + zone_xmlAttr(this.options.setting) +
+                '" value="' + zone_xmlAttr(this.options.value) + '"';
+        } else if(this.zoneName === "teleport") {
+            attributes += ' destination_x="' + zone_xmlAttr(this.options.destination_x) +
+                '" destination_y="' + zone_xmlAttr(this.options.destination_y) + '"';
+            if(includeLevel !== false) {
+                attributes += ' destination_level="' +
+                    aamap_normalizeLevel(this.options.destination_level, this.level) + '"';
             }
-            if(this.priority !== undefined && this.priority !== "") attributes += ' priority="' + zone_xmlAttr(this.priority) + '"';
-            if(this.startTick !== undefined && this.startTick !== "") attributes += ' start_tick="' + zone_xmlAttr(this.startTick) + '"';
-            if(this.endTick !== undefined && this.endTick !== "") attributes += ' end_tick="' + zone_xmlAttr(this.endTick) + '"';
-            if(this.trigger) attributes += ' trigger="' + zone_xmlAttr(this.trigger) + '"';
+            if(this.options.angle !== undefined) {
+                attributes += ' angle="' + zone_xmlAttr(this.options.angle) + '"';
+            } else if(this.options.direction !== undefined) {
+                attributes += ' direction="' + zone_xmlAttr(this.options.direction) + '"';
+            } else {
+                attributes += ' xdir="' + zone_xmlAttr(this.options.xdir) +
+                    '" ydir="' + zone_xmlAttr(this.options.ydir) + '"';
+            }
+        }
+        if(this.trigger) attributes += ' trigger="' + zone_xmlAttr(this.trigger) + '"';
+        if(this.activeStartTick !== null && this.activeEndTick !== null &&
+            isFinite(this.activeStartTick) && isFinite(this.activeEndTick)) {
+            attributes += ' start_tick="' + zone_xmlAttr(this.activeStartTick) +
+                '" end_tick="' + zone_xmlAttr(this.activeEndTick) + '"';
+        }
+        if(this.movementPath.length) {
+            attributes += ' movement_speed="' + zone_xmlAttr(zone_round(this.movementSpeed)) +
+                '" rotation_speed="' + zone_xmlAttr(zone_round(this.rotationSpeed)) + '"';
+        }
+        var movementXml = "";
+        if(this.movementPath.length) {
+            movementXml = '\n  <MovementPath loop="true" mode="' +
+                zone_xmlAttr(this.movementMode) + '" spawn_at_vertices="' +
+                (this.spawnAtVertices ? 'true' : 'false') + '">';
+            for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
+                movementXml += '\n    <Point x="' + zone_round(this.movementPath[movementIndex].x) +
+                    '" y="' + zone_round(this.movementPath[movementIndex].y) + '"/>';
+            }
+            movementXml += '\n  </MovementPath>';
         }
         return '<Zone' + attributes + '>\n' +
-            this.getShapeXML(legacy).split('\n').map(function(line) { return '  ' + line; }).join('\n') +
-            '\n</Zone>';
+            this.getShapeXML().split('\n').map(function(line) { return '  ' + line; }).join('\n') +
+            movementXml + '\n</Zone>';
     }
 
     this.outputFriendlyXML = function() {
         gui_writeLog(escapeHtml(this.getXML()));
     }
 
-} 
+}

@@ -28,9 +28,11 @@ along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
  * Represents a wall point OBJECT
  *
  */
-function WallPoint(x, y) {
+function WallPoint(x, y, height) {
     this.x = x;
     this.y = y;
+    height = Number(height);
+    if(isFinite(height) && height >= 0) this.height = height;
 }
 
 var wallTool_currentObj = null;
@@ -55,6 +57,38 @@ var WALL_TOOL_TEXT_CHAR_ROWS = 80;
 var WALL_TOOL_TEXT_CHAR_SPACING = 5;
 var WALL_TOOL_TEXT_LINE_SPACING = 12;
 var WALL_TOOL_TEXT_MASK_CACHE = {};
+var WALL_TOOL_GRID_DIAGONAL_TOLERANCE_DEGREES = 0.75;
+
+/**
+ * True when a non-zero map-space segment is parallel to a grid diagonal.
+ * Keeping this in map coordinates makes the feedback independent of zoom,
+ * pan, and the screen's inverted Y axis.
+ */
+function wallTool_isGridDiagonalSegment(a, b, toleranceDegrees) {
+    if(!a || !b) return false;
+    var dx = Number(b.x) - Number(a.x);
+    var dy = Number(b.y) - Number(a.y);
+    if(!isFinite(dx) || !isFinite(dy) || Math.abs(dx) + Math.abs(dy) < 1e-9) return false;
+
+    var angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    angle = ((angle % 360) + 360) % 360;
+    var tolerance = Number(toleranceDegrees);
+    if(!isFinite(tolerance) || tolerance < 0) tolerance = WALL_TOOL_GRID_DIAGONAL_TOLERANCE_DEGREES;
+    var targets = [45, 135, 225, 315];
+    for(var i = 0; i < targets.length; i++) {
+        var difference = Math.abs(angle - targets[i]);
+        difference = Math.min(difference, 360 - difference);
+        if(difference <= tolerance) return true;
+    }
+    return false;
+}
+
+function wallTool_getActiveSegmentStyle(a, b) {
+    if(wallTool_isGridDiagonalSegment(a, b)) {
+        return {stroke:"#00cfff", "stroke-width":3, "stroke-dasharray":"--"};
+    }
+    return {stroke:"#aaa", "stroke-width":1};
+}
 
 function wallTool_clearPreview() {
     if(wallTool_previewObj != null) {
@@ -93,6 +127,37 @@ function wallTool_getHeight() {
     if(h > 50) h = 50;
     $("#dWallHeight").val(h);
     return h;
+}
+
+function wallTool_isSlopedHeightEnabled() {
+    return $("#dWallSlopedHeight").is(":checked");
+}
+
+function wallTool_getPointHeight() {
+    var height = Number($("#dWallPointHeight").val());
+    if(!isFinite(height) || height < 0) height = 0;
+    if(height > 50) height = 50;
+    height = Math.round(height * 1e6) / 1e6;
+    $("#dWallPointHeight").val(height);
+    return height;
+}
+
+function wallTool_point(x, y) {
+    return new WallPoint(x, y,
+        wallTool_isSlopedHeightEnabled() ? wallTool_getPointHeight() : undefined);
+}
+
+function wallTool_prepareWallHeights(wall) {
+    if(!wall) return wall;
+    wall.height = wallTool_getHeight();
+    wall.slopedHeight = wallTool_isSlopedHeightEnabled();
+    if(wall.slopedHeight) {
+        var fallback = wallTool_getPointHeight();
+        wall.points.forEach(function(point) {
+            point.height = wall_normalizeHeight(point.height, fallback);
+        });
+    }
+    return wall;
 }
 
 function wallTool_setMode(mode) {
@@ -699,6 +764,7 @@ function wallTool_updateWindow() {
     var pointsSection = document.getElementById("wall-tool-points-section");
     var textSection = document.getElementById("wall-tool-text-section");
     var actionsSection = document.getElementById("wall-tool-actions-section");
+    var pointHeightSection = document.getElementById("wall-tool-point-height-section");
     var modeButtons = $(".wall-tool-mode-btn");
     var showFinish = isCountMode || (isTextMode && wallTool_stagePoints.length >= 2) || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2);
     var hasDraft = (isFreeform && wallTool_currentObj != null) || (!isFreeform && wallTool_stagePoints.length > 0);
@@ -709,6 +775,8 @@ function wallTool_updateWindow() {
     if(pointsSection) pointsSection.style.display = isFreeform ? "" : "none";
     if(textSection) textSection.style.display = isTextMode ? "" : "none";
     if(countSection) countSection.style.display = usesCountInput ? "" : "none";
+    if(pointHeightSection) pointHeightSection.style.display =
+        wallTool_isSlopedHeightEnabled() ? "" : "none";
     if(finishBtn) {
         finishBtn.style.display = showFinish ? "" : "none";
         finishBtn.innerHTML = isTextMode ? WALL_TOOL_BUTTON_LABEL_SUBMIT : (isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : WALL_TOOL_BUTTON_LABEL_FINISH);
@@ -840,18 +908,18 @@ function wallTool_refreshCountInput(warnIfReduced) {
 function wallTool_finalizePoints(points) {
     if(!points || points.length < 2) return false;
     var wall = new Wall();
-    wall.height = wallTool_getHeight();
     wall.points = points;
+    wallTool_prepareWallHeights(wall);
     wallTool_clearPreview();
     wallTool_clearCurrentWall();
     wallTool_stagePoints = [];
     wallTool_step = 0;
-    aamap_add(wall);
-    wall.render();
+    var addedWalls = aamap_addWithSymmetry(wall);
+    addedWalls.forEach(function(addedWall) { addedWall.render(); });
     aamap_recordAction({
         label: "Add wall",
-        undo: function() { _aamap_removeObj(wall); vectron_render(); },
-        redo: function() { aamap_objects.push(wall); vectron_render(); }
+        undo: function() { aamap_removeObjectGroup(addedWalls); vectron_render(); },
+        redo: function() { aamap_restoreObjectGroup(addedWalls); vectron_render(); }
     });
     vectron_toolActive = false;
     wallTool_updateWindow();
@@ -876,10 +944,9 @@ function wallTool_completeShape() {
         var addedTextWalls = [];
         for(var tw = 0; tw < draftWallPoints.length; tw++) {
             var wall = new Wall();
-            wall.height = wallTool_getHeight();
             wall.points = draftWallPoints[tw];
-            addedTextWalls.push(wall);
-            aamap_add(wall);
+            wallTool_prepareWallHeights(wall);
+            addedTextWalls = addedTextWalls.concat(aamap_addWithSymmetry(wall));
         }
         wallTool_clearPreview();
         wallTool_stagePoints = [];
@@ -899,9 +966,7 @@ function wallTool_completeShape() {
                 vectron_render();
             },
             redo: function() {
-                addedTextWalls.forEach(function(wall) {
-                    aamap_objects.push(wall);
-                });
+                aamap_restoreObjectGroup(addedTextWalls);
                 wallTool_selectWalls(addedTextWalls);
                 vectron_render();
             }
@@ -970,7 +1035,7 @@ function wallTool_completeShape() {
 }
 
 function wallTool_handleShapeClick() {
-    var pt = new WallPoint(
+    var pt = wallTool_point(
         aamap_mapX(cursor_realX),
         aamap_mapY(cursor_realY)
     );
@@ -1069,9 +1134,9 @@ function wallTool_handleShapeClick() {
 function wallTool_handleFreeformClick() {
     if(!vectron_toolActive) {
         wallTool_currentObj = new Wall();
-        wallTool_currentObj.height = wallTool_getHeight();
+        wallTool_prepareWallHeights(wallTool_currentObj);
         wallTool_currentObj.points.push(
-            new WallPoint(
+            wallTool_point(
                 aamap_mapX(cursor_realX),
                 aamap_mapY(cursor_realY))
         );
@@ -1088,7 +1153,7 @@ function wallTool_handleFreeformClick() {
         gui_writeLog("Prevented Duplicate points.");
         return;
     }
-    wallTool_currentObj.points.push(new WallPoint(newX, newY));
+    wallTool_currentObj.points.push(wallTool_point(newX, newY));
     wallTool_currentObj.render();
     wallTool_updatePointsList();
 }
@@ -1162,7 +1227,7 @@ function wallTool_progress() {
     if(newX == prevPoint.x && newY == prevPoint.y) {
         return;
     }
-    wallTool_currentObj.points.push(new WallPoint(newX, newY));
+    wallTool_currentObj.points.push(wallTool_point(newX, newY));
     wallTool_currentObj.render();
     wallTool_updatePointsList();
 }
@@ -1192,11 +1257,12 @@ function wallTool_complete() {
     }
     wallTool_currentObj.guideObj.remove();
     var completedWall = wallTool_currentObj;
-    aamap_add(completedWall);
+    wallTool_prepareWallHeights(completedWall);
+    var addedWalls = aamap_addWithSymmetry(completedWall);
     aamap_recordAction({
         label: "Add wall",
-        undo: function() { _aamap_removeObj(completedWall); vectron_render(); },
-        redo: function() { aamap_objects.push(completedWall); vectron_render(); }
+        undo: function() { aamap_removeObjectGroup(addedWalls); vectron_render(); },
+        redo: function() { aamap_restoreObjectGroup(addedWalls); vectron_render(); }
     });
     wallTool_currentObj = null;
     vectron_toolActive = false;
@@ -1221,11 +1287,12 @@ function wallTool_finishWall() {
     }
     wallTool_currentObj.guideObj.remove();
     var completedWall = wallTool_currentObj;
-    aamap_add(completedWall);
+    wallTool_prepareWallHeights(completedWall);
+    var addedWalls = aamap_addWithSymmetry(completedWall);
     aamap_recordAction({
         label: "Add wall",
-        undo: function() { _aamap_removeObj(completedWall); vectron_render(); },
-        redo: function() { aamap_objects.push(completedWall); vectron_render(); }
+        undo: function() { aamap_removeObjectGroup(addedWalls); vectron_render(); },
+        redo: function() { aamap_restoreObjectGroup(addedWalls); vectron_render(); }
     });
     wallTool_currentObj = null;
     vectron_toolActive = false;
@@ -1301,22 +1368,43 @@ function wallTool_updatePointsList() {
             yIn.step = '1';
             yIn.title = 'Y';
 
+            var heightIn = null;
+            if(wall.slopedHeight) {
+                heightIn = document.createElement('input');
+                heightIn.type = 'number';
+                heightIn.value = wall_normalizeHeight(pt.height, wall.height);
+                heightIn.step = '0.25';
+                heightIn.min = '0';
+                heightIn.max = '50';
+                heightIn.title = 'Point height';
+            }
+
             function applyCoords() {
                 var nx = parseFloat(xIn.value);
                 var ny = parseFloat(yIn.value);
                 if(!isNaN(nx)) wall.points[idx].x = nx;
                 if(!isNaN(ny)) wall.points[idx].y = ny;
+                if(heightIn) {
+                    var nextHeight = Number(heightIn.value);
+                    wall.points[idx].height = wall_normalizeHeight(nextHeight, wall.height);
+                    heightIn.value = wall.points[idx].height;
+                }
                 wall.render();
                 vectron_render();
             }
             xIn.addEventListener('change', applyCoords);
             yIn.addEventListener('change', applyCoords);
+            if(heightIn) heightIn.addEventListener('change', applyCoords);
 
             div.appendChild(lbl);
             div.appendChild(document.createTextNode('x:'));
             div.appendChild(xIn);
             div.appendChild(document.createTextNode(' y:'));
             div.appendChild(yIn);
+            if(heightIn) {
+                div.appendChild(document.createTextNode(' h:'));
+                div.appendChild(heightIn);
+            }
             listEl.appendChild(div);
 
             // Show wall segment length after each point except last
@@ -1420,13 +1508,20 @@ function wallTool_splitByGrid() {
             for(var k = 0; k < unique.length; k++) {
                 currentWallPoints.push(new WallPoint(
                     Math.round(unique[k].x * 1e6) / 1e6,
-                    Math.round(unique[k].y * 1e6) / 1e6
+                    Math.round(unique[k].y * 1e6) / 1e6,
+                    obj.slopedHeight ?
+                        wall_normalizeHeight(p1.height, obj.height) + unique[k].t *
+                            (wall_normalizeHeight(p2.height, obj.height) -
+                             wall_normalizeHeight(p1.height, obj.height)) : undefined
                 ));
 
                 // Start a new wall at each intersection
                 var splitWall = new Wall();
                 splitWall.points = currentWallPoints.slice();
                 splitWall.height = obj.height;
+                splitWall.heightAuthored = obj.heightAuthored;
+                splitWall.slopedHeight = !!obj.slopedHeight;
+                splitWall.level = obj.level;
                 newObjects.push(splitWall);
                 currentWallPoints = [currentWallPoints[currentWallPoints.length - 1]];
             }
@@ -1439,6 +1534,9 @@ function wallTool_splitByGrid() {
             var finalWall = new Wall();
             finalWall.points = currentWallPoints.slice();
             finalWall.height = obj.height;
+            finalWall.heightAuthored = obj.heightAuthored;
+            finalWall.slopedHeight = !!obj.slopedHeight;
+            finalWall.level = obj.level;
             newObjects.push(finalWall);
         }
     }

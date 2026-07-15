@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Arma Racing.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -23,14 +23,14 @@ You should have received a copy of the GNU General Public License
 along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 */
-window.vtVersion = 1.110;
+window.vtVersion = "1.2.0";
 
 var vectron_width;
 var vectron_height;
 
 var vectron_screen;
 
-var vectron_tools = ["select", "navigation", "wall", "zone", "spawn", "split", "join", "wallVertexMove"];
+var vectron_tools = ["select", "navigation", "wall", "floor", "zone", "spawn", "ramp", "split", "join", "wallVertexMove"];
 var vectron_currentTool = "";
 var vectron_toolActive = false;
 
@@ -72,7 +72,8 @@ function vectron_init() {
     aamap_init();
 
     eventHandler_init();
-    
+    if(typeof preview3d_init === "function") preview3d_init();
+
     config_load();
     zoomControls_init();
     gridSizeControls_init();
@@ -107,6 +108,7 @@ function vectron_render() {
 
     vectron_screen.clear();
     aamap_grid = null;
+    aamap_floorInfills = null;
     vectron_width = $("#canvas_container").width();
     vectron_height = $("#canvas_container").height();
     vectron_screen.setSize(vectron_width, vectron_height);
@@ -146,7 +148,7 @@ function vectron_write_info()
     if(document.getElementById("grid-visibility-toggle")) {
         gridVisibilityControls_sync();
     }
-    
+
     document.getElementById("anchor-x").innerText = vectron_format_coord(-(vectron_panX));
     document.getElementById("anchor-y").innerText = vectron_format_coord(-(vectron_panY));
 }
@@ -387,6 +389,17 @@ function vectron_disconnectTool() {
     return true;
 }
 
+function vectron_forceSelectTool() {
+    if(vectron_tools.indexOf(vectron_currentTool) >= 0) {
+        var disconnect = window[vectron_currentTool + "Tool_disconnect"];
+        if(typeof disconnect === "function") disconnect();
+    }
+    vectron_toolActive = false;
+    vectron_currentTool = "";
+    selectTool_connect();
+    vectron_currentTool = "select";
+}
+
 function vectron_connectTool(toolName) {
     if(vectron_tools.indexOf(toolName) >= 0 && vectron_disconnectTool()) {
         if(vectron_currentTool === toolName) {
@@ -482,4 +495,3 @@ async function vectron_saveTextAsFile(xml, filename)
 function vectron_destroyClickedElement(event) {
     document.body.removeChild(event.target);
 }
-

@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Arma Racing.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -71,7 +71,8 @@ function gui_applyClampedPosition(win, left, top) {
 function gui_applyWindowDefaultSize(win, entry) {
     if (!win || !entry) return;
     if (entry.defaultWidth) win.style.width = entry.defaultWidth + "px";
-    if (entry.defaultHeight) win.style.height = entry.defaultHeight + "px";
+    if (entry.defaultHeight === "auto") win.style.height = "auto";
+    else if (entry.defaultHeight) win.style.height = entry.defaultHeight + "px";
 }
 
 function gui_resetFloatingWindowSize(win) {
@@ -140,14 +141,16 @@ function gui_setupFloatingWindow(opts) {
 }
 
 function gui_init() {
-    gui_writeLog("Welcome to Vectron.")
-    zoneTool_setGameMode("armagetron");
+    gui_writeLog("Welcome to Vectron for Arma Racing.")
     actionHistory_init();
     controlBox_initDrag();
-    mapSettings_loadCSVs();
+    mapSettings_initUI();
     gui_setupFloatingWindow({ id: "wall-tool-window", headerId: "wall-tool-header", resetButtonId: "wall-tool-reset-size", order: 1, defaultWidth: 340, defaultHeight: 420 });
-    gui_setupFloatingWindow({ id: "zone-tool-window", headerId: "zone-tool-header", resetButtonId: "zone-tool-reset-size", order: 2, defaultWidth: 300, defaultHeight: 240 });
-    gui_setupFloatingWindow({ id: "action-history-window", headerId: "action-history-header", resetButtonId: "action-history-reset-size", order: 3, defaultWidth: 220, defaultHeight: 240 });
+    gui_setupFloatingWindow({ id: "zone-tool-window", headerId: "zone-tool-header", resetButtonId: "zone-tool-reset-size", order: 2, defaultWidth: 340, defaultHeight: "auto" });
+    gui_setupFloatingWindow({ id: "ramp-tool-window", headerId: "ramp-tool-header", order: 3, defaultWidth: 300, defaultHeight: 130 });
+    gui_setupFloatingWindow({ id: "floor-tool-window", headerId: "floor-tool-header", order: 4, defaultWidth: 300, defaultHeight: 150 });
+    gui_setupFloatingWindow({ id: "selection-properties-window", headerId: "selection-properties-header", order: 5, defaultWidth: 300, defaultHeight: "auto" });
+    gui_setupFloatingWindow({ id: "action-history-window", headerId: "action-history-header", resetButtonId: "action-history-reset-size", order: 6, defaultWidth: 220, defaultHeight: 240 });
     gui_refreshFloatingWindows();
     window.addEventListener("resize", gui_refreshFloatingWindows);
 }
@@ -283,88 +286,41 @@ function gui_hide() {
 function gui_fillInput() {
     $("#map_name").val(xml_name);
     $("#map_author").val(xml_author)
+    $("#map_author_password").val("");
+    xml_setAuthorPasswordPlaceholder(xml_author_password_hash ?
+        "Password set (enter to replace)" : "Author-time password");
     $("#map_category").val(xml_category);
     $("#map_version").val(xml_version)
-    $("#map_dtd").val(xml_dtd);
-
     $("#map_axes").val(xml_axes);
-    $("#map_game_mode").val(xml_game_mode);
-    $("#map_axis_vectors").val(xml_axis_vectors.map(function(axis) {
-        return axis.xdir + "," + axis.ydir;
-    }).join("; "));
     $("#map_settings").val(xml_settings.join("\n"));
     mapSettings_renderList();
 }
 
-// ---- Map Settings Search ----
+// ---- Arma Racing map settings search ----
 
-var mapSettings_commands = []; // [{name, desc, defaultVal, versions:[]}]
-
-function mapSettings_parseCSV(text) {
-    var rows = [];
-    var lines = text.split(/\r?\n/);
-    for (var i = 0; i < lines.length; i++) {
-        var line = lines[i];
-        if (!line.trim()) continue;
-        var fields = [];
-        var cur = '', inQuote = false;
-        for (var j = 0; j < line.length; j++) {
-            var c = line[j];
-            if (c === '"') {
-                if (inQuote && line[j+1] === '"') { cur += '"'; j++; }
-                else { inQuote = !inQuote; }
-            } else if (c === ',' && !inQuote) {
-                fields.push(cur); cur = '';
-            } else {
-                cur += c;
-            }
-        }
-        fields.push(cur);
-        rows.push(fields);
-    }
-    return rows;
-}
-
-function mapSettings_loadCSVs() {
-    var files = [
-        { url: vectron_assetUrl('js/0.2.8.3.1.csv'), version: '0.2.8.3.1' },
-        { url: vectron_assetUrl('js/Trunk.csv'),      version: 'Trunk'      },
-        { url: vectron_assetUrl('js/Sty+ct.csv'),     version: 'Sty+ct'     }
-    ];
-    var loaded = 0;
-    var combined = {}; // name -> {desc, defaultVal, versions:[]}
-
-    // Set up UI immediately; commands populate asynchronously
-    mapSettings_initUI();
-
-    files.forEach(function(f) {
-        $.ajax({
-            url: f.url,
-            dataType: 'text',
-            success: function(data) {
-                var rows = mapSettings_parseCSV(data);
-                // skip header row
-                for (var i = 1; i < rows.length; i++) {
-                    var row = rows[i];
-                    if (!row[0] || !row[0].trim()) continue;
-                    var name = row[0].trim().toUpperCase();
-                    if (!combined[name]) {
-                        combined[name] = { name: name, desc: (row[1] || '').trim(), defaultVal: (row[2] || '').trim(), versions: [] };
-                    }
-                    if (combined[name].versions.indexOf(f.version) < 0) {
-                        combined[name].versions.push(f.version);
-                    }
-                }
-            },
-            complete: function() {
-                loaded++;
-                if (loaded === files.length) {
-                    mapSettings_commands = Object.keys(combined).sort().map(function(k) { return combined[k]; });
-                }
-            }
-        });
-    });
-}
+var mapSettings_commands = [
+    { name: "CYCLE_BRAKE", desc: "Braking deceleration in map units per second squared.", defaultVal: "30" },
+    { name: "CYCLE_DELAY", desc: "Minimum delay between turns, in seconds.", defaultVal: "0.05" },
+    { name: "CYCLE_SPEED_MAX", desc: "Maximum cycle speed in metres per second.", defaultVal: "25" },
+    { name: "CYCLE_SPEED", desc: "Alias for CYCLE_SPEED_MAX.", defaultVal: "25" },
+    { name: "CYCLE_START_SPEED", desc: "Starting cycle speed in metres per second.", defaultVal: "10" },
+    { name: "JUMP_ENABLED", desc: "Enables jumping when set to 1; use 0 to disable it.", defaultVal: "0" },
+    { name: "JUMP_HEIGHT", desc: "Maximum jump height in metres.", defaultVal: "2" },
+    { name: "RIM_HEIGHT", desc: "Arena wall height in metres.", defaultVal: "4" },
+    { name: "ZONE_PULSE_SPEED", desc: "Zone floor-pulse cycles per second; zero freezes the waves.", defaultVal: "0.1" },
+    { name: "PROGRAM_TIME", desc: "Bronze target time in decimal seconds.", defaultVal: "45" },
+    { name: "USER_TIME", desc: "Silver target time in decimal seconds.", defaultVal: "38.5" },
+    { name: "ADMIN_TIME", desc: "Gold target time in decimal seconds.", defaultVal: "34.25" },
+    { name: "ARCHITECT_TIME", desc: "Author target time in decimal seconds.", defaultVal: "31" },
+    { name: "BRONZE_TIME", desc: "Alias for PROGRAM_TIME.", defaultVal: "45" },
+    { name: "SILVER_TIME", desc: "Alias for USER_TIME.", defaultVal: "38.5" },
+    { name: "GOLD_TIME", desc: "Alias for ADMIN_TIME.", defaultVal: "34.25" },
+    { name: "AUTHOR_TIME", desc: "Alias for ARCHITECT_TIME.", defaultVal: "31" },
+    { name: "RACING_PROGRAM_TIME", desc: "Bronze target time in decimal seconds.", defaultVal: "45" },
+    { name: "RACING_USER_TIME", desc: "Silver target time in decimal seconds.", defaultVal: "38.5" },
+    { name: "RACING_ADMIN_TIME", desc: "Gold target time in decimal seconds.", defaultVal: "34.25" },
+    { name: "RACING_ARCHITECT_TIME", desc: "Author target time in decimal seconds.", defaultVal: "31" }
+];
 
 function mapSettings_initUI() {
     var searchEl = document.getElementById('map-settings-search');
@@ -391,13 +347,6 @@ function mapSettings_initUI() {
 
             var metaRow = document.createElement('div');
             metaRow.style.cssText = 'margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;';
-
-            cmd.versions.forEach(function(v) {
-                var tag = document.createElement('span');
-                tag.style.cssText = 'font-size:9px;background:#ddd;color:#444;border-radius:3px;padding:1px 4px;font-family:sans-serif;';
-                tag.textContent = v;
-                metaRow.appendChild(tag);
-            });
 
             if (cmd.defaultVal !== '') {
                 var defSpan = document.createElement('span');
@@ -494,6 +443,7 @@ function mapSettings_addFromUI() {
     }
 
     xml_settings.push(entry);
+    if(typeof xml_invalidateAuthorTime === "function") xml_invalidateAuthorTime();
     mapSettings_syncTextarea();
     mapSettings_renderList();
     searchEl.value = '';
@@ -504,6 +454,7 @@ function mapSettings_addFromUI() {
 
 function mapSettings_removeEntry(idx) {
     xml_settings.splice(idx, 1);
+    if(typeof xml_invalidateAuthorTime === "function") xml_invalidateAuthorTime();
     mapSettings_syncTextarea();
     mapSettings_renderList();
 }

@@ -170,8 +170,7 @@ body {
 #tool_bar a.toolbar-help-toggle,
 #tool_bar a.toolbar-newMap,
 #tool_bar a.toolbar-import,
-#tool_bar a.toolbar-export,
-#tool_bar a.toolbar-armawebtron-preview {
+#tool_bar a.toolbar-export {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -187,8 +186,7 @@ body {
 #tool_bar a.toolbar-help-toggle:hover,
 #tool_bar a.toolbar-newMap:hover,
 #tool_bar a.toolbar-import:hover,
-#tool_bar a.toolbar-export:hover,
-#tool_bar a.toolbar-armawebtron-preview:hover {
+#tool_bar a.toolbar-export:hover {
 	background-color:#1b1b1b;
 	color:#fff;
 }
@@ -204,27 +202,6 @@ body {
 	opacity: 0.3;
 	cursor: no-drop;
 	color: #ccc;
-}
-
-#new-map-popover,
-#armawebtron-preview-popover {
-	background: #252525;
-	border-color: #555;
-	color: #eee;
-	box-shadow: 2px 4px 12px rgba(0,0,0,0.45);
-}
-
-#armawebtron-preview-popover .btn-default,
-#new-map-popover .btn-default {
-	background: #333;
-	border-color: #666;
-	color: #eee;
-}
-
-#armawebtron-preview-popover .btn-default:hover,
-#new-map-popover .btn-default:hover {
-	background: #444;
-	color: #fff;
 }
 
 #xml-editor-box {
@@ -257,7 +234,7 @@ body {
 	color: #666;
 }
 
-/* XML editor action buttons */
+/* Code Viewer action buttons */
 #xml-editor-box .btn-default {
 	background-color: #333;
 	border-color: #555;
@@ -484,13 +461,19 @@ body {
 
 /* Wall tool and Zone tool floating window dark mode */
 #wall-tool-window,
-#zone-tool-window {
+#zone-tool-window,
+#ramp-tool-window,
+#floor-tool-window,
+#selection-properties-window {
     background: rgba(28,28,28,0.97);
     color: #eee;
     border-color: #555;
 }
 #wall-tool-header,
-#zone-tool-header {
+#zone-tool-header,
+#ramp-tool-header,
+#floor-tool-header,
+#selection-properties-header {
     background: rgba(50,50,50,0.95);
     border-bottom-color: #444;
     color: #eee;
@@ -504,20 +487,49 @@ body {
     border-color: #555;
 }
 #zone-tool-body label,
-#zone-tool-body span {
+#zone-tool-body span,
+#ramp-tool-body label,
+#ramp-tool-body span,
+#floor-tool-body label,
+#floor-tool-body span,
+#selection-properties-body label,
+#selection-properties-body span {
     color: #eee;
 }
+
 #wall-tool-body label,
 #wall-tool-body span {
     color: #eee;
 }
 #wall-tool-body input[type=number],
-#zone-tool-body input[type=number] {
+#zone-tool-body input[type=number],
+#ramp-tool-body input[type=number],
+#ramp-tool-body select,
+#selection-properties-body input[type=number] {
     background: rgba(255,255,255,0.08);
     color: #eee;
     border: 1px solid #555;
     border-radius: 2px;
 }
+
+.level-select-btn,
+.level-eye-btn,
+.level-delete-btn {
+    background: #222;
+    color: #eee;
+    border-color: #555;
+}
+.level-select-btn.active {
+    background: #5b7cff;
+    border-color: #8fa4ff;
+    color: #fff;
+}
+
+#level-menu { background:#1d1d1d; color:#eee; border-color:#555; }
+.level-height-row { color:#ccc; }
+.level-height-input { background:#2b2b2b; color:#eee; border:1px solid #555; }
+.level-missing-row { color:#aaa; border-color:#555; }
+#level-delete-popover { background:#1d1d1d; color:#eee; border-color:#555; }
 
 #wall-tool-body .wall-tool-mode-btn,
 #wall-tool-body .btn-default {
