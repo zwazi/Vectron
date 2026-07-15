@@ -49,7 +49,14 @@ function spawnMarker_directionFromCursor(x, y, fallbackX, fallbackY) {
 
 function spawnMarker_toDegrees(xdir, ydir) {
     // Raphael rotates clockwise while atan2 uses counter-clockwise angles.
-    return -Math.atan2(ydir, xdir) / Math.PI * 180;
+    var degrees = -Math.atan2(ydir, xdir) / Math.PI * 180;
+    // Screen/map conversion can leave a cardinal direction a few floating-
+    // point ulps away from an integer degree (for example -90.00000000000004).
+    // Canonicalize only that numerical noise so spawn and teleport markers
+    // receive deterministic Raphael transforms without quantizing real
+    // authored angles.
+    var nearestDegree = Math.round(degrees);
+    return Math.abs(degrees - nearestDegree) <= 1e-9 ? nearestDegree : degrees;
 }
 
 function spawnMarker_path(x, y, scale) {
@@ -75,10 +82,10 @@ function Spawn() {
     this.objectID = vectron_objectID;
     vectron_objectID++;
 
-    this.obj = vectron_screen.path();
-    this.obj.data("id", this.objectID);
+    this.obj = aamap_isBulkLoading() ? null : vectron_screen.path();
+    if(this.obj) this.obj.data("id", this.objectID);
 
-    this.guideObj = vectron_screen.path();
+    this.guideObj = aamap_isBulkLoading() ? null : vectron_screen.path();
 
     this.isSelected = false;
     this.glowObj = null;
@@ -143,7 +150,7 @@ function Spawn() {
             x, y, this.xDir, this.yDir, "#FF3333", "#FF8ABE");
     }
 
-    this.guide();
+    if(!aamap_isBulkLoading()) this.guide();
 
     this.scale = function(factor) {
         this.x *= factor;

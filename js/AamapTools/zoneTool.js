@@ -67,6 +67,8 @@ var ZONE_TOOL_DEFAULT_MOVEMENT_SPEED = 20;
 var ZONE_TOOL_DEFAULT_ROTATION_SPEED = 0;
 var ZONE_TOOL_MIN_MOVEMENT_PATH_POINTS = 2;
 var ZONE_TOOL_CHECKPOINT_ORDER = 0;
+var ZONE_TOOL_DEFAULT_CHECKPOINT_INCREMENT_EVERY = 1;
+var zoneTool_checkpointPlacementsSinceIncrement = 0;
 var ZONE_TOOL_TYPES = [0, 1, 3, 5, 6, 7, 8];
 var ZONE_TOOL_SETTING_INPUTS = {
     CYCLE_ACCEL:{value:20, min:0, step:0.1},
@@ -143,6 +145,46 @@ function zoneTool_validCheckpointOrder(value) {
 
 function zoneTool_validCheckpointNumber(value) {
     return isFinite(value) && value >= 1 && Math.floor(value) === value;
+}
+
+function zoneTool_validCheckpointIncrementEvery(value) {
+    return isFinite(value) && value >= 1 && Math.floor(value) === value;
+}
+
+/**
+ * Return how many completed placement operations should share one ordered
+ * checkpoint number. Older pages do not have this input, so one placement per
+ * number remains the compatibility behavior.
+ */
+function zoneTool_checkpointIncrementEvery(requireValid) {
+    var input = $("#dCheckpointAutoIncrementEvery");
+    if(!input.length) return ZONE_TOOL_DEFAULT_CHECKPOINT_INCREMENT_EVERY;
+    var value = Number(input.val());
+    if(zoneTool_validCheckpointIncrementEvery(value)) return value;
+    if(requireValid) {
+        gui_writeLog("Checkpoint auto-increment interval must be a whole number starting at 1.");
+        return null;
+    }
+    return ZONE_TOOL_DEFAULT_CHECKPOINT_INCREMENT_EVERY;
+}
+
+function zoneTool_resetCheckpointIncrementProgress() {
+    zoneTool_checkpointPlacementsSinceIncrement = 0;
+}
+
+function zoneTool_advanceCheckpointAfterPlacement(newZone) {
+    if(!newZone || newZone.zoneName !== "checkpoint") return false;
+    if(Number(newZone.option) <= 0 ||
+        !$("#dCheckpointAutoIncrement").is(":checked")) {
+        zoneTool_resetCheckpointIncrementProgress();
+        return false;
+    }
+    var every = zoneTool_checkpointIncrementEvery(false);
+    zoneTool_checkpointPlacementsSinceIncrement++;
+    if(zoneTool_checkpointPlacementsSinceIncrement < every) return false;
+    $("#dCheckpointOrder").val(Number(newZone.option) + 1);
+    zoneTool_resetCheckpointIncrementProgress();
+    return true;
 }
 
 function zoneTool_parseLineWidth(value) {
@@ -285,9 +327,13 @@ function zoneTool_updateSettings() {
     if(shape === "circle") $("#dZoneRotationSpeed").val("0");
     var isCheckpoint = zoneTool_type === 5;
     var orderedCheckpoint = isCheckpoint && $("#dCheckpointOrdered").is(":checked");
+    var autoIncrementCheckpoint = orderedCheckpoint &&
+        $("#dCheckpointAutoIncrement").is(":checked");
     $("#zone-checkpoint-ordered-setting").toggle(isCheckpoint);
     $("#zone-checkpoint-setting,#zone-checkpoint-auto-increment-setting")
         .toggle(orderedCheckpoint);
+    $("#zone-checkpoint-auto-increment-every-setting")
+        .toggle(autoIncrementCheckpoint);
     $("#zone-speed-setting,#zone-speed-duration-setting").toggle(zoneTool_type === 6);
     $("#zone-health-setting").toggle(zoneTool_type === 3);
     $("#zone-game-setting,#zone-game-setting-value").toggle(zoneTool_type === 8);
@@ -489,10 +535,7 @@ function zoneTool_addZone(newZone) {
         undo: function() { aamap_removeObjectGroup(addedZones); vectron_render(); },
         redo: function() { aamap_restoreObjectGroup(addedZones); vectron_render(); }
     });
-    if(newZone.zoneName === "checkpoint" && Number(newZone.option) > 0 &&
-        $("#dCheckpointAutoIncrement").is(":checked")) {
-        $("#dCheckpointOrder").val(Number(newZone.option) + 1);
-    }
+    zoneTool_advanceCheckpointAfterPlacement(newZone);
     zoneTool_resetPlacement();
     zoneTool_updateStatus();
     vectron_render();
@@ -599,6 +642,8 @@ function zoneTool_complete() {
             gui_writeLog("Checkpoint number must be a whole number starting at 1.");
             return;
         }
+        if($("#dCheckpointAutoIncrement").is(":checked") &&
+            zoneTool_checkpointIncrementEvery(true) === null) return;
     }
 
     if(zoneTool_stage === "movement-path") {

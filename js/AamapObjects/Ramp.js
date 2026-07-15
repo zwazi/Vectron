@@ -137,8 +137,8 @@ function Ramp(from0, from1, to0, to1, fromLevel, toLevel) {
     if(this.toLevel === this.fromLevel) this.toLevel = this.fromLevel + 1;
 
     this.objectID = vectron_objectID++;
-    this.obj = vectron_screen.path();
-    this.obj.data("id", this.objectID);
+    this.obj = aamap_isBulkLoading() ? null : vectron_screen.path();
+    if(this.obj) this.obj.data("id", this.objectID);
     this.detailObj = null;
     this.glowObj = null;
     this.isSelected = false;

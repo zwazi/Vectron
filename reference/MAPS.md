@@ -10,6 +10,14 @@ load_map maps/Examples/native-format.armamap
 Vectron exports `.armamap` and imports either `.armamap` or legacy `.aamap.xml`.
 The current canonical contract, schema, identity rules, and migration behavior
 are documented in the [map-format reference](../../../docs/map-format.md).
+When Vectron imports a legacy XML file, it applies one shared translation to
+spawns, wall/floor/ramp points, every zone shape, moving-zone paths, and
+teleport destinations so the combined geometry bounds are centered at world
+`(0,0)`. Widths, radii, heights, direction vectors, and relative layout stay
+unchanged. Moving shapes contribute their complete footprint at every path
+pivot; nonzero rotation uses a conservative full pivot-radius envelope that
+may add viewport whitespace. Native `.armamap` files retain their authored
+world coordinates.
 The XML snippets below document legacy import compatibility; XML is no longer
 Vectron's export format. The legacy loader accepts both the C++
 `<Resource><Map><World><Field>` wrapper and a bare `<Map>` document. Map loading
@@ -266,7 +274,7 @@ Win and death zones use the same Arma Racing `type` spelling as other zones.
 <Zone type="win"><ShapeCircle radius="15"><Point x="150" y="0"/></ShapeCircle></Zone>
 ```
 
-See [`maps/Examples/extended-zones.aamap.xml`](../../../maps/Examples/extended-zones.aamap.xml) for a
-single loadable map that uses every supported racing zone and C++-style walls,
-spawn, axes, settings, circles, rectangles, and polygons. For canonical JSON,
-see [`maps/Examples/native-format.armamap`](../../../maps/Examples/native-format.armamap).
+See the test-only [`extended-zones.armamap`](../../../tests/fixtures/maps/extended-zones.armamap)
+for a canonical map that uses every supported racing zone and C++-style walls,
+spawn, axes, settings, circles, rectangles, and polygons. A smaller native
+example is [`native-format.armamap`](../../../tests/fixtures/maps/native-format.armamap).

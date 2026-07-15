@@ -240,7 +240,7 @@
                                 <tr><td><b>Name</b></td><td>Map name included in the exported file</td></tr>
                                 <tr><td><b>Author</b></td><td>Author name included in the exported file</td></tr>
                                 <tr><td><b>Tags</b></td><td>Comma-separated search tags (for example <i>racing, technical</i>).</td></tr>
-                                <tr><td><b>Revision</b></td><td>A deterministic hash generated from the complete persisted map document on export.</td></tr>
+                                <tr><td><b>Revision</b></td><td>Generated internally from the complete persisted map on export; it is not an editable map field.</td></tr>
                                 <tr><td><b>Axes ☐</b></td><td>Number of axes (turning directions). <i>axes = 360 / angle</i>. Check the box to include this in the exported map file.</td></tr>
                                 <tr><td><b>Levels</b></td><td>Open the Levels menu in the bottom bar to select or hide any level, or create a new one.</td></tr>
                                 <tr><td><b>Gap heights</b></td><td>Set the vertical height between every adjacent pair of levels in the Levels menu.</td></tr>
@@ -284,9 +284,9 @@
                       <div class="form-group cfg-form-group">
                         <label for="zoom-step-select">Scroll Wheel Zoom Step</label>
                         <select class="form-control" id="zoom-step-select" name="zoom-step-select" onchange="config_zoomStep=parseFloat(this.value);_config_set('zoomStep',this.value);">
-                          <option value="0.02">Fine (2% – default)</option>
+                          <option value="0.02">Fine (2%)</option>
                           <option value="0.05">Medium (5%)</option>
-                          <option value="0.10">Coarse (10%)</option>
+                          <option value="0.10" selected>Coarse (10% – default)</option>
                           <option value="0.20">Large (20%)</option>
                         </select>
                       </div>
@@ -351,11 +351,6 @@
             <span class="tsb-field">
                 <label for="map_category" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Comma-separated tags for finding this map; examples: racing, technical">Tags</label>
                 <input type="text" class="tsb-input" id="map_category" placeholder="racing, technical" default="racing">
-            </span>
-            <span class="tsb-sep">|</span>
-            <span class="tsb-field">
-                <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Generated automatically from the complete persisted map. Any saved content change creates a different revision.">Revision</label>
-                <input type="text" class="tsb-input tsb-input-sm" id="map_version" placeholder="Generated on export" readonly aria-readonly="true">
             </span>
             <span class="tsb-sep">|</span>
             <span class="tsb-field" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Map axes control turning directions. Check the box to force axes in the map file.">
@@ -460,10 +455,15 @@
                         <label class="vt-tool-name" for="dCheckpointOrdered">Enforce order</label>
                         <span class="vt-tool-input"><input type="checkbox" id="dCheckpointOrdered" checked /></span>
                     </div>
-                    <div id="zone-checkpoint-auto-increment-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="After a checkpoint is completely placed, advance Checkpoint # to the next number. Disable this to place more than one zone with the same checkpoint number.">
+                    <div id="zone-checkpoint-auto-increment-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="Automatically advance Checkpoint # after the configured number of completed placements. Disable this to keep the same checkpoint number indefinitely.">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span></span>
                         <label class="vt-tool-name" for="dCheckpointAutoIncrement">Auto-increment</label>
                         <span class="vt-tool-input"><input type="checkbox" id="dCheckpointAutoIncrement" checked /></span>
+                    </div>
+                    <div id="zone-checkpoint-auto-increment-every-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="How many completed checkpoint placements keep the current Checkpoint # before advancing it. The default of 1 preserves the previous behavior; use 2 or more to place several zones for each checkpoint number.">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-repeat" aria-hidden="true"></span></span>
+                        <label class="vt-tool-name" for="dCheckpointAutoIncrementEvery">Increment every</label>
+                        <span class="vt-tool-input checkpoint-increment-input"><input type="number" id="dCheckpointAutoIncrementEvery" value="1" step="1" min="1" required /><span>placements</span></span>
                     </div>
                     <div id="zone-speed-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="The temporary speed modifier in metres per second. Positive values boost the cycle; negative values slow it; zero has no effect.">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-forward"></span></span>
@@ -715,13 +715,13 @@
                 </div>
             </div>
         </div>
-        <div id="export-password-popover" style="display:none;position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.5);align-items:center;justify-content:center;" role="dialog" aria-modal="true" aria-labelledby="export-password-title">
-            <div style="width:min(420px,calc(100vw - 32px));background:#fff;color:#222;border-radius:6px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.45);">
-                <strong id="export-password-title" style="display:block;margin-bottom:8px;">Confirm author-time password</strong>
-                <p style="font-size:12px;">Enter the map password to confirm this export. The password itself is never written to the map.</p>
-                <div style="display:flex;gap:5px;"><input id="export-password-confirm" type="password" class="form-control" autocomplete="current-password" maxlength="120" aria-label="Confirm author-time password"><button id="export-password-visibility" type="button" class="btn btn-default" aria-label="Show confirmation password"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></div>
-                <div id="export-password-error" style="display:none;color:#b00020;font-size:12px;margin-top:6px;">That password does not match this map.</div>
-                <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:14px;"><button id="export-password-cancel" type="button" class="btn btn-default">Cancel</button><button id="export-password-accept" type="button" class="btn btn-primary">Confirm &amp; Export</button></div>
+        <div id="export-password-popover" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="export-password-title">
+            <div class="export-password-popover-body">
+                <strong id="export-password-title">Confirm author-time password</strong>
+                <p>Enter the map password to confirm this export. The password itself is never written to the map.</p>
+                <div class="export-password-field"><input id="export-password-confirm" type="password" class="form-control" autocomplete="current-password" maxlength="120" aria-label="Confirm author-time password"><button id="export-password-visibility" type="button" class="btn btn-default" aria-label="Show confirmation password"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></div>
+                <div id="export-password-error" style="display:none;">That password does not match this map.</div>
+                <div class="export-password-actions"><button id="export-password-cancel" type="button" class="btn btn-default">Cancel</button><button id="export-password-accept" type="button" class="btn btn-primary">Confirm &amp; Export</button></div>
             </div>
         </div>
         <div id="action-history-window" style="display:none;">

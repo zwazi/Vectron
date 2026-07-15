@@ -290,7 +290,6 @@ function gui_fillInput() {
     xml_setAuthorPasswordPlaceholder(xml_author_password_hash ?
         "Password set (enter to replace)" : "Author-time password");
     $("#map_category").val(xml_category);
-    $("#map_version").val(xml_version)
     $("#map_axes").val(xml_axes);
     $("#map_settings").val(xml_settings.join("\n"));
     mapSettings_renderList();

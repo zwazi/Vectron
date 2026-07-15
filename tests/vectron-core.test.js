@@ -10,7 +10,9 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const configSource = fs.readFileSync(path.join(root, "js/config.js"), "utf8");
 const eventSource = fs.readFileSync(path.join(root, "js/eventHandler.js"), "utf8");
+const xmlSource = fs.readFileSync(path.join(root, "js/xml.js"), "utf8");
 const guiSource = fs.readFileSync(path.join(root, "js/gui.js"), "utf8");
+const darkCssSource = fs.readFileSync(path.join(root, "css/vectron-dark.css"), "utf8");
 const armamapSchema = JSON.parse(fs.readFileSync(
     path.resolve(root, "../../docs/armamap-v1.schema.json"), "utf8"));
 assert.ok(armamapSchema.required.includes("metadata"));
@@ -45,10 +47,23 @@ assert.match(configSource, /select:\s*'1'[\s\S]*wall:\s*'2'[\s\S]*floor:\s*'3'[\
 assert.doesNotMatch(indexSource, /id="keybinds-config"|id="new-map-popover"/);
 assert.match(indexSource, /id="symmetry-check-toggle"/);
 assert.match(indexSource, /id="map_author_password"[^>]*maxlength="120"/);
+assert.match(indexSource,
+    /id="dCheckpointAutoIncrementEvery"[^>]*value="1"[^>]*step="1"[^>]*min="1"/);
+assert.match(indexSource, /class="export-password-popover-body"/);
+assert.match(darkCssSource,
+    /\.export-password-popover-body\s*\{[^}]*background:#1d1d1d;[^}]*color:#eee;[^}]*border-color:#555;/);
+assert.match(darkCssSource,
+    /#export-password-confirm\s*\{[^}]*background:#2b2b2b;[^}]*color:#eee;[^}]*border-color:#555;/);
 assert.match(indexSource, /for="map_category"[^>]*>Tags<\/label>/);
-assert.match(indexSource, /id="map_version"[^>]*\breadonly\b/);
+assert.doesNotMatch(indexSource, /id="map_version"/,
+    "The generated map revision remains internal rather than a user input");
+assert.match(indexSource, /<option value="0\.10" selected>Coarse \(10% – default\)<\/option>/);
+assert.match(configSource, /var config_zoomStep = 0\.10;/);
 assert.match(eventSource, /armamap_applyRevision\(nativeDocument\)/,
     "Code Viewer applies intentional edits with a fresh revision");
+assert.match(xmlSource,
+    /xml_process\(parsed, false, isNative \? null : \{centerOnOrigin:true\}\)/,
+    "File import centers legacy XML but preserves canonical .armamap coordinates");
 assert.match(indexSource, /Ctrl\+N[\s\S]*Ctrl\+O[\s\S]*Ctrl\+S/);
 assert.match(eventSource, /Mousetrap\.bind\('mod\+n'/);
 assert.match(eventSource, /Mousetrap\.bind\('mod\+o'/);
@@ -67,6 +82,8 @@ const shortcutContext = vm.createContext({
 });
 shortcutContext.window = shortcutContext;
 vm.runInContext(configSource, shortcutContext, {filename:"js/config.js"});
+assert.strictEqual(shortcutContext.config_zoomStep, 0.10);
+assert.strictEqual(shortcutContext._config_check_default("zoomStep"), "0.10");
 assert.deepStrictEqual(plain(shortcutContext.vectron_defaultKeybinds), {
     select:"1", wall:"2", floor:"3", zone:"4", spawn:"5", ramp:"6",
     split:"7", join:"8", wallVertexMove:"9"
@@ -97,8 +114,12 @@ function element() {
 
 function paper() {
     return {
-        path(value) { const result = element(); result.path = value; return result; },
-        circle() { return element(); }, rect() { return element(); },
+        pathCalls:0, circleCalls:0,
+        path(value) {
+            this.pathCalls++;
+            const result = element(); result.path = value; return result;
+        },
+        circle() { this.circleCalls++; return element(); }, rect() { return element(); },
         text(x, y, value) {
             const result = element();
             result.textX = x; result.textY = y; result.textValue = String(value);
@@ -118,6 +139,7 @@ const controls = {
     "#dCheckpointOrder": {value:"1"},
     "#dCheckpointOrdered": {checked:true, value:""},
     "#dCheckpointAutoIncrement": {checked:true, value:""},
+    "#dCheckpointAutoIncrementEvery": {value:"1"},
     "#dZoneShape": {value:"circle"},
     "#dZoneLineWidth": {value:"2"},
     "#dZoneTrigger": {value:""},
@@ -139,7 +161,7 @@ function jquery(selector) {
     control.data = control.data || {};
     control.attrs = control.attrs || {};
     const api = {
-        0:control, length:1,
+        0:control, length:control.present === false ? 0 : 1,
         val(value) { if(value === undefined) return control.value; control.value = String(value); return api; },
         text(value) { if(value !== undefined) control.text = String(value); return api; },
         html(value) { if(value === undefined) return control.html || ""; control.html = String(value); return api; },
@@ -194,6 +216,26 @@ load("js/xml.js");
 load("js/armamap.js");
 load("js/eventHandler.js");
 load("js/preview3d.js");
+
+const initialPathCalls = context.vectron_screen.pathCalls;
+const initialCircleCalls = context.vectron_screen.circleCalls;
+context.aamap_beginBulkLoad();
+let bulkObjects;
+try {
+    bulkObjects = [new context.Spawn(), new context.Wall(),
+        new context.Zone(0, 0, 1, 0, 0, 0, {zoneName:"death"}),
+        new context.Ramp({x:-1,y:0}, {x:1,y:0}, {x:-1,y:5}, {x:1,y:5}, 0, 1),
+        new context.Floor(1)];
+} finally {
+    context.aamap_endBulkLoad();
+}
+assert.ok(bulkObjects.every(function(object) { return object.obj === null; }),
+    "Bulk import constructs model objects without temporary Raphael nodes");
+assert.strictEqual(bulkObjects[0].guideObj, null);
+assert.strictEqual(bulkObjects[1].guideObj, null);
+assert.strictEqual(context.vectron_screen.pathCalls, initialPathCalls);
+assert.strictEqual(context.vectron_screen.circleCalls, initialCircleCalls);
+assert.strictEqual(context.aamap_isBulkLoading(), false);
 
 assert.strictEqual(context.codeViewer_formatJsonText('{"format":"arma-racing-map","walls":[]}'),
     '{\n  "format": "arma-racing-map",\n  "walls": []\n}\n');
@@ -618,6 +660,118 @@ assert.deepStrictEqual(Array.from(legacyRamp.getXML().matchAll(
     /<Point x="([^"]+)" y="([^"]+)"/g), m => [Number(m[1]),Number(m[2])]),
     [[5,0],[10,0]]);
 
+// Legacy XML migration applies one rigid offset to every position-bearing
+// object field. Combined bounds land on world 0,0 without changing dimensions,
+// local polygon vertices, directions, widths, heights, or relative placement.
+const centerSpawn = new context.Spawn();
+centerSpawn.x = 110; centerSpawn.y = 210;
+centerSpawn.xDir = 0; centerSpawn.yDir = 1;
+const centerWall = new context.Wall();
+centerWall.points = [new context.WallPoint(100,200,2),
+    new context.WallPoint(140,200,7)];
+centerWall.slopedHeight = true;
+const centerFloor = new context.Floor(1);
+centerFloor.points = [{x:105,y:205},{x:115,y:205},{x:105,y:215}];
+const centerRamp = context.xml_createRampFromData(
+    [{x:110,y:220},{x:120,y:220}], 4, 0, 1);
+const centerTeleport = new context.Zone(120,230,2,0,7,0,{
+    zoneName:"teleport", shapeType:"circle",
+    options:{destination_x:160,destination_y:260,destination_level:0,
+        xdir:1,ydir:0},
+    movementPath:[{x:120,y:230},{x:150,y:250}]
+});
+const centerRectangle = new context.Zone(0,0,0,0,0,0,{
+    zoneName:"death",shapeType:"rectangle",options:{},
+    minx:115,miny:205,maxx:130,maxy:220
+});
+const centerPolygon = new context.Zone(130,240,0,0,0,0,{
+    zoneName:"death",shapeType:"polygon",options:{},polygonScale:1,
+    polygonPoints:[{x:0,y:0},{x:5,y:0},{x:0,y:5}]
+});
+const centerLine = new context.Zone(0,0,0,0,0,0,{
+    zoneName:"death",shapeType:"line",options:{},lineWidth:0,
+    lineStart:{x:100,y:250},lineEnd:{x:120,y:250}
+});
+const centerResult = context.aamap_centerObjectsOnOrigin([
+    centerSpawn,centerWall,centerFloor,centerRamp,centerTeleport,
+    centerRectangle,centerPolygon,centerLine
+]);
+assert.deepStrictEqual(plain(centerResult), {
+    dx:-130,dy:-230,bounds:{minx:-30,miny:-30,maxx:30,maxy:30}
+});
+assert.deepStrictEqual(plain({
+    spawn:[centerSpawn.x,centerSpawn.y,centerSpawn.xDir,centerSpawn.yDir],
+    wall:centerWall.points.map(point => [point.x,point.y,point.height]),
+    floor:centerFloor.points,
+    rampSource:centerRamp.sourceTwoPoint,
+    rampPoints:centerRamp.points,
+    teleport:{source:[centerTeleport.x,centerTeleport.y],
+        destination:[centerTeleport.options.destination_x,
+            centerTeleport.options.destination_y],path:centerTeleport.movementPath},
+    rectangle:[centerRectangle.minx,centerRectangle.miny,
+        centerRectangle.maxx,centerRectangle.maxy],
+    polygon:{origin:[centerPolygon.x,centerPolygon.y],points:centerPolygon.polygonPoints},
+    line:[centerLine.lineStart,centerLine.lineEnd]
+}), {
+    spawn:[-20,-20,0,1],
+    wall:[[-30,-30,2],[10,-30,7]],
+    floor:[{x:-25,y:-25},{x:-15,y:-25},{x:-25,y:-15}],
+    rampSource:{start:{x:-20,y:-10},end:{x:-10,y:-10},width:4},
+    rampPoints:[{x:-20,y:-8},{x:-20,y:-12},{x:-10,y:-8},{x:-10,y:-12}],
+    teleport:{source:[-10,0],destination:[30,30],
+        path:[{x:-10,y:0},{x:20,y:20}]},
+    rectangle:[-15,-25,0,-10],
+    polygon:{origin:[0,10],points:[{x:0,y:0},{x:5,y:0},{x:0,y:5}]},
+    line:[{x:-30,y:20},{x:-10,y:20}]
+});
+assert.strictEqual(centerWall.points[1].x - centerWall.points[0].x, 40);
+assert.strictEqual(centerRamp.sourceTwoPoint.width, 4);
+assert.strictEqual(centerTeleport.radius, 2);
+
+// A moving zone occupies its complete footprint at every path pivot. Raw path
+// points alone would incorrectly center this radius-10 circle at x=45.
+const sweptCenterCircle = new context.Zone(0,0,10,0,0,0,{
+    zoneName:"death",shapeType:"circle",options:{},
+    movementPath:[{x:0,y:0},{x:100,y:0}]
+});
+sweptCenterCircle.level = 1;
+assert.deepStrictEqual(plain(sweptCenterCircle.getBounds()),
+    {minx:-10,miny:-10,maxx:110,maxy:10});
+assert.strictEqual(sweptCenterCircle.getBounds([true,false]), null);
+const sweptCenterResult = context.aamap_centerObjectsOnOrigin([sweptCenterCircle]);
+assert.deepStrictEqual(plain(sweptCenterResult), {
+    dx:-50,dy:0,bounds:{minx:-60,miny:-10,maxx:60,maxy:10}
+});
+assert.deepStrictEqual(plain({source:[sweptCenterCircle.x,sweptCenterCircle.y],
+    path:sweptCenterCircle.movementPath}), {
+    source:[-50,0],path:[{x:-50,y:0},{x:50,y:0}]
+});
+assert.deepStrictEqual(plain(context.aamap_centerObjectsOnOrigin([sweptCenterCircle])), {
+    dx:0,dy:0,bounds:{minx:-60,miny:-10,maxx:60,maxy:10}
+});
+
+// Any nonzero authored rotation can eventually present every orientation.
+// Conservatively bound an off-pivot polygon by its maximum pivot radius.
+const rotatingCenterPolygon = new context.Zone(0,0,0,0,0,0,{
+    zoneName:"death",shapeType:"polygon",options:{},polygonScale:1,
+    polygonPoints:[{x:0,y:0},{x:10,y:0},{x:0,y:10}],rotationSpeed:30,
+    movementPath:[{x:0,y:0},{x:100,y:0}]
+});
+assert.deepStrictEqual(plain(rotatingCenterPolygon.getBounds()),
+    {minx:-10,miny:-10,maxx:110,maxy:10});
+
+// Hiding the source floor must still allow a visible teleport destination,
+// while hiding the destination must retain only the moving source footprint.
+const sweptCenterTeleport = new context.Zone(0,0,5,0,7,0,{
+    zoneName:"teleport",shapeType:"circle",movementPath:[{x:0,y:0},{x:100,y:0}],
+    options:{destination_x:250,destination_y:20,destination_level:0,xdir:1,ydir:0}
+});
+sweptCenterTeleport.level = 1;
+assert.deepStrictEqual(plain(sweptCenterTeleport.getBounds([true,false])),
+    {minx:250,miny:20,maxx:250,maxy:20});
+assert.deepStrictEqual(plain(sweptCenterTeleport.getBounds([false,true])),
+    {minx:-5,miny:-5,maxx:105,maxy:5});
+
 const spawn = new context.Spawn();
 spawn.x = 0; spawn.y = 0; spawn.level = 0;
 context.aamap_objects = [spawn, legacyRamp];
@@ -980,6 +1134,44 @@ controls["#dCheckpointOrdered"].checked = false;
 assert.strictEqual(context.zoneTool_getOption(), 0);
 controls["#dCheckpointOrdered"].checked = true;
 controls["#dCheckpointAutoIncrement"].checked = true;
+assert.strictEqual(context.ZONE_TOOL_DEFAULT_CHECKPOINT_INCREMENT_EVERY, 1);
+assert.strictEqual(context.zoneTool_validCheckpointIncrementEvery(3), true);
+assert.strictEqual(context.zoneTool_validCheckpointIncrementEvery(2.5), false);
+controls["#dCheckpointAutoIncrementEvery"].present = false;
+assert.strictEqual(context.zoneTool_checkpointIncrementEvery(true), 1,
+    "older pages without the cadence input retain one increment per placement");
+controls["#dCheckpointAutoIncrementEvery"].present = true;
+function placeCheckpointCircle(x, y) {
+    setMapCursor(x, y); context.zoneTool_complete();
+    setMapCursor(x + 2, y); context.zoneTool_complete();
+}
+
+// A configurable cadence groups several completed placements under one
+// checkpoint number. Symmetry copies are part of one placement, not extra
+// increments.
+controls["#dCheckpointOrder"].value = "7";
+controls["#dCheckpointAutoIncrementEvery"].value = "3";
+context.zoneTool_resetCheckpointIncrementProgress();
+context.zoneTool_resetPlacement();
+placeCheckpointCircle(2, 4);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "7");
+placeCheckpointCircle(8, 4);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "7");
+placeCheckpointCircle(14, 4);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "8");
+assert.deepStrictEqual(context.aamap_objects.map(zone => zone.option), [7, 7, 7]);
+
+// Invalid fractional intervals block placement instead of silently rounding.
+controls["#dCheckpointAutoIncrementEvery"].value = "1.5";
+context.zoneTool_resetPlacement();
+setMapCursor(20, 4); context.zoneTool_complete();
+assert.strictEqual(context.aamap_objects.length, 3);
+assert.strictEqual(context.vectron_toolActive, false);
+
+context.aamap_objects = [];
+controls["#dCheckpointOrder"].value = "1";
+controls["#dCheckpointAutoIncrementEvery"].value = "1";
+context.zoneTool_resetCheckpointIncrementProgress();
 context.zoneTool_resetPlacement();
 setMapCursor(3, 4); context.zoneTool_complete();
 setMapCursor(7, 4); context.zoneTool_complete();
@@ -1004,6 +1196,67 @@ assert.strictEqual(context.aamap_objects.length, 1);
 context.aamap_redo();
 assert.strictEqual(context.aamap_objects.length, 3);
 
+// Every editable geometry type uses its object centre to decide whether a
+// selected symmetry line should create a clone.
+const axisCenteredSpawn = new context.Spawn();
+axisCenteredSpawn.x = 0; axisCenteredSpawn.y = 4;
+const axisCenteredWall = new context.Wall();
+axisCenteredWall.points = [{x:-3,y:4}, {x:1,y:4}, {x:2,y:4}];
+const axisCenteredFloor = new context.Floor(1);
+axisCenteredFloor.points = [{x:-3,y:3}, {x:1,y:3}, {x:2,y:6}];
+const axisCenteredRamp = new context.Ramp(
+    {x:-2,y:2}, {x:2,y:2}, {x:-1,y:6}, {x:1,y:6}, 0, 1);
+const axisCenteredZone = new context.Zone(0, 4, 2, 0, 0, 0, {
+    zoneName:"death", shapeType:"circle", options:{}
+});
+const axisCenteredObjects = [axisCenteredSpawn, axisCenteredWall,
+    axisCenteredFloor, axisCenteredRamp, axisCenteredZone];
+controls["#symmetry-x-toggle"].checked = true;
+controls["#symmetry-y-toggle"].checked = false;
+axisCenteredObjects.forEach(function(object) {
+    assert.deepStrictEqual(plain(context.aamap_symmetryObjectCenter(object)), {x:0,y:4});
+    assert.strictEqual(context.aamap_symmetryShouldSkipClone(object, {x:-1,y:1}), true);
+    assert.strictEqual(context.aamap_symmetryShouldSkipClone(object, {x:1,y:-1}), false);
+    const group = context.aamap_addWithSymmetry(object);
+    assert.strictEqual(group.length, 1);
+    context.aamap_removeObjectGroup(group);
+    object.move(3, -4);
+});
+
+controls["#symmetry-x-toggle"].checked = false;
+controls["#symmetry-y-toggle"].checked = true;
+axisCenteredObjects.forEach(function(object) {
+    assert.deepStrictEqual(plain(context.aamap_symmetryObjectCenter(object)), {x:3,y:0});
+    assert.strictEqual(context.aamap_symmetryShouldSkipClone(object, {x:-1,y:1}), false);
+    assert.strictEqual(context.aamap_symmetryShouldSkipClone(object, {x:1,y:-1}), true);
+    const group = context.aamap_addWithSymmetry(object);
+    assert.strictEqual(group.length, 1);
+    context.aamap_removeObjectGroup(group);
+});
+
+// With both lines selected, a source centred on one line still reflects over
+// the other line, while a source at the origin remains a single object.
+controls["#symmetry-x-toggle"].checked = true;
+controls["#symmetry-y-toggle"].checked = true;
+function symmetrySpawn(x, y) {
+    const spawn = new context.Spawn();
+    spawn.x = x; spawn.y = y;
+    return spawn;
+}
+const centeredOnXGroup = context.aamap_addWithSymmetry(symmetrySpawn(0, 5));
+assert.deepStrictEqual(plain(centeredOnXGroup.map(object => [object.x, object.y])
+    .sort((a, b) => a[1] - b[1])), [[0,-5], [0,5]]);
+context.aamap_removeObjectGroup(centeredOnXGroup);
+const centeredOnYGroup = context.aamap_addWithSymmetry(symmetrySpawn(5, 0));
+assert.deepStrictEqual(plain(centeredOnYGroup.map(object => [object.x, object.y])
+    .sort((a, b) => a[0] - b[0])), [[-5,0], [5,0]]);
+context.aamap_removeObjectGroup(centeredOnYGroup);
+const centeredOnBothGroup = context.aamap_addWithSymmetry(symmetrySpawn(0, 0));
+assert.strictEqual(centeredOnBothGroup.length, 1);
+context.aamap_removeObjectGroup(centeredOnBothGroup);
+
+controls["#symmetry-x-toggle"].checked = true;
+controls["#symmetry-y-toggle"].checked = false;
 const mirroredSource = symmetricCheckpoints.find(zone => zone.x === 10);
 const mirroredMove = context.aamap_symmetryMovePlan([mirroredSource], 2, 3);
 assert.deepStrictEqual(plain(mirroredMove.entries.map(entry =>
@@ -1128,6 +1381,7 @@ assert.deepStrictEqual(plain(context.rampTool_fromEdge), []);
 // Teleport destinations use the same two-click directional marker interaction
 // as spawns, inherit the selected destination floor, and keep the source zone
 // visible while the destination is being authored.
+assert.strictEqual(context.spawnMarker_toDegrees(-1e-15, 1), -90);
 context.aamap_objects = [];
 context.aamap_clearHistory();
 context.aamap_resetLevels(2, [8]);

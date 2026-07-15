@@ -43,6 +43,25 @@ var aamap_grid = null;
 var aamap_floorInfills = null;
 var aamap_symmetryGuides = null;
 var aamap_symmetryCheckObjects = [];
+// Map imports assign geometry after constructing each editor object. Creating
+// Raphael placeholders during that phase is pure duplicate work: the final
+// render clears them all and builds the real visuals. A depth counter keeps
+// nested/import-adjacent processing exception-safe without affecting normal
+// interactive tool construction.
+var aamap_bulkLoadDepth = 0;
+var AAMAP_SYMMETRY_CENTER_EPSILON = 1e-9;
+
+function aamap_beginBulkLoad() {
+    aamap_bulkLoadDepth++;
+}
+
+function aamap_endBulkLoad() {
+    aamap_bulkLoadDepth = Math.max(0, aamap_bulkLoadDepth - 1);
+}
+
+function aamap_isBulkLoading() {
+    return aamap_bulkLoadDepth > 0;
+}
 
 function aamap_symmetryState() {
     return {
@@ -186,6 +205,40 @@ function aamap_symmetryObjectKey(aamapObject) {
     return aamapObject.getXML();
 }
 
+function aamap_symmetryObjectCenter(aamapObject) {
+    if(!aamapObject) return null;
+    var position = typeof aamapObject.getPosition === "function" ?
+        aamapObject.getPosition() : null;
+    if(position && position.length >= 2 && isFinite(Number(position[0])) &&
+        isFinite(Number(position[1]))) {
+        return {x:Number(position[0]), y:Number(position[1])};
+    }
+    if(isFinite(Number(aamapObject.x)) && isFinite(Number(aamapObject.y))) {
+        return {x:Number(aamapObject.x), y:Number(aamapObject.y)};
+    }
+    var bounds = typeof aamapObject.getBounds === "function" ?
+        aamapObject.getBounds() : null;
+    if(!bounds) return null;
+    var minx = Number(bounds.minx), miny = Number(bounds.miny);
+    var maxx = Number(bounds.maxx), maxy = Number(bounds.maxy);
+    if(!isFinite(minx) || !isFinite(miny) || !isFinite(maxx) || !isFinite(maxy)) {
+        return null;
+    }
+    return {x:(minx + maxx) / 2, y:(miny + maxy) / 2};
+}
+
+/**
+ * A placement whose centre is on a selected symmetry line already owns that
+ * line. Do not put an additional editor object on the opposite side; for a
+ * two-axis reflection, crossing either centred axis makes that copy redundant.
+ */
+function aamap_symmetryShouldSkipClone(aamapObject, transform) {
+    var center = aamap_symmetryObjectCenter(aamapObject);
+    if(!center) return false;
+    return (transform.x < 0 && Math.abs(center.x) <= AAMAP_SYMMETRY_CENTER_EPSILON) ||
+        (transform.y < 0 && Math.abs(center.y) <= AAMAP_SYMMETRY_CENTER_EPSILON);
+}
+
 function aamap_addSymmetryCopiesForExisting(aamapObject) {
     if(!aamapObject) return [];
     var group = aamapObject._symmetryGroup ? aamapObject._symmetryGroup.filter(function(member) {
@@ -200,6 +253,7 @@ function aamap_addSymmetryCopiesForExisting(aamapObject) {
     var keys = {};
     group.forEach(function(member) { keys[aamap_symmetryObjectKey(member)] = true; });
     aamap_symmetryTransforms().forEach(function(transform) {
+        if(aamap_symmetryShouldSkipClone(primary, transform)) return;
         var copy = aamap_symmetryClone(primary, transform);
         if(!copy) return;
         var key = aamap_symmetryObjectKey(copy);
@@ -1163,18 +1217,27 @@ function aamap_render() {
     }
 }
 
-function aamap_getVisibleBounds() {
+/**
+ * Return the combined world-space bounds for a set of map objects. Zone
+ * bounds include their movement paths and teleport destinations, so callers
+ * can treat every stored position as one rigid piece of map geometry.
+ */
+function aamap_getObjectsBounds(objects, visibleLevels) {
     var bounds = null;
-    for(var i = 0; i < aamap_objects.length; i++) {
-        var obj = aamap_objects[i];
-        if(!aamap_isObjectVisible(obj)) continue;
+    objects = objects || [];
+    for(var i = 0; i < objects.length; i++) {
+        var obj = objects[i];
         var current = typeof obj.getBounds === "function" ?
-            obj.getBounds(aamap_levelVisible) : null;
+            obj.getBounds(visibleLevels) : null;
         if(!current && isFinite(obj.x) && isFinite(obj.y)) {
             current = {minx:obj.x, miny:obj.y, maxx:obj.x, maxy:obj.y};
         }
-        if(!current) continue;
-        if(!bounds) bounds = current;
+        if(!current || !isFinite(current.minx) || !isFinite(current.miny) ||
+            !isFinite(current.maxx) || !isFinite(current.maxy)) continue;
+        if(!bounds) {
+            bounds = {minx:current.minx, miny:current.miny,
+                maxx:current.maxx, maxy:current.maxy};
+        }
         else {
             bounds.minx = Math.min(bounds.minx, current.minx);
             bounds.miny = Math.min(bounds.miny, current.miny);
@@ -1183,6 +1246,35 @@ function aamap_getVisibleBounds() {
         }
     }
     return bounds;
+}
+
+/**
+ * Rigidly translate map objects until the center of their combined bounds is
+ * world 0,0. Dimensions, direction vectors, levels, heights, and all relative
+ * positions remain unchanged because every object receives the same offset.
+ */
+function aamap_centerObjectsOnOrigin(objects) {
+    var movableObjects = (objects || []).filter(function(object) {
+        return object && typeof object.move === "function";
+    });
+    var bounds = aamap_getObjectsBounds(movableObjects);
+    if(!bounds) return null;
+    var dx = -(bounds.minx + bounds.maxx) / 2;
+    var dy = -(bounds.miny + bounds.maxy) / 2;
+    // Do not leak negative zero into serialized coordinates or tests.
+    if(dx === 0) dx = 0;
+    if(dy === 0) dy = 0;
+    if(dx !== 0 || dy !== 0) {
+        movableObjects.forEach(function(object) { object.move(dx, dy); });
+    }
+    return {dx:dx, dy:dy, bounds:aamap_getObjectsBounds(movableObjects)};
+}
+
+function aamap_getVisibleBounds() {
+    var visibleObjects = aamap_objects.filter(function(object) {
+        return aamap_isObjectVisible(object);
+    });
+    return aamap_getObjectsBounds(visibleObjects, aamap_levelVisible);
 }
 
 function aamap_panCenter() {

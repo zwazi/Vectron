@@ -75,8 +75,8 @@ function Zone(x, y, radius, growth, type, option, details) {
     this.objectID = vectron_objectID;
     vectron_objectID++;
 
-    this.obj = vectron_screen.circle(0, 0, 0);
-    this.obj.data("id", this.objectID);
+    this.obj = aamap_isBulkLoading() ? null : vectron_screen.circle(0, 0, 0);
+    if(this.obj) this.obj.data("id", this.objectID);
 
     this.isSelected = false;
     this.glowObj = null;
@@ -587,28 +587,31 @@ function Zone(x, y, radius, growth, type, option, details) {
     }
 
     this.getBounds = function(visibleLevels) {
-        var bounds;
+        var shapeBounds;
+        var rotationFootprint = [];
         if(this.shapeType === "circle") {
             var extent = Math.abs(this.radius) + Math.abs(this.growth);
-            bounds = {minx:this.x - extent, miny:this.y - extent,
+            shapeBounds = {minx:this.x - extent, miny:this.y - extent,
                 maxx:this.x + extent, maxy:this.y + extent};
         } else if(this.shapeType === "rectangle") {
-            bounds = {minx:Math.min(this.minx, this.maxx), miny:Math.min(this.miny, this.maxy),
+            rotationFootprint = this.getMapPoints();
+            shapeBounds = {minx:Math.min(this.minx, this.maxx), miny:Math.min(this.miny, this.maxy),
                 maxx:Math.max(this.minx, this.maxx), maxy:Math.max(this.miny, this.maxy)};
         } else if(this.shapeType === "line") {
-            var lineBoundsPoints = this.getLineFootprintPoints();
-            var lineBoundsX = lineBoundsPoints.map(function(point) { return point.x; });
-            var lineBoundsY = lineBoundsPoints.map(function(point) { return point.y; });
-            bounds = {minx:Math.min.apply(Math, lineBoundsX),
+            rotationFootprint = this.getLineFootprintPoints();
+            var lineBoundsX = rotationFootprint.map(function(point) { return point.x; });
+            var lineBoundsY = rotationFootprint.map(function(point) { return point.y; });
+            shapeBounds = {minx:Math.min.apply(Math, lineBoundsX),
                 miny:Math.min.apply(Math, lineBoundsY),
                 maxx:Math.max.apply(Math, lineBoundsX),
                 maxy:Math.max.apply(Math, lineBoundsY)};
         } else {
             var points = this.getMapPoints();
             if(points.length) {
+                rotationFootprint = points;
                 var xs = points.map(function(point) { return point.x; });
                 var ys = points.map(function(point) { return point.y; });
-                bounds = {minx:Math.min.apply(Math, xs),
+                shapeBounds = {minx:Math.min.apply(Math, xs),
                     miny:Math.min.apply(Math, ys),
                     maxx:Math.max.apply(Math, xs),
                     maxy:Math.max.apply(Math, ys)};
@@ -616,7 +619,70 @@ function Zone(x, y, radius, growth, type, option, details) {
         }
 
         var sourceLevel = aamap_normalizeLevel(this.level, 0);
-        if(visibleLevels && !visibleLevels[sourceLevel]) bounds = null;
+        var sourceVisible = !visibleLevels || !!visibleLevels[sourceLevel];
+        var bounds = sourceVisible && shapeBounds ? {
+            minx:shapeBounds.minx, miny:shapeBounds.miny,
+            maxx:shapeBounds.maxx, maxy:shapeBounds.maxy
+        } : null;
+        var includeBounds = function(candidate) {
+            if(!candidate) return;
+            if(!bounds) {
+                bounds = {minx:candidate.minx, miny:candidate.miny,
+                    maxx:candidate.maxx, maxy:candidate.maxy};
+                return;
+            }
+            bounds.minx = Math.min(bounds.minx, candidate.minx);
+            bounds.miny = Math.min(bounds.miny, candidate.miny);
+            bounds.maxx = Math.max(bounds.maxx, candidate.maxx);
+            bounds.maxy = Math.max(bounds.maxy, candidate.maxy);
+        };
+
+        if(bounds && this.movementPath.length && sourceVisible) {
+            var movementAnchor = this.movementPath[0];
+            var validMovementAnchor = movementAnchor && isFinite(movementAnchor.x) &&
+                isFinite(movementAnchor.y);
+            var rotates = validMovementAnchor && isFinite(Number(this.rotationSpeed)) &&
+                Number(this.rotationSpeed) !== 0;
+            var rotationRadius = 0;
+            if(rotates && this.shapeType === "circle") {
+                rotationRadius = Math.hypot(
+                    this.x - movementAnchor.x, this.y - movementAnchor.y) + extent;
+            } else if(rotates) {
+                rotationFootprint.forEach(function(point) {
+                    if(!isFinite(point.x) || !isFinite(point.y)) return;
+                    rotationRadius = Math.max(rotationRadius, Math.hypot(
+                        point.x - movementAnchor.x, point.y - movementAnchor.y));
+                });
+            }
+
+            for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
+                var movementPoint = this.movementPath[movementIndex];
+                if(!isFinite(movementPoint.x) || !isFinite(movementPoint.y)) continue;
+                // Retain the authored pivot itself even when a polygon's local
+                // footprint does not happen to contain that pivot.
+                includeBounds({minx:movementPoint.x, miny:movementPoint.y,
+                    maxx:movementPoint.x, maxy:movementPoint.y});
+                if(!validMovementAnchor) continue;
+                if(rotates) {
+                    // Rotation is continuous authoritative motion. A circle
+                    // around the pivot is conservative for every angle and
+                    // phase, although it can overestimate paths that visit only
+                    // a subset of possible orientations.
+                    includeBounds({minx:movementPoint.x - rotationRadius,
+                        miny:movementPoint.y - rotationRadius,
+                        maxx:movementPoint.x + rotationRadius,
+                        maxy:movementPoint.y + rotationRadius});
+                } else {
+                    var movementDx = movementPoint.x - movementAnchor.x;
+                    var movementDy = movementPoint.y - movementAnchor.y;
+                    includeBounds({minx:shapeBounds.minx + movementDx,
+                        miny:shapeBounds.miny + movementDy,
+                        maxx:shapeBounds.maxx + movementDx,
+                        maxy:shapeBounds.maxy + movementDy});
+                }
+            }
+        }
+
         if(this.zoneName === "teleport") {
             var destinationLevel = aamap_normalizeLevel(
                 this.options.destination_level, sourceLevel);
@@ -624,25 +690,10 @@ function Zone(x, y, radius, growth, type, option, details) {
             var destinationY = Number(this.options.destination_y);
             if((!visibleLevels || visibleLevels[destinationLevel]) &&
                 isFinite(destinationX) && isFinite(destinationY)) {
-                if(!bounds) {
-                    bounds = {minx:destinationX, miny:destinationY,
-                        maxx:destinationX, maxy:destinationY};
-                } else {
-                    bounds.minx = Math.min(bounds.minx, destinationX);
-                    bounds.miny = Math.min(bounds.miny, destinationY);
-                    bounds.maxx = Math.max(bounds.maxx, destinationX);
-                    bounds.maxy = Math.max(bounds.maxy, destinationY);
-                }
-            }
-        }
-        if(bounds && this.movementPath.length && (!visibleLevels || visibleLevels[sourceLevel])) {
-            for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
-                var movementPoint = this.movementPath[movementIndex];
-                if(!isFinite(movementPoint.x) || !isFinite(movementPoint.y)) continue;
-                bounds.minx = Math.min(bounds.minx, movementPoint.x);
-                bounds.miny = Math.min(bounds.miny, movementPoint.y);
-                bounds.maxx = Math.max(bounds.maxx, movementPoint.x);
-                bounds.maxy = Math.max(bounds.maxy, movementPoint.y);
+                // The destination is fixed in world space; source-zone motion
+                // and rotation must never transform it as part of the footprint.
+                includeBounds({minx:destinationX, miny:destinationY,
+                    maxx:destinationX, maxy:destinationY});
             }
         }
         return bounds || null;

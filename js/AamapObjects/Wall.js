@@ -29,10 +29,10 @@ function Wall() {
     this.objectID = vectron_objectID;
     vectron_objectID++;
 
-    this.obj = vectron_screen.path();
-    this.obj.data("id", this.objectID);
+    this.obj = aamap_isBulkLoading() ? null : vectron_screen.path();
+    if(this.obj) this.obj.data("id", this.objectID);
 
-    this.guideObj = vectron_screen.path();
+    this.guideObj = aamap_isBulkLoading() ? null : vectron_screen.path();
 
     this.isSelected = false;
     this.glowObj = null;

@@ -10,8 +10,8 @@ function Floor(level) {
     this.level = typeof level === "number" ? level :
         (typeof aamap_activeLevel === "number" ? aamap_activeLevel : 0);
     this.points = [];
-    this.obj = vectron_screen.path();
-    this.obj.data("id", this.objectID);
+    this.obj = aamap_isBulkLoading() ? null : vectron_screen.path();
+    if(this.obj) this.obj.data("id", this.objectID);
     this.glowObj = null;
     this.isSelected = false;
     this.xml = "Floor";

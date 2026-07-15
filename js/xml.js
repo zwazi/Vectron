@@ -302,7 +302,7 @@ function xml_init() {
     });
 }  
 
-function xml_process(xml, suppressHistoryClear) {
+function xml_process(xml, suppressHistoryClear, importOptions) {
 
     var parsed;
     try {
@@ -462,10 +462,27 @@ function xml_process(xml, suppressHistoryClear) {
     aamap_resetLevels(highestLevel + 1, importedHeights, occupiedLevels);
     gui_fillInput();
 
-    aamap_updateLayerControls();
-    var pt = xml_process_piece(parsed, 0);
+    var importedObjectStart = aamap_objects.length;
+    var pt;
+    aamap_beginBulkLoad();
+    try {
+        pt = xml_process_piece(parsed, 0);
+    } finally {
+        aamap_endBulkLoad();
+    }
     aamap_updateLayerControls();
     var ptsx = pt[0], ptsy = pt[1];
+    if(importOptions && importOptions.centerOnOrigin === true) {
+        var centeredImport = aamap_centerObjectsOnOrigin(
+            aamap_objects.slice(importedObjectStart));
+        if(centeredImport && centeredImport.bounds) {
+            ptsx = [centeredImport.bounds.minx, centeredImport.bounds.maxx];
+            ptsy = [centeredImport.bounds.miny, centeredImport.bounds.maxy];
+            if(centeredImport.dx !== 0 || centeredImport.dy !== 0) {
+                gui_writeLog("Centered legacy XML geometry on world 0,0.");
+            }
+        }
+    }
     if(ptsx.length && ptsy.length) {
         var max_x = Math.max.apply(Math, ptsx);
         var min_x = Math.min.apply(Math, ptsx);
@@ -955,9 +972,14 @@ function xml_handleFile(file) {
            codeViewer_setSourceFormat(isNative ? "armamap" : "legacy-xml");
        }
        vectron_forceSelectTool();
-       aamap_objects.forEach(aamap_removeObjectVisuals);
+       // The one render at the end clears the Raphael paper in a single DOM
+       // operation. Removing every old object individually first makes import
+       // proportional to both the old and new map sizes for no visible gain.
        aamap_objects = [];
-       xml_process(parsed);
+       // Canonical maps already author world-space placement intentionally.
+       // Legacy XML commonly uses an all-positive playfield, so migrate it as
+       // one rigid map whose combined geometry is centered on world 0,0.
+       xml_process(parsed, false, isNative ? null : {centerOnOrigin:true});
        if(typeof codeViewer_onMapLoaded === "function") codeViewer_onMapLoaded();
     };
     reader.onerror = function() {

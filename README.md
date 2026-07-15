@@ -6,6 +6,19 @@ converts useful geometry from legacy `.aamap.xml` maps. Canonical files use a
 simple descriptive file name; display metadata, search tags, and a generated
 SHA-256 revision are stored inside.
 
+On file import, legacy XML geometry is translated as one rigid map until its
+combined bounds are centered at world `(0,0)`. This includes zone movement
+paths and teleport destinations; dimensions and relative placement do not
+change. Each moving shape contributes its footprint at every path pivot.
+Nonzero rotation uses a conservative full pivot-radius envelope, which can add
+viewport whitespace but cannot omit a reachable orientation. Canonical
+`.armamap` coordinates are always preserved as authored.
+
+Import builds the map model without temporary SVG placeholders, discards the
+old Raphael scene in one operation, and renders the imported map once. This
+keeps large-map loading proportional to the new map rather than both maps plus
+throwaway graphics.
+
 ## Arma Racing features
 
 - Arbitrarily many editable levels, with a height control for every adjacent
@@ -45,6 +58,8 @@ SHA-256 revision are stored inside.
   geometry.
 - The Map Settings search lists the game-default zone pulse speed as `0.1`
   cycles per second.
+- Scroll-wheel zoom changes by 10% by default; the Configure tab retains 2%,
+  5%, 10%, and 20% choices, and preserves an existing user preference.
 - A full-screen software 3D preview with the same W/A/S/D, Space, Ctrl,
   Shift-fast, and mouse-look free camera as the game. Spawn previews use the
   exact `assets/models/cycle.ASE` mesh when that asset is reachable and a

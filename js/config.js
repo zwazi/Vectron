@@ -32,7 +32,7 @@ var config_isDark = true;
 var config_scrollWheelZoom = true;
 var config_snapToPosition = true;
 var config_autoAdjustGridSpacing = true;
-var config_zoomStep = 0.02; // scroll wheel zoom step (fraction): 0.02 = finest
+var config_zoomStep = 0.10; // scroll wheel zoom step (fraction): 0.10 = 10%
 
 // Grid line appearance (empty string = use theme default)
 var config_gridNarrowColor     = '';
@@ -146,7 +146,7 @@ function _config_check_default(item)
     {
         case "showInfoBar": return "true";
         case "showActionHistory": return "true";
-        case "zoomStep": return "0.02";
+        case "zoomStep": return "0.10";
     }
 }
 
@@ -339,11 +339,12 @@ function config_load()
         document.getElementById("show-action-history").checked = true;
     }
 
-    var savedZoomStep = parseFloat(_config_get("zoomStep"));
+    var savedZoomStep = parseFloat(_config_get("zoomStep") ||
+        _config_check_default("zoomStep"));
     if(!isNaN(savedZoomStep) && savedZoomStep > 0) {
         config_zoomStep = savedZoomStep;
         var sel = document.getElementById("zoom-step-select");
-        if(sel) sel.value = String(savedZoomStep);
+        if(sel) sel.value = savedZoomStep.toFixed(2);
     }
 
     // Load grid line appearance settings

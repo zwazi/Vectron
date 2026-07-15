@@ -82,7 +82,6 @@ function eventHandler_getExportMap() {
     var map = armamap_build(mapName, mapAuthor, mapTags, "", mapAxes,
         mapSets, xml_author_password_hash);
     xml_version = map.document.metadata.revision;
-    $("#map_version").val(xml_version);
     return map;
 }
 
@@ -727,8 +726,16 @@ function eventHandler_init() {
         zoneTool_guide();
     });
     $('#dCheckpointOrdered').on('change', function() {
+        zoneTool_resetCheckpointIncrementProgress();
         zoneTool_updateSettings();
         zoneTool_guide();
+    });
+    $('#dCheckpointAutoIncrement').on('change', function() {
+        zoneTool_resetCheckpointIncrementProgress();
+        zoneTool_updateSettings();
+    });
+    $('#dCheckpointOrder,#dCheckpointAutoIncrementEvery').on('input change', function() {
+        zoneTool_resetCheckpointIncrementProgress();
     });
     $(document).on("click", "#zone-tool-finish", zoneTool_finishCurrent);
     $(document).on("click", "#zone-tool-cancel", zoneTool_cancelPlacement);
@@ -876,23 +883,10 @@ function eventHandler_init() {
 
     $("#center_map_origin").mouseup(function(e)
     {
-        var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
-        for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
-            var obj = aamap_objects[i];
-            var bounds = typeof obj.getBounds === "function" ? obj.getBounds() : null;
-            if(!bounds) continue;
-            minx = Math.min(minx, bounds.minx);
-            miny = Math.min(miny, bounds.miny);
-            maxx = Math.max(maxx, bounds.maxx);
-            maxy = Math.max(maxy, bounds.maxy);
-        }
-        if(!isFinite(minx) || !isFinite(miny) || !isFinite(maxx) || !isFinite(maxy)) return;
-        var cx = (maxx + minx) / 2;
-        var cy = (maxy + miny) / 2;
-        if(cx === 0 && cy === 0) return;
-        var dx = -cx, dy = -cy;
         var affectedObjs = aamap_objects.slice();
-        affectedObjs.forEach(function(o){ o.move(dx, dy); });
+        var centered = aamap_centerObjectsOnOrigin(affectedObjs);
+        if(!centered || (centered.dx === 0 && centered.dy === 0)) return;
+        var dx = centered.dx, dy = centered.dy;
         aamap_panCenter();
         aamap_recordAction({
             label: "Center objects on 0,0",
@@ -2347,7 +2341,7 @@ function eventHandler_init() {
         vectron_panX = 0;
         vectron_panY = 0;
         vectron_zoom = 1;
-        $("#map_name,#map_author,#map_author_password,#map_category,#map_version,#map_settings").val("");
+        $("#map_name,#map_author,#map_author_password,#map_category,#map_settings").val("");
         $("#map_axes").val("");
         $("#map_axes_forced").prop("checked", false);
         xml_name = "";
