@@ -67,8 +67,11 @@ var ZONE_TOOL_DEFAULT_MOVEMENT_SPEED = 20;
 var ZONE_TOOL_DEFAULT_ROTATION_SPEED = 0;
 var ZONE_TOOL_MIN_MOVEMENT_PATH_POINTS = 2;
 var ZONE_TOOL_CHECKPOINT_ORDER = 0;
+// Checkpoint order is stored and evaluated as a Rust u32 by the game.
+var ZONE_TOOL_MAX_CHECKPOINT_ORDER = 4294967295;
 var ZONE_TOOL_DEFAULT_CHECKPOINT_INCREMENT_EVERY = 1;
 var zoneTool_checkpointPlacementsSinceIncrement = 0;
+var zoneTool_checkpointMapHadCheckpoints = false;
 var ZONE_TOOL_TYPES = [0, 1, 3, 5, 6, 7, 8];
 var ZONE_TOOL_SETTING_INPUTS = {
     CYCLE_ACCEL:{value:20, min:0, step:0.1},
@@ -140,11 +143,125 @@ function zoneTool_initSettingTooltips() {
 }
 
 function zoneTool_validCheckpointOrder(value) {
-    return isFinite(value) && value >= ZONE_TOOL_CHECKPOINT_ORDER && Math.floor(value) === value;
+    return typeof value === "number" && isFinite(value) &&
+        value >= ZONE_TOOL_CHECKPOINT_ORDER &&
+        value <= ZONE_TOOL_MAX_CHECKPOINT_ORDER && Math.floor(value) === value;
 }
 
 function zoneTool_validCheckpointNumber(value) {
-    return isFinite(value) && value >= 1 && Math.floor(value) === value;
+    return typeof value === "number" && isFinite(value) && value >= 1 &&
+        value <= ZONE_TOOL_MAX_CHECKPOINT_ORDER && Math.floor(value) === value;
+}
+
+function zoneTool_shiftLegacyCheckpointOrder(value) {
+    value = Number(value);
+    if(!zoneTool_validCheckpointOrder(value)) return null;
+    return Math.min(ZONE_TOOL_MAX_CHECKPOINT_ORDER, value + 1);
+}
+
+function zoneTool_validCheckpointNumberText(value, allowEmpty) {
+    value = String(value === undefined || value === null ? "" : value);
+    if(allowEmpty && value === "") return true;
+    return /^[1-9][0-9]*$/.test(value) && zoneTool_validCheckpointNumber(Number(value));
+}
+
+function zoneTool_checkpointInputCandidate(input, insertedText) {
+    if(!input) return "";
+    var value = String(input.value || "");
+    var start = typeof input.selectionStart === "number" ? input.selectionStart : value.length;
+    var end = typeof input.selectionEnd === "number" ? input.selectionEnd : start;
+    return value.slice(0, start) + String(insertedText || "") + value.slice(end);
+}
+
+function zoneTool_noteCheckpointNumberEdit() {
+    zoneTool_resetCheckpointIncrementProgress();
+}
+
+function zoneTool_setCheckpointNumber(value) {
+    value = String(value);
+    var element = document.getElementById("dCheckpointOrder");
+    if(element) {
+        element.value = value;
+        if(element.dataset) element.dataset.lastValidValue = value;
+    } else {
+        $("#dCheckpointOrder").val(value);
+    }
+    return Number(value);
+}
+
+function zoneTool_mapHasCheckpoints(objects) {
+    var source = Array.isArray(objects) ? objects : aamap_objects;
+    return source.some(function(object) {
+        return object && object.zoneName === "checkpoint";
+    });
+}
+
+/**
+ * Checkpoint numbering is editor state rather than map data, but it still has
+ * to travel with undoable mutations. In particular, the cadence counter must
+ * not advance merely because a checkpoint placement was later undone.
+ */
+function zoneTool_captureCheckpointEditorState(objects) {
+    var element = document.getElementById("dCheckpointOrder");
+    var number = element ? String(element.value) : String($("#dCheckpointOrder").val() || "1");
+    if(!zoneTool_validCheckpointNumberText(number, false)) number = "1";
+    var hasCheckpoints = zoneTool_mapHasCheckpoints(objects);
+    zoneTool_checkpointMapHadCheckpoints = hasCheckpoints;
+    return {
+        number:number,
+        placementsSinceIncrement:zoneTool_checkpointPlacementsSinceIncrement,
+        hasCheckpoints:hasCheckpoints
+    };
+}
+
+function zoneTool_restoreCheckpointEditorState(state, objects, resetWhenEmpty) {
+    var hasCheckpoints = zoneTool_mapHasCheckpoints(objects);
+    zoneTool_checkpointMapHadCheckpoints = hasCheckpoints;
+    if(resetWhenEmpty && !hasCheckpoints) {
+        zoneTool_setCheckpointNumber(1);
+        zoneTool_resetCheckpointIncrementProgress();
+        return false;
+    }
+
+    var number = state && zoneTool_validCheckpointNumberText(state.number, false) ?
+        state.number : "1";
+    zoneTool_setCheckpointNumber(number);
+    var progress = state ? Number(state.placementsSinceIncrement) : 0;
+    zoneTool_checkpointPlacementsSinceIncrement =
+        isFinite(progress) && progress >= 0 && Math.floor(progress) === progress ? progress : 0;
+    return hasCheckpoints;
+}
+
+function zoneTool_syncCheckpointNumberForAvailability(objects) {
+    var hasCheckpoints = zoneTool_mapHasCheckpoints(objects);
+    if(!hasCheckpoints && zoneTool_checkpointMapHadCheckpoints) {
+        zoneTool_setCheckpointNumber(1);
+        zoneTool_resetCheckpointIncrementProgress();
+    }
+    zoneTool_checkpointMapHadCheckpoints = hasCheckpoints;
+    return hasCheckpoints;
+}
+
+/**
+ * Start an empty map at checkpoint 1. This is deliberately a map-lifecycle
+ * reset rather than a constraint applied on every Zone-tool activation, so an
+ * author can immediately replace 1 with any other positive whole number.
+ */
+function zoneTool_resetCheckpointNumberForMap(objects) {
+    zoneTool_resetCheckpointIncrementProgress();
+    zoneTool_checkpointMapHadCheckpoints = zoneTool_mapHasCheckpoints(objects);
+    if(zoneTool_checkpointMapHadCheckpoints) return false;
+    zoneTool_setCheckpointNumber(1);
+    return true;
+}
+
+function zoneTool_ensureCheckpointNumber() {
+    var input = $("#dCheckpointOrder");
+    if(!input.length) return 1;
+    if(!zoneTool_validCheckpointNumberText(input.val(), false)) {
+        return zoneTool_setCheckpointNumber(1);
+    }
+    return Number(input.val());
 }
 
 function zoneTool_validCheckpointIncrementEvery(value) {
@@ -182,7 +299,14 @@ function zoneTool_advanceCheckpointAfterPlacement(newZone) {
     var every = zoneTool_checkpointIncrementEvery(false);
     zoneTool_checkpointPlacementsSinceIncrement++;
     if(zoneTool_checkpointPlacementsSinceIncrement < every) return false;
-    $("#dCheckpointOrder").val(Number(newZone.option) + 1);
+    if(Number(newZone.option) >= ZONE_TOOL_MAX_CHECKPOINT_ORDER) {
+        zoneTool_setCheckpointNumber(ZONE_TOOL_MAX_CHECKPOINT_ORDER);
+        zoneTool_resetCheckpointIncrementProgress();
+        gui_writeLog("Checkpoint number is already at the maximum supported value (" +
+            ZONE_TOOL_MAX_CHECKPOINT_ORDER + ").");
+        return false;
+    }
+    zoneTool_setCheckpointNumber(Number(newZone.option) + 1);
     zoneTool_resetCheckpointIncrementProgress();
     return true;
 }
@@ -308,6 +432,8 @@ function zoneTool_updateStatus() {
 function zoneTool_connect() {
     $(".toolbar-toolZone").addClass("toolbar-tool-active");
     zoneTool_radius = vectron_grid_spacing;
+    zoneTool_syncCheckpointNumberForAvailability();
+    zoneTool_ensureCheckpointNumber();
     zoneTool_updateSettings();
     $("#zone-tool-window").show();
     zoneTool_updateWindowActiveType();
@@ -326,6 +452,7 @@ function zoneTool_updateSettings() {
     var shape = $("#dZoneShape").val();
     if(shape === "circle") $("#dZoneRotationSpeed").val("0");
     var isCheckpoint = zoneTool_type === 5;
+    if(isCheckpoint) zoneTool_syncCheckpointNumberForAvailability();
     var orderedCheckpoint = isCheckpoint && $("#dCheckpointOrdered").is(":checked");
     var autoIncrementCheckpoint = orderedCheckpoint &&
         $("#dCheckpointAutoIncrement").is(":checked");
@@ -529,13 +656,33 @@ function zoneTool_guide() {
 }
 
 function zoneTool_addZone(newZone) {
+    var checkpointStateBefore = newZone && newZone.zoneName === "checkpoint" ?
+        zoneTool_captureCheckpointEditorState() : null;
     var addedZones = aamap_addWithSymmetry(newZone);
+    if(newZone && newZone.zoneName === "checkpoint") {
+        zoneTool_checkpointMapHadCheckpoints = true;
+    }
+    zoneTool_advanceCheckpointAfterPlacement(newZone);
+    var checkpointStateAfter = checkpointStateBefore ?
+        zoneTool_captureCheckpointEditorState() : null;
     aamap_recordAction({
         label: "Add zone",
-        undo: function() { aamap_removeObjectGroup(addedZones); vectron_render(); },
-        redo: function() { aamap_restoreObjectGroup(addedZones); vectron_render(); }
+        undo: function() {
+            aamap_removeObjectGroup(addedZones);
+            if(checkpointStateBefore) {
+                zoneTool_restoreCheckpointEditorState(
+                    checkpointStateBefore, aamap_objects, true);
+            }
+            vectron_render();
+        },
+        redo: function() {
+            aamap_restoreObjectGroup(addedZones);
+            if(checkpointStateAfter) {
+                zoneTool_restoreCheckpointEditorState(checkpointStateAfter, aamap_objects, false);
+            }
+            vectron_render();
+        }
     });
-    zoneTool_advanceCheckpointAfterPlacement(newZone);
     zoneTool_resetPlacement();
     zoneTool_updateStatus();
     vectron_render();
@@ -639,7 +786,8 @@ function zoneTool_complete() {
     if(zoneTool_type === 5 && $("#dCheckpointOrdered").is(":checked")) {
         var checkpointNumber = Number($("#dCheckpointOrder").val());
         if(!zoneTool_validCheckpointNumber(checkpointNumber)) {
-            gui_writeLog("Checkpoint number must be a whole number starting at 1.");
+            gui_writeLog("Checkpoint number must be a whole number from 1 through " +
+                ZONE_TOOL_MAX_CHECKPOINT_ORDER + ".");
             return;
         }
         if($("#dCheckpointAutoIncrement").is(":checked") &&
@@ -813,7 +961,9 @@ function zoneTool_rotationSpeedForShape(shape) {
 function zoneTool_getOption() {
     if(zoneTool_type === 5) {
         if(!$("#dCheckpointOrdered").is(":checked")) return 0;
-        return zoneTool_numberValue("#dCheckpointOrder", ZONE_TOOL_CHECKPOINT_ORDER + 1);
+        var checkpointNumber = Number($("#dCheckpointOrder").val());
+        return zoneTool_validCheckpointNumber(checkpointNumber) ?
+            checkpointNumber : ZONE_TOOL_CHECKPOINT_ORDER + 1;
     }
     return 0;
 }

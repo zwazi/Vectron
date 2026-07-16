@@ -43,7 +43,7 @@
         <script type="text/javascript" src="./js/vectron.js"></script>
 
         <script type="text/javascript">
-            var targetVersion = "1.2.0";
+            var targetVersion = "1.2.1";
             if(window.vtVersion !== targetVersion) location.reload(true);
         </script>
 
@@ -218,8 +218,8 @@
                                 <tr><td><kbd>I</kbd></td><td>Open the 3D preview</td></tr>
                                 <tr><td><kbd>~</kbd></td><td>Toggle settings</td></tr>
                                 <tr><td><kbd>L</kbd></td><td>Switch the active editing floor</td></tr>
-                                <tr><td><kbd>+</kbd> / <kbd>=</kbd></td><td>Increase zone radius (Zone tool)</td></tr>
-                                <tr><td><kbd>-</kbd> / <kbd>_</kbd></td><td>Decrease zone radius (Zone tool)</td></tr>
+                                <tr><td><kbd>+</kbd> / <kbd>=</kbd></td><td>Increase grid and snap spacing (every tool)</td></tr>
+                                <tr><td><kbd>-</kbd> / <kbd>_</kbd></td><td>Decrease grid and snap spacing (every tool)</td></tr>
                                 <tr><td><kbd>S</kbd>, <kbd>S S</kbd>, <kbd>S S S</kbd></td><td>Rapidly cycle Select, Spawn, and Split Wall</td></tr>
                             </tbody>
                         </table>
@@ -386,7 +386,7 @@
                 <div class="wall-tool-section vt-tool-grid-row vt-setting-row" id="wall-tool-count-section" style="display:none;">
                     <span class="vt-tool-icon"><span class="glyphicon glyphicon-th-list" aria-hidden="true"></span></span>
                     <label class="vt-tool-name" for="dWallSegments">Walls</label>
-                    <span class="vt-tool-input"><input type="number" id="dWallSegments" name="dWallSegments" value="16" step="1" min="3" max="720" /></span>
+                    <span class="vt-tool-input"><input type="number" id="dWallSegments" name="dWallSegments" value="16" step="1" min="3" /></span>
                 </div>
                 <div class="wall-tool-section vt-tool-grid-row vt-setting-row">
                     <span class="vt-tool-icon"><span class="glyphicon glyphicon-resize-vertical" aria-hidden="true"></span></span>
@@ -448,7 +448,7 @@
                     <div id="zone-checkpoint-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="The number shown above this checkpoint. Start at 1 and use each number once; racers must cross them in ascending order before the finish accepts the lap.">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-sort-by-order" aria-hidden="true"></span></span>
                         <label class="vt-tool-name" for="dCheckpointOrder">Checkpoint #</label>
-                        <span class="vt-tool-input"><input type="number" id="dCheckpointOrder" name="dCheckpointOrder" value="1" step="1" min="1" required /></span>
+                        <span class="vt-tool-input"><input type="text" id="dCheckpointOrder" name="dCheckpointOrder" value="1" inputmode="numeric" pattern="[1-9][0-9]*" maxlength="10" autocomplete="off" required /></span>
                     </div>
                     <div id="zone-checkpoint-ordered-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="Disable checkpoint order to let racers collect every checkpoint in any sequence. Unordered checkpoints store order 0.">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-random" aria-hidden="true"></span></span>

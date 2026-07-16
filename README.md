@@ -25,7 +25,9 @@ throwaway graphics.
   either shift higher level IDs down or preserve a sparse level stack.
 - Walls, spawns, circle/line/rectangle/polygon zones, and all supported racing
   zone effects. Walls may use a single flat height or an individually authored
-  height at each point for sloped top edges.
+  height at each point for sloped top edges. Circle, arc, and ellipse wall
+  generators honor any whole wall count of three or more without a
+  size-derived or fixed editor ceiling.
 - Line-zone width may be exactly zero for one authored endpoint-to-endpoint
   line. Positive widths use a closed rectangular footprint with square ends;
   neither form extends beyond its two authored endpoints.
@@ -41,7 +43,9 @@ throwaway graphics.
   entry/inside/exit triggers.
 - Checkpoint order `0` means unordered. Positive checkpoint groups use the
   same one-based numbers shown by the editor and game. Legacy zero-based XML
-  orders are shifted during import.
+  orders are shifted during import. Empty maps start the Checkpoint # control
+  at `1`; the control accepts positive decimal digits only and remains freely
+  editable by the author.
 - Single-level maps stay single-level on export; multi-level maps use a
   readable `levels.count` plus ordered `levels.gaps` array.
 - Export validation catches missing spawns and invalid axes, zones, ramps, or
@@ -79,6 +83,9 @@ throwaway graphics.
   level menu selects, hides, deletes, and configures levels.
 - `Ctrl/Cmd+Z` and `Ctrl/Cmd+Shift+Z` undo and redo.
 - `Ctrl/Cmd+0` fits the visible floors to the screen.
+- `+`/`=` and `-`/`_` increase or decrease grid and snap spacing with every
+  active tool. Choosing a Wall mode or Zone subtype keeps its owning tool and
+  global shortcuts active without discarding placement state.
 
 ## Browser and Android testing
 
@@ -113,7 +120,9 @@ node tests/vectron-core.test.js
 
 For the real-browser smoke test, launch Firefox against the served editor with
 WebDriver BiDi enabled, then run `node tests/vectron-browser-smoke.js`. The test
-exercises moving-zone placement/XML, sparse level deletion, the right-click
-menu, diagonal feedback helpers, and the 3D scene in an actual browser.
+exercises uncapped conic-wall generation, checkpoint input filtering, tool
+focus and shortcut handoff, moving-zone placement/XML, sparse level deletion,
+the right-click menu, diagonal feedback helpers, and the 3D scene in an actual
+browser.
 
 Originally created by Carlo Veneziano and re-written by Tristan Whitcher.

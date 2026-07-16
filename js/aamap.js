@@ -796,7 +796,9 @@ function aamap_captureLevelState() {
         activeLevel:aamap_activeLevel,
         levelVisible:aamap_levelVisible.slice(),
         levelExists:aamap_levelExists.slice(),
-        levelHeights:xml_level_heights.slice()
+        levelHeights:xml_level_heights.slice(),
+        checkpointEditorState:typeof zoneTool_captureCheckpointEditorState === "function" ?
+            zoneTool_captureCheckpointEditorState(aamap_objects) : null
     };
 }
 
@@ -816,6 +818,13 @@ function aamap_restoreLevelState(state) {
     aamap_levelExists = state.levelExists.slice();
     xml_level_heights = state.levelHeights.slice();
     xml_level_height = xml_level_heights[0] || 8;
+    if(state.checkpointEditorState &&
+        typeof zoneTool_restoreCheckpointEditorState === "function") {
+        zoneTool_restoreCheckpointEditorState(
+            state.checkpointEditorState, aamap_objects, false);
+    } else if(typeof zoneTool_syncCheckpointNumberForAvailability === "function") {
+        zoneTool_syncCheckpointNumberForAvailability(aamap_objects);
+    }
     if(typeof selectTool_deselectAll === "function") selectTool_deselectAll();
     aamap_updateLayerControls();
     vectron_render();
@@ -875,6 +884,9 @@ function aamap_deleteLevel(level, shiftAboveDown) {
     }
     if(!aamap_levelExistsAt(aamap_activeLevel)) aamap_activeLevel = aamap_existingLevels()[0] || 0;
     xml_level_height = xml_level_heights[0] || 8;
+    if(typeof zoneTool_syncCheckpointNumberForAvailability === "function") {
+        zoneTool_syncCheckpointNumberForAvailability(aamap_objects);
+    }
     if(typeof selectTool_deselectAll === "function") selectTool_deselectAll();
     aamap_updateLayerControls();
     vectron_render();
@@ -968,8 +980,11 @@ function aamap_validateForExport(axes) {
         if(["", "on_enter", "while_inside", "on_exit"].indexOf(object.trigger || "") < 0) {
             errors.push("Zone trigger must be on entry, while inside, or on exit.");
         }
-        if(object.zoneName === "checkpoint" && !isWholeNonNegative(object.option)) {
-            errors.push("Checkpoint order must be a whole non-negative value.");
+        if(object.zoneName === "checkpoint" &&
+            (typeof zoneTool_validCheckpointOrder === "function" ?
+                !zoneTool_validCheckpointOrder(Number(object.option)) :
+                !isWholeNonNegative(object.option))) {
+            errors.push("Checkpoint order must be a whole number from 0 through 4294967295.");
         }
         if(object.shapeType === "line") {
             var lineWidth = Number(object.lineWidth);

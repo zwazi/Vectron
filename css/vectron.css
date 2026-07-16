@@ -1160,6 +1160,7 @@ button.vt-tool-grid-row,
 
 #wall-tool-body .vt-setting-row input[type="number"],
 #zone-tool-body .vt-setting-row input[type="number"],
+#zone-tool-body .vt-setting-row #dCheckpointOrder,
 #ramp-tool-body .vt-setting-row input[type="number"] {
   width: 78px;
 }

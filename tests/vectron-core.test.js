@@ -25,6 +25,9 @@ assert.strictEqual(armamapSchema.$defs.metadata.properties.revision.pattern,
     "^armamap-revision-v1:[0-9a-f]{64}$");
 assert.strictEqual(armamapSchema.$defs.number.maximum, 9007199254740991);
 assert.strictEqual(armamapSchema.$defs.safeInteger.maximum, 9007199254740991);
+assert.strictEqual(armamapSchema.$defs.checkpointZone.allOf[1]
+    .properties.order.allOf[1].maximum, 4294967295,
+    "Checkpoint order matches the game's u32 storage without shrinking safeInteger");
 assert.strictEqual(armamapSchema.$defs.spawn.properties.direction.$ref,
     "#/$defs/nonzeroVector");
 assert.strictEqual(armamapSchema.properties.axes.oneOf[1].items.$ref,
@@ -49,6 +52,11 @@ assert.match(indexSource, /id="symmetry-check-toggle"/);
 assert.match(indexSource, /id="map_author_password"[^>]*maxlength="120"/);
 assert.match(indexSource,
     /id="dCheckpointAutoIncrementEvery"[^>]*value="1"[^>]*step="1"[^>]*min="1"/);
+assert.match(indexSource,
+    /type="text"[^>]*id="dCheckpointOrder"[^>]*inputmode="numeric"[^>]*pattern="\[1-9\]\[0-9\]\*"/);
+assert.match(indexSource, /id="dWallSegments"[^>]*min="3"/);
+assert.doesNotMatch(indexSource, /id="dWallSegments"[^>]*\bmax=/,
+    "Circular, arc, and elliptical walls have no editor wall-count ceiling");
 assert.match(indexSource, /class="export-password-popover-body"/);
 assert.match(darkCssSource,
     /\.export-password-popover-body\s*\{[^}]*background:#1d1d1d;[^}]*color:#eee;[^}]*border-color:#555;/);
@@ -61,6 +69,9 @@ assert.match(indexSource, /<option value="0\.10" selected>Coarse \(10% – defau
 assert.match(configSource, /var config_zoomStep = 0\.10;/);
 assert.match(eventSource, /armamap_applyRevision\(nativeDocument\)/,
     "Code Viewer applies intentional edits with a fresh revision");
+assert.match(eventSource,
+    /Mousetrap\.bind\('shift\+z',[\s\S]*?vectron_ensureToolConnected\("zone"\)/,
+    "Shift+Z uses the same active-placement guard as Zone subtype buttons");
 assert.match(xmlSource, /xml_process\(parsed, false\)/,
     "File import preserves authored coordinates in both supported formats");
 assert.doesNotMatch(xmlSource, /centerOnOrigin/,
@@ -180,7 +191,16 @@ jquery.parseXML = function() { throw new Error("DOM parser not available in core
 
 const context = vm.createContext({
     console, Math, Number, String, Array, Object, JSON, isFinite, isNaN,
-    window:null, document:{getElementsByTagName() { return []; }},
+    window:null, document:{
+        getElementsByTagName() { return []; },
+        getElementById(id) {
+            const control = controls["#" + id];
+            if(!control) return null;
+            control.dataset = control.dataset || {};
+            control.removeAttribute = function(name) { delete control.attrs[name]; };
+            return control;
+        }
+    },
     $:jquery, vectron_screen:paper(), vectron_objectID:0,
     vectron_width:800, vectron_height:600, vectron_zoom:1,
     vectron_panX:0, vectron_panY:0, vectron_grid_spacing:8,
@@ -217,6 +237,98 @@ load("js/xml.js");
 load("js/armamap.js");
 load("js/eventHandler.js");
 load("js/preview3d.js");
+
+// Generated conics retain the exact authored wall count above the editor's
+// former size-derived and 720-wall ceilings.
+controls["#dWallSegments"] = {value:"1201", attrs:{max:"720"}};
+assert.strictEqual(context.wallTool_refreshCountInput(), 1201);
+assert.strictEqual(Number(controls["#dWallSegments"].value), 1201);
+assert.strictEqual(controls["#dWallSegments"].attrs.max, undefined);
+assert.strictEqual(context.wallTool_circlePoints({x:0,y:0}, 10, 1201, 0).length, 1202);
+assert.strictEqual(context.wallTool_arcPoints({x:0,y:0}, 10, 0, Math.PI, 1201, false).length, 1202);
+assert.strictEqual(context.wallTool_ellipsePoints(
+    {x:0,y:0}, {x:10,y:0}, {x:0,y:4}, 1201).length, 1202);
+controls["#dWallSegments"].value = "1";
+assert.strictEqual(context.wallTool_refreshCountInput(false), null);
+assert.strictEqual(controls["#dWallSegments"].value, "1",
+    "A transient first digit is not rewritten before the author can finish typing");
+controls["#dWallSegments"].value = "12";
+assert.strictEqual(context.wallTool_refreshCountInput(false), 12);
+controls["#dWallSegments"].value = "100000000";
+assert.strictEqual(context.wallTool_refreshCountInput(), 100000000,
+    "Large authored counts are retained rather than capped");
+assert.strictEqual(context.wallTool_getPreviewSegmentInput(), null,
+    "Huge authored counts do not build a synchronous live preview");
+assert.deepStrictEqual(plain(context.wallTool_circlePoints(
+    {x:0,y:0}, 10, Infinity, 0)), [],
+    "Non-finite counts cannot enter a nonterminating generator loop");
+controls["#dWallSegments"].value = "16";
+
+assert.strictEqual(context.zoneTool_validCheckpointNumberText("1", false), true);
+assert.strictEqual(context.zoneTool_validCheckpointNumberText("248", false), true);
+assert.strictEqual(context.zoneTool_validCheckpointNumberText("4294967295", false), true);
+assert.strictEqual(context.zoneTool_shiftLegacyCheckpointOrder(4294967294), 4294967295);
+assert.strictEqual(context.zoneTool_shiftLegacyCheckpointOrder(4294967295), 4294967295,
+    "Legacy zero-based checkpoint migration saturates like the game loader");
+assert.strictEqual(context.zoneTool_shiftLegacyCheckpointOrder(4294967296), null);
+["4294967296", "9007199254740991"].forEach(function(value) {
+    assert.strictEqual(context.zoneTool_validCheckpointNumberText(value, false), false);
+});
+const maxOrderCheckpoint = new context.Zone(0, 0, 1, 0, 5, 4294967295, {
+    zoneName:"checkpoint", shapeType:"circle", options:{}
+});
+assert.strictEqual(context.armamap_zone(maxOrderCheckpoint).order, 4294967295);
+maxOrderCheckpoint.option = 4294967296;
+assert.throws(function() { context.armamap_zone(maxOrderCheckpoint); },
+    /unsigned 32-bit range/);
+["", "0", "-1", "+1", "1.5", "1e2", "two"].forEach(function(value) {
+    assert.strictEqual(context.zoneTool_validCheckpointNumberText(value, false), false);
+});
+assert.strictEqual(context.zoneTool_validCheckpointNumberText("", true), true,
+    "The field may be temporarily empty while replacing its value");
+const checkpointInputMock = {value:"12", selectionStart:1, selectionEnd:2};
+assert.strictEqual(context.zoneTool_checkpointInputCandidate(checkpointInputMock, "7"), "17");
+assert.strictEqual(context.eventHandler_releasesShortcutFocus({tagName:"SELECT"}), true);
+assert.strictEqual(context.eventHandler_releasesShortcutFocus({tagName:"INPUT",type:"checkbox"}), true);
+assert.strictEqual(context.eventHandler_releasesShortcutFocus({tagName:"INPUT",type:"number"}), false);
+
+controls["#dCheckpointOrder"].value = "42";
+context.aamap_objects = [];
+assert.strictEqual(context.zoneTool_resetCheckpointNumberForMap(), true);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "1");
+assert.strictEqual(controls["#dCheckpointOrder"].dataset.lastValidValue, "1");
+controls["#dCheckpointOrder"].value = "7";
+assert.strictEqual(context.zoneTool_ensureCheckpointNumber(), 7,
+    "Authors may override the empty-map checkpoint default");
+context.aamap_objects = [{zoneName:"checkpoint", option:4}];
+controls["#dCheckpointOrder"].value = "9";
+assert.strictEqual(context.zoneTool_resetCheckpointNumberForMap(), false);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "9",
+    "Loading a map with checkpoints does not overwrite the author's next number");
+context.aamap_objects = [];
+assert.strictEqual(context.zoneTool_syncCheckpointNumberForAvailability(), false);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "1",
+    "Removing the final checkpoint resets the next checkpoint number");
+controls["#dCheckpointOrder"].value = "6";
+assert.strictEqual(context.zoneTool_syncCheckpointNumberForAvailability(), false);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "6",
+    "A manual override remains available while the map stays checkpoint-free");
+context.zoneTool_checkpointPlacementsSinceIncrement = 2;
+const manualCheckpointState = context.zoneTool_captureCheckpointEditorState();
+controls["#dCheckpointOrder"].value = "1";
+context.zoneTool_resetCheckpointIncrementProgress();
+context.zoneTool_restoreCheckpointEditorState(manualCheckpointState, [], false);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "6",
+    "Map-state undo can restore an empty map's manual next number");
+assert.strictEqual(context.zoneTool_checkpointPlacementsSinceIncrement, 2,
+    "Map-state undo restores checkpoint auto-increment cadence progress");
+context.zoneTool_resetCheckpointIncrementProgress();
+controls["#dCheckpointOrder"].value = "4294967295";
+assert.strictEqual(context.zoneTool_advanceCheckpointAfterPlacement(
+    {zoneName:"checkpoint", option:4294967295}), false);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "4294967295",
+    "Auto-increment never emits a value beyond the game's u32 range");
+controls["#dCheckpointOrder"].value = "1";
 
 const initialPathCalls = context.vectron_screen.pathCalls;
 const initialCircleCalls = context.vectron_screen.circleCalls;
@@ -1161,6 +1273,14 @@ assert.strictEqual(controls["#dCheckpointOrder"].value, "7");
 placeCheckpointCircle(14, 4);
 assert.strictEqual(controls["#dCheckpointOrder"].value, "8");
 assert.deepStrictEqual(context.aamap_objects.map(zone => zone.option), [7, 7, 7]);
+context.aamap_undo();
+assert.strictEqual(controls["#dCheckpointOrder"].value, "7");
+assert.strictEqual(context.zoneTool_checkpointPlacementsSinceIncrement, 2,
+    "Undo restores cadence progress before the placement");
+context.aamap_redo();
+assert.strictEqual(controls["#dCheckpointOrder"].value, "8");
+assert.strictEqual(context.zoneTool_checkpointPlacementsSinceIncrement, 0,
+    "Redo restores cadence progress after the placement");
 
 // Invalid fractional intervals block placement instead of silently rounding.
 controls["#dCheckpointAutoIncrementEvery"].value = "1.5";
@@ -1181,6 +1301,27 @@ assert.strictEqual(context.aamap_objects[0].option, 1);
 assert.strictEqual(controls["#dCheckpointOrder"].value, "2");
 context.aamap_objects[0].render();
 assert.strictEqual(context.aamap_objects[0].checkpointLabelObj.textValue, "1");
+context.aamap_undo();
+assert.strictEqual(context.aamap_objects.length, 0);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "1",
+    "Undoing the final checkpoint resets the active Zone control immediately");
+context.aamap_redo();
+assert.strictEqual(context.aamap_objects.length, 1);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "2");
+
+context.selectTool_selectedObjs = [context.aamap_objects[0]];
+context.selectTool_delete();
+assert.strictEqual(context.aamap_objects.length, 0);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "1",
+    "Deleting the final checkpoint resets the control before tool reactivation");
+context.aamap_undo();
+assert.strictEqual(context.aamap_objects.length, 1);
+assert.strictEqual(controls["#dCheckpointOrder"].value, "2",
+    "Undoing checkpoint deletion restores the prior next number");
+context.aamap_redo();
+assert.strictEqual(controls["#dCheckpointOrder"].value, "1");
+context.aamap_undo();
+assert.strictEqual(controls["#dCheckpointOrder"].value, "2");
 
 controls["#symmetry-x-toggle"].checked = true;
 controls["#dCheckpointAutoIncrement"].checked = false;

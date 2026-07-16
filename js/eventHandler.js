@@ -109,6 +109,15 @@ function eventHandler_scaleMap(factor, label) {
     return true;
 }
 
+function eventHandler_releasesShortcutFocus(element) {
+    if(!element || !element.tagName) return false;
+    var tag = element.tagName.toUpperCase();
+    if(tag === "SELECT") return true;
+    if(tag !== "INPUT") return false;
+    var type = String(element.type || "text").toLowerCase();
+    return type === "checkbox" || type === "radio";
+}
+
 function eventHandler_downloadExportMapReady() {
     if($("#map_author_password").val().length && !xml_author_password_hash) {
         gui_toast("The author password could not be secured. Export canceled.");
@@ -537,6 +546,16 @@ function eventHandler_init() {
         active.blur();
     });
 
+    // Selects and toggles are complete choices, not ongoing typing sessions.
+    // Hand focus back to the editor after their change so global shortcuts
+    // (= / -, Escape, tool keys, and the rest) remain available. Text and
+    // numeric fields retain focus until the author leaves or confirms them.
+    $(document).on("change.shortcutFocusHandoff", "select,input[type='checkbox'],input[type='radio']", function() {
+        if(eventHandler_releasesShortcutFocus(this) && document.activeElement === this) {
+            this.blur();
+        }
+    });
+
     $(document).on("click.pinnedTooltips", function(e) {
         if(eventHandler_tooltipsPinned &&
            !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length &&
@@ -734,7 +753,43 @@ function eventHandler_init() {
         zoneTool_resetCheckpointIncrementProgress();
         zoneTool_updateSettings();
     });
-    $('#dCheckpointOrder,#dCheckpointAutoIncrementEvery').on('input change', function() {
+    var checkpointOrderInput = document.getElementById('dCheckpointOrder');
+    if(checkpointOrderInput) {
+        checkpointOrderInput.dataset.lastValidValue = checkpointOrderInput.value;
+    }
+    $('#dCheckpointOrder').on('keydown', function(event) {
+        if(event.ctrlKey || event.metaKey || event.altKey ||
+            ['Backspace','Delete','ArrowLeft','ArrowRight','Home','End','Tab','Enter','Escape']
+                .indexOf(event.key) >= 0) return;
+        if(event.key.length === 1 && !/^[0-9]$/.test(event.key)) {
+            event.preventDefault();
+        }
+    }).on('beforeinput', function(event) {
+        var original = event.originalEvent || event;
+        if(String(original.inputType || '').indexOf('delete') === 0) return;
+        if(typeof original.data !== 'string') return;
+        var candidate = zoneTool_checkpointInputCandidate(this, original.data);
+        if(!zoneTool_validCheckpointNumberText(candidate, true)) event.preventDefault();
+    }).on('paste', function(event) {
+        var original = event.originalEvent || event;
+        var clipboard = original.clipboardData;
+        var pasted = clipboard && clipboard.getData ? clipboard.getData('text') : '';
+        if(!zoneTool_validCheckpointNumberText(
+            zoneTool_checkpointInputCandidate(this, pasted), true)) {
+            event.preventDefault();
+        }
+    }).on('input', function() {
+        if(zoneTool_validCheckpointNumberText(this.value, true)) {
+            this.dataset.lastValidValue = this.value;
+        } else {
+            this.value = this.dataset.lastValidValue || '';
+        }
+        zoneTool_noteCheckpointNumberEdit();
+    }).on('blur', function() {
+        if(!zoneTool_validCheckpointNumberText(this.value, false)) this.value = '1';
+        this.dataset.lastValidValue = this.value;
+    });
+    $('#dCheckpointAutoIncrementEvery').on('input change', function() {
         zoneTool_resetCheckpointIncrementProgress();
     });
     $(document).on("click", "#zone-tool-finish", zoneTool_finishCurrent);
@@ -940,7 +995,7 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZone-death").mouseup(function(e) {
-        vectron_connectTool("zone");
+        if(!vectron_ensureToolConnected("zone")) return;
         zoneTool_type = 0;
         zoneTool_guide();
         zoneTool_updateSettings();
@@ -950,7 +1005,7 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZone-win").mouseup(function(e) {
-        vectron_connectTool("zone");
+        if(!vectron_ensureToolConnected("zone")) return;
         zoneTool_type = 1;
         zoneTool_guide();
         zoneTool_updateSettings();
@@ -960,7 +1015,7 @@ function eventHandler_init() {
     });
 
     $(".toolbar-toolZone-health").mouseup(function(e) {
-        vectron_connectTool("zone");
+        if(!vectron_ensureToolConnected("zone")) return;
         zoneTool_type = 3;
         zoneTool_guide();
         zoneTool_updateSettings();
@@ -973,7 +1028,7 @@ function eventHandler_init() {
     $(document).on("click", ".zone-type-btn", function(e) {
         e.stopPropagation();
         var type = parseInt($(this).data("type"));
-        vectron_connectTool("zone");
+        if(!vectron_ensureToolConnected("zone")) return;
         zoneTool_type = type;
         zoneTool_guide();
         zoneTool_updateSettings();
@@ -996,9 +1051,7 @@ function eventHandler_init() {
 
     $(document).on("click", ".wall-tool-mode-btn", function(e) {
         e.preventDefault();
-        if(vectron_currentTool !== "wall") {
-            vectron_connectTool("wall");
-        }
+        if(!vectron_ensureToolConnected("wall")) return;
         wallTool_setMode($(this).data("mode"));
     });
 
@@ -1056,7 +1109,10 @@ function eventHandler_init() {
         });
     })();
 
-    $("#dWallSegments").on("change input", function() {
+    $("#dWallSegments").on("input", function() {
+        wallTool_refreshCountInput(false);
+        wallTool_renderCurrent();
+    }).on("change", function() {
         wallTool_refreshCountInput(true);
         wallTool_renderCurrent();
     });
@@ -1342,7 +1398,9 @@ function eventHandler_init() {
             panX:vectron_panX,
             panY:vectron_panY,
             zoom:vectron_zoom,
-            sourceFormat:codeViewer_sourceFormat
+            sourceFormat:codeViewer_sourceFormat,
+            checkpointEditorState:typeof zoneTool_captureCheckpointEditorState === "function" ?
+                zoneTool_captureCheckpointEditorState(aamap_objects) : null
         };
     }
 
@@ -1378,6 +1436,13 @@ function eventHandler_init() {
         gui_fillInput();
         $("#map_axes_forced").prop("checked", state.axesForced);
         aamap_updateLayerControls();
+        if(state.checkpointEditorState &&
+            typeof zoneTool_restoreCheckpointEditorState === "function") {
+            zoneTool_restoreCheckpointEditorState(
+                state.checkpointEditorState, aamap_objects, false);
+        } else {
+            zoneTool_resetCheckpointNumberForMap(aamap_objects);
+        }
         vectron_render();
         actionHistory_update();
     }
@@ -1558,6 +1623,10 @@ function eventHandler_init() {
             errDiv.textContent = "The code could not be applied because it contains invalid map data.";
             errDiv.style.display = '';
             return;
+        }
+
+        if(typeof zoneTool_syncCheckpointNumberForAvailability === "function") {
+            zoneTool_syncCheckpointNumberForAvailability(aamap_objects);
         }
 
         var newState = xmlEditor_captureMapState();
@@ -2138,14 +2207,16 @@ function eventHandler_init() {
         if(!aamap_active) return;
 
         if(vectron_currentTool == "zone") {
+            if(!vectron_ensureToolConnected("zone")) return false;
             var availableTypes = ZONE_TOOL_TYPES;
             var currentIndex = availableTypes.indexOf(zoneTool_type);
             zoneTool_type = availableTypes[(currentIndex + 1) % availableTypes.length];
            gui_writeLog('Zone Tool Toggled: '
                 + zoneTool_typeArray[zoneTool_type][0]);
             zoneTool_guide();
-        zoneTool_updateSettings();
+            zoneTool_updateSettings();
             zoneTool_updateWindowActiveType();
+            return false;
         }
     });
 
@@ -2171,9 +2242,10 @@ function eventHandler_init() {
         if(e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
         if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
 
-        if(e.key === "=" || e.code === "NumpadAdd" || e.code === "NumpadEqual") {
+        if(e.key === "=" || e.key === "+" ||
+            e.code === "NumpadAdd" || e.code === "NumpadEqual") {
             if(eventHandler_increaseSizeShortcut(e) === false) e.preventDefault();
-        } else if(e.key === "-" || e.code === "NumpadSubtract") {
+        } else if(e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") {
             if(eventHandler_decreaseSizeShortcut(e) === false) e.preventDefault();
         }
     });
@@ -2338,6 +2410,7 @@ function eventHandler_init() {
         });
         selectTool_selectedObjs = [];
         aamap_objects = [];
+        zoneTool_resetCheckpointNumberForMap(aamap_objects);
         vectron_panX = 0;
         vectron_panY = 0;
         vectron_zoom = 1;

@@ -298,7 +298,14 @@ function armamap_zone(zone) {
         result.start_tick = Number(zone.activeStartTick);
         result.end_tick = Number(zone.activeEndTick);
     }
-    if(zone.zoneName === "checkpoint") result.order = Number(zone.option) || 0;
+    if(zone.zoneName === "checkpoint") {
+        var checkpointOrder = Number(zone.option);
+        if(typeof zoneTool_validCheckpointOrder === "function" &&
+            !zoneTool_validCheckpointOrder(checkpointOrder)) {
+            throw new Error("checkpoint order must fit the game's unsigned 32-bit range");
+        }
+        result.order = checkpointOrder || 0;
+    }
     else if(zone.zoneName === "speed") {
         result.delta_mps = Number(zone.options.delta_mps);
         result.duration_ticks = Number(zone.options.duration_ticks);
@@ -550,7 +557,14 @@ function armamap_toCompatibilityXml(document) {
         ["trigger","start_tick","end_tick"].forEach(function(name) {
             if(zone[name] !== undefined) attributes += ' ' + name + '="' + armamap_escape(zone[name]) + '"';
         });
-        if(zone.type === "checkpoint") attributes += ' order="' + (Number(zone.order) || 0) + '"';
+        if(zone.type === "checkpoint") {
+            var checkpointOrder = Number(zone.order);
+            if(typeof zoneTool_validCheckpointOrder === "function" &&
+                !zoneTool_validCheckpointOrder(checkpointOrder)) {
+                throw new Error("canonical checkpoint order must be from 0 through 4294967295");
+            }
+            attributes += ' order="' + (checkpointOrder || 0) + '"';
+        }
         else if(zone.type === "speed") {
             if(!isFinite(Number(zone.delta_mps)) || !isFinite(Number(zone.duration_ticks))) {
                 throw new Error("canonical speed zone needs delta_mps and duration_ticks");

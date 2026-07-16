@@ -898,6 +898,8 @@ function selectTool_complete() {
 }
 
 function selectTool_delete() {
+    var checkpointStateBefore = typeof zoneTool_captureCheckpointEditorState === "function" ?
+        zoneTool_captureCheckpointEditorState(aamap_objects) : null;
     var deletedObjs = aamap_symmetryExpandObjectGroups(selectTool_selectedObjs);
     if(deletedObjs.indexOf(selectTool_selectedTeleportDestination) >= 0) {
         selectTool_selectedTeleportDestination = null;
@@ -909,6 +911,13 @@ function selectTool_delete() {
     });
     aamap_objects = aamap_objects.diff(deletedObjs);
     selectTool_selectedObjs = [];
+    if(checkpointStateBefore &&
+        typeof zoneTool_syncCheckpointNumberForAvailability === "function") {
+        zoneTool_syncCheckpointNumberForAvailability(aamap_objects);
+    }
+    var checkpointStateAfter = checkpointStateBefore &&
+        typeof zoneTool_captureCheckpointEditorState === "function" ?
+        zoneTool_captureCheckpointEditorState(aamap_objects) : null;
 
     // Build a count label: z(zones) w(walls) v(vertices) s(spawns)
     var zCount = 0, wCount = 0, vCount = 0, sCount = 0, rCount = 0, fCount = 0;
@@ -932,6 +941,11 @@ function selectTool_delete() {
         label: "Delete" + countLabel,
         undo: function() {
             deletedObjs.forEach(function(e) { aamap_objects.push(e); });
+            if(checkpointStateBefore &&
+                typeof zoneTool_restoreCheckpointEditorState === "function") {
+                zoneTool_restoreCheckpointEditorState(
+                    checkpointStateBefore, aamap_objects, false);
+            }
             vectron_render();
         },
         redo: function() {
@@ -939,6 +953,11 @@ function selectTool_delete() {
             deletedObjs.forEach(function(e) {
                 aamap_removeObjectVisuals(e);
             });
+            if(checkpointStateAfter &&
+                typeof zoneTool_restoreCheckpointEditorState === "function") {
+                zoneTool_restoreCheckpointEditorState(
+                    checkpointStateAfter, aamap_objects, false);
+            }
             vectron_render();
         }
     });
@@ -1089,6 +1108,8 @@ function selectTool_paste()
 {
     if(selectTool_clipboard)
     {
+        var checkpointStateBefore = typeof zoneTool_captureCheckpointEditorState === "function" ?
+            zoneTool_captureCheckpointEditorState(aamap_objects) : null;
         var objsBeforePaste = aamap_objects.length;
 
         // Load copied objects
@@ -1156,6 +1177,17 @@ function selectTool_paste()
             pastedObjs.push(aamap_objects[i]);
         }
 
+        var pastedHasCheckpoint = pastedObjs.some(function(object) {
+            return object && object.zoneName === "checkpoint";
+        });
+        if(pastedHasCheckpoint &&
+            typeof zoneTool_syncCheckpointNumberForAvailability === "function") {
+            zoneTool_syncCheckpointNumberForAvailability(aamap_objects);
+        }
+        var checkpointStateAfter = pastedHasCheckpoint && checkpointStateBefore &&
+            typeof zoneTool_captureCheckpointEditorState === "function" ?
+            zoneTool_captureCheckpointEditorState(aamap_objects) : null;
+
         // Record paste for undo/redo
         aamap_recordAction({
             label: "Paste object(s)",
@@ -1168,6 +1200,11 @@ function selectTool_paste()
                     e.isSelected = false;
                     aamap_removeObjectVisuals(e);
                 });
+                if(checkpointStateAfter &&
+                    typeof zoneTool_restoreCheckpointEditorState === "function") {
+                    zoneTool_restoreCheckpointEditorState(
+                        checkpointStateBefore, aamap_objects, true);
+                }
                 vectron_render();
                 if(window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
             },
@@ -1176,6 +1213,11 @@ function selectTool_paste()
                     e.isSelected = false;
                     aamap_objects.push(e);
                 });
+                if(checkpointStateAfter &&
+                    typeof zoneTool_restoreCheckpointEditorState === "function") {
+                    zoneTool_restoreCheckpointEditorState(
+                        checkpointStateAfter, aamap_objects, false);
+                }
                 vectron_render();
                 if(window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
             }

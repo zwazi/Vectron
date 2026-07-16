@@ -23,7 +23,7 @@ You should have received a copy of the GNU General Public License
 along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 */
-window.vtVersion = "1.2.0";
+window.vtVersion = "1.2.1";
 
 var vectron_width;
 var vectron_height;
@@ -420,6 +420,23 @@ function vectron_connectTool(toolName) {
         return true;
     }
     return false;
+}
+
+/**
+ * Activate the tool required by one of its subtype/mode controls without
+ * disconnecting and reconnecting an already-selected owner. Reconnecting
+ * tears down transient placement state. Active placements retain the normal
+ * disconnect guard and must be completed or cancelled before changing mode.
+ */
+function vectron_ensureToolConnected(toolName) {
+    if(vectron_currentTool === toolName) {
+        if(vectron_toolActive) {
+            gui_writeLog("Cannot change tool mode during an active placement. Finish or cancel it first.");
+            return false;
+        }
+        return true;
+    }
+    return vectron_connectTool(toolName);
 }
 
 window.onload = function() {

@@ -503,6 +503,7 @@ body {
 }
 #wall-tool-body input[type=number],
 #zone-tool-body input[type=number],
+#zone-tool-body #dCheckpointOrder,
 #ramp-tool-body input[type=number],
 #ramp-tool-body select,
 #selection-properties-body input[type=number] {

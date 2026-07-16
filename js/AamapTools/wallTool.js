@@ -41,11 +41,12 @@ var wallTool_mode = "freeform";
 var wallTool_step = 0;
 var wallTool_stagePoints = [];
 
-// Minimum segment length used to cap segment counts; smaller shapes get lower limits.
 var WALL_TOOL_MIN_SEGMENTS = 3;
-var WALL_TOOL_SEGMENT_LENGTH = 4;
-// Hard ceiling to keep giant circles from generating too many tiny walls.
-var WALL_TOOL_MAX_SEGMENTS = 720;
+// Large authored counts remain valid, but rendering every point while the
+// author is still typing can lock the UI. This is a preview budget only.
+var WALL_TOOL_LIVE_PREVIEW_MAX_SEGMENTS = 5000;
+var WALL_TOOL_LARGE_GENERATION_CONFIRM_SEGMENTS = 50000;
+var WALL_TOOL_MAX_EXACT_SEGMENTS = 9007199254740991;
 // Keep wall coordinates stable when rounding generated points.
 var WALL_TOOL_COORD_PRECISION = 1e6;
 var WALL_TOOL_BUTTON_LABEL_FINISH = "Finish Wall";
@@ -183,38 +184,53 @@ function wallTool_isCountPhase() {
     return false;
 }
 
+function wallTool_parseSegmentInput(value) {
+    value = String(value === undefined || value === null ? "" : value).trim();
+    if(!/^[0-9]+$/.test(value)) return null;
+    var count = Number(value);
+    if(!isFinite(count) || Math.floor(count) !== count ||
+        count > WALL_TOOL_MAX_EXACT_SEGMENTS) return null;
+    return count;
+}
+
 function wallTool_getSegmentInput() {
     var el = document.getElementById("dWallSegments");
     if(!el) return WALL_TOOL_MIN_SEGMENTS;
-    var v = parseInt(el.value);
-    if(isNaN(v) || v < WALL_TOOL_MIN_SEGMENTS) v = WALL_TOOL_MIN_SEGMENTS;
-    return v;
+    var text = String(el.value || "").trim();
+    var count = wallTool_parseSegmentInput(text);
+    if(text === "" || count !== null && count < WALL_TOOL_MIN_SEGMENTS) {
+        el.value = WALL_TOOL_MIN_SEGMENTS;
+        return WALL_TOOL_MIN_SEGMENTS;
+    }
+    return count;
 }
 
-function wallTool_wallCountLimit(perimeter) {
-    var limit = Math.floor(perimeter / WALL_TOOL_SEGMENT_LENGTH);
-    if(limit < WALL_TOOL_MIN_SEGMENTS) limit = WALL_TOOL_MIN_SEGMENTS;
-    if(limit > WALL_TOOL_MAX_SEGMENTS) limit = WALL_TOOL_MAX_SEGMENTS;
-    return limit;
-}
-
-function wallTool_applyCountLimit(limit, warnIfReduced) {
+/**
+ * Normalize the generated-wall count without imposing an arbitrary upper
+ * bound. Authors intentionally use dense circular and elliptical walls for
+ * large or precision-sensitive shapes; neither the shape's perimeter nor an
+ * editor constant should silently rewrite that choice.
+ */
+function wallTool_refreshCountInput(commit) {
     var el = document.getElementById("dWallSegments");
     if(!el) return WALL_TOOL_MIN_SEGMENTS;
-    if(limit < WALL_TOOL_MIN_SEGMENTS) limit = WALL_TOOL_MIN_SEGMENTS;
-    el.max = limit;
+    el.removeAttribute("max");
+    if(commit === undefined) commit = true;
+    if(commit) return wallTool_getSegmentInput();
+    var count = wallTool_parseSegmentInput(el.value);
+    return count !== null && count >= WALL_TOOL_MIN_SEGMENTS ? count : null;
+}
 
-    var v = parseInt(el.value);
-    if(isNaN(v) || v < WALL_TOOL_MIN_SEGMENTS) v = WALL_TOOL_MIN_SEGMENTS;
-    if(v > limit) {
-        el.value = limit;
-        if(warnIfReduced) {
-            gui_toast("Too many walls for this size. Capped at " + limit + ".");
-            gui_writeLog("Too many walls for this size. Capped at " + limit + ".");
-        }
-        return limit;
-    }
-    return v;
+function wallTool_getPreviewSegmentInput() {
+    var count = wallTool_refreshCountInput(false);
+    return count !== null && count <= WALL_TOOL_LIVE_PREVIEW_MAX_SEGMENTS ? count : null;
+}
+
+function wallTool_confirmLargeGeneration(count) {
+    if(count <= WALL_TOOL_LARGE_GENERATION_CONFIRM_SEGMENTS) return true;
+    if(typeof window === "undefined" || typeof window.confirm !== "function") return true;
+    return window.confirm("Generate " + count +
+        " walls? Very large counts may take a long time and use substantial memory.");
 }
 
 function wallTool_pointDistance(a, b) {
@@ -675,6 +691,9 @@ function wallTool_circleGeometry(center, radiusPoint) {
 
 function wallTool_circlePoints(center, radius, segments, startAngle) {
     var pts = [];
+    segments = Number(segments);
+    if(!isFinite(segments) || Math.floor(segments) !== segments ||
+        segments > WALL_TOOL_MAX_EXACT_SEGMENTS) return pts;
     if(segments < WALL_TOOL_MIN_SEGMENTS) segments = WALL_TOOL_MIN_SEGMENTS;
     for(var i = 0; i <= segments; i++) {
         var ang = startAngle + (Math.PI * 2 * i / segments);
@@ -685,6 +704,9 @@ function wallTool_circlePoints(center, radius, segments, startAngle) {
 
 function wallTool_arcPoints(center, radius, startAngle, endAngle, segments, clockwise) {
     var pts = [];
+    segments = Number(segments);
+    if(!isFinite(segments) || Math.floor(segments) !== segments ||
+        segments > WALL_TOOL_MAX_EXACT_SEGMENTS) return pts;
     if(segments < WALL_TOOL_MIN_SEGMENTS) segments = WALL_TOOL_MIN_SEGMENTS;
     var sweep = clockwise ? -wallTool_angleDiff(endAngle, startAngle) : wallTool_angleDiff(startAngle, endAngle);
     for(var i = 0; i <= segments; i++) {
@@ -720,6 +742,9 @@ function wallTool_ellipsePoints(center, majorPoint, minorPoint, segments) {
         minorUnitY *= -1;
     }
 
+    segments = Number(segments);
+    if(!isFinite(segments) || Math.floor(segments) !== segments ||
+        segments > WALL_TOOL_MAX_EXACT_SEGMENTS) return null;
     if(segments < WALL_TOOL_MIN_SEGMENTS) segments = WALL_TOOL_MIN_SEGMENTS;
     var pts = [];
     for(var i = 0; i <= segments; i++) {
@@ -827,7 +852,9 @@ function wallTool_getDraftPoints(candidatePoint) {
         if(pts.length < 2) return pts;
         var g = wallTool_circleGeometry(pts[0], pts[1]);
         if(!g) return null;
-        return wallTool_circlePoints(g.center, g.radius, wallTool_getSegmentInput(), g.startAngle);
+        var circleSegments = wallTool_getPreviewSegmentInput();
+        if(circleSegments === null) return null;
+        return wallTool_circlePoints(g.center, g.radius, circleSegments, g.startAngle);
     }
 
     if(wallTool_mode === "circle3pt" || wallTool_mode === "arc3pt") {
@@ -837,7 +864,10 @@ function wallTool_getDraftPoints(candidatePoint) {
         var radius = wallTool_pointDistance(center, pts[0]);
         if(radius <= 0) return null;
         if(wallTool_mode === "circle3pt") {
-            return wallTool_circlePoints(center, radius, wallTool_getSegmentInput(), Math.atan2(pts[0].y - center.y, pts[0].x - center.x));
+            var circle3ptSegments = wallTool_getPreviewSegmentInput();
+            if(circle3ptSegments === null) return null;
+            return wallTool_circlePoints(center, radius, circle3ptSegments,
+                Math.atan2(pts[0].y - center.y, pts[0].x - center.x));
         }
         var startAngle = Math.atan2(pts[0].y - center.y, pts[0].x - center.x);
         var radiusAngle = Math.atan2(pts[2].y - center.y, pts[2].x - center.x);
@@ -845,12 +875,17 @@ function wallTool_getDraftPoints(candidatePoint) {
         var counterClockwiseSweep = wallTool_angleDiff(startAngle, endAngle);
         var radiusSweep = wallTool_angleDiff(startAngle, radiusAngle);
         var clockwise = (radiusSweep > counterClockwiseSweep);
-        return wallTool_arcPoints(center, radius, startAngle, endAngle, wallTool_getSegmentInput(), clockwise);
+        var arcSegments = wallTool_getPreviewSegmentInput();
+        if(arcSegments === null) return null;
+        return wallTool_arcPoints(
+            center, radius, startAngle, endAngle, arcSegments, clockwise);
     }
 
     if(wallTool_mode === "ellipse3pt") {
         if(pts.length < 3) return pts;
-        return wallTool_ellipsePoints(pts[0], pts[1], pts[2], wallTool_getSegmentInput());
+        var ellipseSegments = wallTool_getPreviewSegmentInput();
+        if(ellipseSegments === null) return null;
+        return wallTool_ellipsePoints(pts[0], pts[1], pts[2], ellipseSegments);
     }
 
     if(wallTool_mode === "text") {
@@ -859,50 +894,6 @@ function wallTool_getDraftPoints(candidatePoint) {
     }
 
     return null;
-}
-
-function wallTool_getDraftPerimeter() {
-    if(wallTool_mode === "circleCenter" && wallTool_stagePoints.length >= 2) {
-        var g = wallTool_circleGeometry(wallTool_stagePoints[0], wallTool_stagePoints[1]);
-        if(!g) return 0;
-        return 2 * Math.PI * g.radius;
-    }
-
-    if(wallTool_mode === "circle3pt" && wallTool_stagePoints.length >= 3) {
-        var center = wallTool_circumcenter(wallTool_stagePoints[0], wallTool_stagePoints[1], wallTool_stagePoints[2]);
-        if(!center) return 0;
-        return 2 * Math.PI * wallTool_pointDistance(center, wallTool_stagePoints[0]);
-    }
-
-    if(wallTool_mode === "arc3pt" && wallTool_stagePoints.length >= 3) {
-        var arcCenter = wallTool_circumcenter(wallTool_stagePoints[0], wallTool_stagePoints[1], wallTool_stagePoints[2]);
-        if(!arcCenter) return 0;
-        var arcRadius = wallTool_pointDistance(arcCenter, wallTool_stagePoints[0]);
-        var startAngle = Math.atan2(wallTool_stagePoints[0].y - arcCenter.y, wallTool_stagePoints[0].x - arcCenter.x);
-        var endAngle = Math.atan2(wallTool_stagePoints[1].y - arcCenter.y, wallTool_stagePoints[1].x - arcCenter.x);
-        var radiusAngle = Math.atan2(wallTool_stagePoints[2].y - arcCenter.y, wallTool_stagePoints[2].x - arcCenter.x);
-        var counterClockwiseSweep = wallTool_angleDiff(startAngle, endAngle);
-        var radiusSweep = wallTool_angleDiff(startAngle, radiusAngle);
-        var sweep = (radiusSweep > counterClockwiseSweep) ? (Math.PI * 2 - counterClockwiseSweep) : counterClockwiseSweep;
-        return arcRadius * sweep;
-    }
-
-    if(wallTool_mode === "ellipse3pt" && wallTool_stagePoints.length >= 3) {
-        var majorLen = wallTool_pointDistance(wallTool_stagePoints[0], wallTool_stagePoints[1]);
-        var minorLen = wallTool_pointDistance(wallTool_stagePoints[0], wallTool_stagePoints[2]);
-        if(majorLen <= 0 || minorLen <= 0) return 0;
-        // Ramanujan's approximation is accurate enough for a wall-count limit.
-        return Math.PI * (3 * (majorLen + minorLen) - Math.sqrt((3 * majorLen + minorLen) * (majorLen + 3 * minorLen)));
-    }
-
-    return 0;
-}
-
-function wallTool_refreshCountInput(warnIfReduced) {
-    var el = document.getElementById("dWallSegments");
-    if(!el) return WALL_TOOL_MIN_SEGMENTS;
-    var limit = wallTool_wallCountLimit(wallTool_getDraftPerimeter());
-    return wallTool_applyCountLimit(limit, warnIfReduced);
 }
 
 function wallTool_finalizePoints(points) {
@@ -991,16 +982,14 @@ function wallTool_completeShape() {
         return;
     }
 
-    var pts = wallTool_getDraftPoints();
-    if(!pts || pts.length < 2) {
-        gui_writeLog("Not enough points to generate a wall.");
+    var count = wallTool_getSegmentInput();
+    if(count === null) {
+        gui_writeLog("Wall count must be a positive whole decimal number.");
         return;
     }
-    var count = wallTool_getSegmentInput();
-    var limit = wallTool_refreshCountInput(true);
-    if(count > limit) count = limit;
+    if(!wallTool_confirmLargeGeneration(count)) return;
 
-    var finalPts = pts;
+    var finalPts = null;
     if(wallTool_mode === "circleCenter") {
         var g = wallTool_circleGeometry(wallTool_stagePoints[0], wallTool_stagePoints[1]);
         if(!g) { gui_writeLog("Circle radius must be greater than 0."); return; }

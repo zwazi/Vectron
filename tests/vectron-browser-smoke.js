@@ -46,6 +46,20 @@ ws.onopen = async () => {
 
         const expression = `(async function() {
             var result = {};
+            function dispatchEditorKey(target, key, code, keyCode, options) {
+                options=options||{};
+                var event=new KeyboardEvent('keydown',{
+                    key:key,code:code,bubbles:true,cancelable:true,
+                    shiftKey:!!options.shiftKey,ctrlKey:!!options.ctrlKey,
+                    altKey:!!options.altKey,metaKey:!!options.metaKey
+                });
+                try {
+                    Object.defineProperty(event,'which',{get:function(){return keyCode;}});
+                    Object.defineProperty(event,'keyCode',{get:function(){return keyCode;}});
+                } catch(error) {}
+                (target||document.activeElement||document.body).dispatchEvent(event);
+                return event;
+            }
             function importMapFile(name, content) {
                 return new Promise(function(resolve, reject) {
                     var previousMapLoaded = window.codeViewer_onMapLoaded;
@@ -187,6 +201,228 @@ ws.onopen = async () => {
                 checkpointColor:zoneTool_typeArray[5][1],
                 circleRotation:circleRotation,
                 rectangleRotationVisible:rectangleRotationVisible
+            };
+
+            var wallCountInput=document.getElementById('dWallSegments');
+            wallCountInput.value='1201';
+            var normalizedWallCount=wallTool_refreshCountInput();
+            wallCountInput.value='1';
+            wallCountInput.dispatchEvent(new Event('input',{bubbles:true}));
+            var transientFirstDigit=wallCountInput.value;
+            wallCountInput.value='12';
+            wallCountInput.dispatchEvent(new Event('input',{bubbles:true}));
+            var completedTypedCount=wallCountInput.value;
+            wallCountInput.value='100000000';
+            wallCountInput.dispatchEvent(new Event('input',{bubbles:true}));
+            var hugePreviewSkipped=wallTool_getPreviewSegmentInput()===null;
+            var hugeAuthoredCount=wallTool_refreshCountInput();
+            wallCountInput.value='1201';
+            result.conicWallCounts={
+                maxAttribute:wallCountInput.getAttribute('max'),
+                normalized:normalizedWallCount,
+                circlePoints:wallTool_circlePoints({x:0,y:0},10,normalizedWallCount,0).length,
+                arcPoints:wallTool_arcPoints({x:0,y:0},10,0,Math.PI,normalizedWallCount,false).length,
+                ellipsePoints:wallTool_ellipsePoints(
+                    {x:0,y:0},{x:10,y:0},{x:0,y:4},normalizedWallCount).length,
+                transientFirstDigit:transientFirstDigit,
+                completedTypedCount:completedTypedCount,
+                hugePreviewSkipped:hugePreviewSkipped,
+                hugeAuthoredCount:hugeAuthoredCount,
+                nonFiniteRejected:wallTool_circlePoints(
+                    {x:0,y:0},10,Infinity,0).length===0
+            };
+
+            var checkpointInput=document.getElementById('dCheckpointOrder');
+            checkpointInput.value='1';
+            checkpointInput.dataset.lastValidValue='1';
+            checkpointInput.focus();
+            var rejectedLetter=dispatchEditorKey(checkpointInput,'e','KeyE',69).defaultPrevented;
+            checkpointInput.setSelectionRange(1,1);
+            var rejectedBeforeInput=new InputEvent('beforeinput',{
+                data:'.',inputType:'insertText',bubbles:true,cancelable:true
+            });
+            checkpointInput.dispatchEvent(rejectedBeforeInput);
+            var acceptedBeforeInput=new InputEvent('beforeinput',{
+                data:'2',inputType:'insertText',bubbles:true,cancelable:true
+            });
+            checkpointInput.dispatchEvent(acceptedBeforeInput);
+            var rejectedPaste=new Event('paste',{bubbles:true,cancelable:true});
+            Object.defineProperty(rejectedPaste,'clipboardData',{
+                value:{getData:function(){return '12x';}}
+            });
+            checkpointInput.dispatchEvent(rejectedPaste);
+            checkpointInput.value='1e2';
+            checkpointInput.dispatchEvent(new Event('input',{bubbles:true}));
+            var invalidInputRestored=checkpointInput.value;
+            var objectsBeforeCheckpointDefault=aamap_objects;
+            aamap_objects=[];
+            checkpointInput.value='42';
+            var emptyMapReset=zoneTool_resetCheckpointNumberForMap();
+            var emptyMapValue=checkpointInput.value;
+            checkpointInput.value='7';
+            checkpointInput.dispatchEvent(new Event('input',{bubbles:true}));
+            var manualOverride=zoneTool_ensureCheckpointNumber();
+            aamap_objects=[{zoneName:'checkpoint'}];
+            zoneTool_resetCheckpointNumberForMap();
+            aamap_objects=[];
+            zoneTool_syncCheckpointNumberForAvailability();
+            var finalCheckpointRemovedValue=checkpointInput.value;
+            checkpointInput.value='6';
+            checkpointInput.dispatchEvent(new Event('input',{bubbles:true}));
+            zoneTool_syncCheckpointNumberForAvailability();
+            var postRemovalManualOverride=zoneTool_ensureCheckpointNumber();
+            var maximumCheckpointAccepted=
+                zoneTool_validCheckpointNumberText('4294967295',false);
+            var overflowCheckpointRejected=
+                !zoneTool_validCheckpointNumberText('4294967296',false);
+
+            var savedCheckpointObjects=objectsBeforeCheckpointDefault;
+            var savedCheckpointState=zoneTool_captureCheckpointEditorState(
+                savedCheckpointObjects);
+            var savedCheckpointUndo=aamap_undoStack;
+            var savedCheckpointRedo=aamap_redoStack;
+            var savedCheckpointSelection=selectTool_selectedObjs;
+            aamap_objects=[];
+            selectTool_selectedObjs=[];
+            aamap_clearHistory();
+            checkpointInput.value='1';
+            checkpointInput.dataset.lastValidValue='1';
+            document.getElementById('dCheckpointOrdered').checked=true;
+            document.getElementById('dCheckpointAutoIncrement').checked=true;
+            document.getElementById('dCheckpointAutoIncrementEvery').value='1';
+            zoneTool_resetCheckpointNumberForMap(aamap_objects);
+            var lifecycleCheckpoint=new Zone(3,4,2,0,5,1,{
+                zoneName:'checkpoint',shapeType:'circle',options:{},trigger:''
+            });
+            zoneTool_addZone(lifecycleCheckpoint);
+            var addNextValue=checkpointInput.value;
+            aamap_undo();
+            var addUndoValue=checkpointInput.value;
+            aamap_redo();
+            var addRedoValue=checkpointInput.value;
+            selectTool_selectedObjs=[lifecycleCheckpoint];
+            selectTool_delete();
+            var deleteValue=checkpointInput.value;
+            aamap_undo();
+            var deleteUndoValue=checkpointInput.value;
+            aamap_redo();
+            var deleteRedoValue=checkpointInput.value;
+            aamap_undo();
+            checkpointInput.value='9';
+            checkpointInput.dataset.lastValidValue='9';
+            zoneTool_checkpointPlacementsSinceIncrement=2;
+            $('.toolbar-newMap').trigger('mouseup');
+            var newMapValue=checkpointInput.value;
+            aamap_undo();
+            var mapUndoValue=checkpointInput.value;
+            var mapUndoCadence=zoneTool_checkpointPlacementsSinceIncrement;
+            aamap_redo();
+            var mapRedoValue=checkpointInput.value;
+            aamap_undo();
+            aamap_objects.forEach(aamap_removeObjectVisuals);
+            aamap_objects=savedCheckpointObjects;
+            selectTool_selectedObjs=savedCheckpointSelection;
+            aamap_undoStack=savedCheckpointUndo;
+            aamap_redoStack=savedCheckpointRedo;
+            zoneTool_restoreCheckpointEditorState(
+                savedCheckpointState,aamap_objects,false);
+            vectron_render();
+            aamap_objects=objectsBeforeCheckpointDefault;
+            checkpointInput.blur();
+            result.checkpointInput={
+                type:checkpointInput.type,inputMode:checkpointInput.inputMode,
+                pattern:checkpointInput.pattern,rejectedLetter:rejectedLetter,
+                rejectedBeforeInput:rejectedBeforeInput.defaultPrevented,
+                acceptedBeforeInput:!acceptedBeforeInput.defaultPrevented,
+                rejectedPaste:rejectedPaste.defaultPrevented,
+                invalidInputRestored:invalidInputRestored,
+                emptyMapReset:emptyMapReset,emptyMapValue:emptyMapValue,
+                manualOverride:manualOverride,
+                finalCheckpointRemovedValue:finalCheckpointRemovedValue,
+                postRemovalManualOverride:postRemovalManualOverride,
+                maximumCheckpointAccepted:maximumCheckpointAccepted,
+                overflowCheckpointRejected:overflowCheckpointRejected
+            };
+            result.checkpointLifecycle={
+                add:[addNextValue,addUndoValue,addRedoValue],
+                deletion:[deleteValue,deleteUndoValue,deleteRedoValue],
+                mapState:[newMapValue,mapUndoValue,mapUndoCadence,mapRedoValue]
+            };
+
+            // Subtype controls must keep their owning tool selected without
+            // disconnecting and rebuilding it between mode choices.
+            vectron_grid_spacing=8;
+            vectron_grid_render_spacing=8;
+            vectron_grid_render_locked=true;
+            gridSizeControls_sync();
+            vectron_forceSelectTool();
+            var zoneToolbar=document.querySelector('#zone-base .toolbar-toolZone');
+            zoneToolbar.focus();
+            $(zoneToolbar).trigger('mouseup');
+            var winTypeButton=document.querySelector('.zone-type-win');
+            winTypeButton.focus();
+            winTypeButton.click();
+            var zoneSubtypeKeptTool=vectron_currentTool==='zone' && zoneTool_type===1;
+            vectron_toolActive=true;
+            document.querySelector('.zone-type-checkpoint').click();
+            var activeZoneSubtypeProtected=vectron_currentTool==='zone' && zoneTool_type===1;
+            vectron_toolActive=false;
+            dispatchEditorKey(document.activeElement,'=','Equal',61);
+            var zoneIncrease=vectron_grid_spacing;
+            dispatchEditorKey(document.activeElement,'-','Minus',173);
+            var zoneDecrease=vectron_grid_spacing;
+            dispatchEditorKey(document.activeElement,'+','Equal',61,{shiftKey:true});
+            var shiftedIncrease=vectron_grid_spacing;
+            dispatchEditorKey(document.activeElement,'_','Minus',173,{shiftKey:true});
+            var shiftedDecrease=vectron_grid_spacing;
+            dispatchEditorKey(document.activeElement,'Escape','Escape',27);
+            var escapeWorked=vectron_currentTool==='select';
+
+            var wallToolbar=document.querySelector('.toolbar-toolWall');
+            wallToolbar.focus();
+            $(wallToolbar).trigger('mouseup');
+            var circleModeButton=document.querySelector('.wall-tool-mode-btn[data-mode="circleCenter"]');
+            circleModeButton.focus();
+            circleModeButton.click();
+            var wallSubtypeKeptTool=vectron_currentTool==='wall' && wallTool_mode==='circleCenter';
+            vectron_toolActive=true;
+            document.querySelector('.wall-tool-mode-btn[data-mode="ellipse3pt"]').click();
+            var activeWallSubtypeProtected=vectron_currentTool==='wall' &&
+                wallTool_mode==='circleCenter';
+            vectron_toolActive=false;
+            dispatchEditorKey(document.activeElement,'4','Digit4',52);
+            var ordinaryToolShortcutWorked=vectron_currentTool==='zone';
+
+            checkpointInput.focus();
+            dispatchEditorKey(checkpointInput,'2','Digit2',50);
+            var typingInputGuarded=vectron_currentTool==='zone';
+            checkpointInput.blur();
+            var shapeSelect=document.getElementById('dZoneShape');
+            shapeSelect.focus();
+            shapeSelect.value='rectangle';
+            shapeSelect.dispatchEvent(new Event('change',{bubbles:true}));
+            var selectReleasedFocus=document.activeElement!==shapeSelect;
+            var movingToggle=document.getElementById('dZoneMoving');
+            movingToggle.focus();
+            movingToggle.checked=!movingToggle.checked;
+            movingToggle.dispatchEvent(new Event('change',{bubbles:true}));
+            var toggleReleasedFocus=document.activeElement!==movingToggle;
+            shapeSelect.value='circle';
+            movingToggle.checked=false;
+            zoneTool_updateSettings();
+            vectron_forceSelectTool();
+            result.toolKeyboardLifecycle={
+                zoneSubtypeKeptTool:zoneSubtypeKeptTool,
+                wallSubtypeKeptTool:wallSubtypeKeptTool,
+                activeZoneSubtypeProtected:activeZoneSubtypeProtected,
+                activeWallSubtypeProtected:activeWallSubtypeProtected,
+                zoneGridSteps:[zoneIncrease,zoneDecrease],
+                shiftedGridSteps:[shiftedIncrease,shiftedDecrease],
+                escapeWorked:escapeWorked,
+                ordinaryToolShortcutWorked:ordinaryToolShortcutWorked,
+                typingInputGuarded:typingInputGuarded,
+                selectReleasedFocus:selectReleasedFocus,
+                toggleReleasedFocus:toggleReleasedFocus
             };
 
             var checkpointVisual=new Zone(4,5,3,0,5,1,{zoneName:'checkpoint',
@@ -943,6 +1179,32 @@ ws.onopen = async () => {
             checkpointAutoIncrement:true, checkpointColor:"#ffffff",
             lineWidthMinimum:"0", zeroLineWidthAccepted:true, zonePulseDefault:"0.1",
             circleRotation:["0",true], rectangleRotationVisible:true
+        });
+        assert.deepStrictEqual(value.conicWallCounts, {
+            maxAttribute:null,normalized:1201,circlePoints:1202,arcPoints:1202,
+            ellipsePoints:1202,transientFirstDigit:'1',completedTypedCount:'12',
+            hugePreviewSkipped:true,hugeAuthoredCount:100000000,
+            nonFiniteRejected:true
+        });
+        assert.deepStrictEqual(value.checkpointInput, {
+            type:'text',inputMode:'numeric',pattern:'[1-9][0-9]*',
+            rejectedLetter:true,rejectedBeforeInput:true,acceptedBeforeInput:true,
+            rejectedPaste:true,invalidInputRestored:'1',emptyMapReset:true,
+            emptyMapValue:'1',manualOverride:7,finalCheckpointRemovedValue:'1',
+            postRemovalManualOverride:6,maximumCheckpointAccepted:true,
+            overflowCheckpointRejected:true
+        });
+        assert.deepStrictEqual(value.checkpointLifecycle, {
+            add:['2','1','2'],deletion:['1','2','1'],
+            mapState:['1','9',2,'1']
+        });
+        assert.deepStrictEqual(value.toolKeyboardLifecycle, {
+            zoneSubtypeKeptTool:true,wallSubtypeKeptTool:true,
+            activeZoneSubtypeProtected:true,activeWallSubtypeProtected:true,
+            zoneGridSteps:[16,8],escapeWorked:true,
+            shiftedGridSteps:[16,8],
+            ordinaryToolShortcutWorked:true,typingInputGuarded:true,
+            selectReleasedFocus:true,toggleReleasedFocus:true
         });
         assert.deepStrictEqual(value.checkpointVisual, {
             stroke:"#ffffff", label:"1", labelFill:"#ffffff", labelStroke:"none",

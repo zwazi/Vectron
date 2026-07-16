@@ -471,6 +471,9 @@ function xml_process(xml, suppressHistoryClear) {
         aamap_endBulkLoad();
     }
     aamap_updateLayerControls();
+    if(typeof zoneTool_resetCheckpointNumberForMap === "function") {
+        zoneTool_resetCheckpointNumberForMap(aamap_objects);
+    }
     var ptsx = pt[0], ptsy = pt[1];
     var importedBounds = aamap_getObjectsBounds(
         aamap_objects.slice(importedObjectStart));
@@ -780,11 +783,13 @@ function xml_process_piece(xml, defaultLevel)
         if(effect === "checkpoint") {
             if(element.attr("order") !== undefined) {
                 option = Number(element.attr("order"));
-                if(!xml_checkpoint_order_base_one) option += 1;
+                if(!xml_checkpoint_order_base_one) {
+                    option = zoneTool_shiftLegacyCheckpointOrder(option);
+                }
             }
             else {
                 var legacyId = Number(element.find("Checkpoint").first().attr("id"));
-                option = legacyId + 1;
+                option = zoneTool_shiftLegacyCheckpointOrder(legacyId);
             }
             if(!zoneTool_validCheckpointOrder(option)) {
                 gui_writeLog("Skipped checkpoint zone with invalid order.");
