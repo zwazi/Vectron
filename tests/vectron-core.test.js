@@ -61,9 +61,10 @@ assert.match(indexSource, /<option value="0\.10" selected>Coarse \(10% – defau
 assert.match(configSource, /var config_zoomStep = 0\.10;/);
 assert.match(eventSource, /armamap_applyRevision\(nativeDocument\)/,
     "Code Viewer applies intentional edits with a fresh revision");
-assert.match(xmlSource,
-    /xml_process\(parsed, false, isNative \? null : \{centerOnOrigin:true\}\)/,
-    "File import centers legacy XML but preserves canonical .armamap coordinates");
+assert.match(xmlSource, /xml_process\(parsed, false\)/,
+    "File import preserves authored coordinates in both supported formats");
+assert.doesNotMatch(xmlSource, /centerOnOrigin/,
+    "Legacy XML import must not translate geometry to the world origin");
 assert.match(indexSource, /Ctrl\+N[\s\S]*Ctrl\+O[\s\S]*Ctrl\+S/);
 assert.match(eventSource, /Mousetrap\.bind\('mod\+n'/);
 assert.match(eventSource, /Mousetrap\.bind\('mod\+o'/);
@@ -1190,6 +1191,11 @@ setMapCursor(12, 4); context.zoneTool_complete();
 assert.strictEqual(context.aamap_objects.length, 3);
 const symmetricCheckpoints = context.aamap_objects.filter(zone => zone.option === 2);
 assert.deepStrictEqual(symmetricCheckpoints.map(zone => zone.x).sort((a, b) => a - b), [-10, 10]);
+assert.ok(symmetricCheckpoints.every(zone => zone.activeStartTick === null &&
+    zone.activeEndTick === null),
+    "Symmetry clones preserve an untimed zone instead of converting null to tick zero");
+assert.ok(symmetricCheckpoints.every(zone =>
+    !/start_tick=|end_tick=/.test(zone.getXML())));
 assert.strictEqual(controls["#dCheckpointOrder"].value, "2");
 context.aamap_undo();
 assert.strictEqual(context.aamap_objects.length, 1);

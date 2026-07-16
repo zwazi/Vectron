@@ -738,7 +738,7 @@ ws.onopen = async () => {
                 gameplaySettingKept:mutatedNative.settings.CYCLE_ACCEL==='20'
             };
 
-            var legacyCenterXml='<Resource name="legacy-center-smoke" author="smoke" ' +
+            var legacyCoordinatesXml='<Resource name="legacy-coordinate-smoke" author="smoke" ' +
                 'category="racing" version="1"><Map><World><Field level_height="8">' +
                 '<Spawn x="110" y="210" xdir="0" ydir="1"/>' +
                 '<Wall><Point x="100" y="200"/><Point x="140" y="200"/></Wall>' +
@@ -761,67 +761,71 @@ ws.onopen = async () => {
                 '<Zone type="death"><ShapeLine width="0"><Point x="100" y="250"/>' +
                 '<Point x="120" y="250"/></ShapeLine></Zone>' +
                 '</Field></World></Map></Resource>';
-            await importMapFile('legacy-center-smoke.aamap.xml', legacyCenterXml);
-            var legacyCenterBounds=aamap_getObjectsBounds(aamap_objects);
-            var legacyCenterSpawn=aamap_objects.filter(function(object){
+            await importMapFile('legacy-coordinate-smoke.aamap.xml', legacyCoordinatesXml);
+            var legacyCoordinatesBounds=aamap_getObjectsBounds(aamap_objects);
+            var legacyCoordinatesSpawn=aamap_objects.filter(function(object){
                 return object instanceof Spawn;
             })[0];
-            var legacyCenterWall=aamap_objects.filter(function(object){
+            var legacyCoordinatesWall=aamap_objects.filter(function(object){
                 return object instanceof Wall;
             })[0];
-            var legacyCenterFloor=aamap_objects.filter(function(object){
+            var legacyCoordinatesFloor=aamap_objects.filter(function(object){
                 return object instanceof Floor;
             })[0];
-            var legacyCenterRamp=aamap_objects.filter(function(object){
+            var legacyCoordinatesRamp=aamap_objects.filter(function(object){
                 return object instanceof Ramp;
             })[0];
-            var legacyCenterZones=aamap_objects.filter(function(object){
+            var legacyCoordinatesZones=aamap_objects.filter(function(object){
                 return object instanceof Zone;
             });
-            var legacyCenterTeleport=legacyCenterZones.filter(function(zone){
+            var legacyCoordinatesTeleport=legacyCoordinatesZones.filter(function(zone){
                 return zone.zoneName==='teleport';
             })[0];
-            var legacyCenterRectangle=legacyCenterZones.filter(function(zone){
+            var legacyCoordinatesRectangle=legacyCoordinatesZones.filter(function(zone){
                 return zone.shapeType==='rectangle';
             })[0];
-            var legacyCenterPolygon=legacyCenterZones.filter(function(zone){
+            var legacyCoordinatesPolygon=legacyCoordinatesZones.filter(function(zone){
                 return zone.shapeType==='polygon';
             })[0];
-            var legacyCenterLine=legacyCenterZones.filter(function(zone){
+            var legacyCoordinatesLine=legacyCoordinatesZones.filter(function(zone){
                 return zone.shapeType==='line';
             })[0];
-            result.legacyImportCenter={
+            result.legacyImportCoordinates={
                 legacy:{
                     format:codeViewer_sourceFormat,
-                    bounds:legacyCenterBounds,
+                    bounds:legacyCoordinatesBounds,
                     viewport:[vectron_panX,vectron_panY],
-                    spawn:[legacyCenterSpawn.x,legacyCenterSpawn.y,
-                        legacyCenterSpawn.xDir,legacyCenterSpawn.yDir],
-                    wall:legacyCenterWall.points.map(function(point){return [point.x,point.y];}),
-                    floor:legacyCenterFloor.points,
-                    rampSource:legacyCenterRamp.sourceTwoPoint,
-                    teleport:{source:[legacyCenterTeleport.x,legacyCenterTeleport.y],
-                        destination:[legacyCenterTeleport.options.destination_x,
-                            legacyCenterTeleport.options.destination_y],
-                        path:legacyCenterTeleport.movementPath,
+                    spawn:[legacyCoordinatesSpawn.x,legacyCoordinatesSpawn.y,
+                        legacyCoordinatesSpawn.xDir,legacyCoordinatesSpawn.yDir],
+                    wall:legacyCoordinatesWall.points.map(function(point){return [point.x,point.y];}),
+                    floor:legacyCoordinatesFloor.points,
+                    rampSource:legacyCoordinatesRamp.sourceTwoPoint,
+                    teleport:{source:[legacyCoordinatesTeleport.x,legacyCoordinatesTeleport.y],
+                        destination:[legacyCoordinatesTeleport.options.destination_x,
+                            legacyCoordinatesTeleport.options.destination_y],
+                        path:legacyCoordinatesTeleport.movementPath,
                         remoteBounds:(function() {
-                            var remote=legacyCenterTeleport.movementPath[1];
-                            return [remote.x-legacyCenterTeleport.radius,
-                                remote.y-legacyCenterTeleport.radius,
-                                remote.x+legacyCenterTeleport.radius,
-                                remote.y+legacyCenterTeleport.radius];
+                            var remote=legacyCoordinatesTeleport.movementPath[1];
+                            return [remote.x-legacyCoordinatesTeleport.radius,
+                                remote.y-legacyCoordinatesTeleport.radius,
+                                remote.x+legacyCoordinatesTeleport.radius,
+                                remote.y+legacyCoordinatesTeleport.radius];
                         })()},
-                    rectangle:[legacyCenterRectangle.minx,legacyCenterRectangle.miny,
-                        legacyCenterRectangle.maxx,legacyCenterRectangle.maxy],
-                    polygon:{origin:[legacyCenterPolygon.x,legacyCenterPolygon.y],
-                        points:legacyCenterPolygon.polygonPoints},
-                    line:[legacyCenterLine.lineStart,legacyCenterLine.lineEnd],
-                    dimensions:{wall:legacyCenterWall.points[1].x-legacyCenterWall.points[0].x,
-                        rampWidth:legacyCenterRamp.sourceTwoPoint.width,
-                        circleRadius:legacyCenterTeleport.radius,
-                        rectangle:[legacyCenterRectangle.maxx-legacyCenterRectangle.minx,
-                            legacyCenterRectangle.maxy-legacyCenterRectangle.miny],
-                        line:legacyCenterLine.lineEnd.x-legacyCenterLine.lineStart.x}
+                    rectangle:[legacyCoordinatesRectangle.minx,legacyCoordinatesRectangle.miny,
+                        legacyCoordinatesRectangle.maxx,legacyCoordinatesRectangle.maxy],
+                    polygon:{origin:[legacyCoordinatesPolygon.x,legacyCoordinatesPolygon.y],
+                        points:legacyCoordinatesPolygon.polygonPoints},
+                    line:[legacyCoordinatesLine.lineStart,legacyCoordinatesLine.lineEnd],
+                    dimensions:{wall:legacyCoordinatesWall.points[1].x-
+                            legacyCoordinatesWall.points[0].x,
+                        rampWidth:legacyCoordinatesRamp.sourceTwoPoint.width,
+                        circleRadius:legacyCoordinatesTeleport.radius,
+                        rectangle:[legacyCoordinatesRectangle.maxx-
+                                legacyCoordinatesRectangle.minx,
+                            legacyCoordinatesRectangle.maxy-
+                                legacyCoordinatesRectangle.miny],
+                        line:legacyCoordinatesLine.lineEnd.x-
+                            legacyCoordinatesLine.lineStart.x}
                 }
             };
             await importMapFile('native-coordinate-smoke.armamap', JSON.stringify({
@@ -838,7 +842,7 @@ ws.onopen = async () => {
             var nativeCoordinateWall=aamap_objects.filter(function(object){
                 return object instanceof Wall;
             })[0];
-            result.legacyImportCenter.native={format:codeViewer_sourceFormat,
+            result.legacyImportCoordinates.native={format:codeViewer_sourceFormat,
                 spawn:[nativeCoordinateSpawn.x,nativeCoordinateSpawn.y],
                 wall:nativeCoordinateWall.points.map(function(point){return [point.x,point.y];})};
 
@@ -895,24 +899,24 @@ ws.onopen = async () => {
             throw new Error("Browser evaluation failed: " + JSON.stringify(evaluated));
         }
         const value = JSON.parse(evaluated.result.value);
-        assert.deepStrictEqual(value.legacyImportCenter, {
+        assert.deepStrictEqual(value.legacyImportCoordinates, {
             legacy:{
-                format:'legacy-xml',bounds:{minx:-31,miny:-31,maxx:31,maxy:31},
-                viewport:[0,0],spawn:[-21,-21,0,1],
-                wall:[[-31,-31],[9,-31]],
-                floor:[{x:-26,y:-26},{x:-16,y:-26},{x:-26,y:-16}],
-                rampSource:{start:{x:-21,y:-11},end:{x:-11,y:-11},width:4},
-                teleport:{source:[-11,-1],destination:[29,29],
-                    path:[{x:-11,y:-1},{x:19,y:19}],remoteBounds:[7,7,31,31]},
-                rectangle:[-16,-26,-1,-11],
-                polygon:{origin:[-1,9],points:[{x:0,y:0},{x:5,y:0},{x:0,y:5}]},
-                line:[{x:-31,y:19},{x:-11,y:19}],
+                format:'legacy-xml',bounds:{minx:100,miny:200,maxx:162,maxy:262},
+                viewport:[-131,-231],spawn:[110,210,0,1],
+                wall:[[100,200],[140,200]],
+                floor:[{x:105,y:205},{x:115,y:205},{x:105,y:215}],
+                rampSource:{start:{x:110,y:220},end:{x:120,y:220},width:4},
+                teleport:{source:[120,230],destination:[160,260],
+                    path:[{x:120,y:230},{x:150,y:250}],remoteBounds:[138,238,162,262]},
+                rectangle:[115,205,130,220],
+                polygon:{origin:[130,240],points:[{x:0,y:0},{x:5,y:0},{x:0,y:5}]},
+                line:[{x:100,y:250},{x:120,y:250}],
                 dimensions:{wall:40,rampWidth:4,circleRadius:12,rectangle:[15,15],line:20}
             },
             native:{format:'armamap',spawn:[100,200],wall:[[100,200],[140,200]]}
         });
-        if(process.env.VECTRON_IMPORT_CENTER_ONLY === "1") {
-            console.log("Vectron legacy-import centering browser test passed.");
+        if(process.env.VECTRON_IMPORT_COORDINATES_ONLY === "1") {
+            console.log("Vectron legacy-import coordinate preservation browser test passed.");
             return;
         }
         assert.deepStrictEqual(value.loaded, ["function", "function", "function", "function"]);

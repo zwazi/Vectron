@@ -302,7 +302,7 @@ function xml_init() {
     });
 }  
 
-function xml_process(xml, suppressHistoryClear, importOptions) {
+function xml_process(xml, suppressHistoryClear) {
 
     var parsed;
     try {
@@ -472,16 +472,11 @@ function xml_process(xml, suppressHistoryClear, importOptions) {
     }
     aamap_updateLayerControls();
     var ptsx = pt[0], ptsy = pt[1];
-    if(importOptions && importOptions.centerOnOrigin === true) {
-        var centeredImport = aamap_centerObjectsOnOrigin(
-            aamap_objects.slice(importedObjectStart));
-        if(centeredImport && centeredImport.bounds) {
-            ptsx = [centeredImport.bounds.minx, centeredImport.bounds.maxx];
-            ptsy = [centeredImport.bounds.miny, centeredImport.bounds.maxy];
-            if(centeredImport.dx !== 0 || centeredImport.dy !== 0) {
-                gui_writeLog("Centered legacy XML geometry on world 0,0.");
-            }
-        }
+    var importedBounds = aamap_getObjectsBounds(
+        aamap_objects.slice(importedObjectStart));
+    if(importedBounds) {
+        ptsx = [importedBounds.minx, importedBounds.maxx];
+        ptsy = [importedBounds.miny, importedBounds.maxy];
     }
     if(ptsx.length && ptsy.length) {
         var max_x = Math.max.apply(Math, ptsx);
@@ -976,10 +971,10 @@ function xml_handleFile(file) {
        // operation. Removing every old object individually first makes import
        // proportional to both the old and new map sizes for no visible gain.
        aamap_objects = [];
-       // Canonical maps already author world-space placement intentionally.
-       // Legacy XML commonly uses an all-positive playfield, so migrate it as
-       // one rigid map whose combined geometry is centered on world 0,0.
-       xml_process(parsed, false, isNative ? null : {centerOnOrigin:true});
+       // Both formats author world-space placement intentionally. Conversion
+       // must preserve every source coordinate; the viewport is fitted around
+       // the imported geometry independently below.
+       xml_process(parsed, false);
        if(typeof codeViewer_onMapLoaded === "function") codeViewer_onMapLoaded();
     };
     reader.onerror = function() {

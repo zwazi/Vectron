@@ -100,10 +100,10 @@ function Zone(x, y, radius, growth, type, option, details) {
     this.zoneName = details.zoneName || (zoneTool_typeArray[this.type] ? zoneTool_typeArray[this.type][0] : "unknown");
     this.shapeType = details.shapeType || "circle";
     this.trigger = details.trigger || "";
-    this.activeStartTick = details.activeStartTick === undefined ? null :
-        Number(details.activeStartTick);
-    this.activeEndTick = details.activeEndTick === undefined ? null :
-        Number(details.activeEndTick);
+    this.activeStartTick = details.activeStartTick === undefined ||
+        details.activeStartTick === null ? null : Number(details.activeStartTick);
+    this.activeEndTick = details.activeEndTick === undefined ||
+        details.activeEndTick === null ? null : Number(details.activeEndTick);
     this.options = details.options || {};
     var requestedMovementSpeed = Number(details.movementSpeed);
     var requestedRotationSpeed = Number(details.rotationSpeed);

@@ -6,13 +6,12 @@ converts useful geometry from legacy `.aamap.xml` maps. Canonical files use a
 simple descriptive file name; display metadata, search tags, and a generated
 SHA-256 revision are stored inside.
 
-On file import, legacy XML geometry is translated as one rigid map until its
-combined bounds are centered at world `(0,0)`. This includes zone movement
-paths and teleport destinations; dimensions and relative placement do not
-change. Each moving shape contributes its footprint at every path pivot.
-Nonzero rotation uses a conservative full pivot-radius envelope, which can add
-viewport whitespace but cannot omit a reachable orientation. Canonical
-`.armamap` coordinates are always preserved as authored.
+File import preserves world coordinates exactly as authored in both legacy XML
+and canonical `.armamap` maps. The viewport is fitted to the imported geometry
+without translating it. Moving-shape bounds include their footprint at every
+path pivot, and nonzero rotation uses a conservative full pivot-radius envelope.
+That envelope can add viewport whitespace but cannot omit a reachable
+orientation.
 
 Import builds the map model without temporary SVG placeholders, discards the
 old Raphael scene in one operation, and renders the imported map once. This
