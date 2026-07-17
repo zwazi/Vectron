@@ -86,23 +86,45 @@ body.noscroll {
 .info-symmetry-section {
   display:inline-flex;
   align-items:center;
-  gap:7px;
   white-space:nowrap;
 }
 
-.info-symmetry-section label {
-  display:inline-flex;
+#symmetry-dropdown { position:relative; display:inline-flex; align-items:center; gap:4px; }
+.symmetry-picker-label { margin-right:2px; }
+.symmetry-menu-btn { width:auto; min-width:44px; padding:1px 7px; color:#eee; }
+#symmetry-menu {
+  position:absolute;
+  left:0;
+  bottom:30px;
+  width:min(390px, calc(100vw - 70px));
+  padding:8px;
+  background:#fff;
+  color:#222;
+  border:1px solid #aaa;
+  border-radius:5px;
+  box-shadow:0 -4px 16px rgba(0,0,0,0.25);
+  text-align:left;
+  z-index:1100;
+}
+.symmetry-menu-row {
+  display:grid;
+  grid-template-columns:18px minmax(0,1fr);
   align-items:center;
-  gap:3px;
-  margin:0;
-  color:#eee;
+  gap:6px;
+  margin:3px 0;
+  min-height:26px;
   font-weight:normal;
   cursor:pointer;
 }
-
-.info-symmetry-section input {
-  margin:0;
+.symmetry-menu-row input { margin:0; }
+.symmetry-value-row { grid-template-columns:18px minmax(120px,1fr) 82px; }
+.symmetry-point-row { grid-template-columns:18px 72px 68px 20px 68px; }
+.symmetry-value-row input[type="number"] {
+  width:100%; min-width:0;
+  height:25px;
+  padding:2px 5px;
 }
+.symmetry-check-row { margin-top:7px; padding-top:5px; border-top:1px solid #ccc; }
 
 #tool_bar {
   position:absolute;
@@ -247,6 +269,10 @@ body.noscroll {
 
 .toolbar-toolRamp {
   background-image:url('../images/ObjectTools/RampTool.svg');
+}
+
+.toolbar-toolBillboard {
+  background-image:url('../images/ObjectTools/BillboardTool.svg');
 }
 
 .toolbar-toolFloor {
@@ -658,6 +684,53 @@ body.noscroll {
   cursor: not-allowed;
   pointer-events: none;
 }
+
+#code-viewer-find-bar {
+  display:grid;
+  grid-template-columns:minmax(90px,1fr) 28px 28px auto auto;
+  align-items:center;
+  gap:4px;
+  padding:5px 7px;
+  background:#f3f3f3;
+  border-top:1px solid #ddd;
+  border-bottom:1px solid #ccc;
+  flex-shrink:0;
+}
+
+#code-viewer-find { grid-column:1; }
+#code-viewer-find-previous { grid-column:2; }
+#code-viewer-find-next { grid-column:3; }
+#code-viewer-find-count { grid-column:4; }
+#code-viewer-find-bar label { grid-column:5; }
+#code-viewer-replace { grid-column:1 / 4; }
+#code-viewer-replace-one { grid-column:4; }
+#code-viewer-replace-all { grid-column:5; }
+
+#code-viewer-find-bar input[type="text"] {
+  min-width:0;
+  width:100%;
+  height:25px;
+  padding:2px 5px;
+  border:1px solid #bbb;
+  border-radius:3px;
+}
+
+#code-viewer-find-bar label {
+  display:flex;
+  align-items:center;
+  gap:3px;
+  margin:0 3px;
+  font-size:11px;
+  white-space:nowrap;
+}
+
+#code-viewer-find-count {
+  min-width:48px;
+  color:#666;
+  font-size:10px;
+  text-align:center;
+  white-space:nowrap;
+}
 #xml-editor-content {
   flex: 1;
   min-height: 100px;
@@ -848,6 +921,7 @@ body.noscroll {
 #wall-tool-window,
 #zone-tool-window,
 #ramp-tool-window,
+#billboard-tool-window,
 #floor-tool-window,
 #selection-properties-window {
   position: fixed;
@@ -880,6 +954,10 @@ body.noscroll {
   width: 300px;
   height: 130px;
 }
+#billboard-tool-window {
+  width: 340px;
+  height: 250px;
+}
 #floor-tool-window {
   width: 300px;
   height: 150px;
@@ -896,6 +974,7 @@ body.noscroll {
 #wall-tool-header,
 #zone-tool-header,
 #ramp-tool-header,
+#billboard-tool-header,
 #floor-tool-header,
 #selection-properties-header {
   background: rgba(220,220,220,0.98);
@@ -1161,9 +1240,11 @@ button.vt-tool-grid-row,
 #wall-tool-body .vt-setting-row input[type="number"],
 #zone-tool-body .vt-setting-row input[type="number"],
 #zone-tool-body .vt-setting-row #dCheckpointOrder,
-#ramp-tool-body .vt-setting-row input[type="number"] {
+#ramp-tool-body .vt-setting-row input[type="number"],
+#billboard-tool-body .vt-setting-row input[type="number"] {
   width: 78px;
 }
+#billboard-tool-body input[type="url"] { width:190px; }
 
 #level-dropdown { position:relative; display:inline-flex; align-items:center; gap:3px; }
 .level-picker-label { margin-right:2px; }
@@ -1541,6 +1622,7 @@ button.vt-tool-grid-row,
     z-index:3;
   }
   #level-menu { position:fixed; right:8px; bottom:34px; }
+  #symmetry-menu { position:fixed; left:58px; bottom:34px; }
 }
 
 .tsb-field {

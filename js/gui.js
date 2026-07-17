@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Arma Racing.
+Vectron - map editor for Neotron.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -141,14 +141,15 @@ function gui_setupFloatingWindow(opts) {
 }
 
 function gui_init() {
-    gui_writeLog("Welcome to Vectron for Arma Racing.")
+    gui_writeLog("Welcome to Vectron for Neotron.")
     actionHistory_init();
     controlBox_initDrag();
     mapSettings_initUI();
     gui_setupFloatingWindow({ id: "wall-tool-window", headerId: "wall-tool-header", resetButtonId: "wall-tool-reset-size", order: 1, defaultWidth: 340, defaultHeight: 420 });
     gui_setupFloatingWindow({ id: "zone-tool-window", headerId: "zone-tool-header", resetButtonId: "zone-tool-reset-size", order: 2, defaultWidth: 340, defaultHeight: "auto" });
     gui_setupFloatingWindow({ id: "ramp-tool-window", headerId: "ramp-tool-header", order: 3, defaultWidth: 300, defaultHeight: 130 });
-    gui_setupFloatingWindow({ id: "floor-tool-window", headerId: "floor-tool-header", order: 4, defaultWidth: 300, defaultHeight: 150 });
+    gui_setupFloatingWindow({ id: "billboard-tool-window", headerId: "billboard-tool-header", order: 4, defaultWidth: 340, defaultHeight: 250 });
+    gui_setupFloatingWindow({ id: "floor-tool-window", headerId: "floor-tool-header", order: 5, defaultWidth: 300, defaultHeight: 150 });
     gui_setupFloatingWindow({ id: "selection-properties-window", headerId: "selection-properties-header", order: 5, defaultWidth: 300, defaultHeight: "auto" });
     gui_setupFloatingWindow({ id: "action-history-window", headerId: "action-history-header", resetButtonId: "action-history-reset-size", order: 6, defaultWidth: 220, defaultHeight: 240 });
     gui_refreshFloatingWindows();
@@ -295,7 +296,7 @@ function gui_fillInput() {
     mapSettings_renderList();
 }
 
-// ---- Arma Racing map settings search ----
+// ---- Neotron map settings search ----
 
 var mapSettings_commands = [
     { name: "CYCLE_BRAKE", desc: "Braking deceleration in map units per second squared.", defaultVal: "30" },

@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Arma Racing.
+Vectron - map editor for Neotron.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -30,7 +30,8 @@ var vectron_height;
 
 var vectron_screen;
 
-var vectron_tools = ["select", "navigation", "wall", "floor", "zone", "spawn", "ramp", "split", "join", "wallVertexMove"];
+var vectron_tools = ["select", "navigation", "wall", "floor", "zone", "spawn", "ramp",
+    "billboard", "split", "join", "wallVertexMove"];
 var vectron_currentTool = "";
 var vectron_toolActive = false;
 
@@ -444,22 +445,40 @@ window.onload = function() {
     console.log(vectron_width);
 }
 
-async function vectron_saveTextAsFile(xml, filename)
+function vectron_fileTypeForSave(filename)
 {
-    var textToWrite = xml;
+    var fileName = String(filename || "map.neomap.json");
+    if(!/\.neomap\.json$/i.test(fileName))
+    {
+        fileName = fileName.replace(/(?:\.aamap)?\.xml$/i, "")
+            .replace(/(?:\.neomap)?\.json$/i, "")
+            .replace(/\.[^./\\]+$/, "") + ".neomap.json";
+    }
+    return {
+        fileName:fileName,
+        mime:"application/json",
+        description:"Neotron map (.neomap.json)",
+        extension:".neomap.json"
+    };
+}
+
+async function vectron_saveTextAsFile(text, filename)
+{
+    var textToWrite = text;
+    var fileType = vectron_fileTypeForSave(filename);
     var textFileAsBlob;
     try
     {
-        textFileAsBlob = new Blob([textToWrite], {type:"text/xml"});
+        textFileAsBlob = new Blob([textToWrite], {type:fileType.mime});
     }
     catch(e)
     {
         var BlobBuilder = window.BlobBuilder || window.WebKitBlobBuilder || window.MozBlobBuilder || window.MSBlobBuilder;
         var blob = new BlobBuilder(); blob.append(textToWrite);
-        textFileAsBlob = blob.getBlob("text/xml");
+        textFileAsBlob = blob.getBlob(fileType.mime);
         console.log(textFileAsBlob);
     }
-    var fileNameToSaveAs = filename;
+    var fileNameToSaveAs = fileType.fileName;
 
     if (typeof window.showSaveFilePicker === "function")
     {
@@ -468,8 +487,12 @@ async function vectron_saveTextAsFile(xml, filename)
             var fileHandle = await window.showSaveFilePicker({
                 suggestedName: fileNameToSaveAs,
                 types: [{
-                    description: "XML file",
-                    accept: {"text/xml": [".xml"]}
+                    description: fileType.description,
+                    accept: (function() {
+                        var accepted = {};
+                        accepted[fileType.mime] = [fileType.extension];
+                        return accepted;
+                    })()
                 }]
             });
             var writable = await fileHandle.createWritable();

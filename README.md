@@ -1,13 +1,13 @@
 # Vectron 1.2
 
-Vectron is the browser map editor for Arma Racing. It exports the canonical,
-human-readable `.armamap` JSON format. It imports `.armamap` directly and
+Vectron is the browser map editor for Neotron. It exports the canonical,
+human-readable `.neomap.json` JSON format. It imports `.neomap.json` directly and
 converts useful geometry from legacy `.aamap.xml` maps. Canonical files use a
 simple descriptive file name; display metadata, search tags, and a generated
 SHA-256 revision are stored inside.
 
 File import preserves world coordinates exactly as authored in both legacy XML
-and canonical `.armamap` maps. The viewport is fitted to the imported geometry
+and canonical `.neomap.json` maps. The viewport is fitted to the imported geometry
 without translating it. Moving-shape bounds include their footprint at every
 path pivot, and nonzero rotation uses a conservative full pivot-radius envelope.
 That envelope can add viewport whitespace but cannot omit a reachable
@@ -18,7 +18,7 @@ old Raphael scene in one operation, and renders the imported map once. This
 keeps large-map loading proportional to the new map rather than both maps plus
 throwaway graphics.
 
-## Arma Racing features
+## Neotron features
 
 - Arbitrarily many editable levels, with a height control for every adjacent
   gap and independent visibility for each level. Deleting a lower level can
@@ -37,10 +37,18 @@ throwaway graphics.
   edge. Ramp width follows the authored edges instead of a numeric field.
 - Cross-floor teleports with spawn-style destination placement: click once for
   position, then aim the visible arrow to set the exit direction and level.
-- Moving zones with freeform directed paths, circular, ping-pong, or instant
-  restart modes, optional phase-offset moving copies at path vertices,
-  metre-per-second travel speed, signed degree-per-second rotation, and
-  entry/inside/exit triggers.
+- Path-first moving-zone groups with circular, ping-pong, or instant restart
+  modes, explicit same-type instances at selected vertices, optional circle
+  radius keyframes with smooth interpolation, metre-per-second travel speed,
+  signed degree-per-second rotation, and entry/inside/exit triggers.
+- Per-zone game icons are enabled by default and can be disabled for new or
+  selected zones without changing their collision or effect behavior.
+- Floating billboards use an external HTTP(S) image URL and a height above the
+  authored level. Draw their two endpoints on the grid to set the world width,
+  then click a third time on the intended front side; the perpendicular arrow
+  records that facing direction. Optional dual-sided signs display a correctly
+  oriented image from either side. The game derives visual height from the
+  downloaded image's aspect ratio.
 - Checkpoint order `0` means unordered. Positive checkpoint groups use the
   same one-based numbers shown by the editor and game. Legacy zero-based XML
   orders are shifted during import. Empty maps start the Checkpoint # control
@@ -55,10 +63,11 @@ throwaway graphics.
   until a password is secured or an imported map already has a valid verifier,
   and the password must be confirmed in the export popover. The eye buttons
   reveal either password only while pressed by the user.
-- Undo/redo, copy/paste, wall split/join, vertex editing, a compatibility XML
-  view, and deterministic axes/settings export. Imported custom axes and
-  sparse per-point wall heights round-trip without becoming regular/default
-  geometry.
+- Undo/redo, grid-preserving copy/paste, wall split/join, vertex editing, an
+  `.neomap.json`-only code view with find/replace, configurable line/point symmetry
+  in a compact toolbar dropdown,
+  and deterministic axes/settings export. Imported custom axes and sparse
+  per-point wall heights round-trip without becoming regular/default geometry.
 - The Map Settings search lists the game-default zone pulse speed as `0.1`
   cycles per second.
 - Scroll-wheel zoom changes by 10% by default; the Configure tab retains 2%,
@@ -98,7 +107,7 @@ python3 -m http.server 8000 --bind 0.0.0.0
 Open `http://localhost:8000` on the development computer. For Android, put the
 phone on the same network and open `http://<computer-lan-ip>:8000` in Chrome or
 Firefox. The computer firewall must allow inbound TCP port 8000. Export a map,
-copy it into the Android build's map directory, and load it from Arma Racing's
+copy it into the Android build's map directory, and load it from Neotron's
 map browser.
 
 For the exact cycle model in the 3D preview, serve from the repository root:

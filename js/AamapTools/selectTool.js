@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Neotron.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -72,23 +72,77 @@ function selectTool_selectedLineZones() {
     });
 }
 
+function selectTool_selectedZones() {
+    return selectTool_selectedObjs.filter(function(object) {
+        return object instanceof Zone;
+    });
+}
+
+function selectTool_selectedBillboards() {
+    return selectTool_selectedObjs.filter(function(object) {
+        return typeof Billboard !== "undefined" && object instanceof Billboard;
+    });
+}
+
 function selectTool_updateSelectionProperties() {
     var panel = $("#selection-properties-window");
     if(!panel.length) return;
     var lines = selectTool_selectedLineZones();
-    if(vectron_currentTool !== "select" || !lines.length) {
+    var zones = selectTool_selectedZones();
+    var billboards = selectTool_selectedBillboards();
+    if(vectron_currentTool !== "select" ||
+        (!lines.length && !zones.length && !billboards.length)) {
         panel.hide();
         return;
     }
-    var firstWidth = Number(lines[0].lineWidth);
-    var sameWidth = lines.every(function(line) {
-        return Number(line.lineWidth) === firstWidth;
-    });
-    $("#selection-line-zone-width")
-        .val(sameWidth ? zone_round(firstWidth) : "")
-        .attr("placeholder", sameWidth ? "" : "Mixed");
-    $("#selection-line-zone-width-label").text(
-        lines.length === 1 ? "Line Width" : "Line Width (" + lines.length + ")");
+    $("#selection-line-zone-width-row").toggle(!!lines.length);
+    if(lines.length) {
+        var firstWidth = Number(lines[0].lineWidth);
+        var sameWidth = lines.every(function(line) {
+            return Number(line.lineWidth) === firstWidth;
+        });
+        $("#selection-line-zone-width")
+            .val(sameWidth ? zone_round(firstWidth) : "")
+            .attr("placeholder", sameWidth ? "" : "Mixed");
+        $("#selection-line-zone-width-label").text(
+            lines.length === 1 ? "Line Width" : "Line Width (" + lines.length + ")");
+    }
+    $("#selection-zone-show-icon-row").toggle(!!zones.length);
+    if(zones.length) {
+        var firstShowIcon = zones[0].showIcon !== false;
+        var sameShowIcon = zones.every(function(zone) {
+            return (zone.showIcon !== false) === firstShowIcon;
+        });
+        var iconInput = document.getElementById("selection-zone-show-icon");
+        if(iconInput) {
+            iconInput.checked = firstShowIcon;
+            iconInput.indeterminate = !sameShowIcon;
+        }
+        $("#selection-zone-show-icon-label").text(
+            zones.length === 1 ? "Show Icon" : "Show Icon (" + zones.length + ")");
+    }
+    $("#selection-billboard-facing-row").toggle(!!billboards.length);
+    $("#selection-billboard-dual-sided-row").toggle(!!billboards.length);
+    if(billboards.length) {
+        var firstFacing = billboard_normalizeFacing(billboards[0].facing);
+        var sameFacing = billboards.every(function(billboard) {
+            return billboard_normalizeFacing(billboard.facing) === firstFacing;
+        });
+        $("#selection-billboard-facing").val(sameFacing ? firstFacing : "");
+        $("#selection-billboard-facing-label").text(
+            billboards.length === 1 ? "Facing" : "Facing (" + billboards.length + ")");
+        var firstDualSided = !!billboards[0].dualSided;
+        var sameDualSided = billboards.every(function(billboard) {
+            return !!billboard.dualSided === firstDualSided;
+        });
+        var dualSidedInput = document.getElementById("selection-billboard-dual-sided");
+        if(dualSidedInput) {
+            dualSidedInput.checked = firstDualSided;
+            dualSidedInput.indeterminate = !sameDualSided;
+        }
+        $("#selection-billboard-dual-sided-label").text(billboards.length === 1 ?
+            "Dual Sided" : "Dual Sided (" + billboards.length + ")");
+    }
     panel.show();
 }
 
@@ -118,6 +172,77 @@ function selectTool_applySelectedLineWidth(value) {
         label:"Set line-zone width",
         undo:function() { applyWidths(false); },
         redo:function() { applyWidths(true); }
+    });
+    return true;
+}
+
+function selectTool_applySelectedZoneShowIcon(showIcon) {
+    var selectedZones = selectTool_selectedZones();
+    if(!selectedZones.length) return false;
+    showIcon = !!showIcon;
+    var entries = selectedZones.map(function(zone) {
+        return {zone:zone, oldValue:zone.showIcon !== false, newValue:showIcon};
+    });
+    var apply = function(useNewValue) {
+        entries.forEach(function(entry) {
+            entry.zone.showIcon = useNewValue ? entry.newValue : entry.oldValue;
+        });
+        vectron_render();
+        selectTool_updateSelectionProperties();
+        if(window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
+    };
+    if(entries.every(function(entry) { return entry.oldValue === entry.newValue; })) {
+        selectTool_updateSelectionProperties();
+        return true;
+    }
+    apply(true);
+    aamap_recordAction({
+        label:"Set zone icon visibility",
+        undo:function() { apply(false); },
+        redo:function() { apply(true); }
+    });
+    return true;
+}
+
+function selectTool_applySelectedBillboardFacing(facing) {
+    var selectedBillboards = selectTool_selectedBillboards();
+    if(["left","right"].indexOf(facing) < 0 || !selectedBillboards.length) return false;
+    var entries = selectedBillboards.map(function(billboard) {
+        return {billboard:billboard, oldValue:billboard.facing, newValue:facing};
+    });
+    return selectTool_applyBillboardPropertyEntries(
+        entries, "facing", "Set billboard facing");
+}
+
+function selectTool_applySelectedBillboardDualSided(dualSided) {
+    var selectedBillboards = selectTool_selectedBillboards();
+    if(!selectedBillboards.length) return false;
+    dualSided = !!dualSided;
+    var entries = selectedBillboards.map(function(billboard) {
+        return {billboard:billboard, oldValue:!!billboard.dualSided, newValue:dualSided};
+    });
+    return selectTool_applyBillboardPropertyEntries(
+        entries, "dualSided", "Set billboard dual-sided");
+}
+
+function selectTool_applyBillboardPropertyEntries(entries, property, label) {
+    if(entries.every(function(entry) { return entry.oldValue === entry.newValue; })) {
+        selectTool_updateSelectionProperties();
+        return true;
+    }
+    var apply = function(useNewValue) {
+        entries.forEach(function(entry) {
+            entry.billboard[property] = useNewValue ? entry.newValue : entry.oldValue;
+        });
+        vectron_render();
+        selectTool_updateSelectionProperties();
+        if(window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
+    };
+    apply(true);
+    aamap_recordAction({
+        label:label,
+        undo:function() { apply(false); },
+        redo:function() { apply(true); }
     });
     return true;
 }
@@ -202,6 +327,19 @@ function selectTool_pointInGlow(aamapObject, x, y) {
     if(aamapObject instanceof Wall) return selectTool_pointNearWall(aamapObject, x, y, SELECT_TOOL_HIT_TOLERANCE);
     if(aamapObject instanceof Zone) return selectTool_pointInZoneHitArea(aamapObject, x, y, SELECT_TOOL_HIT_TOLERANCE);
     if(aamapObject instanceof Spawn) return selectTool_pointNearSpawn(aamapObject, x, y, SELECT_TOOL_HIT_TOLERANCE);
+    if(typeof Billboard !== "undefined" && aamapObject instanceof Billboard) {
+        if(selectTool_distanceToScreenSegment(x, y,
+            selectTool_screenPointFromMapPoint(aamapObject.start),
+            selectTool_screenPointFromMapPoint(aamapObject.end)) <=
+            SELECT_TOOL_HIT_TOLERANCE) return true;
+        var arrow = aamapObject.getFacingArrow();
+        return !!arrow && [[arrow.center,arrow.tip],
+            [arrow.headLeft,arrow.tip],[arrow.tip,arrow.headRight]].some(function(segment) {
+            return selectTool_distanceToScreenSegment(x, y,
+                selectTool_screenPointFromMapPoint(segment[0]),
+                selectTool_screenPointFromMapPoint(segment[1])) <= SELECT_TOOL_HIT_TOLERANCE;
+        });
+    }
     if((typeof Floor !== "undefined" && aamapObject instanceof Floor) || aamap_isRamp(aamapObject)) {
         var polygon = aamap_isRamp(aamapObject) ? aamapObject.getCorridorPoints() : aamapObject.points;
         return selectTool_pointInPolygon(polygon, aamap_mapX(x), aamap_mapY(y),
@@ -213,6 +351,13 @@ function selectTool_pointInGlow(aamapObject, x, y) {
 function selectTool_glowArea(aamapObject) {
     if(!aamapObject || !aamapObject.glowObj) return Infinity;
     if(aamapObject instanceof Wall) return Math.max(1, selectTool_wallScreenLength(aamapObject)) * SELECT_TOOL_HIT_WIDTH;
+    if(typeof Billboard !== "undefined" && aamapObject instanceof Billboard) {
+        var billboardStart = selectTool_screenPointFromMapPoint(aamapObject.start);
+        var billboardEnd = selectTool_screenPointFromMapPoint(aamapObject.end);
+        return Math.max(1, Math.hypot(
+            billboardEnd.x - billboardStart.x,
+            billboardEnd.y - billboardStart.y)) * SELECT_TOOL_HIT_WIDTH;
+    }
     if((typeof Floor !== "undefined" && aamapObject instanceof Floor) || aamap_isRamp(aamapObject)) {
         var polygonPoints = aamap_isRamp(aamapObject) ? aamapObject.getCorridorPoints() : aamapObject.points;
         var area = 0;
@@ -920,13 +1065,15 @@ function selectTool_delete() {
         zoneTool_captureCheckpointEditorState(aamap_objects) : null;
 
     // Build a count label: z(zones) w(walls) v(vertices) s(spawns)
-    var zCount = 0, wCount = 0, vCount = 0, sCount = 0, rCount = 0, fCount = 0;
+    var zCount = 0, wCount = 0, vCount = 0, sCount = 0, rCount = 0,
+        fCount = 0, bCount = 0;
     deletedObjs.forEach(function(e) {
         if (e instanceof Zone) { zCount++; }
         else if (e instanceof Wall) { wCount++; vCount += e.points.length; }
         else if (e instanceof Spawn) { sCount++; }
         else if (aamap_isRamp(e)) { rCount++; }
         else if (typeof Floor !== "undefined" && e instanceof Floor) { fCount++; }
+        else if (typeof Billboard !== "undefined" && e instanceof Billboard) { bCount++; }
     });
     var parts = [];
     if (zCount > 0) parts.push('z(' + zCount + ')');
@@ -935,6 +1082,7 @@ function selectTool_delete() {
     if (sCount > 0) parts.push('s(' + sCount + ')');
     if (rCount > 0) parts.push('r(' + rCount + ')');
     if (fCount > 0) parts.push('f(' + fCount + ')');
+    if (bCount > 0) parts.push('b(' + bCount + ')');
     var countLabel = parts.length > 0 ? ' ' + parts.join(' ') : '';
 
     aamap_recordAction({
@@ -1052,6 +1200,19 @@ function selectTool_selectArea(xStart, yStart, xEnd, yEnd, select, toggle)
             if(selectTool_polygonIntersectsRect(curObj.points, hitParams)) selectFunc();
         }
 
+        else if(typeof Billboard !== "undefined" && curObj instanceof Billboard) {
+            var billboardArrow = curObj.getFacingArrow();
+            var billboardSegments = [[curObj.start,curObj.end]];
+            if(billboardArrow) billboardSegments.push(
+                [billboardArrow.center,billboardArrow.tip],
+                [billboardArrow.headLeft,billboardArrow.tip],
+                [billboardArrow.tip,billboardArrow.headRight]);
+            if(billboardSegments.some(function(segment) {
+                return selectTool_lineIntersectsRect(segment[0], segment[1],
+                    hitParams[0], hitParams[1], hitParams[2], hitParams[3]);
+            })) selectFunc();
+        }
+
         else {
             if( hitParams[0] <= curObj.x && curObj.x <= hitParams[2] &&
                 hitParams[1] >= curObj.y && curObj.y >= hitParams[3] ) {
@@ -1104,6 +1265,45 @@ function selectTool_copy()
     }
 }
 
+function selectTool_snapPasteTranslation(dx, dy) {
+    if(!cursor_snap || !(vectron_grid_spacing > 0)) return {x:dx, y:dy};
+    var zoom = Number(vectron_zoom);
+    if(!isFinite(zoom) || zoom <= 0) zoom = 1;
+    var spacing = vectron_grid_spacing * zoom;
+    var snapped;
+    if(typeof gridLayout_snapPoint === "function") {
+        // Snap the offset around a zero origin. A lattice-to-lattice offset
+        // preserves every copied grid point, unlike snapping the group centre.
+        snapped = gridLayout_snapPoint(dx * zoom, -dy * zoom, spacing, 0, 0);
+        return {
+            x:Math.round((snapped.x / zoom) * 1e6) / 1e6,
+            y:Math.round((-snapped.y / zoom) * 1e6) / 1e6
+        };
+    }
+    return {
+        x:Math.round(dx / vectron_grid_spacing) * vectron_grid_spacing,
+        y:Math.round(dy / vectron_grid_spacing) * vectron_grid_spacing
+    };
+}
+
+function selectTool_pasteTranslation(objects, targetX, targetY) {
+    var positions = (objects || []).map(function(object) {
+        return object && typeof object.getPosition === "function" ? object.getPosition() : null;
+    }).filter(function(position) {
+        return position && isFinite(Number(position[0])) && isFinite(Number(position[1]));
+    });
+    if(!positions.length) return {x:0, y:0};
+    var center = positions.reduce(function(total, position) {
+        total.x += Number(position[0]);
+        total.y += Number(position[1]);
+        return total;
+    }, {x:0, y:0});
+    center.x /= positions.length;
+    center.y /= positions.length;
+    return selectTool_snapPasteTranslation(Number(targetX) - center.x,
+        Number(targetY) - center.y);
+}
+
 function selectTool_paste()
 {
     if(selectTool_clipboard)
@@ -1141,19 +1341,12 @@ function selectTool_paste()
         if(moveToCursor)
         */
         {
-            var objsPasted = aamap_objects.length-objsBeforePaste;
-            var x = 0, y = 0;
-            for(var z=objsBeforePaste;z<aamap_objects.length;++z) // objects pasted
-            {
-                var pos = aamap_objects[z].getPosition();
-                x += pos[0]; y += pos[1];
-            }
-            x /= objsPasted; y /= objsPasted;
-
-            for(var z=objsBeforePaste;z<aamap_objects.length;++z) // objects pasted
-            {
-                aamap_objects[z].move(aamap_mapX(cursor_realX)-x,aamap_mapY(cursor_realY)-y);
-            }
+            var importedPasteObjects = aamap_objects.slice(objsBeforePaste);
+            var translation = selectTool_pasteTranslation(importedPasteObjects,
+                aamap_mapX(cursor_realX), aamap_mapY(cursor_realY));
+            importedPasteObjects.forEach(function(object) {
+                object.move(translation.x, translation.y);
+            });
         }
 
         // Pasting is an editor placement too. Build reflected copies only
@@ -1162,9 +1355,7 @@ function selectTool_paste()
         // coordinates.
         if(aamap_symmetryEnabled()) {
             var pastedPrimaries = aamap_objects.slice(objsBeforePaste);
-            pastedPrimaries.forEach(function(object) {
-                aamap_addSymmetryCopiesForExisting(object);
-            });
+            aamap_addSymmetryCopiesForExistingBatch(pastedPrimaries);
         }
 
         // select pasted elements
@@ -1336,6 +1527,11 @@ function selectTool_circIntersectsRect(p1, r, x0, y0, x1, y1) {
 
 function selectTool_addInvisibleGlow(aamapObject) {
     if(!aamap_isObjectEditable(aamapObject)) return;
+    // Redrawing a selected object replaces its Raphael path. Remove the old
+    // hit/highlight path as well; otherwise a deselected billboard can leave
+    // its former selected glow visibly orphaned on the canvas.
+    if(aamapObject.glowObj) aamapObject.glowObj.remove();
+    aamapObject.glowObj = null;
     var color = config_isDark ? "#77bbff" : "#375ffc";
     if(aamapObject instanceof Wall) {
         aamapObject.glowObj = vectron_screen.path(selectTool_wallGlowPath(aamapObject));
@@ -1359,6 +1555,20 @@ function selectTool_addInvisibleGlow(aamapObject) {
         }
     } else if(aamapObject instanceof Spawn) {
         aamapObject.glowObj = vectron_screen.path(selectTool_spawnGlowPath(aamapObject));
+    } else if(typeof Billboard !== "undefined" && aamapObject instanceof Billboard) {
+        var billboardGlowPath = [
+            "M", aamap_realX(aamapObject.start.x), aamap_realY(aamapObject.start.y),
+            "L", aamap_realX(aamapObject.end.x), aamap_realY(aamapObject.end.y)
+        ];
+        var billboardArrow = aamapObject.getFacingArrow();
+        if(billboardArrow) billboardGlowPath.push(
+            "M", aamap_realX(billboardArrow.center.x), aamap_realY(billboardArrow.center.y),
+            "L", aamap_realX(billboardArrow.tip.x), aamap_realY(billboardArrow.tip.y),
+            "M", aamap_realX(billboardArrow.headLeft.x), aamap_realY(billboardArrow.headLeft.y),
+            "L", aamap_realX(billboardArrow.tip.x), aamap_realY(billboardArrow.tip.y),
+            "L", aamap_realX(billboardArrow.headRight.x), aamap_realY(billboardArrow.headRight.y)
+        );
+        aamapObject.glowObj = vectron_screen.path(billboardGlowPath);
     } else if(aamap_isRamp(aamapObject)) {
         var rampPoints = selectTool_rampPoints(aamapObject);
         var rampPath = [];

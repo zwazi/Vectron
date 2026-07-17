@@ -1,22 +1,20 @@
 # Custom maps
 
-The Rust client and Vectron use the canonical, human-readable `.armamap` JSON
+The Rust client and Vectron use the canonical, human-readable `.neomap.json` JSON
 format. Load one through the console with:
 
 ```text
-load_map maps/Examples/native-format.armamap
+load_map maps/Examples/native-format.neomap.json
 ```
 
-Vectron exports `.armamap` and imports either `.armamap` or legacy `.aamap.xml`.
+Vectron exports `.neomap.json` and imports either `.neomap.json` or legacy `.aamap.xml`.
 The current canonical contract, schema, identity rules, and migration behavior
 are documented in the [map-format reference](../../../docs/map-format.md).
-When Vectron imports a legacy XML file, it applies one shared translation to
-spawns, wall/floor/ramp points, every zone shape, moving-zone paths, and
-teleport destinations so the combined geometry bounds are centered at world
-`(0,0)`. Widths, radii, heights, direction vectors, and relative layout stay
-unchanged. Moving shapes contribute their complete footprint at every path
+Vectron preserves imported legacy XML coordinates exactly and fits the viewport
+around the resulting geometry without translating the map. Moving shapes
+contribute their complete footprint at every path
 pivot; nonzero rotation uses a conservative full pivot-radius envelope that
-may add viewport whitespace. Native `.armamap` files retain their authored
+may add viewport whitespace. Native `.neomap.json` files retain their authored
 world coordinates.
 The XML snippets below document legacy import compatibility; XML is no longer
 Vectron's export format. The legacy loader accepts both the C++
@@ -70,7 +68,7 @@ deterministic local rules.
 
 ## Floors and ramps
 
-Arma Racing supports any number of floors, numbered from `0`. Set the height of
+Neotron supports any number of floors, numbered from `0`. Set the height of
 each adjacent gap with `Field@level_heights`, ordered from the `0→1` gap onward,
 then put `level="N"` on walls, floors, spawns, and zones. The older scalar
 `level_height` is accepted on import and is repeated for every gap.
@@ -166,7 +164,7 @@ geometry depend on non-fixed-point evaluation.
 
 ## Zones
 
-Arma Racing zones use the `type` attribute:
+Neotron zones use the `type` attribute:
 
 ```xml
 <Zone type="death"><ShapeCircle radius="10"><Point x="0" y="0"/></ShapeCircle></Zone>
@@ -267,14 +265,14 @@ teleporting.
 
 ### Win and death
 
-Win and death zones use the same Arma Racing `type` spelling as other zones.
+Win and death zones use the same Neotron `type` spelling as other zones.
 
 ```xml
 <Zone type="death"><ShapeCircle radius="10"><Point x="-20" y="0"/></ShapeCircle></Zone>
 <Zone type="win"><ShapeCircle radius="15"><Point x="150" y="0"/></ShapeCircle></Zone>
 ```
 
-See the test-only [`extended-zones.armamap`](../../../tests/fixtures/maps/extended-zones.armamap)
+See the test-only [`extended-zones.neomap.json`](../../../tests/fixtures/maps/extended-zones.neomap.json)
 for a canonical map that uses every supported racing zone and C++-style walls,
 spawn, axes, settings, circles, rectangles, and polygons. A smaller native
-example is [`native-format.armamap`](../../../tests/fixtures/maps/native-format.armamap).
+example is [`native-format.neomap.json`](../../../tests/fixtures/maps/native-format.neomap.json).

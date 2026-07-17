@@ -21,6 +21,7 @@
         <script type="text/javascript" src="./js/AamapObjects/Zone.js"></script>
         <script type="text/javascript" src="./js/AamapObjects/Ramp.js"></script>
         <script type="text/javascript" src="./js/AamapObjects/Floor.js"></script>
+        <script type="text/javascript" src="./js/AamapObjects/Billboard.js"></script>
         <script type="text/javascript" src="./js/AamapTools/spawnTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/wallTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/zoneTool.js"></script>
@@ -31,6 +32,7 @@
         <script type="text/javascript" src="./js/AamapTools/wallVertexMoveTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/splitTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/joinTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/billboardTool.js"></script>
 
         <script type="text/javascript" src="./js/xml.js"></script>
         <script type="text/javascript" src="./js/aamap.js"></script>
@@ -57,10 +59,19 @@
             <span class="info-section info-grid-section"><b>grid:</b>&nbsp;<button id="grid-size-decrease" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Previous grid size (-)" aria-label="Previous grid size"><i class="fa-solid fa-minus" aria-hidden="true"></i></button><select id="grid-spacing-select" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Grid size"></select><button id="grid-size-increase" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Next grid size (+)" aria-label="Next grid size"><i class="fa-solid fa-plus" aria-hidden="true"></i></button><button id="grid-size-lock" class="info-icon-btn grid-control-spaced" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Lock grid rendering size" aria-label="Lock grid rendering size"><span class="grid-size-lock-icon grid-size-lock-icon-unlocked" aria-hidden="true"></span></button><button id="snap-to-grid-toggle" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Disable snap to grid" aria-label="Disable snap to grid"><i class="fa-solid fa-magnet" aria-hidden="true"></i></button><button id="grid-visibility-toggle" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Hide grid lines" aria-label="Hide grid lines"><i class="fa-solid fa-table-cells" aria-hidden="true"></i></button></span>
             <span class="info-sep">|</span>
             <span class="info-section info-symmetry-section">
-                <b>symmetry:</b>
-                <label rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Mirror every completed editor placement across the vertical world line x=0."><input id="symmetry-x-toggle" type="checkbox" /> x=0</label>
-                <label rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Mirror every completed editor placement across the horizontal world line y=0."><input id="symmetry-y-toggle" type="checkbox" /> y=0</label>
-                <label rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Visual symmetry check: show only the +X/+Y source portion and mirror it across the selected axes without changing the map."><input id="symmetry-check-toggle" type="checkbox" /> check</label>
+                <span id="symmetry-dropdown">
+                    <b class="symmetry-picker-label">Symmetry</b>
+                    <button id="symmetry-menu-toggle" class="info-icon-btn symmetry-menu-btn" type="button" aria-expanded="false" aria-label="Choose symmetry"><b id="symmetry-summary">Off</b></button>
+                    <span id="symmetry-menu" style="display:none;">
+                        <label class="symmetry-menu-row"><input id="symmetry-x-toggle" type="checkbox" /><span>Vertical line x = 0</span></label>
+                        <label class="symmetry-menu-row"><input id="symmetry-y-toggle" type="checkbox" /><span>Horizontal line y = 0</span></label>
+                        <label class="symmetry-menu-row"><input id="symmetry-origin-toggle" type="checkbox" /><span>Point at origin</span></label>
+                        <label class="symmetry-menu-row symmetry-value-row"><input id="symmetry-custom-x-toggle" type="checkbox" /><span>Vertical line x =</span><input id="symmetry-custom-x-value" type="number" step="any" value="0" aria-label="Custom symmetry x coordinate" /></label>
+                        <label class="symmetry-menu-row symmetry-value-row"><input id="symmetry-custom-y-toggle" type="checkbox" /><span>Horizontal line y =</span><input id="symmetry-custom-y-value" type="number" step="any" value="0" aria-label="Custom symmetry y coordinate" /></label>
+                        <label class="symmetry-menu-row symmetry-value-row symmetry-point-row"><input id="symmetry-custom-point-toggle" type="checkbox" /><span>Point x =</span><input id="symmetry-custom-point-x" type="number" step="any" value="0" aria-label="Custom symmetry point x coordinate" /><span>y =</span><input id="symmetry-custom-point-y" type="number" step="any" value="0" aria-label="Custom symmetry point y coordinate" /></label>
+                        <label class="symmetry-menu-row symmetry-check-row"><input id="symmetry-check-toggle" type="checkbox" /><span>Visual check only</span></label>
+                    </span>
+                </span>
             </span>
             <span class="info-sep">|</span>
             <span class="info-section info-anchor-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Return to origin" aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
@@ -84,10 +95,25 @@
         <div id="selection-properties-window" style="display:none;">
             <div id="selection-properties-header">Selection</div>
             <div id="selection-properties-body" class="vt-tool-grid">
-                <div class="vt-tool-grid-row vt-setting-row" data-original-title="Set the complete width of every selected line zone. Zero converts it to one exact endpoint-to-endpoint zone wall.">
+                <div id="selection-line-zone-width-row" class="vt-tool-grid-row vt-setting-row" data-original-title="Set the complete width of every selected line zone. Zero converts it to one exact endpoint-to-endpoint zone wall.">
                     <span class="vt-tool-icon"><span class="glyphicon glyphicon-resize-horizontal" aria-hidden="true"></span></span>
                     <label id="selection-line-zone-width-label" class="vt-tool-name" for="selection-line-zone-width">Line Width</label>
                     <span class="vt-tool-input selection-line-zone-input"><input type="number" id="selection-line-zone-width" min="0" step="0.25" placeholder="Mixed" /><button id="selection-line-zone-width-apply" class="btn btn-xs btn-primary" type="button">Apply</button></span>
+                </div>
+                <div id="selection-zone-show-icon-row" class="vt-tool-grid-row vt-setting-row" data-original-title="Show or hide the floating game icon for every selected zone.">
+                    <span class="vt-tool-icon"><span class="glyphicon glyphicon-picture" aria-hidden="true"></span></span>
+                    <label id="selection-zone-show-icon-label" class="vt-tool-name" for="selection-zone-show-icon">Show Icon</label>
+                    <span class="vt-tool-input selection-line-zone-input"><input type="checkbox" id="selection-zone-show-icon" /><button id="selection-zone-show-icon-apply" class="btn btn-xs btn-primary" type="button">Apply</button></span>
+                </div>
+                <div id="selection-billboard-facing-row" class="vt-tool-grid-row vt-setting-row" data-original-title="Set which side of every selected billboard is its readable front.">
+                    <span class="vt-tool-icon"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span>
+                    <label id="selection-billboard-facing-label" class="vt-tool-name" for="selection-billboard-facing">Facing</label>
+                    <span class="vt-tool-input selection-line-zone-input"><select id="selection-billboard-facing"><option value="">Mixed</option><option value="left">Left</option><option value="right">Right</option></select><button id="selection-billboard-facing-apply" class="btn btn-xs btn-primary" type="button">Apply</button></span>
+                </div>
+                <div id="selection-billboard-dual-sided-row" class="vt-tool-grid-row vt-setting-row" data-original-title="Show a separately oriented readable image on both sides of every selected billboard.">
+                    <span class="vt-tool-icon"><i class="fa-solid fa-clone" aria-hidden="true"></i></span>
+                    <label id="selection-billboard-dual-sided-label" class="vt-tool-name" for="selection-billboard-dual-sided">Dual Sided</label>
+                    <span class="vt-tool-input selection-line-zone-input"><input type="checkbox" id="selection-billboard-dual-sided" /><button id="selection-billboard-dual-sided-apply" class="btn btn-xs btn-primary" type="button">Apply</button></span>
                 </div>
             </div>
         </div>
@@ -260,10 +286,10 @@
                         <p class="cfg-section-label">Toolbar Buttons</p>
                         <table class="table table-bordered" style="font-size:12px;">
                             <tbody>
-                                <tr><td><b>Code Viewer</b></td><td>View and edit readable <code>.armamap</code> JSON or legacy map XML directly. Changes are applied immediately.</td></tr>
+                                <tr><td><b>Code Viewer</b></td><td>View and edit readable <code>.neomap.json</code> JSON for the full map or current selection. Imported legacy maps are converted before they appear here. Use Ctrl+F to find and replace text.</td></tr>
                                 <tr><td><b>New Map</b></td><td>Clears all objects and resets the map. Unsaved changes are lost.</td></tr>
-                                <tr><td><b>Import</b></td><td>Load a canonical <code>.armamap</code> or convert a legacy <code>.aamap.xml</code> file.</td></tr>
-                                <tr><td><b>Export</b></td><td>Save the current map as a human-readable <code>.armamap</code> file.</td></tr>
+                                <tr><td><b>Import</b></td><td>Load a canonical <code>.neomap.json</code> or convert a legacy <code>.aamap.xml</code> file.</td></tr>
+                                <tr><td><b>Export</b></td><td>Save the current map as a human-readable <code>.neomap.json</code> file.</td></tr>
                                 <tr><td><b>Action History</b></td><td>Toggle the action history panel (also accessible from Configure).</td></tr>
                                 <tr><td><b>Settings</b></td><td>Open/close this settings window.</td></tr>
                             </tbody>
@@ -306,9 +332,9 @@
                     </div>
 
                     <div class="tab-pane fade" id="gui-about">
-                        <h3>Vectron 1.2 — Arma Racing Edition</h3>
+                        <h3>Vectron 1.2 — Neotron Edition</h3>
                         <p>
-                          A map editor for Arma Racing maps.
+                          A map editor for Neotron maps.
                           It was originally written in 2008 by Carlo Veneziano, then re-written 2010 as a Flash-based map editor, then re-written in 2014 by Tristan in Javascript.
                           (David Dubois is also credited.)
                         </p>
@@ -317,13 +343,13 @@
                           However, it still essentially remained with very few changes until 2021 when I finally decided to attempt to fix some annoyances and improve upon it.
                         </p>
                         <br />
-                          Source code available at <a target="_blank" rel="noopener" href="https://github.com/zwazi/ArmaRacing">github.com/zwazi/ArmaRacing</a>.
+                          Source code is available in the <a target="_blank" rel="noopener" href="https://github.com/zwazi/Neotron">Neotron GitHub repository</a>.
                         <p>
                           This program comes with ABSOLUTELY NO WARRANTY, see <a href="https://www.gnu.org/licenses/gpl-3.0.html#section15" target=_blank>here</a>.
                           This is free software, and you are welcome to redistribute it under <a href="https://www.gnu.org/licenses/gpl-3.0.html#terms" target=_blank>certain conditions</a>.
                         </p>
                         <br />
-                          If you encounter a bug or have a feature request, please <a href="https://github.com/zwazi/ArmaRacing/issues">submit an issue</a>.
+                          If you encounter a bug or have a feature request, please <a href="https://github.com/zwazi/Neotron/issues">submit an issue</a>.
                         <br />
                         <br />
                     </div>
@@ -440,7 +466,7 @@
                         <label class="vt-tool-name" for="dZoneLineWidth">Line Width</label>
                         <span class="vt-tool-input"><input type="number" id="dZoneLineWidth" value="2" min="0" step="0.25" required /></span>
                     </div>
-                    <div id="zone-polygon-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="Click at least three corners in order to form a closed, non-self-intersecting area. Double-click the final point or press Finish Polygon.">
+                    <div id="zone-polygon-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="Click at least three corners in order to form a closed, non-self-intersecting area. Double-click the final point to finish; press Escape to cancel.">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-edit"></span></span>
                         <span class="vt-tool-name">Vertices</span>
                         <span class="vt-tool-input">Place points on the map</span>
@@ -495,7 +521,12 @@
                         <label class="vt-tool-name" for="dZoneTrigger">Trigger</label>
                         <span class="vt-tool-input"><select id="dZoneTrigger"><option value="">On entry</option><option value="while_inside">While inside</option><option value="on_exit">On exit</option></select></span>
                     </div>
-                    <div id="zone-moving-setting" class="vt-tool-grid-row vt-setting-row" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="After placing the zone, draw its route like a freeform wall. The zone starts at the first point and automatically travels from the last point back to the first with no pause.">
+                    <div class="vt-tool-grid-row vt-setting-row" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="Show the zone's floating effect icon in the game. Disable this for zones whose purpose is already obvious from the map design.">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-picture"></span></span>
+                        <label class="vt-tool-name" for="dZoneShowIcon">Show icon</label>
+                        <span class="vt-tool-input"><input type="checkbox" id="dZoneShowIcon" checked /></span>
+                    </div>
+                    <div id="zone-moving-setting" class="vt-tool-grid-row vt-setting-row" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="Draw the route first, then create the source zone at path vertex 1 and click other vertices to add same-type moving instances.">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-road"></span></span>
                         <label class="vt-tool-name" for="dZoneMoving">Moving zone</label>
                         <span class="vt-tool-input"><input type="checkbox" id="dZoneMoving" /></span>
@@ -510,10 +541,10 @@
                         <label class="vt-tool-name" for="dZoneMovementMode">Loop mode</label>
                         <span class="vt-tool-input"><select id="dZoneMovementMode"><option value="circular">Circular</option><option value="ping_pong">Ping-pong</option><option value="instant">Instant</option></select></span>
                     </div>
-                    <div id="zone-spawn-vertices-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="Starts an additional moving copy at every remaining path vertex. Every copy follows the same route, loop mode, speed, and rotation from a different phase.">
-                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-option-horizontal"></span></span>
-                        <label class="vt-tool-name" for="dZoneSpawnAtVertices">Vertex copies</label>
-                        <span class="vt-tool-input"><input type="checkbox" id="dZoneSpawnAtVertices" /></span>
+                    <div id="zone-pulse-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="For circle zones, each added path instance records a radius keyframe. Moving circles smoothly interpolate their size between those vertices.">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-resize-full"></span></span>
+                        <label class="vt-tool-name" for="dZonePulse">Pulse size</label>
+                        <span class="vt-tool-input"><input type="checkbox" id="dZonePulse" /></span>
                     </div>
                     <div id="zone-rotation-speed-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;" rel="tooltip" data-trigger="hover" data-placement="left" data-original-title="Signed rotation around the moving zone's current centre, in degrees per second. Zero disables rotation; negative values reverse the direction.">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-refresh"></span></span>
@@ -526,7 +557,7 @@
                         <span id="zone-tool-status" class="vt-tool-input" role="status" aria-live="polite" aria-label="Zone placement instructions"></span>
                     </div>
                     <div class="zone-tool-actions vt-tool-actions">
-                        <button id="zone-tool-finish" class="btn btn-sm btn-primary" style="display:none;">Finish Polygon</button><button id="zone-tool-cancel" class="btn btn-sm btn-default" style="display:none;">Cancel</button>
+                        <button id="zone-tool-finish" class="btn btn-sm btn-primary" style="display:none;">Finish Path</button><button id="zone-tool-cancel" class="btn btn-sm btn-default" style="display:none;">Cancel Moving Zones</button>
                     </div>
                 </div>
             </div>
@@ -542,6 +573,35 @@
                 <div class="vt-tool-grid-row vt-setting-row vt-tool-actions-row">
                     <span class="vt-tool-icon"></span><span class="vt-tool-name">Action</span>
                     <span class="vt-tool-input vt-tool-actions"><button id="ramp-tool-cancel" class="btn btn-sm btn-default" style="display:none;">Cancel</button></span>
+                </div>
+            </div>
+        </div>
+        <div id="billboard-tool-window" style="display:none;">
+            <div id="billboard-tool-header">Billboard Tool <span id="billboard-tool-close" title="Close" class="vt-window-action">✕</span></div>
+            <div id="billboard-tool-body" class="vt-tool-grid">
+                <div class="vt-tool-grid-row vt-setting-row">
+                    <span class="vt-tool-icon"><i class="fa-solid fa-link" aria-hidden="true"></i></span>
+                    <label class="vt-tool-name" for="dBillboardUrl">Image URL</label>
+                    <span class="vt-tool-input"><input type="url" id="dBillboardUrl" placeholder="https://example.com/image.png" maxlength="2048" required /></span>
+                </div>
+                <div class="vt-tool-grid-row vt-setting-row">
+                    <span class="vt-tool-icon"><i class="fa-solid fa-arrows-up-down" aria-hidden="true"></i></span>
+                    <label class="vt-tool-name" for="dBillboardHeight">Height</label>
+                    <span class="vt-tool-input"><input type="number" id="dBillboardHeight" value="4" min="0" step="0.25" required /></span>
+                </div>
+                <div class="vt-tool-grid-row vt-setting-row">
+                    <span class="vt-tool-icon"><i class="fa-solid fa-clone" aria-hidden="true"></i></span>
+                    <label class="vt-tool-name" for="dBillboardDualSided">Dual Sided</label>
+                    <span class="vt-tool-input"><input type="checkbox" id="dBillboardDualSided" /></span>
+                </div>
+                <div class="vt-tool-grid-row vt-setting-row">
+                    <span class="vt-tool-icon"><i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i></span>
+                    <span class="vt-tool-name">Placement</span>
+                    <span id="billboard-tool-status" class="vt-tool-input" role="status" aria-live="polite">Click the first edge of the billboard.</span>
+                </div>
+                <div class="vt-tool-grid-row vt-setting-row vt-tool-actions-row">
+                    <span class="vt-tool-icon"></span><span class="vt-tool-name">Action</span>
+                    <span class="vt-tool-input vt-tool-actions"><button id="billboard-tool-cancel" class="btn btn-sm btn-default" type="button">Cancel</button></span>
                 </div>
             </div>
         </div>
@@ -592,6 +652,9 @@
                 </li>
                 <li>
                     <a class="toolbar-toolRamp" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Ramp (6 or R)" aria-label="Ramp"></a>
+                </li>
+                <li>
+                    <a class="toolbar-toolBillboard" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Billboard" aria-label="Billboard"></a>
                 </li>
             </ul>
             <ul>
@@ -696,6 +759,16 @@
                     <li id="xml-tab-full"><a href="#" data-tab="full">Full Map</a></li>
                     <li id="xml-tab-selected"><a href="#" data-tab="selected">Selection <span id="xml-tab-sel-count"></span></a></li>
                 </ul>
+                <div id="code-viewer-find-bar">
+                    <input id="code-viewer-find" type="text" autocomplete="off" spellcheck="false" placeholder="Find" aria-label="Find text" />
+                    <button id="code-viewer-find-previous" class="btn btn-xs btn-default" type="button" title="Previous match" aria-label="Previous match">↑</button>
+                    <button id="code-viewer-find-next" class="btn btn-xs btn-default" type="button" title="Next match" aria-label="Next match">↓</button>
+                    <span id="code-viewer-find-count" aria-live="polite">0 results</span>
+                    <label><input id="code-viewer-match-case" type="checkbox" /> Aa</label>
+                    <input id="code-viewer-replace" type="text" autocomplete="off" spellcheck="false" placeholder="Replace" aria-label="Replacement text" />
+                    <button id="code-viewer-replace-one" class="btn btn-xs btn-default" type="button">Replace</button>
+                    <button id="code-viewer-replace-all" class="btn btn-xs btn-default" type="button">All</button>
+                </div>
                 <textarea id="xml-editor-content" spellcheck="false"></textarea>
                 <div id="xml-editor-error" style="display:none;"></div>
                 <div class="xml-editor-actions">
@@ -728,7 +801,7 @@
             <div id="action-history-header">Action History <span id="action-history-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="action-history-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
             <ul id="action-history-list"></ul>
         </div>
-        <input type="file" id="toolbar-files" name="file" accept=".armamap,.aamap.xml,application/json,text/xml" style="display:none;" />
+        <input type="file" id="toolbar-files" name="file" accept=".neomap.json,.aamap.xml,application/json,text/xml" style="display:none;" />
 
     </body>
 </html>

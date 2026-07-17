@@ -1,5 +1,5 @@
 /*
- * Vectron ramp object for Arma Racing.
+ * Vectron ramp object for Neotron.
  *
  * Native ramps are authored as two edges on different floors.  Point order in
  * XML is always [from0, from1, to0, to1].  The previous centre-line + width

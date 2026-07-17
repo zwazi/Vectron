@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Neotron.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -49,7 +49,6 @@ var aamap_symmetryCheckObjects = [];
 // nested/import-adjacent processing exception-safe without affecting normal
 // interactive tool construction.
 var aamap_bulkLoadDepth = 0;
-var AAMAP_SYMMETRY_CENTER_EPSILON = 1e-9;
 
 function aamap_beginBulkLoad() {
     aamap_bulkLoadDepth++;
@@ -64,32 +63,93 @@ function aamap_isBulkLoading() {
 }
 
 function aamap_symmetryState() {
+    function value(selector) {
+        var number = Number($(selector).val());
+        return isFinite(number) ? number : 0;
+    }
     return {
         x:$("#symmetry-x-toggle").is(":checked"),
-        y:$("#symmetry-y-toggle").is(":checked")
+        y:$("#symmetry-y-toggle").is(":checked"),
+        origin:$("#symmetry-origin-toggle").is(":checked"),
+        customX:$("#symmetry-custom-x-toggle").is(":checked"),
+        customY:$("#symmetry-custom-y-toggle").is(":checked"),
+        customPoint:$("#symmetry-custom-point-toggle").is(":checked"),
+        customXValue:value("#symmetry-custom-x-value"),
+        customYValue:value("#symmetry-custom-y-value"),
+        customPointX:value("#symmetry-custom-point-x"),
+        customPointY:value("#symmetry-custom-point-y")
     };
 }
 
 function aamap_symmetryEnabled() {
-    var state = aamap_symmetryState();
-    return state.x || state.y;
+    return aamap_symmetryTransforms().length > 0;
 }
 
 function aamap_symmetryCheckEnabled() {
     return $("#symmetry-check-toggle").is(":checked") && aamap_symmetryEnabled();
 }
 
+function aamap_symmetryTransform(scaleX, scaleY, centerX, centerY, label, kind, derived) {
+    centerX = Number(centerX) || 0;
+    centerY = Number(centerY) || 0;
+    return {
+        x:scaleX,
+        y:scaleY,
+        tx:(1 - scaleX) * centerX,
+        ty:(1 - scaleY) * centerY,
+        centerX:centerX,
+        centerY:centerY,
+        line:label,
+        kind:kind,
+        derived:!!derived
+    };
+}
+
 function aamap_symmetryTransforms() {
     var state = aamap_symmetryState();
     var transforms = [];
-    if(state.x) transforms.push({x:-1, y:1, line:"x=0"});
-    if(state.y) transforms.push({x:1, y:-1, line:"y=0"});
-    if(state.x && state.y) transforms.push({x:-1, y:-1, line:"x=0 + y=0"});
+    function add(transform) {
+        var key = [transform.x, transform.y, transform.tx, transform.ty].join(":");
+        var existing = transforms.filter(function(candidate) { return candidate._key === key; })[0];
+        if(existing) {
+            if(existing.derived && !transform.derived) existing.derived = false;
+        } else {
+            transform._key = key;
+            transforms.push(transform);
+        }
+    }
+    if(state.x) add(aamap_symmetryTransform(-1, 1, 0, 0, "x=0", "x"));
+    if(state.y) add(aamap_symmetryTransform(1, -1, 0, 0, "y=0", "y"));
+    if(state.x && state.y) {
+        add(aamap_symmetryTransform(-1, -1, 0, 0, "origin", "point", true));
+    }
+    if(state.origin) add(aamap_symmetryTransform(-1, -1, 0, 0, "origin", "point"));
+    if(state.customX) {
+        add(aamap_symmetryTransform(-1, 1, state.customXValue, 0,
+            "x=" + state.customXValue, "x"));
+    }
+    if(state.customY) {
+        add(aamap_symmetryTransform(1, -1, 0, state.customYValue,
+            "y=" + state.customYValue, "y"));
+    }
+    if(state.customX && state.customY) {
+        add(aamap_symmetryTransform(-1, -1, state.customXValue, state.customYValue,
+            "point (" + state.customXValue + ", " + state.customYValue + ")",
+            "point", true));
+    }
+    if(state.customPoint) {
+        add(aamap_symmetryTransform(-1, -1, state.customPointX, state.customPointY,
+            "point (" + state.customPointX + ", " + state.customPointY + ")", "point"));
+    }
+    transforms.forEach(function(transform) { delete transform._key; });
     return transforms;
 }
 
 function aamap_symmetryPoint(point, transform) {
-    return {x:Number(point.x) * transform.x, y:Number(point.y) * transform.y};
+    return {
+        x:Number(point.x) * transform.x + (Number(transform.tx) || 0),
+        y:Number(point.y) * transform.y + (Number(transform.ty) || 0)
+    };
 }
 
 function aamap_symmetryCopyValue(value) {
@@ -116,8 +176,9 @@ function aamap_symmetryClone(aamapObject, transform) {
         copy.level = aamapObject.level;
     } else if(typeof Spawn !== "undefined" && aamapObject instanceof Spawn) {
         copy = new Spawn();
-        copy.x = Number(aamapObject.x) * transform.x;
-        copy.y = Number(aamapObject.y) * transform.y;
+        var reflectedSpawn = aamap_symmetryPoint(aamapObject, transform);
+        copy.x = reflectedSpawn.x;
+        copy.y = reflectedSpawn.y;
         copy.xDir = Number(aamapObject.xDir) * transform.x;
         copy.yDir = Number(aamapObject.yDir) * transform.y;
         copy.level = aamapObject.level;
@@ -146,11 +207,24 @@ function aamap_symmetryClone(aamapObject, transform) {
             return aamap_symmetryPoint(point, transform);
         });
         if(transform.x * transform.y < 0) copy.points.reverse();
+    } else if(typeof Billboard !== "undefined" && aamapObject instanceof Billboard) {
+        copy = new Billboard(
+            aamap_symmetryPoint(aamapObject.start, transform),
+            aamap_symmetryPoint(aamapObject.end, transform),
+            aamapObject.height,
+            aamapObject.url,
+            aamapObject.level,
+            transform.x * transform.y < 0 ?
+                (aamapObject.facing === "left" ? "right" : "left") :
+                aamapObject.facing,
+            aamapObject.dualSided
+        );
     } else if(typeof Zone !== "undefined" && aamapObject instanceof Zone) {
         var details = {
             level:aamapObject.level,
             zoneName:aamapObject.zoneName,
             shapeType:aamapObject.shapeType,
+            showIcon:aamapObject.showIcon,
             trigger:aamapObject.trigger,
             activeStartTick:aamapObject.activeStartTick,
             activeEndTick:aamapObject.activeEndTick,
@@ -158,13 +232,15 @@ function aamap_symmetryClone(aamapObject, transform) {
             movementSpeed:aamapObject.movementSpeed,
             rotationSpeed:aamapObject.rotationSpeed * transform.x * transform.y,
             movementMode:aamapObject.movementMode,
-            spawnAtVertices:aamapObject.spawnAtVertices,
+            movementInstances:(aamapObject.movementInstances || []).slice(),
+            movementPulseRadii:(aamapObject.movementPulseRadii || []).slice(),
             movementPath:aamapObject.movementPath.map(function(point) {
                 return aamap_symmetryPoint(point, transform);
             })
         };
-        var reflectedX = Number(aamapObject.x) * transform.x;
-        var reflectedY = Number(aamapObject.y) * transform.y;
+        var reflectedCenter = aamap_symmetryPoint(aamapObject, transform);
+        var reflectedX = reflectedCenter.x;
+        var reflectedY = reflectedCenter.y;
         if(aamapObject.shapeType === "rectangle") {
             var firstCorner = aamap_symmetryPoint(
                 {x:aamapObject.minx, y:aamapObject.miny}, transform);
@@ -177,7 +253,11 @@ function aamap_symmetryClone(aamapObject, transform) {
         } else if(aamapObject.shapeType === "polygon") {
             details.polygonScale = aamapObject.polygonScale;
             details.polygonPoints = aamapObject.polygonPoints.map(function(point) {
-                return aamap_symmetryPoint(point, transform);
+                // Polygon points are local offsets from the separately
+                // transformed zone anchor. Applying tx/ty here would translate
+                // a custom-axis/point copy twice.
+                return {x:Number(point.x) * transform.x,
+                    y:Number(point.y) * transform.y};
             });
             if(transform.x * transform.y < 0) details.polygonPoints.reverse();
         } else if(aamapObject.shapeType === "line") {
@@ -186,8 +266,12 @@ function aamap_symmetryClone(aamapObject, transform) {
             details.lineWidth = aamapObject.lineWidth;
         }
         if(aamapObject.zoneName === "teleport") {
-            details.options.destination_x = Number(aamapObject.options.destination_x) * transform.x;
-            details.options.destination_y = Number(aamapObject.options.destination_y) * transform.y;
+            var reflectedDestination = aamap_symmetryPoint({
+                x:aamapObject.options.destination_x,
+                y:aamapObject.options.destination_y
+            }, transform);
+            details.options.destination_x = reflectedDestination.x;
+            details.options.destination_y = reflectedDestination.y;
         }
         copy = new Zone(reflectedX, reflectedY, aamapObject.radius,
             aamapObject.growth, aamapObject.type, aamapObject.option, details);
@@ -200,8 +284,139 @@ function aamap_symmetryClone(aamapObject, transform) {
     return copy;
 }
 
+function aamap_symmetryNumberKey(value) {
+    var number = Math.round(Number(value) * 1e6) / 1e6;
+    if(number === 0) number = 0;
+    return String(number);
+}
+
+function aamap_symmetryPointKey(point, includeHeight) {
+    var values = [aamap_symmetryNumberKey(point.x),
+        aamap_symmetryNumberKey(point.y)];
+    if(includeHeight) {
+        values.push(point.height === undefined || point.height === null ? "" :
+            aamap_symmetryNumberKey(point.height));
+    }
+    return JSON.stringify(values);
+}
+
+/**
+ * Canonicalize an undirected path or polygon without losing any coordinates.
+ * Open paths may only reverse; closed polygons may also choose another start
+ * vertex. This keeps truly equivalent reflections from stacking while an
+ * asymmetric object that merely shares the symmetry centre remains distinct.
+ */
+function aamap_symmetryPointSequenceKey(points, cyclic, includeHeight) {
+    var tokens = (points || []).map(function(point) {
+        return aamap_symmetryPointKey(point, includeHeight);
+    });
+    if(cyclic && tokens.length > 1 && tokens[0] === tokens[tokens.length - 1]) {
+        tokens.pop();
+    }
+    if(!tokens.length) return "[]";
+    var candidates = [];
+    var orientations = [tokens, tokens.slice().reverse()];
+    orientations.forEach(function(sequence) {
+        var rotations = cyclic ? sequence.length : 1;
+        for(var index = 0; index < rotations; index++) {
+            candidates.push(JSON.stringify(sequence.slice(index).concat(sequence.slice(0, index))));
+        }
+    });
+    candidates.sort();
+    return candidates[0];
+}
+
+function aamap_symmetryCanonicalZoneXml(zone) {
+    var xml = zone.getXML();
+    var shapeKey;
+    if(zone.shapeType === "line") {
+        shapeKey = "<CanonicalShapeLine width=\"" +
+            aamap_symmetryNumberKey(zone.lineWidth) + "\">" +
+            aamap_symmetryPointSequenceKey(
+                [zone.lineStart, zone.lineEnd], false, false) +
+            "</CanonicalShapeLine>";
+    } else if(zone.shapeType === "polygon") {
+        shapeKey = "<CanonicalShapePolygon>" +
+            aamap_symmetryPointSequenceKey(zone.getMapPoints(), true, false) +
+            "</CanonicalShapePolygon>";
+    } else if(zone.shapeType === "rectangle") {
+        shapeKey = "<CanonicalShapeRectangle>" +
+            aamap_symmetryPointSequenceKey(zone.getMapPoints(), true, false) +
+            "</CanonicalShapeRectangle>";
+    }
+    if(shapeKey) {
+        var authoredShapeXml = zone.getShapeXML().split("\n").map(function(line) {
+            return "  " + line;
+        }).join("\n");
+        xml = xml.replace(authoredShapeXml, shapeKey);
+    }
+
+    if(zone.zoneName === "teleport") {
+        var openingEnd = xml.indexOf(">");
+        var opening = xml.slice(0, openingEnd)
+            .replace(/\s+(?:angle|direction|xdir|ydir)="[^"]*"/g, "");
+        xml = opening + xml.slice(openingEnd);
+        var direction = zone.getTeleportDirection();
+        xml += "|teleport-direction=" + aamap_symmetryPointKey(direction, false);
+    }
+    return xml;
+}
+
 function aamap_symmetryObjectKey(aamapObject) {
     if(!aamapObject || typeof aamapObject.getXML !== "function") return "";
+    if(typeof Wall !== "undefined" && aamapObject instanceof Wall) {
+        var wallXml = aamapObject.getXML();
+        var wallHeaderEnd = wallXml.indexOf(">");
+        var wallClosed = aamapObject.points.length > 2 &&
+            aamap_symmetryPointKey(aamapObject.points[0], true) ===
+            aamap_symmetryPointKey(aamapObject.points[aamapObject.points.length - 1], true);
+        return wallXml.slice(0, wallHeaderEnd + 1) + "|points=" +
+            aamap_symmetryPointSequenceKey(
+                aamapObject.points, wallClosed, !!aamapObject.slopedHeight);
+    }
+    if(typeof Floor !== "undefined" && aamapObject instanceof Floor) {
+        return "Floor|level=" + aamapObject.level + "|points=" +
+            aamap_symmetryPointSequenceKey(aamapObject.points, true, false);
+    }
+    if(typeof Ramp !== "undefined" && aamapObject instanceof Ramp) {
+        if(aamapObject.sourceTwoPoint) {
+            return "Ramp|from=" + aamapObject.fromLevel + "|to=" + aamapObject.toLevel +
+                "|width=" + aamap_symmetryNumberKey(aamapObject.sourceTwoPoint.width) +
+                "|ordered-center-line=" + JSON.stringify([
+                    aamap_symmetryPointKey(aamapObject.sourceTwoPoint.start, false),
+                    aamap_symmetryPointKey(aamapObject.sourceTwoPoint.end, false)
+                ]);
+        }
+        var forwardEdges = JSON.stringify([
+            aamap_symmetryPointKey(aamapObject.from0, false),
+            aamap_symmetryPointKey(aamapObject.from1, false),
+            aamap_symmetryPointKey(aamapObject.to0, false),
+            aamap_symmetryPointKey(aamapObject.to1, false)
+        ]);
+        var reversedEdges = JSON.stringify([
+            aamap_symmetryPointKey(aamapObject.from1, false),
+            aamap_symmetryPointKey(aamapObject.from0, false),
+            aamap_symmetryPointKey(aamapObject.to1, false),
+            aamap_symmetryPointKey(aamapObject.to0, false)
+        ]);
+        return "Ramp|from=" + aamapObject.fromLevel + "|to=" + aamapObject.toLevel +
+            "|edges=" + (forwardEdges < reversedEdges ? forwardEdges : reversedEdges);
+    }
+    if(typeof Zone !== "undefined" && aamapObject instanceof Zone) {
+        return aamap_symmetryCanonicalZoneXml(aamapObject);
+    }
+    if(typeof Billboard !== "undefined" && aamapObject instanceof Billboard) {
+        var billboardDx = Number(aamapObject.end.x) - Number(aamapObject.start.x);
+        var billboardDy = Number(aamapObject.end.y) - Number(aamapObject.start.y);
+        var billboardSide = aamapObject.facing === "left" ? 1 : -1;
+        return "Billboard|level=" + aamapObject.level + "|height=" +
+            aamap_symmetryNumberKey(aamapObject.height) + "|url=" + aamapObject.url +
+            "|front=" + aamap_symmetryNumberKey(-billboardDy * billboardSide) + "," +
+            aamap_symmetryNumberKey(billboardDx * billboardSide) +
+            "|dual=" + !!aamapObject.dualSided +
+            "|points=" + aamap_symmetryPointSequenceKey(
+                [aamapObject.start,aamapObject.end], false, false);
+    }
     return aamapObject.getXML();
 }
 
@@ -227,19 +442,7 @@ function aamap_symmetryObjectCenter(aamapObject) {
     return {x:(minx + maxx) / 2, y:(miny + maxy) / 2};
 }
 
-/**
- * A placement whose centre is on a selected symmetry line already owns that
- * line. Do not put an additional editor object on the opposite side; for a
- * two-axis reflection, crossing either centred axis makes that copy redundant.
- */
-function aamap_symmetryShouldSkipClone(aamapObject, transform) {
-    var center = aamap_symmetryObjectCenter(aamapObject);
-    if(!center) return false;
-    return (transform.x < 0 && Math.abs(center.x) <= AAMAP_SYMMETRY_CENTER_EPSILON) ||
-        (transform.y < 0 && Math.abs(center.y) <= AAMAP_SYMMETRY_CENTER_EPSILON);
-}
-
-function aamap_addSymmetryCopiesForExisting(aamapObject) {
+function aamap_addSymmetryCopiesForExisting(aamapObject, sharedKeys) {
     if(!aamapObject) return [];
     var group = aamapObject._symmetryGroup ? aamapObject._symmetryGroup.filter(function(member) {
         return member === aamapObject || aamap_objects.indexOf(member) >= 0;
@@ -250,10 +453,9 @@ function aamap_addSymmetryCopiesForExisting(aamapObject) {
             member._symmetryTransform.y === 1;
     })[0] || aamapObject;
     if(group.indexOf(primary) < 0) group.unshift(primary);
-    var keys = {};
+    var keys = sharedKeys || {};
     group.forEach(function(member) { keys[aamap_symmetryObjectKey(member)] = true; });
     aamap_symmetryTransforms().forEach(function(transform) {
-        if(aamap_symmetryShouldSkipClone(primary, transform)) return;
         var copy = aamap_symmetryClone(primary, transform);
         if(!copy) return;
         var key = aamap_symmetryObjectKey(copy);
@@ -262,15 +464,63 @@ function aamap_addSymmetryCopiesForExisting(aamapObject) {
             return;
         }
         keys[key] = true;
-        copy._symmetryTransform = {x:transform.x, y:transform.y};
+        copy._symmetryTransform = {
+            x:transform.x, y:transform.y,
+            tx:Number(transform.tx) || 0, ty:Number(transform.ty) || 0
+        };
         group.push(copy);
         aamap_add(copy);
     });
     group.forEach(function(member) {
         member._symmetryGroup = group;
-        if(!member._symmetryTransform) member._symmetryTransform = {x:1, y:1};
+        if(!member._symmetryTransform) member._symmetryTransform = {x:1, y:1, tx:0, ty:0};
     });
     return group;
+}
+
+function aamap_addSymmetryCopiesForExistingBatch(objects) {
+    var primaries = (objects || []).filter(function(object, index, values) {
+        return object && values.indexOf(object) === index;
+    });
+    var objectsBeforeCopies = aamap_objects.slice();
+    var unassigned = primaries.slice();
+    while(unassigned.length) {
+        var primary = unassigned.shift();
+        var primaryKey = aamap_symmetryObjectKey(primary);
+        var group = [primary];
+        primary._symmetryTransform = {x:1, y:1, tx:0, ty:0};
+        aamap_symmetryTransforms().forEach(function(transform) {
+            var copy = aamap_symmetryClone(primary, transform);
+            if(!copy) return;
+            var key = aamap_symmetryObjectKey(copy);
+            if(key === primaryKey || group.some(function(member) {
+                return aamap_symmetryObjectKey(member) === key;
+            })) {
+                aamap_removeObjectVisuals(copy);
+                return;
+            }
+            var matchingIndex = unassigned.findIndex(function(candidate) {
+                return aamap_symmetryObjectKey(candidate) === key;
+            });
+            var matchingPrimary = matchingIndex < 0 ? null :
+                unassigned.splice(matchingIndex, 1)[0];
+            var member = matchingPrimary || copy;
+            if(matchingPrimary) {
+                aamap_removeObjectVisuals(copy);
+            } else {
+                aamap_add(copy);
+            }
+            member._symmetryTransform = {
+                x:transform.x, y:transform.y,
+                tx:Number(transform.tx) || 0, ty:Number(transform.ty) || 0
+            };
+            group.push(member);
+        });
+        group.forEach(function(member) { member._symmetryGroup = group; });
+    }
+    return primaries.concat(aamap_objects.filter(function(object) {
+        return objectsBeforeCopies.indexOf(object) < 0 && primaries.indexOf(object) < 0;
+    }));
 }
 
 function aamap_addWithSymmetry(aamapObject) {
@@ -321,10 +571,45 @@ function aamap_symmetryMovePlan(objects, dx, dy) {
                 plan.created.push(member);
             }
         });
+        var primary = group.filter(function(member) {
+            var transform = member._symmetryTransform;
+            return transform && transform.x === 1 && transform.y === 1 &&
+                (Number(transform.tx) || 0) === 0 && (Number(transform.ty) || 0) === 0;
+        })[0] || object;
+        var driver = object._symmetryTransform || {x:1, y:1};
+        // An object can currently sit on a symmetry locus, so its reflected
+        // copy has identical geometry and is intentionally hidden. If this
+        // move makes those transform slots diverge, materialize the missing
+        // copy now. Undo moves it back onto the source before removing it.
+        aamap_symmetryTransforms().forEach(function(transform) {
+            var candidate = aamap_symmetryClone(primary, transform);
+            if(!candidate) return;
+            var key = aamap_symmetryObjectKey(candidate);
+            var candidateDx = dx * transform.x / driver.x;
+            var candidateDy = dy * transform.y / driver.y;
+            var represented = group.some(function(member) {
+                var memberTransform = member._symmetryTransform || {x:1, y:1};
+                return aamap_symmetryObjectKey(member) === key &&
+                    dx * memberTransform.x / driver.x === candidateDx &&
+                    dy * memberTransform.y / driver.y === candidateDy;
+            });
+            if(represented) {
+                aamap_removeObjectVisuals(candidate);
+                return;
+            }
+            candidate._symmetryTransform = {
+                x:transform.x, y:transform.y,
+                tx:Number(transform.tx) || 0, ty:Number(transform.ty) || 0
+            };
+            candidate._symmetryGroup = group;
+            group.push(candidate);
+            aamap_add(candidate);
+            plan.created.push(candidate);
+        });
+        group.forEach(function(member) { member._symmetryGroup = group; });
         group.forEach(function(member) {
             if(handledMembers.indexOf(member) < 0) handledMembers.push(member);
         });
-        var driver = object._symmetryTransform || {x:1, y:1};
         group.forEach(function(member) {
             if(aamap_objects.indexOf(member) < 0) return;
             var memberTransform = member._symmetryTransform || {x:1, y:1};
@@ -341,21 +626,55 @@ function aamap_symmetryMovePlan(objects, dx, dy) {
 function aamap_drawSymmetryGuides() {
     if(aamap_symmetryGuides) aamap_symmetryGuides.remove();
     aamap_symmetryGuides = null;
-    var state = aamap_symmetryState();
-    if(!state.x && !state.y) return;
+    var transforms = aamap_symmetryTransforms();
+    if(!transforms.length) return;
     aamap_symmetryGuides = vectron_screen.set();
-    if(state.x) {
-        aamap_symmetryGuides.push(vectron_screen.path([
-            "M", aamap_realX(0), 0, "L", aamap_realX(0), vectron_height
-        ]).attr({stroke:"#ff4fd8", "stroke-width":2, "stroke-dasharray":"- ",
-            "stroke-opacity":0.8}));
+    var seen = {};
+    transforms.forEach(function(transform) {
+        var key = transform.kind + ":" + transform.centerX + ":" + transform.centerY;
+        if(seen[key] || (transform.kind === "point" && transform.derived)) return;
+        seen[key] = true;
+        if(transform.kind === "x") {
+            aamap_symmetryGuides.push(vectron_screen.path([
+                "M", aamap_realX(transform.centerX), 0,
+                "L", aamap_realX(transform.centerX), vectron_height
+            ]).attr({stroke:"#ff4fd8", "stroke-width":2, "stroke-dasharray":"- ",
+                "stroke-opacity":0.8}));
+        } else if(transform.kind === "y") {
+            aamap_symmetryGuides.push(vectron_screen.path([
+                "M", 0, aamap_realY(transform.centerY),
+                "L", vectron_width, aamap_realY(transform.centerY)
+            ]).attr({stroke:"#45e5ff", "stroke-width":2, "stroke-dasharray":"- ",
+                "stroke-opacity":0.8}));
+        } else if(transform.kind === "point") {
+            var pointX = aamap_realX(transform.centerX);
+            var pointY = aamap_realY(transform.centerY);
+            aamap_symmetryGuides.push(vectron_screen.path([
+                "M", pointX - 8, pointY, "L", pointX + 8, pointY,
+                "M", pointX, pointY - 8, "L", pointX, pointY + 8
+            ]).attr({stroke:"#ffcc45", "stroke-width":2, "stroke-dasharray":"- ",
+                "stroke-opacity":0.9}));
+        }
+    });
+}
+
+function aamap_symmetryCheckAxes() {
+    var axes = {x:null, y:null};
+    var transforms = aamap_symmetryTransforms();
+    transforms.forEach(function(transform) {
+        if(axes.x === null && transform.kind === "x") axes.x = transform.centerX;
+        if(axes.y === null && transform.kind === "y") axes.y = transform.centerY;
+    });
+    // A point reflection needs only one source half-plane: the opposite half
+    // is rotated 180 degrees. Clipping it to a quadrant would hide two valid
+    // quadrants from the non-destructive symmetry check.
+    if(axes.x === null && axes.y === null) {
+        var point = transforms.filter(function(transform) {
+            return transform.kind === "point";
+        })[0];
+        if(point) axes.x = point.centerX;
     }
-    if(state.y) {
-        aamap_symmetryGuides.push(vectron_screen.path([
-            "M", 0, aamap_realY(0), "L", vectron_width, aamap_realY(0)
-        ]).attr({stroke:"#45e5ff", "stroke-width":2, "stroke-dasharray":"- ",
-            "stroke-opacity":0.8}));
-    }
+    return axes;
 }
 
 /**
@@ -366,15 +685,17 @@ function aamap_drawSymmetryGuides() {
  */
 function aamap_symmetryCheckClipRect(transform) {
     transform = transform || {x:1, y:1};
-    var axisX = Math.max(0, Math.min(vectron_width, aamap_realX(0)));
-    var axisY = Math.max(0, Math.min(vectron_height, aamap_realY(0)));
+    var axes = aamap_symmetryCheckAxes();
+    var axisX = axes.x === null ? 0 :
+        Math.max(0, Math.min(vectron_width, aamap_realX(axes.x)));
+    var axisY = axes.y === null ? 0 :
+        Math.max(0, Math.min(vectron_height, aamap_realY(axes.y)));
     var x = transform.x < 0 ? 0 : axisX;
     var y = transform.y < 0 ? axisY : 0;
     var width = transform.x < 0 ? axisX : vectron_width - axisX;
     var height = transform.y < 0 ? vectron_height - axisY : axisY;
-    var state = aamap_symmetryState();
-    if(!state.x) { x = 0; width = vectron_width; }
-    if(!state.y) { y = 0; height = vectron_height; }
+    if(axes.x === null) { x = 0; width = vectron_width; }
+    if(axes.y === null) { y = 0; height = vectron_height; }
     return {x:x, y:y, width:Math.max(0, width), height:Math.max(0, height)};
 }
 
@@ -932,6 +1253,12 @@ function aamap_validateForExport(axes) {
         return object instanceof Spawn;
     });
     if(!hasSpawn) errors.push("Add at least one spawn point before exporting.");
+    var billboardCount = aamap_objects.filter(function(object) {
+        return typeof Billboard !== "undefined" && object instanceof Billboard;
+    }).length;
+    if(billboardCount > NEOMAP_MAX_BILLBOARDS) {
+        errors.push("Maps may contain at most " + NEOMAP_MAX_BILLBOARDS + " billboards.");
+    }
 
     if($("#map_axes_forced").is(":checked") &&
         (!isFinite(Number(axes)) || Math.floor(Number(axes)) !== Number(axes) ||
@@ -973,6 +1300,29 @@ function aamap_validateForExport(axes) {
             if(typeof floorTool_isSimplePolygon !== "function" ||
                 !floorTool_isSimplePolygon(object.points)) {
                 errors.push("Floor outlines must have at least three corners and may not self-intersect.");
+            }
+            return;
+        }
+        if(typeof Billboard !== "undefined" && object instanceof Billboard) {
+            if(!object.start || !object.end ||
+                !isFinite(Number(object.start.x)) || !isFinite(Number(object.start.y)) ||
+                !isFinite(Number(object.end.x)) || !isFinite(Number(object.end.y)) ||
+                (Number(object.start.x) === Number(object.end.x) &&
+                    Number(object.start.y) === Number(object.end.y))) {
+                errors.push("Billboard endpoints must be two distinct finite points.");
+            }
+            if(!isFinite(Number(object.height)) || Number(object.height) < 0) {
+                errors.push("Billboard height must be 0 or greater.");
+            }
+            if(typeof billboard_isExternalUrl !== "function" ||
+                !billboard_isExternalUrl(object.url)) {
+                errors.push("Billboard URL must be an external http:// or https:// URL.");
+            }
+            if(["left","right"].indexOf(object.facing) < 0) {
+                errors.push("Billboard facing must be left or right.");
+            }
+            if(typeof object.dualSided !== "boolean") {
+                errors.push("Billboard dual-sided value must be boolean.");
             }
             return;
         }
@@ -1034,8 +1384,26 @@ function aamap_validateForExport(axes) {
             if(["circular", "ping_pong", "instant"].indexOf(object.movementMode) < 0) {
                 errors.push("Moving-zone loop mode must be Circular, Ping-pong, or Instant.");
             }
-            if(typeof object.spawnAtVertices !== "boolean") {
-                errors.push("Moving-zone vertex copies must be enabled or disabled.");
+            var movementInstances = object.movementInstances || [];
+            if(!Array.isArray(movementInstances) || movementInstances.some(function(index, position) {
+                return !isWholeNonNegative(index) || Number(index) === 0 ||
+                    Number(index) >= object.movementPath.length ||
+                    movementInstances.indexOf(index) !== position;
+            })) {
+                errors.push("Moving-zone instances must use unique path vertex indices after 0.");
+            }
+            var pulseRadii = object.movementPulseRadii || [];
+            if(pulseRadii.length) {
+                var pulseKeyframes = pulseRadii.filter(function(radius) {
+                    return radius !== null && radius !== undefined;
+                });
+                if(object.shapeType !== "circle" ||
+                    pulseRadii.length !== object.movementPath.length ||
+                    pulseKeyframes.length < 2 || pulseKeyframes.some(function(radius) {
+                        return !isFinite(Number(radius)) || Number(radius) <= 0;
+                    })) {
+                    errors.push("Moving-zone pulse needs at least two positive circle radii aligned to path vertices.");
+                }
             }
         }
         if(object.zoneName === "rubber" &&
@@ -1060,7 +1428,7 @@ function aamap_validateForExport(axes) {
                 var normalizedAngle = ((angle % 360) + 360) % 360;
                 if(!isFinite(angle) || Math.floor(angle) !== angle ||
                     supportedAngles.indexOf(normalizedAngle) < 0) {
-                    errors.push("Teleport angle must use an Arma Racing deterministic angle.");
+                    errors.push("Teleport angle must use a Neotron deterministic angle.");
                 }
             } else if(object.options.direction !== undefined) {
                 if(["north", "n", "east", "e", "south", "s", "west", "w"]
@@ -1165,7 +1533,7 @@ function aamap_buildXml(name, author, category, version, axes, settings, authorP
     xml += '    </World>\n';
     xml += '  </Map>\n';
     xml += '</Resource>\n';
-    xml += "<!-- Exported from Vectron for Arma Racing -->";
+    xml += "<!-- Exported from Vectron for Neotron -->";
 
     return {
         fileName: fileName,
@@ -1176,9 +1544,9 @@ function aamap_buildXml(name, author, category, version, axes, settings, authorP
 }
 
 function aamap_save(name, author, category, version, axes, settings, authorPasswordHash) {
-    var map = aamap_buildXml(name, author, category, version, axes, settings,
+    var map = armamap_build(name, author, category, version, axes, settings,
         authorPasswordHash);
-    vectron_saveTextAsFile(map.xml, map.fileName);
+    vectron_saveTextAsFile(map.text, map.fileName);
 }
 
 function aamap_render() {
@@ -1221,6 +1589,10 @@ function aamap_render() {
     else if(vectron_currentTool == "ramp")
     {
         rampTool_guide();
+    }
+    else if(vectron_currentTool == "billboard")
+    {
+        billboardTool_guide();
     }
     else if(vectron_currentTool == "floor")
     {

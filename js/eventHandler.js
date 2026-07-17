@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Neotron.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -44,10 +44,12 @@ var eventHandler_tooltipPlacementLeft = "left";
 var eventHandler_tooltipPlacementRight = "right";
 var eventHandler_levelDeleteTarget = null;
 var eventHandler_pendingExportMap = null;
-var codeViewer_sourceFormat = "armamap";
+var codeViewer_sourceFormat = "neomap-json";
 
 function codeViewer_setSourceFormat(format) {
-    codeViewer_sourceFormat = format === "legacy-xml" ? "legacy-xml" : "armamap";
+    // Legacy files are converted during import. The author-facing source is
+    // always canonical .neomap.json, regardless of the imported extension.
+    codeViewer_sourceFormat = "neomap-json";
 }
 
 function codeViewer_formatJsonText(source) {
@@ -72,7 +74,68 @@ function codeViewer_formatXmlText(source) {
     }).join("\n") + "\n";
 }
 
-function eventHandler_getExportMap() {
+function codeViewer_findMatches(source, query, matchCase) {
+    source = String(source === undefined || source === null ? "" : source);
+    query = String(query === undefined || query === null ? "" : query);
+    if(!query.length) return [];
+    var escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    var expression = new RegExp(escaped, matchCase ? "g" : "gi");
+    var matches = [];
+    var match;
+    while((match = expression.exec(source)) !== null) {
+        matches.push({start:match.index, end:match.index + match[0].length});
+    }
+    return matches;
+}
+
+function codeViewer_replaceAllText(source, query, replacement, matchCase) {
+    source = String(source === undefined || source === null ? "" : source);
+    replacement = String(replacement === undefined || replacement === null ? "" : replacement);
+    var matches = codeViewer_findMatches(source, query, matchCase);
+    for(var index = matches.length - 1; index >= 0; index--) {
+        source = source.slice(0, matches[index].start) + replacement +
+            source.slice(matches[index].end);
+    }
+    return {text:source, count:matches.length};
+}
+
+function codeViewer_selectionEnvelope(document) {
+    var objectFields = {spawns:true,walls:true,floors:true,ramps:true,zones:true,
+        billboards:true};
+    var envelope = {};
+    Object.keys(document || {}).forEach(function(key) {
+        if(!objectFields[key]) envelope[key] = document[key];
+    });
+    if(envelope.metadata && typeof envelope.metadata === "object" &&
+        !Array.isArray(envelope.metadata)) {
+        var metadata = {};
+        Object.keys(envelope.metadata).forEach(function(key) {
+            if(key !== "revision") metadata[key] = envelope.metadata[key];
+        });
+        envelope.metadata = metadata;
+    }
+    return envelope;
+}
+
+function codeViewer_selectionEnvelopeMatches(document, expectedDocument) {
+    return armamap_stableJson(codeViewer_selectionEnvelope(document)) ===
+        armamap_stableJson(codeViewer_selectionEnvelope(expectedDocument));
+}
+
+function codeViewer_processCanonicalSelection(compatibilityXml) {
+    // Selection replacement bypasses xml_process(), which normally reads this
+    // marker from <Map>. Canonical checkpoint orders are already one-based, so
+    // isolate that parser mode and always restore the surrounding map state.
+    var previousCheckpointOrderBase = xml_checkpoint_order_base_one;
+    try {
+        xml_checkpoint_order_base_one = true;
+        return xml_process_piece(compatibilityXml);
+    } finally {
+        xml_checkpoint_order_base_one = previousCheckpointOrderBase;
+    }
+}
+
+function eventHandler_getExportMap(objects) {
     var mapName = $("#map_name").val().trim() || "map";
     var mapAuthor = $("#map_author").val().trim();
     var mapTags = $("#map_category").val().trim();
@@ -80,8 +143,8 @@ function eventHandler_getExportMap() {
     var mapAxes = axesText === "" ? 4 : Number(axesText);
     var mapSets = $("#map_settings").val().split("\n");
     var map = armamap_build(mapName, mapAuthor, mapTags, "", mapAxes,
-        mapSets, xml_author_password_hash);
-    xml_version = map.document.metadata.revision;
+        mapSets, xml_author_password_hash, objects);
+    if(objects === undefined) xml_version = map.document.metadata.revision;
     return map;
 }
 
@@ -698,6 +761,10 @@ function eventHandler_init() {
         if(vectron_currentTool === "ramp" && vectron_toolActive) rampTool_cancelPlacement();
         vectron_connectTool("select");
     });
+    $(document).on("click", "#billboard-tool-close", function() {
+        if(vectron_currentTool === "billboard") billboardTool_reset();
+        vectron_connectTool("select");
+    });
     $(document).on("click", "#floor-tool-close", function() {
         if(vectron_currentTool === "floor" && vectron_toolActive) floorTool_cancel();
         vectron_connectTool("select");
@@ -739,6 +806,11 @@ function eventHandler_init() {
         xml_axis_vectors = null;
     });
     $('#dZoneShape').on('change', function() {
+        if(zoneTool_lockedShape !== null) {
+            this.value = zoneTool_lockedShape;
+            gui_writeLog("Finish or cancel the moving-zone group before changing its shape.");
+            return;
+        }
         if(this.value === "circle") $("#dZoneRotationSpeed").val("0");
         zoneTool_resetPlacement();
         zoneTool_updateSettings();
@@ -813,31 +885,96 @@ function eventHandler_init() {
             eventHandler_applySelectedLineWidth();
         }
     });
+    $('#selection-zone-show-icon-apply').on('click', function() {
+        var input = document.getElementById('selection-zone-show-icon');
+        if(input) {
+            input.indeterminate = false;
+            selectTool_applySelectedZoneShowIcon(input.checked);
+        }
+    });
+    $('#selection-zone-show-icon').on('change', function() {
+        this.indeterminate = false;
+    });
+    $('#selection-billboard-facing-apply').on('click', function() {
+        selectTool_applySelectedBillboardFacing(
+            String($('#selection-billboard-facing').val() || ''));
+    });
+    $('#selection-billboard-facing').on('change', function() {
+        if(this.value) selectTool_applySelectedBillboardFacing(this.value);
+    });
+    $('#selection-billboard-dual-sided-apply').on('click', function() {
+        var input = document.getElementById('selection-billboard-dual-sided');
+        if(input) {
+            input.indeterminate = false;
+            selectTool_applySelectedBillboardDualSided(input.checked);
+        }
+    });
+    $('#selection-billboard-dual-sided').on('change', function() {
+        this.indeterminate = false;
+    });
     $('#dZoneMoving').on('change', function() {
+        if(zoneTool_lockedType !== null) {
+            this.checked = true;
+            gui_writeLog("Finish or cancel the moving-zone group before disabling movement.");
+            return;
+        }
         zoneTool_updateSettings();
         zoneTool_guide();
     });
-    $('#dZoneMovementMode, #dZoneMovementSpeed, #dZoneRotationSpeed, #dZoneSpawnAtVertices')
+    $('#dZoneMovementMode, #dZoneMovementSpeed, #dZoneRotationSpeed')
         .on('input change', function() {
             zoneTool_updateStatus();
             zoneTool_guide();
         });
+    $('#dZonePulse').on('input change', function() {
+        if(zoneTool_stage === "movement-instances" && zoneTool_pendingZone) {
+            this.checked = zoneTool_pendingZone.movementPulseRadii.length > 0;
+            gui_writeLog("Pulse size is locked after the source zone is placed.");
+            return;
+        }
+        zoneTool_updateStatus();
+        zoneTool_guide();
+    });
     $('#dGameSetting').on('change', function() {
         zoneTool_updateGameSettingValue(true);
     });
-    $('#symmetry-x-toggle,#symmetry-y-toggle,#symmetry-check-toggle').on('change', function() {
-        var state = aamap_symmetryState();
-        if($("#symmetry-check-toggle").is(":checked") && !state.x && !state.y) {
+    function eventHandler_updateSymmetry() {
+        var transforms = aamap_symmetryTransforms();
+        if($("#symmetry-check-toggle").is(":checked") && !transforms.length) {
             $("#symmetry-check-toggle").prop("checked", false);
-            gui_toast("Choose x=0 or y=0 before enabling symmetry check.");
+            gui_toast("Choose a symmetry line or point before enabling symmetry check.");
         }
-        var lines = [];
-        if(state.x) lines.push("x=0");
-        if(state.y) lines.push("y=0");
+        var descriptions = transforms.map(function(transform) { return transform.line; });
         var checking = aamap_symmetryCheckEnabled();
-        gui_writeLog(lines.length ? (checking ? "Symmetry check mirroring the +X/+Y source across " :
-            "Symmetry enabled across ") + lines.join(" and ") + "." : "Symmetry disabled.");
+        $("#symmetry-summary").text(descriptions.length ?
+            descriptions.length + (checking ? " + check" : " active") : "Off");
+        gui_writeLog(descriptions.length ? (checking ? "Symmetry check enabled for " :
+            "Symmetry enabled across ") + descriptions.join(", ") + "." : "Symmetry disabled.");
         vectron_render();
+    }
+    $('#symmetry-x-toggle,#symmetry-y-toggle,#symmetry-origin-toggle,' +
+        '#symmetry-custom-x-toggle,#symmetry-custom-y-toggle,' +
+        '#symmetry-custom-point-toggle,#symmetry-check-toggle').on('change',
+        eventHandler_updateSymmetry);
+    $('#symmetry-custom-x-value,#symmetry-custom-y-value,' +
+        '#symmetry-custom-point-x,#symmetry-custom-point-y').on('input change', function() {
+        if(this.value !== '' && isFinite(Number(this.value))) eventHandler_updateSymmetry();
+    }).on('blur', function() {
+        if(this.value === '' || !isFinite(Number(this.value))) this.value = '0';
+    });
+    $('#symmetry-menu-toggle').on('click', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var menu = $('#symmetry-menu');
+        var open = !menu.is(':visible');
+        menu.toggle(open);
+        $(this).attr('aria-expanded', open ? 'true' : 'false');
+    });
+    $(document).on('mousedown', function(event) {
+        if(!$(event.target).closest('#symmetry-dropdown').length) {
+            $('#symmetry-menu').hide();
+            $('#symmetry-menu-toggle').attr('aria-expanded', 'false');
+        }
     });
     $('#map_settings').on('input change', function() {
         xml_settings = this.value.split('\n').filter(function(s) {
@@ -996,6 +1133,7 @@ function eventHandler_init() {
 
     $(".toolbar-toolZone-death").mouseup(function(e) {
         if(!vectron_ensureToolConnected("zone")) return;
+        if(zoneTool_lockedType !== null) return;
         zoneTool_type = 0;
         zoneTool_guide();
         zoneTool_updateSettings();
@@ -1006,6 +1144,7 @@ function eventHandler_init() {
 
     $(".toolbar-toolZone-win").mouseup(function(e) {
         if(!vectron_ensureToolConnected("zone")) return;
+        if(zoneTool_lockedType !== null) return;
         zoneTool_type = 1;
         zoneTool_guide();
         zoneTool_updateSettings();
@@ -1016,6 +1155,7 @@ function eventHandler_init() {
 
     $(".toolbar-toolZone-health").mouseup(function(e) {
         if(!vectron_ensureToolConnected("zone")) return;
+        if(zoneTool_lockedType !== null) return;
         zoneTool_type = 3;
         zoneTool_guide();
         zoneTool_updateSettings();
@@ -1029,6 +1169,11 @@ function eventHandler_init() {
         e.stopPropagation();
         var type = parseInt($(this).data("type"));
         if(!vectron_ensureToolConnected("zone")) return;
+        if(zoneTool_lockedType !== null) {
+            gui_writeLog("Moving-zone instances must keep the group's " +
+                zoneTool_typeArray[zoneTool_lockedType][0] + " type.");
+            return;
+        }
         zoneTool_type = type;
         zoneTool_guide();
         zoneTool_updateSettings();
@@ -1193,6 +1338,12 @@ function eventHandler_init() {
         gui_writeLog('Ramp Tool Connected.');
         $("#zones-menu").hide();
     });
+    $(".toolbar-toolBillboard").mouseup(function(e) {
+        e.preventDefault();
+        vectron_connectTool("billboard");
+        gui_writeLog("Billboard Tool Connected.");
+        $("#zones-menu").hide();
+    });
     $(".toolbar-toolFloor").mouseup(function(e) {
         e.preventDefault();
         vectron_connectTool("floor");
@@ -1201,6 +1352,7 @@ function eventHandler_init() {
     });
 
     $(document).on("click", "#ramp-tool-cancel", rampTool_cancelPlacement);
+    $(document).on("click", "#billboard-tool-cancel", billboardTool_reset);
     $(document).on("click", "#floor-tool-finish", floorTool_finish);
     $(document).on("click", "#floor-tool-cancel", floorTool_cancel);
 
@@ -1341,38 +1493,23 @@ function eventHandler_init() {
         $("#zones-menu").hide();
     });
 
-    // Code Viewer. The full-map tab follows the format that was opened: native
-    // maps are editable JSON, while an explicitly imported legacy map remains
-    // editable XML for that active editing session. Selection replacement is
-    // intentionally an XML fragment because the object importer supports
-    // lossless, undoable fragment replacement.
-    function xmlEditor_indentLines(str, prefix) {
-        return str.split('\n').map(function(line) { return prefix + line; }).join('\n');
-    }
+    // Code Viewer. Legacy imports are converted before reaching this window,
+    // so full maps and selections are always edited as canonical .neomap.json.
 
     function xmlEditor_getFullSource() {
         var map = eventHandler_getExportMap();
-        if(codeViewer_sourceFormat === "legacy-xml") {
-            return codeViewer_formatXmlText(armamap_toCompatibilityXml(map.document));
-        }
         return codeViewer_formatJsonText(map.text);
     }
 
-    function xmlEditor_getSelectedXML() {
-        var objs = selectTool_selectedObjs;
-        var xml = '<Field>\n';
-        for (var i = 0; i < objs.length; i++) {
-            xml += xmlEditor_indentLines(objs[i].getXML(), '  ') + '\n';
-        }
-        xml += '</Field>';
-        return codeViewer_formatXmlText(xml);
+    function xmlEditor_getSelectedSource() {
+        return codeViewer_formatJsonText(
+            eventHandler_getExportMap(selectTool_selectedObjs.slice()).text);
     }
 
     function xmlEditor_updateFormatLabel() {
-        var label;
-        if(xmlEditor_mode === "selected") label = "Selection XML";
-        else label = codeViewer_sourceFormat === "legacy-xml" ? "Legacy XML" : ".armamap JSON";
-        $("#code-viewer-format").text(label);
+        $("#code-viewer-format").text(
+            xmlEditor_mode === "selected" ?
+                "Selection .neomap.json JSON" : ".neomap.json JSON");
     }
 
     function xmlEditor_captureMapState() {
@@ -1450,15 +1587,20 @@ function eventHandler_init() {
     var xmlEditor_mode = 'full'; // 'full' or 'selected'
     var xmlEditor_selectedSnapshot = [];
 
+    function xmlEditor_setContent(content) {
+        $('#xml-editor-content').val(content);
+        codeViewer_updateFindStatus();
+    }
+
     function xmlEditor_switchTab(mode) {
         xmlEditor_mode = mode;
         xmlEditor_selectedSnapshot = selectTool_selectedObjs.slice();
         if (mode === 'selected' && selectTool_selectedObjs.length > 0) {
-            $('#xml-editor-content').val(xmlEditor_getSelectedXML());
+            xmlEditor_setContent(xmlEditor_getSelectedSource());
             $('#xml-tab-sel-count').text('(' + selectTool_selectedObjs.length + ')');
         } else {
             xmlEditor_mode = 'full';
-            $('#xml-editor-content').val(xmlEditor_getFullSource());
+            xmlEditor_setContent(xmlEditor_getFullSource());
         }
         $('#xml-editor-tabs li').removeClass('active');
         $('#xml-tab-' + xmlEditor_mode).addClass('active');
@@ -1504,13 +1646,14 @@ function eventHandler_init() {
             // On selection tab: always stay on it, just update content
             if (hasSelected) {
                 xmlEditor_selectedSnapshot = selectTool_selectedObjs.slice();
-                $('#xml-editor-content').val(xmlEditor_getSelectedXML());
+                xmlEditor_setContent(xmlEditor_getSelectedSource());
                 $('#xml-tab-sel-count').text('(' + selectTool_selectedObjs.length + ')');
                 $('#xml-tab-selected').removeClass('disabled');
             } else {
-                // Selection cleared while on selection tab — keep tab, show empty placeholder
+                // Keep a valid canonical selection document visible while the
+                // disabled tab waits for another selected object.
                 xmlEditor_selectedSnapshot = [];
-                $('#xml-editor-content').val('<!-- No objects selected -->');
+                xmlEditor_setContent(xmlEditor_getSelectedSource());
                 $('#xml-tab-sel-count').text('');
                 $('#xml-tab-selected').addClass('disabled');
             }
@@ -1525,64 +1668,46 @@ function eventHandler_init() {
         }
     };
 
-    function xmlEditor_validateXML(content, isFragment) {
-        // Use jQuery's parseXML which throws on invalid XML.
-        // For fragments, wrap in a neutral root so multiple top-level elements are accepted.
-        try {
-            if(isFragment) {
-                $.parseXML('<VectronRoot>' + content + '</VectronRoot>');
-            } else {
-                $.parseXML(content);
-            }
-            return false; // valid
-        } catch(e) {
-            return true; // invalid
-        }
-    }
-
-    function xmlEditor_parseFullSource(content) {
-        if(codeViewer_sourceFormat === "armamap") {
-            var nativeDocument = JSON.parse(content);
-            // Applying code is an intentional edit. Generate its new revision
-            // before running the normal import verifier; dropped/imported files
-            // still arrive through armamap_process and must match as authored.
-            armamap_applyRevision(nativeDocument);
-            // Conversion performs the same canonical field validation used by
-            // import before any current map state is replaced.
-            return {
-                document:nativeDocument,
-                compatibilityXml:armamap_toCompatibilityXml(nativeDocument)
-            };
-        }
-        $.parseXML(content);
-        return content;
+    function xmlEditor_parseArmamapSource(content) {
+        var nativeDocument = JSON.parse(content);
+        // Applying code is an intentional edit. Generate its new revision
+        // before running the normal import verifier; dropped/imported files
+        // still arrive through armamap_process and must match as authored.
+        armamap_applyRevision(nativeDocument);
+        // Conversion performs the same canonical field validation used by
+        // import before any current map state is replaced.
+        return {
+            document:nativeDocument,
+            compatibilityXml:armamap_toCompatibilityXml(nativeDocument)
+        };
     }
 
     function xmlEditor_apply() {
         var content = $('#xml-editor-content').val();
         var errDiv = document.getElementById('xml-editor-error');
 
-        var isFragment = (xmlEditor_mode === 'selected');
-        var parsedFullSource = null;
-        if(isFragment) {
-            if(!xmlEditor_selectedSnapshot.length) {
-                errDiv.textContent = "Select at least one map object before applying selection code.";
-                errDiv.style.display = '';
-                return;
-            }
-            if(xmlEditor_validateXML(content, true)) {
-                errDiv.textContent = "Invalid selection XML: please check your syntax and try again.";
-                errDiv.style.display = '';
-                return;
-            }
-        } else {
-            try {
-                parsedFullSource = xmlEditor_parseFullSource(content);
-            } catch(error) {
-                errDiv.textContent = codeViewer_sourceFormat === "armamap" ?
-                    "Invalid .armamap JSON: check the syntax and map values." :
-                    "Invalid legacy XML: please check your syntax and try again.";
-                errDiv.style.display = '';
+        var isSelection = (xmlEditor_mode === 'selected');
+        if(isSelection && !xmlEditor_selectedSnapshot.length) {
+            errDiv.textContent = "Select at least one map object before applying selection code.";
+            errDiv.style.display = 'block';
+            return;
+        }
+        var parsedSource;
+        try {
+            parsedSource = xmlEditor_parseArmamapSource(content);
+        } catch(error) {
+            errDiv.textContent = "Invalid .neomap.json: check the syntax and map values.";
+            errDiv.style.display = 'block';
+            return;
+        }
+        if(isSelection) {
+            var expectedSelectionDocument =
+                eventHandler_getExportMap(xmlEditor_selectedSnapshot.slice()).document;
+            if(!codeViewer_selectionEnvelopeMatches(
+                parsedSource.document, expectedSelectionDocument)) {
+                errDiv.textContent = "Selection code can only change selected objects. " +
+                    "Use Full Map to edit metadata, axes, levels, settings, or validation.";
+                errDiv.style.display = 'block';
                 return;
             }
         }
@@ -1601,7 +1726,7 @@ function eventHandler_init() {
                 });
                 selectTool_selectedObjs = [];
                 var replacementStart = aamap_objects.length;
-                xml_process_piece(content);
+                codeViewer_processCanonicalSelection(parsedSource.compatibilityXml);
                 var replacements = aamap_objects.slice(replacementStart);
                 replacements.forEach(function(object) { object.isSelected = true; });
                 selectTool_selectedObjs = replacements.slice();
@@ -1610,18 +1735,14 @@ function eventHandler_init() {
             } else {
                 vectron_forceSelectTool();
                 aamap_objects = [];
-                if(codeViewer_sourceFormat === "armamap") {
-                    armamap_process(parsedFullSource.document, true,
-                        parsedFullSource.compatibilityXml);
-                } else {
-                    xml_process(parsedFullSource, true);
-                }
+                armamap_process(parsedSource.document, true,
+                    parsedSource.compatibilityXml);
                 vectron_render();
             }
         } catch(error) {
             xmlEditor_restoreMapState(oldState);
             errDiv.textContent = "The code could not be applied because it contains invalid map data.";
-            errDiv.style.display = '';
+            errDiv.style.display = 'block';
             return;
         }
 
@@ -1629,6 +1750,13 @@ function eventHandler_init() {
             zoneTool_syncCheckpointNumberForAvailability(aamap_objects);
         }
 
+        // Code edits change the revisioned map. Clear course validation before
+        // capturing redo so redo cannot resurrect a stale proof or medal time.
+        xml_invalidateAuthorTime();
+        // Invalidation changes revisioned settings/validation, and selection
+        // replacement does not otherwise import a map-level revision. Stamp
+        // the complete post-Apply model before saving it for redo.
+        eventHandler_getExportMap();
         var newState = xmlEditor_captureMapState();
 
         // Record the code edit as an undoable action.
@@ -1647,17 +1775,136 @@ function eventHandler_init() {
         // importer is immediately visible in the same tab.
         if(xmlEditor_mode === "selected" && selectTool_selectedObjs.length) {
             xmlEditor_selectedSnapshot = selectTool_selectedObjs.slice();
-            $("#xml-editor-content").val(xmlEditor_getSelectedXML());
+            xmlEditor_setContent(xmlEditor_getSelectedSource());
             $("#xml-tab-sel-count").text("(" + selectTool_selectedObjs.length + ")");
         } else {
             xmlEditor_mode = "full";
-            $("#xml-editor-content").val(xmlEditor_getFullSource());
+            xmlEditor_setContent(xmlEditor_getFullSource());
             $("#xml-editor-tabs li").removeClass("active");
             $("#xml-tab-full").addClass("active");
         }
         xmlEditor_updateFormatLabel();
         $("#xml-editor-overlay").addClass("visible");
     }
+
+    function codeViewer_matches() {
+        return codeViewer_findMatches($('#xml-editor-content').val(),
+            $('#code-viewer-find').val(), $('#code-viewer-match-case').is(':checked'));
+    }
+
+    function codeViewer_selectedMatchIndex(matches) {
+        var editor = document.getElementById('xml-editor-content');
+        if(!editor) return -1;
+        for(var index = 0; index < matches.length; index++) {
+            if(matches[index].start === editor.selectionStart &&
+                matches[index].end === editor.selectionEnd) return index;
+        }
+        return -1;
+    }
+
+    function codeViewer_updateFindStatus() {
+        var matches = codeViewer_matches();
+        var current = codeViewer_selectedMatchIndex(matches);
+        $('#code-viewer-find-count').text(current >= 0 ?
+            (current + 1) + ' / ' + matches.length :
+            matches.length + (matches.length === 1 ? ' result' : ' results'));
+        return matches;
+    }
+
+    function codeViewer_find(direction) {
+        direction = direction < 0 ? -1 : 1;
+        var editor = document.getElementById('xml-editor-content');
+        var matches = codeViewer_matches();
+        if(!editor || !matches.length) {
+            codeViewer_updateFindStatus();
+            return false;
+        }
+        var selected = codeViewer_selectedMatchIndex(matches);
+        var nextIndex = -1;
+        if(selected >= 0) {
+            nextIndex = (selected + direction + matches.length) % matches.length;
+        } else if(direction > 0) {
+            for(var index = 0; index < matches.length; index++) {
+                if(matches[index].start >= editor.selectionEnd) { nextIndex = index; break; }
+            }
+            if(nextIndex < 0) nextIndex = 0;
+        } else {
+            for(var reverse = matches.length - 1; reverse >= 0; reverse--) {
+                if(matches[reverse].end <= editor.selectionStart) { nextIndex = reverse; break; }
+            }
+            if(nextIndex < 0) nextIndex = matches.length - 1;
+        }
+        editor.focus();
+        editor.setSelectionRange(matches[nextIndex].start, matches[nextIndex].end);
+        codeViewer_updateFindStatus();
+        return true;
+    }
+
+    function codeViewer_replaceOne() {
+        var editor = document.getElementById('xml-editor-content');
+        var query = $('#code-viewer-find').val();
+        if(!editor || !query.length) return false;
+        var matches = codeViewer_matches();
+        var selected = codeViewer_selectedMatchIndex(matches);
+        if(selected < 0) {
+            if(!codeViewer_find(1)) return false;
+            matches = codeViewer_matches();
+            selected = codeViewer_selectedMatchIndex(matches);
+        }
+        if(selected < 0) return false;
+        var replacement = $('#code-viewer-replace').val();
+        var start = matches[selected].start;
+        var source = editor.value;
+        editor.value = source.slice(0, start) + replacement + source.slice(matches[selected].end);
+        editor.setSelectionRange(start + replacement.length, start + replacement.length);
+        codeViewer_updateFindStatus();
+        codeViewer_find(1);
+        return true;
+    }
+
+    function codeViewer_replaceAll() {
+        var editor = document.getElementById('xml-editor-content');
+        if(!editor) return 0;
+        var result = codeViewer_replaceAllText(editor.value, $('#code-viewer-find').val(),
+            $('#code-viewer-replace').val(), $('#code-viewer-match-case').is(':checked'));
+        editor.value = result.text;
+        editor.setSelectionRange(0, 0);
+        codeViewer_updateFindStatus();
+        if(result.count) gui_toast('Replaced ' + result.count +
+            (result.count === 1 ? ' match.' : ' matches.'));
+        return result.count;
+    }
+
+    $('#code-viewer-find,#code-viewer-match-case').on('input change',
+        codeViewer_updateFindStatus);
+    $('#xml-editor-content').on('input keyup click', codeViewer_updateFindStatus);
+    $('#code-viewer-find-next').on('click', function() { codeViewer_find(1); });
+    $('#code-viewer-find-previous').on('click', function() { codeViewer_find(-1); });
+    $('#code-viewer-replace-one').on('click', codeViewer_replaceOne);
+    $('#code-viewer-replace-all').on('click', codeViewer_replaceAll);
+    $('#code-viewer-find').on('keydown', function(event) {
+        if(event.key === 'Enter') {
+            event.preventDefault();
+            codeViewer_find(event.shiftKey ? -1 : 1);
+        }
+    });
+    $('#code-viewer-replace').on('keydown', function(event) {
+        if(event.key === 'Enter') {
+            event.preventDefault();
+            codeViewer_replaceOne();
+        }
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if(!$('#xml-editor-overlay').hasClass('visible') ||
+            !(event.ctrlKey || event.metaKey) || event.altKey ||
+            String(event.key).toLowerCase() !== 'f') return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var findInput = document.getElementById('code-viewer-find');
+        findInput.focus();
+        findInput.select();
+    }, true);
 
     $(".toolbar-toolXml").mouseup(function(e) {
         var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
@@ -1917,6 +2164,8 @@ function eventHandler_init() {
                     else spawnTool_complete();
                 } else if(vectron_currentTool == "ramp") {
                     rampTool_click();
+                } else if(vectron_currentTool == "billboard") {
+                    billboardTool_click();
                 } else if(vectron_currentTool == "floor") {
                     floorTool_click();
                 } else if(vectron_currentTool == "select" && vectron_toolActive) {
@@ -1953,7 +2202,8 @@ function eventHandler_init() {
         if(aamap_active && vectron_currentTool == "wall" && vectron_toolActive) {
             wallTool_complete();
         } else if(aamap_active && vectron_currentTool == "zone" &&
-            ((zoneTool_stage === "shape" && $("#dZoneShape").val() === "polygon") ||
+            (((zoneTool_stage === "shape" || zoneTool_stage === "movement-shape") &&
+                $("#dZoneShape").val() === "polygon") ||
                 zoneTool_stage === "movement-path")) {
             zoneTool_finishCurrent();
         } else if(aamap_active && vectron_currentTool == "floor" && vectron_toolActive) {
@@ -2021,6 +2271,8 @@ function eventHandler_init() {
             zoneTool_guide();
         } else if(vectron_currentTool == "ramp") {
             rampTool_guide();
+        } else if(vectron_currentTool == "billboard") {
+            billboardTool_guide();
         } else if(vectron_currentTool == "floor") {
             floorTool_renderCurrent();
         } else if(vectron_currentTool == "spawn") {
@@ -2208,6 +2460,10 @@ function eventHandler_init() {
 
         if(vectron_currentTool == "zone") {
             if(!vectron_ensureToolConnected("zone")) return false;
+            if(zoneTool_lockedType !== null) {
+                gui_writeLog("Finish or cancel the moving-zone group before changing its type.");
+                return false;
+            }
             var availableTypes = ZONE_TOOL_TYPES;
             var currentIndex = availableTypes.indexOf(zoneTool_type);
             zoneTool_type = availableTypes[(currentIndex + 1) % availableTypes.length];
@@ -2263,6 +2519,10 @@ function eventHandler_init() {
         }
         if(vectron_currentTool == "ramp" && vectron_toolActive) {
             rampTool_cancelPlacement();
+            return false;
+        }
+        if(vectron_currentTool == "billboard" && vectron_toolActive) {
+            billboardTool_reset();
             return false;
         }
         if(vectron_currentTool == "floor" && vectron_toolActive) {
@@ -2434,7 +2694,7 @@ function eventHandler_init() {
         aamap_levelVisible = [true];
         aamap_levelExists = [true];
         xml_level_heights = [];
-        codeViewer_setSourceFormat("armamap");
+        codeViewer_setSourceFormat("neomap-json");
         gui_fillInput();
         $("#map_axes_forced").prop("checked", false);
         aamap_updateLayerControls();

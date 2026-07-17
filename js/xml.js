@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Neotron.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -429,7 +429,7 @@ function xml_process(xml, suppressHistoryClear) {
             occupiedLevels[value] = true;
         }
     });
-    $(parsed).find("Spawn[level],Zone[level],Wall[level],Floor[level]").each(function() {
+    $(parsed).find("Spawn[level],Zone[level],Wall[level],Floor[level],Billboard[level]").each(function() {
         var value = Number($(this).attr("level"));
         if(isFinite(value) && value >= 0 && Math.floor(value) === value) {
             highestLevel = Math.max(highestLevel, value);
@@ -541,7 +541,7 @@ function xml_createRampFromData(points, width, fromLevel, toLevel) {
     if(points.length === 4) {
         return new Ramp(points[0], points[1], points[2], points[3], fromLevel, toLevel);
     }
-    // Compatibility conversion for Vectron/Arma Racing maps authored before
+    // Compatibility conversion for Vectron/Neotron maps authored before
     // four-corner ramps: centre-line endpoints plus width become two edges.
     return new Ramp(points[0], points[1], width, fromLevel, toLevel);
 }
@@ -553,7 +553,7 @@ function xml_process_piece(xml, defaultLevel)
     var supportedZoneTypes = {death:true, win:true, rubber:true, health:true,
         checkpoint:true, speed:true, teleport:true, setting:true};
 
-    $(xml).find("Spawn,Zone,Wall,Ramp,Floor").each(function() {
+    $(xml).find("Spawn,Zone,Wall,Ramp,Floor,Billboard").each(function() {
         var tag = this.tagName.toLowerCase();
         var element = $(this);
 
@@ -695,6 +695,50 @@ function xml_process_piece(xml, defaultLevel)
             return;
         }
 
+        if(tag === "billboard") {
+            if(typeof Billboard === "undefined") {
+                gui_writeLog("Skipped Billboard because the billboard tool did not load.");
+                return;
+            }
+            var billboardLevel = xml_parsePlacementLevel(this, defaultLevel);
+            if(billboardLevel === null) return;
+            var billboardPoints = [];
+            element.children("Point").each(function() {
+                billboardPoints.push({
+                    x:Number($(this).attr("x")),
+                    y:Number($(this).attr("y"))
+                });
+            });
+            var billboardHeight = Number(element.attr("height"));
+            var billboardUrl = String(element.attr("url") || "").trim();
+            var billboardFacing = String(element.attr("facing") || "right").toLowerCase();
+            var rawBillboardDualSided = element.attr("dual_sided");
+            var billboardDualSided = rawBillboardDualSided === undefined ? true :
+                String(rawBillboardDualSided).toLowerCase() === "true";
+            var validBillboard = billboardPoints.length === 2 &&
+                billboardPoints.every(function(point) {
+                    return isFinite(point.x) && isFinite(point.y);
+                }) && (billboardPoints[0].x !== billboardPoints[1].x ||
+                    billboardPoints[0].y !== billboardPoints[1].y) &&
+                isFinite(billboardHeight) && billboardHeight >= 0 &&
+                billboard_isExternalUrl(billboardUrl) &&
+                ["left","right"].indexOf(billboardFacing) >= 0 &&
+                (rawBillboardDualSided === undefined ||
+                    ["true","false"].indexOf(String(rawBillboardDualSided).toLowerCase()) >= 0);
+            if(!validBillboard) {
+                gui_writeLog("Skipped Billboard with invalid endpoints, height, URL, facing, or dual-sided value.");
+                return;
+            }
+            var billboard = new Billboard(billboardPoints[0], billboardPoints[1],
+                billboardHeight, billboardUrl, billboardLevel,
+                billboardFacing, billboardDualSided);
+            aamap_add(billboard);
+            billboardPoints.forEach(function(point) {
+                ptsx.push(point.x); ptsy.push(point.y);
+            });
+            return;
+        }
+
         var zoneLevel = xml_parsePlacementLevel(this, defaultLevel);
         if(zoneLevel === null) return;
         var effect = xml_zoneKind(element.attr("kind") || element.attr("type") || element.attr("effect"));
@@ -716,6 +760,9 @@ function xml_process_piece(xml, defaultLevel)
         var details = {
             zoneName:effect,
             shapeType:circle.length ? "circle" : (rectangle.length ? "rectangle" : (polygon.length ? "polygon" : "line")),
+            showIcon:["false","0"].indexOf(String(
+                element.attr("show_icon") === undefined ? "true" :
+                    element.attr("show_icon")).toLowerCase()) < 0,
             trigger:element.attr("trigger") || "",
             activeStartTick:element.attr("start_tick"),
             activeEndTick:element.attr("end_tick"),
@@ -745,24 +792,59 @@ function xml_process_piece(xml, defaultLevel)
             if(rawMovementMode === "restart") rawMovementMode = "instant";
             if(rawMovementMode === "loop") rawMovementMode = "circular";
             details.movementMode = rawMovementMode;
-            var rawSpawnAtVertices = String(
-                movementPathElement.attr("spawn_at_vertices") || "false").toLowerCase();
-            details.spawnAtVertices = rawSpawnAtVertices === "true" ||
+            var rawSpawnAttribute = movementPathElement.attr("spawn_at_vertices");
+            var rawSpawnAtVertices = String(rawSpawnAttribute || "false").toLowerCase();
+            var legacySpawnAtVertices = rawSpawnAtVertices === "true" ||
                 rawSpawnAtVertices === "1";
-            details.movementPath = [];
             var rawLoop = String(movementPathElement.attr("loop") || "true").toLowerCase();
             var invalidMovementPath = !(details.movementSpeed > 0) ||
                 !isFinite(details.rotationSpeed) ||
                 ["circular", "ping_pong", "instant"].indexOf(details.movementMode) < 0 ||
                 ["true", "false", "1", "0"].indexOf(rawLoop) < 0 ||
                 ["true", "false", "1", "0"].indexOf(rawSpawnAtVertices) < 0;
+            var rawMovementInstances = movementPathElement.attr("instances");
+            details.movementInstances = [];
+            if(rawMovementInstances !== undefined) {
+                if(rawSpawnAttribute !== undefined) invalidMovementPath = true;
+                String(rawMovementInstances).split(",").forEach(function(value) {
+                    var index = Number(String(value).trim());
+                    if(!isFinite(index) || index <= 0 || Math.floor(index) !== index ||
+                        details.movementInstances.indexOf(index) >= 0) {
+                        invalidMovementPath = true;
+                    } else {
+                        details.movementInstances.push(index);
+                    }
+                });
+            }
+            details.movementPath = [];
+            details.movementPulseRadii = [];
             movementPathElement.children("Point").each(function() {
                 var movementPoint = {x:Number($(this).attr("x")), y:Number($(this).attr("y"))};
                 if(!isFinite(movementPoint.x) || !isFinite(movementPoint.y)) {
                     invalidMovementPath = true;
                 }
                 details.movementPath.push(movementPoint);
+                var rawRadius = $(this).attr("radius");
+                var pulseRadius = rawRadius === undefined ? null : Number(rawRadius);
+                if(pulseRadius !== null && (!isFinite(pulseRadius) || pulseRadius <= 0)) {
+                    invalidMovementPath = true;
+                }
+                details.movementPulseRadii.push(pulseRadius);
             });
+            if(legacySpawnAtVertices) {
+                details.movementInstances = details.movementPath.slice(1)
+                    .map(function(_, index) { return index + 1; });
+            }
+            if(details.movementInstances.some(function(index) {
+                return index >= details.movementPath.length;
+            })) invalidMovementPath = true;
+            var pulseCount = details.movementPulseRadii.filter(function(radius) {
+                return radius !== null;
+            }).length;
+            if(pulseCount && (pulseCount < 2 || details.shapeType !== "circle")) {
+                invalidMovementPath = true;
+            }
+            if(!pulseCount) details.movementPulseRadii = [];
             if(details.movementPath.length < 2 ||
                 details.movementPath.every(function(point) {
                     return point.x === details.movementPath[0].x &&
@@ -801,14 +883,25 @@ function xml_process_piece(xml, defaultLevel)
                 element.attr("duration_ticks") !== undefined ?
                     element.attr("duration_ticks") : element.attr("duration"), 90);
         } else if(effect === "rubber") {
-            // Canonical maps use health rather than the C++ rubber resource.
-            // The effects have opposite sign conventions, so migration
-            // negates every explicit/implicit legacy value.
-            details.zoneName = "health";
-            details.options.delta = -xml_number(element.attr("delta") !== undefined ?
-                element.attr("delta") : element.attr("value"), 500);
-            effect = "health";
-            gui_writeLog("Converted legacy rubber zone to a health zone and inverted its value.");
+            var rawRubberDelta = element.attr("delta") !== undefined ?
+                element.attr("delta") : element.attr("value");
+            var rawRubberDuration = element.attr("duration_ticks") !== undefined ?
+                element.attr("duration_ticks") : element.attr("duration");
+            details.options.delta = rawRubberDelta === undefined ? 0 :
+                Number(rawRubberDelta);
+            details.options.duration_ticks = rawRubberDuration === undefined ? 0 :
+                Number(rawRubberDuration);
+            if(!isFinite(details.options.delta) ||
+                Math.abs(details.options.delta) > Number.MAX_SAFE_INTEGER ||
+                Math.floor(details.options.delta) !== details.options.delta ||
+                !isFinite(details.options.duration_ticks) ||
+                details.options.duration_ticks < 0 ||
+                details.options.duration_ticks > Number.MAX_SAFE_INTEGER ||
+                Math.floor(details.options.duration_ticks) !==
+                    details.options.duration_ticks) {
+                gui_writeLog("Skipped rubber zone with an invalid delta or duration.");
+                return;
+            }
         } else if(effect === "health") {
             details.options.delta = Number(element.attr("delta") !== undefined ?
                 element.attr("delta") : element.attr("value"));
@@ -958,7 +1051,7 @@ function xml_handleFile(file) {
     reader.onload = function(evt) {
        if(thisReadId !== xml_latest_read_id) return;
        var parsed;
-       var isNative = String(file.name || "").toLowerCase().endsWith(".armamap") ||
+       var isNative = String(file.name || "").toLowerCase().endsWith(".neomap.json") ||
            String(this.result || "").trim().charAt(0) === "{";
        try {
            parsed = isNative ?
@@ -969,7 +1062,7 @@ function xml_handleFile(file) {
            return;
        }
        if(typeof codeViewer_setSourceFormat === "function") {
-           codeViewer_setSourceFormat(isNative ? "armamap" : "legacy-xml");
+           codeViewer_setSourceFormat("neomap-json");
        }
        vectron_forceSelectTool();
        // The one render at the end clears the Raphael paper in a single DOM

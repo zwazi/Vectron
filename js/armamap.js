@@ -1,9 +1,11 @@
-/* Canonical Arma Racing map format (.armamap, UTF-8 JSON). */
+/* Canonical Neotron map format (.neomap.json, UTF-8 JSON). */
 
-var ARMAMAP_FORMAT = "arma-racing-map";
-var ARMAMAP_FORMAT_VERSION = 1;
-var ARMAMAP_REVISION_PREFIX = "armamap-revision-v1:";
-var ARMAMAP_REVISION_DOMAIN = "ARMA-RACING-MAP-REVISION-V1\0";
+var NEOMAP_FORMAT = "neotron-map";
+var NEOMAP_FORMAT_VERSION = 1;
+var NEOMAP_REVISION_PREFIX = "neomap-revision-v1:";
+var NEOMAP_REVISION_DOMAIN = "NEOTRON-MAP-REVISION-V1\0";
+var NEOMAP_MAX_BILLBOARDS = 256;
+var NEOMAP_MAX_BILLBOARD_URL_CHARACTERS = 2048;
 
 function armamap_parseTags(value) {
     var sourceIsArray = Array.isArray(value);
@@ -133,20 +135,32 @@ function armamap_revisionProjection(document) {
 }
 
 function armamap_computeRevision(document) {
-    var payload = ARMAMAP_REVISION_DOMAIN +
+    var payload = NEOMAP_REVISION_DOMAIN +
         armamap_stableJson(armamap_revisionProjection(document));
-    return ARMAMAP_REVISION_PREFIX +
+    return NEOMAP_REVISION_PREFIX +
         xml_bytesToHex(xml_sha256Fallback(armamap_utf8(payload)));
 }
 
 function armamap_applyRevision(document) {
-    if(!document.metadata || typeof document.metadata !== "object") document.metadata = {};
+    if(!document || typeof document !== "object" || Array.isArray(document)) {
+        throw new Error("map document must be an object");
+    }
+    if(document.metadata === undefined) document.metadata = {};
+    else if(!document.metadata || typeof document.metadata !== "object" ||
+        Array.isArray(document.metadata)) {
+        throw new Error("metadata must be an object");
+    }
     if(document.metadata.tags === undefined) {
         var legacyTags = document.metadata.category;
         if(legacyTags === undefined) legacyTags = document.metadata.catregory;
+        if(legacyTags !== undefined && typeof legacyTags !== "string") {
+            throw new Error("legacy metadata category must be a string");
+        }
         document.metadata.tags = armamap_parseTags(legacyTags);
         delete document.metadata.category;
         delete document.metadata.catregory;
+    } else if(!Array.isArray(document.metadata.tags)) {
+        throw new Error("metadata.tags must be an array");
     }
     document.metadata.revision = armamap_computeRevision(document);
     return document.metadata.revision;
@@ -157,27 +171,85 @@ function armamap_verifyRevision(document) {
     var revision = metadata && metadata.revision;
     if(revision === undefined || revision === null || revision === "") return true;
     revision = String(revision);
-    if(revision.indexOf(ARMAMAP_REVISION_PREFIX) !== 0) {
+    if(revision.indexOf(NEOMAP_REVISION_PREFIX) !== 0) {
         // Numeric/free-form revisions belong to transitional pre-hash files.
-        if(revision.indexOf("armamap-revision-") === 0) {
-            throw new Error("unsupported .armamap revision algorithm");
+        if(revision.indexOf("neomap-revision-") === 0) {
+            throw new Error("unsupported .neomap.json revision algorithm");
         }
         return true;
     }
-    if(!/^armamap-revision-v1:[0-9a-f]{64}$/.test(revision)) {
-        throw new Error("malformed .armamap revision hash");
+    if(!/^neomap-revision-v1:[0-9a-f]{64}$/.test(revision)) {
+        throw new Error("malformed .neomap.json revision hash");
     }
     var expected = armamap_computeRevision(document);
     var difference = 0;
     for(var index = 0; index < expected.length; index++) {
         difference |= expected.charCodeAt(index) ^ revision.charCodeAt(index);
     }
-    if(difference !== 0) throw new Error(".armamap revision does not match its persisted content");
+    if(difference !== 0) {
+        throw new Error(".neomap.json revision does not match its persisted content");
+    }
     return true;
 }
 
 function armamap_round(value) {
     return Math.round(Number(value) * 1e6) / 1e6;
+}
+
+function armamap_assertFiniteNumber(value, label, minimum, maximum) {
+    if(typeof value !== "number" || !isFinite(value) ||
+        Math.abs(value) > Number.MAX_SAFE_INTEGER ||
+        (minimum !== undefined && value < minimum) ||
+        (maximum !== undefined && value > maximum)) {
+        throw new Error(label + " must be a finite number" +
+            (minimum !== undefined ? " greater than or equal to " + minimum : "") +
+            (maximum !== undefined ? " and no greater than " + maximum : ""));
+    }
+    return value;
+}
+
+function armamap_assertInteger(value, label, minimum, maximum) {
+    armamap_assertFiniteNumber(value, label, minimum, maximum);
+    if(Math.floor(value) !== value) throw new Error(label + " must be an integer");
+    return value;
+}
+
+function armamap_assertString(value, label, allowEmpty) {
+    if(typeof value !== "string" || (!allowEmpty && !value.length)) {
+        throw new Error(label + " must be " + (allowEmpty ? "a string" : "a nonempty string"));
+    }
+    return value;
+}
+
+function armamap_scalarText(value, label) {
+    if(typeof value === "string" || typeof value === "boolean") return String(value);
+    if(typeof value === "number") {
+        armamap_assertFiniteNumber(value, label);
+        return String(value);
+    }
+    throw new Error(label + " must be a string, finite number, or boolean");
+}
+
+function armamap_assertPoint(point, label, allowHeight) {
+    if(!Array.isArray(point) ||
+        (allowHeight ? point.length < 2 || point.length > 3 : point.length !== 2)) {
+        throw new Error(label + " must contain exactly " +
+            (allowHeight ? "two coordinates and an optional height" : "two coordinates"));
+    }
+    armamap_assertFiniteNumber(point[0], label + "[0]");
+    armamap_assertFiniteNumber(point[1], label + "[1]");
+    if(point.length === 3) armamap_assertFiniteNumber(point[2], label + "[2]", 0);
+    return point;
+}
+
+function armamap_assertPointList(points, label, minimum, allowHeight) {
+    if(!Array.isArray(points) || points.length < minimum) {
+        throw new Error(label + " must contain at least " + minimum + " points");
+    }
+    points.forEach(function(point, index) {
+        armamap_assertPoint(point, label + "[" + index + "]", allowHeight);
+    });
+    return points;
 }
 
 function armamap_point(point, height) {
@@ -223,14 +295,15 @@ function armamap_validation(validation) {
 }
 
 function armamap_nonzeroVector(vector, label) {
-    var x = Array.isArray(vector) ? Number(vector[0]) : NaN;
-    var y = Array.isArray(vector) ? Number(vector[1]) : NaN;
     if(!Array.isArray(vector) || vector.length !== 2 ||
-        !isFinite(x) || !isFinite(y) ||
-        (Math.round(x * 1000) === 0 && Math.round(y * 1000) === 0)) {
+        typeof vector[0] !== "number" || typeof vector[1] !== "number" ||
+        !isFinite(vector[0]) || !isFinite(vector[1]) ||
+        Math.abs(vector[0]) > Number.MAX_SAFE_INTEGER ||
+        Math.abs(vector[1]) > Number.MAX_SAFE_INTEGER ||
+        (Math.round(vector[0] * 1000) === 0 && Math.round(vector[1] * 1000) === 0)) {
         throw new Error(label + " must be a finite nonzero direction vector");
     }
-    return [x, y];
+    return [vector[0], vector[1]];
 }
 
 function armamap_cardinalDirection(direction, label) {
@@ -255,11 +328,13 @@ function armamap_assertFields(object, label, allowed) {
 
 function armamap_assertZoneFields(zone) {
     var common = {
-        type:true,level:true,shape:true,trigger:true,start_tick:true,end_tick:true,movement:true
+        type:true,level:true,shape:true,show_icon:true,trigger:true,start_tick:true,
+        end_tick:true,movement:true
     };
     var effectFields = {
         death:{}, win:{}, checkpoint:{order:true}, health:{delta:true},
-        speed:{delta_mps:true,duration_ticks:true}, setting:{setting:true,value:true},
+        speed:{delta_mps:true,duration_ticks:true},
+        rubber:{delta:true,duration_ticks:true}, setting:{setting:true,value:true},
         teleport:{destination:true,destination_level:true,direction:true}
     };
     var allowed = effectFields[zone.type] || {};
@@ -289,9 +364,8 @@ function armamap_shape(zone) {
 }
 
 function armamap_zone(zone) {
-    var canonicalType = zone.zoneName === "rubber" ? "health" : zone.zoneName;
-    var result = {type:canonicalType, level:aamap_normalizeLevel(zone.level, 0),
-        shape:armamap_shape(zone)};
+    var result = {type:zone.zoneName, level:aamap_normalizeLevel(zone.level, 0),
+        shape:armamap_shape(zone), show_icon:zone.showIcon !== false};
     if(zone.trigger) result.trigger = zone.trigger;
     if(zone.activeStartTick !== null && zone.activeEndTick !== null &&
         isFinite(Number(zone.activeStartTick)) && isFinite(Number(zone.activeEndTick))) {
@@ -310,7 +384,8 @@ function armamap_zone(zone) {
         result.delta_mps = Number(zone.options.delta_mps);
         result.duration_ticks = Number(zone.options.duration_ticks);
     } else if(zone.zoneName === "rubber") {
-        result.delta = -Number(zone.options.delta);
+        result.delta = Number(zone.options.delta);
+        result.duration_ticks = Number(zone.options.duration_ticks);
     } else if(zone.zoneName === "health") {
         result.delta = Number(zone.options.delta);
     } else if(zone.zoneName === "setting") {
@@ -342,18 +417,23 @@ function armamap_zone(zone) {
             speed:armamap_round(zone.movementSpeed),
             rotation:armamap_round(zone.rotationSpeed),
             mode:zone.movementMode || "circular",
-            spawn_at_vertices:!!zone.spawnAtVertices,
+            instances:(zone.movementInstances || []).map(Number),
             path:zone.movementPath.map(function(point) { return armamap_point(point); })
         };
+        if(zone.movementPulseRadii && zone.movementPulseRadii.length) {
+            result.movement.pulse_radii = zone.movementPulseRadii.map(function(radius) {
+                return radius === null || radius === undefined ? null : armamap_round(radius);
+            });
+        }
     }
     return result;
 }
 
-function armamap_build(name, author, tags, revision, axes, settings, authorPasswordHash) {
+function armamap_build(name, author, tags, revision, axes, settings, authorPasswordHash, objects) {
     var parsedTags = armamap_parseTags(tags);
     var document = {
-        format:ARMAMAP_FORMAT,
-        format_version:ARMAMAP_FORMAT_VERSION,
+        format:NEOMAP_FORMAT,
+        format_version:NEOMAP_FORMAT_VERSION,
         metadata:{name:name, author:author, tags:parsedTags.length ? parsedTags : ["racing"]},
         axes:$("#map_axes_forced").is(":checked") ?
             (Array.isArray(xml_axis_vectors) ? xml_axis_vectors.map(function(vector, index) {
@@ -363,7 +443,7 @@ function armamap_build(name, author, tags, revision, axes, settings, authorPassw
             }) : Number(axes)) : 8,
         levels:{count:aamap_levelCount(), gaps:[]},
         settings:armamap_settings(settings),
-        spawns:[], walls:[], floors:[], ramps:[], zones:[]
+        spawns:[], walls:[], floors:[], ramps:[], zones:[], billboards:[]
     };
     if(xml_isValidAuthorPasswordHash(authorPasswordHash)) {
         document.metadata.author_password_hash = authorPasswordHash;
@@ -374,7 +454,7 @@ function armamap_build(name, author, tags, revision, axes, settings, authorPassw
         var height = Number(xml_level_heights[gap]);
         document.levels.gaps.push(armamap_round(isFinite(height) && height > 0 ? height : 8));
     }
-    aamap_objects.forEach(function(object) {
+    (objects === undefined ? aamap_objects : objects).forEach(function(object) {
         if(object instanceof Spawn) {
             document.spawns.push({level:aamap_normalizeLevel(object.level, 0),
                 position:[armamap_round(object.x), armamap_round(object.y)],
@@ -406,14 +486,32 @@ function armamap_build(name, author, tags, revision, axes, settings, authorPassw
             document.ramps.push(nativeRamp);
         } else if(object instanceof Zone) {
             document.zones.push(armamap_zone(object));
+        } else if(typeof Billboard !== "undefined" && object instanceof Billboard) {
+            document.billboards.push({
+                level:aamap_normalizeLevel(object.level, 0),
+                start:armamap_point(object.start),
+                end:armamap_point(object.end),
+                height:armamap_round(object.height),
+                url:String(object.url),
+                facing:billboard_normalizeFacing(object.facing),
+                dual_sided:!!object.dualSided
+            });
         }
     });
     armamap_applyRevision(document);
+    var validationErrors = aamap_validateForExport(axes);
+    if(document.billboards.length > NEOMAP_MAX_BILLBOARDS) {
+        var billboardLimitError = "Maps may contain at most " +
+            NEOMAP_MAX_BILLBOARDS + " billboards.";
+        if(validationErrors.indexOf(billboardLimitError) < 0) {
+            validationErrors.push(billboardLimitError);
+        }
+    }
     return {
-        fileName:String(name || "map").replace(/[^a-z0-9._-]+/gi, "-") + ".armamap",
+        fileName:String(name || "map").replace(/[^a-z0-9._-]+/gi, "-") + ".neomap.json",
         text:JSON.stringify(document, null, 2) + "\n",
         document:document,
-        validationErrors:aamap_validateForExport(axes),
+        validationErrors:validationErrors,
         validationWarnings:aamap_warningsForExport()
     };
 }
@@ -424,15 +522,16 @@ function armamap_escape(value) {
         .replace(/"/g,"&quot;");
 }
 
-function armamap_xmlPoint(point) {
-    if(!Array.isArray(point) || point.length < 2) throw new Error("point must contain x and y");
+function armamap_xmlPoint(point, label, allowHeight) {
+    armamap_assertPoint(point, label || "point", !!allowHeight);
     var height = point.length > 2 ? ' height="' + armamap_escape(point[2]) + '"' : "";
     return '<Point x="' + armamap_escape(point[0]) + '" y="' +
         armamap_escape(point[1]) + '"' + height + '/>';
 }
 
-function armamap_shapeXml(shape) {
-    if(!shape || typeof shape !== "object") throw new Error("zone shape must be an object");
+function armamap_shapeXml(shape, label) {
+    label = label || "zone shape";
+    if(!shape || typeof shape !== "object") throw new Error(label + " must be an object");
     var fields = {
         line:["type","start","end","width"],
         rectangle:["type","min","max"],
@@ -440,30 +539,72 @@ function armamap_shapeXml(shape) {
         circle:["type","center","radius"]
     }[shape.type];
     if(!fields) throw new Error("unsupported zone shape " + shape.type);
-    armamap_assertFields(shape, "zone shape", fields);
-    if(shape.type === "line") return '<ShapeLine width="' + armamap_escape(shape.width) + '">' +
-        armamap_xmlPoint(shape.start) + armamap_xmlPoint(shape.end) + '</ShapeLine>';
-    if(shape.type === "rectangle") return '<ShapeRectangle minx="' + armamap_escape(shape.min[0]) +
+    armamap_assertFields(shape, label, fields);
+    if(shape.type === "line") {
+        armamap_assertPoint(shape.start, label + ".start", false);
+        armamap_assertPoint(shape.end, label + ".end", false);
+        armamap_assertFiniteNumber(shape.width, label + ".width", 0);
+        if(shape.start[0] === shape.end[0] && shape.start[1] === shape.end[1]) {
+            throw new Error(label + " line endpoints must be distinct");
+        }
+        return '<ShapeLine width="' + armamap_escape(shape.width) + '">' +
+            armamap_xmlPoint(shape.start, label + ".start") +
+            armamap_xmlPoint(shape.end, label + ".end") + '</ShapeLine>';
+    }
+    if(shape.type === "rectangle") {
+        armamap_assertPoint(shape.min, label + ".min", false);
+        armamap_assertPoint(shape.max, label + ".max", false);
+        if(shape.min[0] === shape.max[0] || shape.min[1] === shape.max[1]) {
+            throw new Error(label + " rectangle dimensions must be nonzero");
+        }
+        return '<ShapeRectangle minx="' + armamap_escape(shape.min[0]) +
         '" miny="' + armamap_escape(shape.min[1]) + '" maxx="' + armamap_escape(shape.max[0]) +
         '" maxy="' + armamap_escape(shape.max[1]) + '"/>';
-    if(shape.type === "polygon") return '<ShapePolygon scale="1"><Point x="0" y="0"/>' +
-        (shape.points || []).map(armamap_xmlPoint).join("") + '</ShapePolygon>';
-    if(shape.type === "circle") return '<ShapeCircle radius="' + armamap_escape(shape.radius) + '">' +
-        armamap_xmlPoint(shape.center) + '</ShapeCircle>';
+    }
+    if(shape.type === "polygon") {
+        armamap_assertPointList(shape.points, label + ".points", 3, false);
+        return '<ShapePolygon scale="1"><Point x="0" y="0"/>' +
+            shape.points.map(function(point, index) {
+                return armamap_xmlPoint(point, label + ".points[" + index + "]");
+            }).join("") + '</ShapePolygon>';
+    }
+    if(shape.type === "circle") {
+        armamap_assertPoint(shape.center, label + ".center", false);
+        armamap_assertFiniteNumber(shape.radius, label + ".radius", Number.MIN_VALUE);
+        return '<ShapeCircle radius="' + armamap_escape(shape.radius) + '">' +
+            armamap_xmlPoint(shape.center, label + ".center") + '</ShapeCircle>';
+    }
     throw new Error("unsupported zone shape " + shape.type);
 }
 
 function armamap_toCompatibilityXml(document) {
-    if(!document || document.format !== ARMAMAP_FORMAT ||
-        Number(document.format_version) !== ARMAMAP_FORMAT_VERSION) {
-        throw new Error("not a supported Arma Racing map");
+    if(!document || document.format !== NEOMAP_FORMAT ||
+        document.format_version !== NEOMAP_FORMAT_VERSION) {
+        throw new Error("not a supported Neotron map");
     }
     armamap_assertFields(document, "map document", ["format","format_version","metadata",
-        "axes","levels","settings","spawns","walls","floors","ramps","zones","validation"]);
+        "axes","levels","settings","spawns","walls","floors","ramps","zones",
+        "billboards","validation"]);
     armamap_verifyRevision(document);
-    var metadata = document.metadata || {};
+    var metadata = document.metadata === undefined ? {} : document.metadata;
     armamap_assertFields(metadata, "metadata", ["name","author","tags","category",
         "catregory","revision","author_password_hash"]);
+    ["name","author"].forEach(function(name) {
+        if(metadata[name] !== undefined) {
+            armamap_assertString(metadata[name], "metadata." + name, true);
+        }
+    });
+    if(metadata.revision !== undefined) {
+        armamap_assertString(metadata.revision, "metadata.revision", true);
+    }
+    if(metadata.tags !== undefined && !Array.isArray(metadata.tags)) {
+        throw new Error("metadata.tags must be an array");
+    }
+    ["category","catregory"].forEach(function(name) {
+        if(metadata[name] !== undefined) {
+            armamap_assertString(metadata[name], "metadata." + name, true);
+        }
+    });
     if(metadata.tags !== undefined &&
         (metadata.category !== undefined || metadata.catregory !== undefined)) {
         throw new Error("metadata.tags cannot be combined with legacy category/catregory");
@@ -472,60 +613,113 @@ function armamap_toCompatibilityXml(document) {
     if(tagsSource === undefined) tagsSource = metadata.category;
     if(tagsSource === undefined) tagsSource = metadata.catregory;
     var tags = armamap_parseTags(tagsSource);
-    if(metadata.author_password_hash !== undefined &&
-        !xml_isValidAuthorPasswordHash(metadata.author_password_hash)) {
-        throw new Error("metadata.author_password_hash is invalid or unsupported");
+    if(metadata.author_password_hash !== undefined) {
+        armamap_assertString(metadata.author_password_hash,
+            "metadata.author_password_hash", false);
+        if(!xml_isValidAuthorPasswordHash(metadata.author_password_hash)) {
+            throw new Error("metadata.author_password_hash is invalid or unsupported");
+        }
     }
     var password = metadata.author_password_hash !== undefined ?
         ' author_password_hash="' + armamap_escape(metadata.author_password_hash) + '"' : "";
-    var xml = '<Resource name="' + armamap_escape(metadata.name || "Unnamed map") +
-        '" author="' + armamap_escape(metadata.author || "") + '" category="' +
+    var xml = '<Resource name="' + armamap_escape(
+        metadata.name === undefined ? "Unnamed map" : metadata.name) +
+        '" author="' + armamap_escape(metadata.author === undefined ? "" : metadata.author) + '" category="' +
         armamap_escape(tags.join(", ")) + '" version="' +
         armamap_escape(metadata.revision || "1") + '"><Map checkpoint_order_base="1"' + password + '>';
-    var settings = document.settings || {};
-    armamap_assertFields(settings, "settings", Object.keys(settings));
-    armamap_assertFields(document.levels || {}, "levels", ["count","gaps"]);
+    var settings = document.settings === undefined ? {} : document.settings;
+    if(!settings || typeof settings !== "object" || Array.isArray(settings)) {
+        throw new Error("settings must be an object");
+    }
+    // A missing levels object is the canonical single-floor shorthand. If the
+    // object is present, its required count remains strictly validated.
+    var levels = document.levels === undefined ? {count:1} : document.levels;
+    armamap_assertFields(levels, "levels", ["count","gaps"]);
+    var count = armamap_assertInteger(levels.count, "levels.count", 1, 255);
+    var gaps = levels.gaps === undefined ? [] : levels.gaps;
+    if(!Array.isArray(gaps) || gaps.length > 254) {
+        throw new Error("levels.gaps must contain at most 254 positive heights");
+    }
+    gaps.forEach(function(gap, index) {
+        armamap_assertFiniteNumber(gap,
+            "levels.gaps[" + index + "]", Number.MIN_VALUE);
+    });
+    ["spawns","walls","floors","ramps","zones","billboards"].forEach(function(name) {
+        if(document[name] !== undefined && !Array.isArray(document[name])) {
+            throw new Error(name + " must be an array");
+        }
+    });
+    if((document.billboards || []).length > NEOMAP_MAX_BILLBOARDS) {
+        throw new Error("billboards cannot contain more than " +
+            NEOMAP_MAX_BILLBOARDS + " entries");
+    }
     var settingNames = Object.keys(settings);
     if(settingNames.length) xml += '<Settings>' + settingNames.map(function(name) {
         return '<Setting name="' + armamap_escape(name) + '" value="' +
-            armamap_escape(settings[name]) + '"/>';
+            armamap_escape(armamap_scalarText(settings[name], "settings." + name)) + '"/>';
     }).join("") + '</Settings>';
-    var gaps = document.levels && Array.isArray(document.levels.gaps) ? document.levels.gaps : [];
     xml += '<World><Field' + (gaps.length ? ' level_heights="' + armamap_escape(gaps.join(",")) + '"' : "") + '>';
     if(Array.isArray(document.axes)) {
+        if(document.axes.length < 1 || document.axes.length > 65535) {
+            throw new Error("axes must contain from 1 through 65535 direction vectors");
+        }
         xml += '<Axes number="' + document.axes.length + '" normalize="false">' +
             document.axes.map(function(axis, index) {
                 axis = armamap_nonzeroVector(axis, "Canonical axis " + index);
                 return '<Axis xdir="' + armamap_escape(axis[0]) +
                     '" ydir="' + armamap_escape(axis[1]) + '"/>';
             }).join("") + '</Axes>';
-    } else if(document.axes !== undefined) xml += '<Axes number="' + armamap_escape(document.axes) + '"/>';
-    var count = Number(document.levels && document.levels.count) || 1;
+    } else if(document.axes !== undefined) {
+        var axisCount = armamap_assertInteger(document.axes, "axes", 1, 65535);
+        xml += '<Axes number="' + armamap_escape(axisCount) + '"/>';
+    }
     for(var level = 0; level < count; level++) xml += '<Level index="' + level + '"/>';
     (document.spawns || []).forEach(function(spawn, index) {
         armamap_assertFields(spawn, "spawns[" + index + "]", ["level","position","direction"]);
-        var direction = spawn.direction;
-        var directionX = Array.isArray(direction) ? Number(direction[0]) : NaN;
-        var directionY = Array.isArray(direction) ? Number(direction[1]) : NaN;
-        if(!Array.isArray(direction) || direction.length !== 2 ||
-            !isFinite(directionX) || !isFinite(directionY) ||
-            (directionX === 0 && directionY === 0)) {
+        armamap_assertPoint(spawn.position, "spawns[" + index + "].position", false);
+        var direction;
+        try {
+            direction = armamap_nonzeroVector(
+                spawn.direction, "spawns[" + index + "].direction");
+        } catch(error) {
             throw new Error("canonical spawn " + index + " needs a nonzero direction vector");
         }
-        xml += '<Spawn level="' + (Number(spawn.level) || 0) + '" x="' + armamap_escape(spawn.position[0]) +
-            '" y="' + armamap_escape(spawn.position[1]) + '" xdir="' + armamap_escape(directionX) +
-            '" ydir="' + armamap_escape(directionY) + '"/>';
+        var spawnLevel = spawn.level === undefined ? 0 :
+            armamap_assertInteger(spawn.level, "spawns[" + index + "].level", 0, 254);
+        xml += '<Spawn level="' + spawnLevel + '" x="' + armamap_escape(spawn.position[0]) +
+            '" y="' + armamap_escape(spawn.position[1]) + '" xdir="' + armamap_escape(direction[0]) +
+            '" ydir="' + armamap_escape(direction[1]) + '"/>';
     });
     (document.walls || []).forEach(function(wall, index) {
         armamap_assertFields(wall, "walls[" + index + "]", ["level","height","points"]);
-        if(wall.height === null) throw new Error("walls[" + index + "].height must be a number");
-        xml += '<Wall level="' + (Number(wall.level) || 0) + '"' +
+        armamap_assertPointList(wall.points, "walls[" + index + "].points", 2, true);
+        if(wall.height !== undefined) {
+            armamap_assertFiniteNumber(wall.height, "walls[" + index + "].height", 0);
+        }
+        var wallLevel = wall.level === undefined ? 0 :
+            armamap_assertInteger(wall.level, "walls[" + index + "].level", 0, 254);
+        xml += '<Wall level="' + wallLevel + '"' +
             (wall.height === undefined || wall.height === null ? "" : ' height="' + armamap_escape(wall.height) + '"') + '>' +
-            (wall.points || []).map(armamap_xmlPoint).join("") + '</Wall>';
+            wall.points.map(function(point, pointIndex) {
+                return armamap_xmlPoint(point,
+                    "walls[" + index + "].points[" + pointIndex + "]", true);
+            }).join("") + '</Wall>';
     });
     (document.floors || []).forEach(function(floor, index) {
         armamap_assertFields(floor, "floors[" + index + "]", ["level","points"]);
-        xml += '<Floor level="' + floor.level + '">' + (floor.points || []).map(armamap_xmlPoint).join("") + '</Floor>';
+        var floorLevel = armamap_assertInteger(
+            floor.level, "floors[" + index + "].level", 1, 254);
+        armamap_assertPointList(floor.points, "floors[" + index + "].points", 3, false);
+        if(typeof floorTool_isSimplePolygon === "function" &&
+            !floorTool_isSimplePolygon(floor.points.map(function(point) {
+                return {x:point[0], y:point[1]};
+            }))) {
+            throw new Error("floors[" + index + "].points must form a simple polygon");
+        }
+        xml += '<Floor level="' + floorLevel + '">' + floor.points.map(function(point, pointIndex) {
+            return armamap_xmlPoint(point,
+                "floors[" + index + "].points[" + pointIndex + "]");
+        }).join("") + '</Floor>';
     });
     (document.ramps || []).forEach(function(ramp, index) {
         armamap_assertFields(ramp, "ramps[" + index + "]",
@@ -533,32 +727,123 @@ function armamap_toCompatibilityXml(document) {
         if(!Array.isArray(ramp.points) || [2,4].indexOf(ramp.points.length) < 0) {
             throw new Error("canonical ramp points must contain exactly 2 or 4 points");
         }
-        if(ramp.points.length === 2 &&
-            (!(Number(ramp.width) > 0) || !isFinite(Number(ramp.width)))) {
-            throw new Error("a 2-point canonical ramp needs a positive width");
+        ramp.points.forEach(function(point, pointIndex) {
+            armamap_assertPoint(point,
+                "ramps[" + index + "].points[" + pointIndex + "]", false);
+        });
+        var fromLevel = armamap_assertInteger(
+            ramp.from_level, "ramps[" + index + "].from_level", 0, 254);
+        var toLevel = armamap_assertInteger(
+            ramp.to_level, "ramps[" + index + "].to_level", 0, 254);
+        if(fromLevel === toLevel) throw new Error("canonical ramp levels must be distinct");
+        if(ramp.points.length === 2) {
+            try {
+                armamap_assertFiniteNumber(
+                    ramp.width, "ramps[" + index + "].width", Number.MIN_VALUE);
+            } catch(error) {
+                throw new Error("a 2-point canonical ramp needs a positive width");
+            }
+            if(ramp.points[0][0] === ramp.points[1][0] &&
+                ramp.points[0][1] === ramp.points[1][1]) {
+                throw new Error("canonical ramp endpoints must be distinct");
+            }
         }
         if(ramp.points.length === 4 && ramp.width !== undefined) {
             throw new Error("ramps[" + index + "].width is valid only for a 2-point ramp");
         }
+        if(ramp.points.length === 4 && typeof ramp_geometryValid === "function" &&
+            !ramp_geometryValid(ramp.points.map(function(point) {
+                return {x:point[0], y:point[1]};
+            }))) {
+            throw new Error("ramps[" + index + "].points contain degenerate or crossed geometry");
+        }
         var rampWidth = ramp.width === undefined || ramp.width === null ? "" :
             ' width="' + armamap_escape(ramp.width) + '"';
-        xml += '<Ramp from_level="' + ramp.from_level + '" to_level="' + ramp.to_level + '"' +
+        xml += '<Ramp from_level="' + fromLevel + '" to_level="' + toLevel + '"' +
             rampWidth + '>' +
-            (ramp.points || []).map(armamap_xmlPoint).join("") + '</Ramp>';
+            ramp.points.map(function(point, pointIndex) {
+                return armamap_xmlPoint(point,
+                    "ramps[" + index + "].points[" + pointIndex + "]");
+            }).join("") + '</Ramp>';
     });
-    (document.zones || []).forEach(function(zone) {
-        var supportedTypes = {death:true,win:true,health:true,checkpoint:true,
+    (document.billboards || []).forEach(function(billboard, index) {
+        armamap_assertFields(billboard, "billboards[" + index + "]",
+            ["level","start","end","height","url","facing","dual_sided"]);
+        var billboardLevel = billboard.level === undefined ? 0 :
+            armamap_assertInteger(billboard.level,
+                "billboards[" + index + "].level", 0, 254);
+        armamap_assertPoint(billboard.start,
+            "billboards[" + index + "].start", false);
+        armamap_assertPoint(billboard.end,
+            "billboards[" + index + "].end", false);
+        if(billboard.start[0] === billboard.end[0] &&
+            billboard.start[1] === billboard.end[1]) {
+            throw new Error("billboards[" + index + "] endpoints must be distinct");
+        }
+        armamap_assertFiniteNumber(billboard.height,
+            "billboards[" + index + "].height", 0);
+        armamap_assertString(billboard.url,
+            "billboards[" + index + "].url", false);
+        if(billboard.url.length > NEOMAP_MAX_BILLBOARD_URL_CHARACTERS) {
+            throw new Error("billboards[" + index + "].url cannot exceed " +
+                NEOMAP_MAX_BILLBOARD_URL_CHARACTERS + " characters");
+        }
+        if(typeof billboard_isExternalUrl === "function" &&
+            !billboard_isExternalUrl(billboard.url)) {
+            throw new Error("billboards[" + index + "].url must be an external http(s) URL");
+        }
+        var facing = billboard.facing === undefined ? "right" : billboard.facing;
+        if(facing !== "left" && facing !== "right") {
+            throw new Error("billboards[" + index + "].facing must be left or right");
+        }
+        var dualSided = billboard.dual_sided === undefined ? true : billboard.dual_sided;
+        if(typeof dualSided !== "boolean") {
+            throw new Error("billboards[" + index + "].dual_sided must be boolean");
+        }
+        xml += '<Billboard level="' + billboardLevel + '" height="' +
+            armamap_escape(billboard.height) + '" url="' +
+            armamap_escape(billboard.url) + '" facing="' + facing +
+            '" dual_sided="' + dualSided + '">' +
+            armamap_xmlPoint(billboard.start, "billboards[" + index + "].start") +
+            armamap_xmlPoint(billboard.end, "billboards[" + index + "].end") +
+            '</Billboard>';
+    });
+    (document.zones || []).forEach(function(zone, zoneIndex) {
+        var supportedTypes = {death:true,win:true,health:true,rubber:true,checkpoint:true,
             speed:true,teleport:true,setting:true};
         if(!supportedTypes[zone.type]) {
             throw new Error("unsupported canonical zone type " + zone.type);
         }
         armamap_assertZoneFields(zone);
-        var attributes = ' level="' + (Number(zone.level) || 0) + '" type="' + armamap_escape(zone.type) + '"';
-        ["trigger","start_tick","end_tick"].forEach(function(name) {
-            if(zone[name] !== undefined) attributes += ' ' + name + '="' + armamap_escape(zone[name]) + '"';
-        });
+        var zoneLevel = zone.level === undefined ? 0 :
+            armamap_assertInteger(zone.level, "zones[" + zoneIndex + "].level", 0, 254);
+        var attributes = ' level="' + zoneLevel + '" type="' + armamap_escape(zone.type) + '"';
+        var showIcon = zone.show_icon === undefined ? true : zone.show_icon;
+        if(typeof showIcon !== "boolean") {
+            throw new Error("zones[" + zoneIndex + "].show_icon must be boolean");
+        }
+        attributes += ' show_icon="' + showIcon + '"';
+        if(zone.trigger !== undefined) {
+            if(["on_enter","while_inside","on_exit"].indexOf(zone.trigger) < 0) {
+                throw new Error("zones[" + zoneIndex + "].trigger is invalid");
+            }
+            attributes += ' trigger="' + armamap_escape(zone.trigger) + '"';
+        }
+        var hasStartTick = Object.prototype.hasOwnProperty.call(zone, "start_tick");
+        var hasEndTick = Object.prototype.hasOwnProperty.call(zone, "end_tick");
+        if(hasStartTick !== hasEndTick) {
+            throw new Error("zones[" + zoneIndex + "] must provide start_tick and end_tick together");
+        }
+        if(hasStartTick) {
+            var startTick = armamap_assertInteger(
+                zone.start_tick, "zones[" + zoneIndex + "].start_tick", 0);
+            var endTick = armamap_assertInteger(
+                zone.end_tick, "zones[" + zoneIndex + "].end_tick", 0);
+            attributes += ' start_tick="' + startTick + '" end_tick="' + endTick + '"';
+        }
         if(zone.type === "checkpoint") {
-            var checkpointOrder = Number(zone.order);
+            var checkpointOrder = armamap_assertInteger(
+                zone.order, "zones[" + zoneIndex + "].order", 0, 4294967295);
             if(typeof zoneTool_validCheckpointOrder === "function" &&
                 !zoneTool_validCheckpointOrder(checkpointOrder)) {
                 throw new Error("canonical checkpoint order must be from 0 through 4294967295");
@@ -566,26 +851,50 @@ function armamap_toCompatibilityXml(document) {
             attributes += ' order="' + (checkpointOrder || 0) + '"';
         }
         else if(zone.type === "speed") {
-            if(!isFinite(Number(zone.delta_mps)) || !isFinite(Number(zone.duration_ticks))) {
-                throw new Error("canonical speed zone needs delta_mps and duration_ticks");
-            }
+            armamap_assertFiniteNumber(
+                zone.delta_mps, "zones[" + zoneIndex + "].delta_mps");
+            armamap_assertInteger(
+                zone.duration_ticks, "zones[" + zoneIndex + "].duration_ticks", 0);
             attributes += ' delta_mps="' + zone.delta_mps +
                 '" duration_ticks="' + zone.duration_ticks + '"';
+        } else if(zone.type === "rubber") {
+            armamap_assertInteger(zone.delta,
+                "zones[" + zoneIndex + "].delta");
+            armamap_assertInteger(zone.duration_ticks,
+                "zones[" + zoneIndex + "].duration_ticks", 0);
+            attributes += ' delta="' + zone.delta +
+                '" duration_ticks="' + zone.duration_ticks + '"';
         } else if(zone.type === "health") {
-            if(!isFinite(Number(zone.delta))) {
+            try {
+                armamap_assertFiniteNumber(zone.delta, "zones[" + zoneIndex + "].delta");
+            } catch(error) {
                 throw new Error("canonical health zone needs delta");
             }
             attributes += ' delta="' + zone.delta + '"';
         } else if(zone.type === "setting") {
-            if(zone.setting === undefined || !isFinite(Number(zone.value))) {
+            if(typeof zone.setting !== "string" || !zone.setting.length) {
                 throw new Error("canonical setting zone needs setting and value");
+            }
+            armamap_assertFiniteNumber(zone.value, "zones[" + zoneIndex + "].value");
+            if(typeof zoneTool_settingValidationError === "function") {
+                var settingError = zoneTool_settingValidationError(zone.setting, zone.value);
+                if(settingError) {
+                    throw new Error("zones[" + zoneIndex + "]: " + settingError);
+                }
+            }
+            if(typeof ZONE_TOOL_SETTING_INPUTS === "object" &&
+                !Object.prototype.hasOwnProperty.call(ZONE_TOOL_SETTING_INPUTS, zone.setting)) {
+                throw new Error("zones[" + zoneIndex + "].setting must use its canonical uppercase name");
             }
             attributes += ' setting="' + armamap_escape(zone.setting) +
                 '" value="' + armamap_escape(zone.value) + '"';
         }
         else if(zone.type === "teleport") {
+            armamap_assertPoint(
+                zone.destination, "zones[" + zoneIndex + "].destination", false);
             var teleportLevel = zone.destination_level === undefined ?
-                (Number(zone.level) || 0) : Number(zone.destination_level);
+                zoneLevel : armamap_assertInteger(zone.destination_level,
+                    "zones[" + zoneIndex + "].destination_level", 0, 254);
             attributes += ' destination_x="' + zone.destination[0] +
                 '" destination_y="' + zone.destination[1] + '" destination_level="' +
                 teleportLevel + '"';
@@ -601,19 +910,88 @@ function armamap_toCompatibilityXml(document) {
         }
         if(zone.movement) {
             armamap_assertFields(zone.movement, "zone movement",
-                ["speed","rotation","mode","spawn_at_vertices","path"]);
-            var movementSpeed = Number(zone.movement.speed);
-            if(!isFinite(movementSpeed) || movementSpeed <= 0) {
+                ["speed","rotation","mode","spawn_at_vertices","instances","pulse_radii","path"]);
+            var movementSpeed = zone.movement.speed;
+            try {
+                armamap_assertFiniteNumber(movementSpeed,
+                    "zones[" + zoneIndex + "].movement.speed", Number.MIN_VALUE);
+            } catch(error) {
                 throw new Error("canonical moving-zone speed must be greater than zero");
             }
+            var movementRotation = zone.movement.rotation === undefined ? 0 :
+                zone.movement.rotation;
+            try {
+                armamap_assertFiniteNumber(movementRotation,
+                    "zones[" + zoneIndex + "].movement.rotation");
+            } catch(error) {
+                throw new Error("canonical moving-zone rotation must be finite");
+            }
+            var hasMovementMode = Object.prototype.hasOwnProperty.call(zone.movement, "mode");
+            var movementMode = hasMovementMode ? zone.movement.mode : "circular";
+            if(["circular", "ping_pong", "instant"].indexOf(movementMode) < 0) {
+                throw new Error("canonical moving-zone mode is invalid");
+            }
+            var movementPath = zone.movement.path;
+            armamap_assertPointList(movementPath,
+                "zones[" + zoneIndex + "].movement.path", 2, false);
+            if(movementPath.every(function(point) {
+                    return point[0] === movementPath[0][0] && point[1] === movementPath[0][1];
+                })) {
+                throw new Error("canonical movement path needs at least two distinct finite points");
+            }
+            var hasLegacySpawn = Object.prototype.hasOwnProperty.call(
+                zone.movement, "spawn_at_vertices");
+            var hasInstances = Object.prototype.hasOwnProperty.call(zone.movement, "instances");
+            if(hasLegacySpawn && hasInstances) {
+                throw new Error("canonical movement cannot combine instances with legacy spawn_at_vertices");
+            }
+            if(hasLegacySpawn && typeof zone.movement.spawn_at_vertices !== "boolean") {
+                throw new Error("legacy canonical spawn_at_vertices must be boolean");
+            }
+            var movementInstances = hasInstances ? zone.movement.instances : [];
+            if(!Array.isArray(movementInstances) || movementInstances.some(function(index, position) {
+                return typeof index !== "number" || !isFinite(index) ||
+                    Math.floor(index) !== index || index <= 0 ||
+                    index >= movementPath.length || movementInstances.indexOf(index) !== position;
+            })) {
+                throw new Error("canonical movement instances must be unique in-range path indices after 0");
+            }
+            if(zone.movement.pulse_radii !== undefined) {
+                var pulseRadii = zone.movement.pulse_radii;
+                var pulseKeys = Array.isArray(pulseRadii) ? pulseRadii.filter(function(radius) {
+                    return radius !== null;
+                }) : [];
+                if(!Array.isArray(pulseRadii) || pulseRadii.length !== movementPath.length ||
+                    pulseKeys.length < 2 || pulseKeys.some(function(radius) {
+                        return typeof radius !== "number" || !isFinite(radius) ||
+                            Math.abs(radius) > Number.MAX_SAFE_INTEGER || radius <= 0;
+                    }) || !zone.shape || zone.shape.type !== "circle") {
+                    throw new Error("canonical circle pulse needs aligned positive radius keyframes");
+                }
+            }
             attributes += ' movement_speed="' + movementSpeed +
-                '" rotation_speed="' + (Number(zone.movement.rotation) || 0) + '"';
+                '" rotation_speed="' + movementRotation + '"';
         }
-        xml += '<Zone' + attributes + '>' + armamap_shapeXml(zone.shape);
-        if(zone.movement) xml += '<MovementPath loop="true" mode="' +
-            armamap_escape(zone.movement.mode || "circular") + '" spawn_at_vertices="' +
-            (!!zone.movement.spawn_at_vertices) + '">' +
-            (zone.movement.path || []).map(armamap_xmlPoint).join("") + '</MovementPath>';
+        xml += '<Zone' + attributes + '>' +
+            armamap_shapeXml(zone.shape, "zones[" + zoneIndex + "].shape");
+        if(zone.movement) {
+            var legacySpawn = zone.movement.spawn_at_vertices;
+            var instances = (zone.movement.instances || []).map(Number);
+            xml += '<MovementPath loop="true" mode="' +
+                armamap_escape(Object.prototype.hasOwnProperty.call(zone.movement, "mode") ?
+                    zone.movement.mode : "circular") + '"' +
+                (legacySpawn === undefined ? '' : ' spawn_at_vertices="' +
+                    (!!legacySpawn) + '"') +
+                (instances.length ? ' instances="' + instances.join(',') + '"' : '') + '>';
+            (zone.movement.path || []).forEach(function(point, pointIndex) {
+                var pulseRadius = (zone.movement.pulse_radii || [])[pointIndex];
+                xml += '<Point x="' + armamap_round(point[0]) + '" y="' +
+                    armamap_round(point[1]) + '"' +
+                    (pulseRadius === null || pulseRadius === undefined ? '' :
+                        ' radius="' + armamap_round(pulseRadius) + '"') + '/>';
+            });
+            xml += '</MovementPath>';
+        }
         xml += '</Zone>';
     });
     xml += '</Field></World>';
@@ -626,16 +1004,19 @@ function armamap_toCompatibilityXml(document) {
         armamap_assertFields(document.validation, "validation", ["version","ticks","fraction",
             "tick_rate","fraction_scale","proof_algorithm","replay_proof"]);
         var validationAttributes = [];
-        ["version","ticks","fraction","tick_rate","fraction_scale",
-            "proof_algorithm","replay_proof"].forEach(function(name) {
-            if(document.validation[name] !== undefined) {
-                validationAttributes.push(name + '="' +
-                    armamap_escape(document.validation[name]) + '"');
-            }
+        var validationMinimums = {
+            version:1, ticks:0, fraction:0, tick_rate:1, fraction_scale:1
+        };
+        Object.keys(validationMinimums).forEach(function(name) {
+            var value = armamap_assertInteger(document.validation[name],
+                "validation." + name, validationMinimums[name]);
+            validationAttributes.push(name + '="' + value + '"');
         });
-        if(validationAttributes.length) {
-            xml += '<MapValidation ' + validationAttributes.join(' ') + '/>';
-        }
+        ["proof_algorithm","replay_proof"].forEach(function(name) {
+            validationAttributes.push(name + '="' + armamap_escape(
+                armamap_assertString(document.validation[name], "validation." + name, false)) + '"');
+        });
+        xml += '<MapValidation ' + validationAttributes.join(' ') + '/>';
     }
     xml += '</Map></Resource>';
     return xml;

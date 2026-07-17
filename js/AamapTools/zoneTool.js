@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Neotron.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -59,6 +59,11 @@ var zoneTool_centerMapY = 0;
 var zoneTool_points = [];
 var zoneTool_stage = "shape";
 var zoneTool_pendingZone = null;
+var zoneTool_movementPath = [];
+var zoneTool_lockedType = null;
+var zoneTool_lockedShape = null;
+var zoneTool_instanceRadiusVertex = null;
+var zoneTool_pathGuideObj = null;
 
 var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
 var ZONE_TOOL_MIN_POLYGON_POINTS = 3;
@@ -66,6 +71,7 @@ var ZONE_TOOL_DEFAULT_LINE_WIDTH = 2;
 var ZONE_TOOL_DEFAULT_MOVEMENT_SPEED = 20;
 var ZONE_TOOL_DEFAULT_ROTATION_SPEED = 0;
 var ZONE_TOOL_MIN_MOVEMENT_PATH_POINTS = 2;
+var ZONE_TOOL_MOVEMENT_VERTEX_HIT_RADIUS = 8;
 var ZONE_TOOL_CHECKPOINT_ORDER = 0;
 // Checkpoint order is stored and evaluated as a Rust u32 by the game.
 var ZONE_TOOL_MAX_CHECKPOINT_ORDER = 4294967295;
@@ -354,6 +360,10 @@ function zoneTool_removeGuide() {
         zoneTool_guideObj.remove();
         zoneTool_guideObj = null;
     }
+    if(zoneTool_pathGuideObj != null) {
+        zoneTool_pathGuideObj.remove();
+        zoneTool_pathGuideObj = null;
+    }
 }
 
 function zoneTool_setStatus(message) {
@@ -385,6 +395,10 @@ function zoneTool_resetPlacement() {
     zoneTool_points = [];
     zoneTool_stage = "shape";
     zoneTool_pendingZone = null;
+    zoneTool_movementPath = [];
+    zoneTool_lockedType = null;
+    zoneTool_lockedShape = null;
+    zoneTool_instanceRadiusVertex = null;
     zoneTool_placingSize = false;
     vectron_toolActive = false;
 }
@@ -397,18 +411,32 @@ function zoneTool_cancelPlacement() {
 
 function zoneTool_updateStatus() {
     var shape = $("#dZoneShape").val();
+    // Pulse keyframes are chosen when the source circle is finished. Once the
+    // workflow advances to path instances, changing this checkbox would no
+    // longer match the pending zone's already-created keyframe array.
+    $("#dZonePulse").prop("disabled", zoneTool_stage === "movement-instances");
     if(zoneTool_stage === "movement-path") {
         var modeLabels = {circular:"connect back to the first point",
             ping_pong:"reverse at the final point", instant:"restart at the first point"};
-        zoneTool_setStatus("Place path vertices; finish to " +
+        zoneTool_setStatus("Place path vertices first; double-click to " +
             (modeLabels[$("#dZoneMovementMode").val()] || modeLabels.circular) + ".");
+    } else if(zoneTool_stage === "movement-shape") {
+        zoneTool_setStatus("Create the " + shape +
+            " zone; it will be anchored to path vertex 1.");
+    } else if(zoneTool_stage === "movement-instances") {
+        if(zoneTool_instanceRadiusVertex !== null) {
+            zoneTool_setStatus("Click the circle edge to set this pulse keyframe size.");
+        } else {
+            zoneTool_setStatus("Click unused path vertices to add same-type instances; " +
+                "Finish Zones when done.");
+        }
     } else if(zoneTool_stage === "teleport-position") {
         zoneTool_setStatus("Click the teleport destination on Level " + aamap_activeLevel + ".");
     } else if(zoneTool_stage === "teleport-direction") {
         zoneTool_setStatus("Click to set the destination direction.");
     } else if(shape === "polygon") {
         zoneTool_setStatus(zoneTool_points.length ?
-            "Keep placing vertices; double-click or use Finish Polygon." :
+            "Keep placing vertices; double-click to finish, Esc to cancel." :
             "Click to place polygon vertices.");
     } else if(shape === "rectangle") {
         zoneTool_setStatus(zoneTool_points.length ?
@@ -420,13 +448,15 @@ function zoneTool_updateStatus() {
         zoneTool_setStatus(zoneTool_placingSize ?
             "Click the circle edge." : "Click the circle center.");
     }
-    var canFinishPolygon = shape === "polygon" && zoneTool_stage === "shape" &&
-        zoneTool_points.length >= ZONE_TOOL_MIN_POLYGON_POINTS;
     var canFinishMovement = zoneTool_stage === "movement-path" &&
         zoneTool_points.length >= ZONE_TOOL_MIN_MOVEMENT_PATH_POINTS;
-    $("#zone-tool-finish").toggle(canFinishPolygon || canFinishMovement)
-        .text(canFinishMovement ? "Finish Path" : "Finish Polygon");
-    $("#zone-tool-cancel").toggle(vectron_toolActive);
+    var canFinishInstances = zoneTool_stage === "movement-instances" &&
+        zoneTool_pendingZone !== null && zoneTool_instanceRadiusVertex === null;
+    $("#zone-tool-finish").toggle(canFinishMovement || canFinishInstances)
+        .text(canFinishMovement ? "Finish Path" : "Finish Zones");
+    var polygonPlacement = shape === "polygon" &&
+        (zoneTool_stage === "shape" || zoneTool_stage === "movement-shape");
+    $("#zone-tool-cancel").toggle(vectron_toolActive && !polygonPlacement);
 }
 
 function zoneTool_connect() {
@@ -466,9 +496,9 @@ function zoneTool_updateSettings() {
     $("#zone-game-setting,#zone-game-setting-value").toggle(zoneTool_type === 8);
     $("#zone-polygon-setting").toggle(shape === "polygon");
     $("#zone-line-setting").toggle(shape === "line");
-    $("#zone-movement-speed-setting,#zone-movement-mode-setting," +
-        "#zone-spawn-vertices-setting")
+    $("#zone-movement-speed-setting,#zone-movement-mode-setting")
         .toggle(zoneTool_isMovementEnabled());
+    $("#zone-pulse-setting").toggle(zoneTool_isMovementEnabled() && shape === "circle");
     $("#zone-rotation-speed-setting")
         .toggle(zoneTool_isMovementEnabled() && shape !== "circle");
     zoneTool_updateStatus();
@@ -484,7 +514,7 @@ function zoneTool_renderPendingZone() {
     if(!zoneTool_pendingZone || aamap_objects.indexOf(zoneTool_pendingZone) >= 0) return;
     var isTeleportPlacement = zoneTool_stage === "teleport-position" ||
         zoneTool_stage === "teleport-direction";
-    if(zoneTool_stage !== "movement-path" && !isTeleportPlacement) return;
+    if(zoneTool_stage !== "movement-instances" && !isTeleportPlacement) return;
     zoneTool_pendingZone.render();
     if(isTeleportPlacement) {
         // The source zone remains visible while its destination is authored.
@@ -517,36 +547,51 @@ function zoneTool_renderCurrent() {
     zoneTool_guide();
 }
 
+function zoneTool_drawMovementGuide(points, includeCursor) {
+    if(!points || !points.length) return;
+    var color = zoneTool_typeArray[zoneTool_lockedType === null ?
+        zoneTool_type : zoneTool_lockedType][1];
+    var movementMode = $("#dZoneMovementMode").val() || "circular";
+    var guidePoints = points.map(function(point) {
+        return {x:aamap_realX(point.x), y:aamap_realY(point.y)};
+    });
+    if(includeCursor) guidePoints.push({x:cursor_realX, y:cursor_realY});
+    zoneTool_pathGuideObj = vectron_screen.set();
+    var addGuideSegment = function(start, end) {
+        var guideStyle = {"stroke":color, "stroke-width":2,
+            "stroke-dasharray":"--..", "fill":"none",
+            "arrow-end":"classic-wide-long"};
+        if(movementMode === "ping_pong") {
+            guideStyle["arrow-start"] = "classic-wide-long";
+        }
+        zoneTool_pathGuideObj.push(vectron_screen.path([
+            "M", start.x, start.y, "L", end.x, end.y
+        ]).attr(guideStyle));
+    };
+    for(var movementIndex = 1; movementIndex < guidePoints.length; movementIndex++) {
+        addGuideSegment(guidePoints[movementIndex - 1], guidePoints[movementIndex]);
+    }
+    if(movementMode === "circular" && points.length >= ZONE_TOOL_MIN_MOVEMENT_PATH_POINTS) {
+        addGuideSegment(guidePoints[guidePoints.length - 1], guidePoints[0]);
+    }
+    points.forEach(function(point, index) {
+        var marker = vectron_screen.circle(aamap_realX(point.x), aamap_realY(point.y),
+            index === 0 ? 5 : 4).attr({stroke:color, fill:color,
+            "fill-opacity":index === 0 ? 0.65 : 0.28, "stroke-width":1.5});
+        zoneTool_pathGuideObj.push(marker);
+    });
+}
+
 function zoneTool_guide() {
     zoneTool_removeGuide();
 
     var color = zoneTool_typeArray[zoneTool_type][1];
     if(zoneTool_stage === "movement-path" && zoneTool_points.length) {
-        zoneTool_guideObj = vectron_screen.set();
-        var movementMode = $("#dZoneMovementMode").val() || "circular";
-        var guidePoints = zoneTool_points.map(function(point) {
-            return {x:aamap_realX(point.x), y:aamap_realY(point.y)};
-        });
-        guidePoints.push({x:cursor_realX, y:cursor_realY});
-        var addGuideSegment = function(start, end) {
-            var guideStyle = {"stroke":color, "stroke-width":2,
-                "stroke-dasharray":"--..", "fill":"none",
-                "arrow-end":"classic-wide-long"};
-            if(movementMode === "ping_pong") {
-                guideStyle["arrow-start"] = "classic-wide-long";
-            }
-            zoneTool_guideObj.push(vectron_screen.path([
-                "M", start.x, start.y, "L", end.x, end.y
-            ]).attr(guideStyle));
-        };
-        for(var movementIndex = 1; movementIndex < guidePoints.length; movementIndex++) {
-            addGuideSegment(guidePoints[movementIndex - 1], guidePoints[movementIndex]);
-        }
-        if(movementMode === "circular" &&
-            zoneTool_points.length >= ZONE_TOOL_MIN_MOVEMENT_PATH_POINTS) {
-            addGuideSegment(guidePoints[guidePoints.length - 1], guidePoints[0]);
-        }
+        zoneTool_drawMovementGuide(zoneTool_points, true);
         return;
+    }
+    if(zoneTool_movementPath.length) {
+        zoneTool_drawMovementGuide(zoneTool_movementPath, false);
     }
     if(zoneTool_stage === "teleport-position") {
         return;
@@ -639,11 +684,13 @@ function zoneTool_guide() {
     }
 
     if (shape === "circle" && zoneTool_placingSize) {
-        var dx = cursor_realX - zoneTool_centerRealX;
-        var dy = cursor_realY - zoneTool_centerRealY;
+        var centerRealX = aamap_realX(zoneTool_centerMapX);
+        var centerRealY = aamap_realY(zoneTool_centerMapY);
+        var dx = cursor_realX - centerRealX;
+        var dy = cursor_realY - centerRealY;
         var screenRadius = Math.sqrt(dx * dx + dy * dy);
         zoneTool_guideObj = vectron_screen.circle(
-            zoneTool_centerRealX, zoneTool_centerRealY, screenRadius
+            centerRealX, centerRealY, screenRadius
         ).attr({
             "stroke": color, "stroke-dasharray": "--..",
             "fill": color, "fill-opacity": "0.2"
@@ -688,14 +735,11 @@ function zoneTool_addZone(newZone) {
     vectron_render();
 }
 
-function zoneTool_beginMovementPath(newZone) {
-    zoneTool_pendingZone = newZone;
-    newZone.movementSpeed = zoneTool_numberValue("#dZoneMovementSpeed",
-        ZONE_TOOL_DEFAULT_MOVEMENT_SPEED);
-    newZone.rotationSpeed = zoneTool_rotationSpeedForShape(newZone.shapeType);
-    newZone.movementMode = $("#dZoneMovementMode").val() || "circular";
-    newZone.spawnAtVertices = $("#dZoneSpawnAtVertices").is(":checked");
-    zoneTool_points = [{x:newZone.x, y:newZone.y}];
+function zoneTool_beginMovementPath(point) {
+    zoneTool_lockedType = zoneTool_type;
+    zoneTool_lockedShape = $("#dZoneShape").val();
+    zoneTool_points = [{x:point.x, y:point.y}];
+    zoneTool_movementPath = [];
     zoneTool_stage = "movement-path";
     zoneTool_placingSize = true;
     vectron_toolActive = true;
@@ -703,15 +747,49 @@ function zoneTool_beginMovementPath(newZone) {
     zoneTool_renderCurrent();
 }
 
+function zoneTool_anchorZoneToPathStart(newZone) {
+    if(!newZone || !zoneTool_movementPath.length ||
+        typeof newZone.getShapeCenter !== "function") return;
+    var center = newZone.getShapeCenter();
+    var anchor = zoneTool_movementPath[0];
+    newZone.move(anchor.x - center.x, anchor.y - center.y);
+}
+
+function zoneTool_beginMovementInstances(newZone) {
+    zoneTool_anchorZoneToPathStart(newZone);
+    zoneTool_pendingZone = newZone;
+    newZone.movementSpeed = zoneTool_numberValue("#dZoneMovementSpeed",
+        ZONE_TOOL_DEFAULT_MOVEMENT_SPEED);
+    newZone.rotationSpeed = zoneTool_rotationSpeedForShape(newZone.shapeType);
+    newZone.movementMode = $("#dZoneMovementMode").val() || "circular";
+    newZone.movementInstances = [];
+    newZone.movementPath = zoneTool_movementPath.map(function(point) {
+        return {x:zone_round(point.x), y:zone_round(point.y)};
+    });
+    newZone.movementPulseRadii = [];
+    if(newZone.shapeType === "circle" && $("#dZonePulse").is(":checked")) {
+        newZone.movementPulseRadii = newZone.movementPath.map(function() { return null; });
+        newZone.movementPulseRadii[0] = zone_round(newZone.radius);
+    }
+    zoneTool_points = [];
+    zoneTool_stage = "movement-instances";
+    zoneTool_placingSize = false;
+    zoneTool_instanceRadiusVertex = null;
+    vectron_toolActive = true;
+    zoneTool_updateStatus();
+    zoneTool_renderCurrent();
+}
+
 function zoneTool_finishConfiguredZone(newZone) {
-    if(zoneTool_isMovementEnabled()) {
-        zoneTool_beginMovementPath(newZone);
+    if(zoneTool_movementPath.length) {
+        zoneTool_beginMovementInstances(newZone);
         return;
     }
     zoneTool_addZone(newZone);
 }
 
 function zoneTool_finishGeometry(newZone) {
+    if(zoneTool_movementPath.length) zoneTool_anchorZoneToPathStart(newZone);
     if(zoneTool_type === 7) {
         zoneTool_pendingZone = newZone;
         zoneTool_points = [];
@@ -726,7 +804,8 @@ function zoneTool_finishGeometry(newZone) {
 }
 
 function zoneTool_finishPolygon() {
-    if(zoneTool_stage !== "shape" || zoneTool_points.length < ZONE_TOOL_MIN_POLYGON_POINTS) {
+    if((zoneTool_stage !== "shape" && zoneTool_stage !== "movement-shape") ||
+        zoneTool_points.length < ZONE_TOOL_MIN_POLYGON_POINTS) {
         gui_writeLog("Polygon zones require at least three points.");
         return;
     }
@@ -746,9 +825,9 @@ function zoneTool_finishPolygon() {
 }
 
 function zoneTool_finishMovementPath() {
-    if(zoneTool_stage !== "movement-path" || !zoneTool_pendingZone ||
+    if(zoneTool_stage !== "movement-path" ||
         zoneTool_points.length < ZONE_TOOL_MIN_MOVEMENT_PATH_POINTS) {
-        gui_writeLog("Moving zones require at least one waypoint after the starting position.");
+        gui_writeLog("Moving-zone paths require at least two vertices.");
         return false;
     }
     var uniquePoints = zoneTool_points.filter(function(point, index, points) {
@@ -758,24 +837,63 @@ function zoneTool_finishMovementPath() {
         gui_writeLog("Moving-zone path points must not all be the same.");
         return false;
     }
-    // These controls remain editable while the path is drawn, so commit their
-    // final values instead of the snapshot taken when path placement began.
+    zoneTool_movementPath = uniquePoints.map(function(point) {
+        return {x:zone_round(point.x), y:zone_round(point.y)};
+    });
+    zoneTool_points = [];
+    zoneTool_stage = "movement-shape";
+    zoneTool_placingSize = false;
+    zoneTool_updateStatus();
+    zoneTool_renderCurrent();
+    return true;
+}
+
+function zoneTool_nearestUnusedMovementVertex(realX, realY, path, usedVertices) {
+    path = path || [];
+    usedVertices = usedVertices || [];
+    var selectedVertex = -1;
+    var selectedDistanceSquared = 0;
+    var maximumDistanceSquared = ZONE_TOOL_MOVEMENT_VERTEX_HIT_RADIUS *
+        ZONE_TOOL_MOVEMENT_VERTEX_HIT_RADIUS;
+    for(var vertexIndex = 1; vertexIndex < path.length; vertexIndex++) {
+        if(usedVertices.indexOf(vertexIndex) >= 0) continue;
+        var dx = aamap_realX(path[vertexIndex].x) - realX;
+        var dy = aamap_realY(path[vertexIndex].y) - realY;
+        var distanceSquared = dx * dx + dy * dy;
+        if(distanceSquared <= maximumDistanceSquared &&
+            (selectedVertex < 0 || distanceSquared < selectedDistanceSquared)) {
+            selectedVertex = vertexIndex;
+            selectedDistanceSquared = distanceSquared;
+        }
+    }
+    return selectedVertex;
+}
+
+function zoneTool_finishMovementInstances() {
+    if(zoneTool_stage !== "movement-instances" || !zoneTool_pendingZone ||
+        zoneTool_instanceRadiusVertex !== null) return false;
+    if(zoneTool_pendingZone.movementPulseRadii.length &&
+        zoneTool_pendingZone.movementPulseRadii.filter(function(radius) {
+            return radius !== null && radius !== undefined;
+        }).length < 2) {
+        gui_writeLog("Pulsing circles need a sized instance on at least one additional path vertex.");
+        return false;
+    }
+    // Motion controls remain editable until the group is committed.
     zoneTool_pendingZone.movementSpeed = zoneTool_numberValue("#dZoneMovementSpeed",
         ZONE_TOOL_DEFAULT_MOVEMENT_SPEED);
     zoneTool_pendingZone.rotationSpeed =
         zoneTool_rotationSpeedForShape(zoneTool_pendingZone.shapeType);
     zoneTool_pendingZone.movementMode = $("#dZoneMovementMode").val() || "circular";
-    zoneTool_pendingZone.spawnAtVertices = $("#dZoneSpawnAtVertices").is(":checked");
-    zoneTool_pendingZone.movementPath = uniquePoints.map(function(point) {
-        return {x:zone_round(point.x), y:zone_round(point.y)};
-    });
     zoneTool_addZone(zoneTool_pendingZone);
     return true;
 }
 
 function zoneTool_finishCurrent() {
     if(zoneTool_stage === "movement-path") return zoneTool_finishMovementPath();
-    if(zoneTool_stage === "shape" && $("#dZoneShape").val() === "polygon") {
+    if(zoneTool_stage === "movement-instances") return zoneTool_finishMovementInstances();
+    if((zoneTool_stage === "shape" || zoneTool_stage === "movement-shape") &&
+        $("#dZoneShape").val() === "polygon") {
         zoneTool_finishPolygon();
         return true;
     }
@@ -807,6 +925,50 @@ function zoneTool_complete() {
         return;
     }
 
+    if(zoneTool_stage === "movement-instances") {
+        var instancePoint = {x:aamap_mapX(cursor_realX), y:aamap_mapY(cursor_realY)};
+        if(zoneTool_instanceRadiusVertex !== null) {
+            var instanceAnchor = zoneTool_movementPath[zoneTool_instanceRadiusVertex];
+            var pulseRadius = Math.hypot(instancePoint.x - instanceAnchor.x,
+                instancePoint.y - instanceAnchor.y);
+            if(!(pulseRadius > 0)) {
+                gui_writeLog("Pulse keyframe radius must be greater than 0.");
+                return;
+            }
+            zoneTool_pendingZone.movementPulseRadii[zoneTool_instanceRadiusVertex] =
+                zone_round(pulseRadius);
+            zoneTool_pendingZone.movementInstances.push(zoneTool_instanceRadiusVertex);
+            zoneTool_pendingZone.movementInstances.sort(function(a, b) { return a - b; });
+            zoneTool_instanceRadiusVertex = null;
+            zoneTool_placingSize = false;
+            zoneTool_updateStatus();
+            zoneTool_renderCurrent();
+            return;
+        }
+        var selectedVertex = zoneTool_nearestUnusedMovementVertex(
+            cursor_realX,
+            cursor_realY,
+            zoneTool_movementPath,
+            zoneTool_pendingZone.movementInstances
+        );
+        if(selectedVertex < 0) {
+            gui_writeLog("Choose an unused moving-path vertex after the first one.");
+            return;
+        }
+        if(zoneTool_pendingZone.movementPulseRadii.length) {
+            zoneTool_instanceRadiusVertex = selectedVertex;
+            zoneTool_centerMapX = zoneTool_movementPath[selectedVertex].x;
+            zoneTool_centerMapY = zoneTool_movementPath[selectedVertex].y;
+            zoneTool_placingSize = true;
+        } else {
+            zoneTool_pendingZone.movementInstances.push(selectedVertex);
+            zoneTool_pendingZone.movementInstances.sort(function(a, b) { return a - b; });
+        }
+        zoneTool_updateStatus();
+        zoneTool_renderCurrent();
+        return;
+    }
+
     if(zoneTool_stage === "teleport-position") {
         var destination = spawnMarker_cursorPosition();
         zoneTool_pendingZone.options.destination_x = destination.x;
@@ -835,6 +997,14 @@ function zoneTool_complete() {
 
     var shape = $("#dZoneShape").val();
     var clickPoint = {x:aamap_mapX(cursor_realX), y:aamap_mapY(cursor_realY)};
+    if(zoneTool_stage === "shape" && zoneTool_isMovementEnabled()) {
+        if(!(zoneTool_numberValue("#dZoneMovementSpeed", 0) > 0)) {
+            gui_writeLog("Moving-zone speed must be greater than zero.");
+            return;
+        }
+        zoneTool_beginMovementPath(clickPoint);
+        return;
+    }
     if(shape === "polygon") {
         var previous = zoneTool_points[zoneTool_points.length - 1];
         // A finishing double-click produces two mouse-up events at the same vertex.
@@ -915,10 +1085,10 @@ function zoneTool_complete() {
         return;
     }
 
-    var dx = cursor_realX - zoneTool_centerRealX;
-    var dy = cursor_realY - zoneTool_centerRealY;
-    var screenRadius = Math.sqrt(dx * dx + dy * dy);
-    var radius = screenRadius / vectron_zoom;
+    var edgeMapX = aamap_mapX(cursor_realX);
+    var edgeMapY = aamap_mapY(cursor_realY);
+    var radius = zone_round(Math.hypot(edgeMapX - zoneTool_centerMapX,
+        edgeMapY - zoneTool_centerMapY));
 
     if (radius <= 0) {
         gui_writeLog("Zone radius must be greater than 0.");
@@ -972,11 +1142,13 @@ function zoneTool_buildDetails() {
     var details = {
         zoneName: zoneTool_typeArray[zoneTool_type][0],
         shapeType: $("#dZoneShape").val(),
+        showIcon:$("#dZoneShowIcon").is(":checked"),
         options: {},
         movementSpeed:zoneTool_numberValue("#dZoneMovementSpeed", ZONE_TOOL_DEFAULT_MOVEMENT_SPEED),
         rotationSpeed:zoneTool_rotationSpeedForShape($("#dZoneShape").val()),
         movementMode:$("#dZoneMovementMode").val() || "circular",
-        spawnAtVertices:$("#dZoneSpawnAtVertices").is(":checked"),
+        movementInstances:[],
+        movementPulseRadii:[],
         movementPath:[]
     };
 

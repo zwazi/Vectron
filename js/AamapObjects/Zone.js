@@ -1,6 +1,6 @@
 /*
 ********************************************************************************
-Vectron - map editor for Armagetron Advanced.
+Vectron - map editor for Neotron.
 Copyright (C) 2017  Glen Harpring       (armanelgtron@gmail.com)
 Copyright (C) 2014  Tristan Whitcher    (tristan.whitcher@gmail.com)
 David Dubois        (ddubois@jotunstudios.com)
@@ -37,6 +37,78 @@ function zone_round(value) {
 function zone_xmlAttr(value) {
     return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;")
         .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Resolve a pulsing circle's radius at an authored path vertex. Pulse keys
+ * are spaced by travelled path distance, not by vertex count. Circular paths
+ * interpolate across the closing leg; the other modes hold their nearest
+ * authored endpoint through an unkeyed prefix or suffix.
+ */
+function zone_movementRadiusAtVertex(path, radii, mode, vertexIndex, fallback) {
+    fallback = Number(fallback);
+    if(!Array.isArray(path) || !Array.isArray(radii) ||
+        path.length < 2 || radii.length !== path.length ||
+        !isFinite(vertexIndex) || Math.floor(vertexIndex) !== vertexIndex ||
+        vertexIndex < 0 || vertexIndex >= path.length) {
+        return fallback;
+    }
+
+    var distances = [0];
+    for(var pathIndex = 1; pathIndex < path.length; pathIndex++) {
+        var dx = Number(path[pathIndex].x) - Number(path[pathIndex - 1].x);
+        var dy = Number(path[pathIndex].y) - Number(path[pathIndex - 1].y);
+        var segmentLength = Math.sqrt(dx * dx + dy * dy);
+        if(!isFinite(segmentLength)) return fallback;
+        distances.push(distances[distances.length - 1] + segmentLength);
+    }
+
+    var keys = [];
+    for(var radiusIndex = 0; radiusIndex < radii.length; radiusIndex++) {
+        if(radii[radiusIndex] === null || radii[radiusIndex] === undefined ||
+            radii[radiusIndex] === "") continue;
+        var keyedRadius = Number(radii[radiusIndex]);
+        if(isFinite(keyedRadius) && keyedRadius > 0) {
+            keys.push({distance:distances[radiusIndex], radius:keyedRadius});
+        }
+    }
+    if(!keys.length) return fallback;
+
+    var position = distances[vertexIndex];
+    var first = keys[0];
+    var last = keys[keys.length - 1];
+    var interpolate = function(start, end, sample) {
+        var length = end.distance - start.distance;
+        if(length <= ZONE_DIRECTION_EPSILON) return end.radius;
+        var amount = (sample - start.distance) / length;
+        return start.radius + (end.radius - start.radius) * amount;
+    };
+
+    if(mode === "circular") {
+        var closingDx = Number(path[0].x) - Number(path[path.length - 1].x);
+        var closingDy = Number(path[0].y) - Number(path[path.length - 1].y);
+        var closingLength = Math.sqrt(closingDx * closingDx + closingDy * closingDy);
+        if(!isFinite(closingLength)) return fallback;
+        var totalLength = distances[distances.length - 1] + closingLength;
+        if(totalLength <= ZONE_DIRECTION_EPSILON) return first.radius;
+        var wrappedFirst = {distance:first.distance + totalLength, radius:first.radius};
+        if(position < first.distance) {
+            return interpolate(last, wrappedFirst, position + totalLength);
+        }
+        if(position >= last.distance) {
+            return interpolate(last, wrappedFirst, position);
+        }
+    } else {
+        if(position <= first.distance) return first.radius;
+        if(position >= last.distance) return last.radius;
+    }
+
+    for(var keyIndex = 1; keyIndex < keys.length; keyIndex++) {
+        if(position <= keys[keyIndex].distance) {
+            return interpolate(keys[keyIndex - 1], keys[keyIndex], position);
+        }
+    }
+    return fallback;
 }
 
 /**
@@ -99,6 +171,7 @@ function Zone(x, y, radius, growth, type, option, details) {
     this.type = type;
     this.zoneName = details.zoneName || (zoneTool_typeArray[this.type] ? zoneTool_typeArray[this.type][0] : "unknown");
     this.shapeType = details.shapeType || "circle";
+    this.showIcon = details.showIcon !== false;
     this.trigger = details.trigger || "";
     this.activeStartTick = details.activeStartTick === undefined ||
         details.activeStartTick === null ? null : Number(details.activeStartTick);
@@ -114,11 +187,23 @@ function Zone(x, y, radius, growth, type, option, details) {
     this.rotationSpeed = isFinite(requestedRotationSpeed) ? requestedRotationSpeed : 0;
     this.movementMode = ["circular", "ping_pong", "instant"].indexOf(details.movementMode) >= 0 ?
         details.movementMode : "circular";
-    this.spawnAtVertices = details.spawnAtVertices === true ||
-        details.spawnAtVertices === 1 || details.spawnAtVertices === "1" ||
-        String(details.spawnAtVertices).toLowerCase() === "true";
+    this.movementInstances = (details.movementInstances || []).map(Number)
+        .filter(function(index) { return isFinite(index) && index > 0 && Math.floor(index) === index; });
+    // One-way compatibility for maps authored with the old all-vertices flag.
+    if((details.spawnAtVertices === true || details.spawnAtVertices === 1 ||
+        details.spawnAtVertices === "1" ||
+        String(details.spawnAtVertices).toLowerCase() === "true") &&
+        !this.movementInstances.length) {
+        this.movementInstances = (details.movementPath || []).slice(1)
+            .map(function(_, index) { return index + 1; });
+    }
     this.movementPath = (details.movementPath || []).map(function(point) {
         return {x:Number(point.x), y:Number(point.y)};
+    });
+    this.movementPulseRadii = (details.movementPulseRadii || []).map(function(radius) {
+        if(radius === null || radius === undefined || radius === "") return null;
+        radius = Number(radius);
+        return isFinite(radius) && radius > 0 ? radius : null;
     });
 
     this.minx = details.minx;
@@ -302,8 +387,11 @@ function Zone(x, y, radius, growth, type, option, details) {
             }
         }
         if(this.shapeType === "circle") {
+            var renderedCircleRadius = zone_movementRadiusAtVertex(
+                this.movementPath, this.movementPulseRadii, this.movementMode,
+                0, this.radius);
             this.obj = vectron_screen.circle(aamap_realX(this.x),
-                aamap_realY(this.y), this.radius*vectron_zoom);
+                aamap_realY(this.y), renderedCircleRadius*vectron_zoom);
         } else if(this.shapeType === "line") {
             var lineRenderPoints = this.getLineFootprintPoints();
             var lineRenderPath = [];
@@ -364,16 +452,25 @@ function Zone(x, y, radius, growth, type, option, details) {
                 this.checkpointLabelObj.node.style.pointerEvents = "none";
             }
         }
-        if(this.spawnAtVertices && this.movementPathObj && this.movementPath.length &&
+        if(this.movementInstances.length && this.movementPathObj && this.movementPath.length &&
             this.obj && typeof this.obj.clone === "function") {
             var movementAnchor = this.movementPath[0];
             // Show each additional moving copy at its reset-time phase. These
             // are authoring ghosts only; every copy advances along the path.
-            for(var vertexIndex = 1; vertexIndex < this.movementPath.length; vertexIndex++) {
+            for(var instanceIndex = 0; instanceIndex < this.movementInstances.length;
+                instanceIndex++) {
+                var vertexIndex = this.movementInstances[instanceIndex];
                 var vertex = this.movementPath[vertexIndex];
+                if(!vertex) continue;
                 var vertexCopy = this.obj.clone().attr({
                     "stroke-opacity":0.48, "fill-opacity":0.025, "stroke-dasharray":"."
                 });
+                if(this.shapeType === "circle") {
+                    var instanceRadius = zone_movementRadiusAtVertex(
+                        this.movementPath, this.movementPulseRadii, this.movementMode,
+                        vertexIndex, this.radius);
+                    vertexCopy.attr({r:instanceRadius * vectron_zoom});
+                }
                 vertexCopy.transform("t" +
                     (aamap_realX(vertex.x) - aamap_realX(movementAnchor.x)) + "," +
                     (aamap_realY(vertex.y) - aamap_realY(movementAnchor.y)));
@@ -456,6 +553,11 @@ function Zone(x, y, radius, growth, type, option, details) {
         for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
             this.movementPath[movementIndex].x *= factor;
             this.movementPath[movementIndex].y *= factor;
+        }
+        for(var pulseIndex = 0; pulseIndex < this.movementPulseRadii.length; pulseIndex++) {
+            if(this.movementPulseRadii[pulseIndex] !== null) {
+                this.movementPulseRadii[pulseIndex] *= Math.abs(factor);
+            }
         }
         if(this.zoneName === "teleport") {
             this.options.destination_x = Number(this.options.destination_x) * factor;
@@ -590,7 +692,10 @@ function Zone(x, y, radius, growth, type, option, details) {
         var shapeBounds;
         var rotationFootprint = [];
         if(this.shapeType === "circle") {
-            var extent = Math.abs(this.radius) + Math.abs(this.growth);
+            var pulseExtent = this.movementPulseRadii.reduce(function(maximum, radius) {
+                return radius === null ? maximum : Math.max(maximum, Math.abs(Number(radius)));
+            }, Math.abs(this.radius));
+            var extent = pulseExtent + Math.abs(this.growth);
             shapeBounds = {minx:this.x - extent, miny:this.y - extent,
                 maxx:this.x + extent, maxy:this.y + extent};
         } else if(this.shapeType === "rectangle") {
@@ -753,7 +858,8 @@ function Zone(x, y, radius, growth, type, option, details) {
 
     this.getXML = function(includeLevel) {
         var attributes = (includeLevel === false ? '' : ' level="' + this.level + '"') +
-            ' type="' + zone_xmlAttr(this.zoneName) + '"';
+            ' type="' + zone_xmlAttr(this.zoneName) + '" show_icon="' +
+            this.showIcon + '"';
         if(this.zoneName === "checkpoint") attributes += ' order="' + zone_xmlAttr(this.option) + '"';
         if(this.zoneName === "speed") {
             attributes += ' delta_mps="' + zone_xmlAttr(this.options.delta_mps) +
@@ -795,11 +901,16 @@ function Zone(x, y, radius, growth, type, option, details) {
         var movementXml = "";
         if(this.movementPath.length) {
             movementXml = '\n  <MovementPath loop="true" mode="' +
-                zone_xmlAttr(this.movementMode) + '" spawn_at_vertices="' +
-                (this.spawnAtVertices ? 'true' : 'false') + '">';
+                zone_xmlAttr(this.movementMode) + '"' +
+                (this.movementInstances.length ? ' instances="' +
+                    this.movementInstances.join(',') + '"' : '') + '>';
             for(var movementIndex = 0; movementIndex < this.movementPath.length; movementIndex++) {
                 movementXml += '\n    <Point x="' + zone_round(this.movementPath[movementIndex].x) +
-                    '" y="' + zone_round(this.movementPath[movementIndex].y) + '"/>';
+                    '" y="' + zone_round(this.movementPath[movementIndex].y) + '"' +
+                    (this.movementPulseRadii[movementIndex] === null ||
+                        this.movementPulseRadii[movementIndex] === undefined ? '' :
+                        ' radius="' + zone_round(this.movementPulseRadii[movementIndex]) + '"') +
+                    '/>';
             }
             movementXml += '\n  </MovementPath>';
         }

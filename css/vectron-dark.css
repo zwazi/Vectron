@@ -34,6 +34,35 @@ body {
 	background-color: #000;
 }
 
+#symmetry-menu {
+	background:#1d1d1d;
+	color:#eee;
+	border-color:#555;
+}
+
+#symmetry-menu input[type="number"] {
+	background:#2b2b2b;
+	color:#eee;
+	border:1px solid #555;
+}
+
+#symmetry-menu .symmetry-check-row { border-top-color:#555; }
+
+#code-viewer-find-bar {
+	background:#242424;
+	border-color:#555;
+}
+
+#code-viewer-find-bar input[type="text"] {
+	background:#181818;
+	color:#eee;
+	border-color:#555;
+}
+
+#code-viewer-find-count {
+	color:#aaa;
+}
+
 .tooltip-inner {
 	background-color: #f2f2f2;
 	color: #111;
@@ -463,6 +492,7 @@ body {
 #wall-tool-window,
 #zone-tool-window,
 #ramp-tool-window,
+#billboard-tool-window,
 #floor-tool-window,
 #selection-properties-window {
     background: rgba(28,28,28,0.97);
@@ -472,6 +502,7 @@ body {
 #wall-tool-header,
 #zone-tool-header,
 #ramp-tool-header,
+#billboard-tool-header,
 #floor-tool-header,
 #selection-properties-header {
     background: rgba(50,50,50,0.95);
@@ -490,6 +521,8 @@ body {
 #zone-tool-body span,
 #ramp-tool-body label,
 #ramp-tool-body span,
+#billboard-tool-body label,
+#billboard-tool-body span,
 #floor-tool-body label,
 #floor-tool-body span,
 #selection-properties-body label,

@@ -37,7 +37,9 @@ ws.onerror = event => {
 
 ws.onopen = async () => {
     try {
-        await call("session.new", {capabilities:{}});
+        if(process.env.VECTRON_BIDI_ATTACHED !== "1") {
+            await call("session.new", {capabilities:{}});
+        }
         await call("session.subscribe", {events:["log.entryAdded"]});
         const tree = await call("browsingContext.getTree", {});
         const context = tree.contexts[0].context;
@@ -190,7 +192,9 @@ ws.onopen = async () => {
                 movementDefaults:[document.getElementById('dZoneMovementSpeed').value,
                     document.getElementById('dZoneRotationSpeed').value,
                     document.getElementById('dZoneMovementMode').value,
-                    document.getElementById('dZoneSpawnAtVertices').checked],
+                    document.getElementById('dZonePulse').checked],
+                legacyVertexCopiesRemoved:!document.getElementById('dZoneSpawnAtVertices') &&
+                    !/Vertex copies/.test(document.getElementById('zone-tool-window').textContent),
                 checkpointAutoIncrement:!!document.getElementById('dCheckpointAutoIncrement') &&
                     document.getElementById('dCheckpointAutoIncrement').checked,
                 lineWidthMinimum:document.getElementById('dZoneLineWidth').min,
@@ -514,12 +518,110 @@ ws.onopen = async () => {
             symmetrySpawn.x=6;symmetrySpawn.y=2;symmetrySpawn.xDir=1;symmetrySpawn.yDir=0;
             var symmetryGroup=aamap_addWithSymmetry(symmetrySpawn);
             result.symmetryUi={x:!!document.getElementById('symmetry-x-toggle'),
-                y:!!document.getElementById('symmetry-y-toggle'), count:symmetryGroup.length,
+                y:!!document.getElementById('symmetry-y-toggle'),
+                origin:!!document.getElementById('symmetry-origin-toggle'),
+                customX:!!document.getElementById('symmetry-custom-x-toggle'),
+                customY:!!document.getElementById('symmetry-custom-y-toggle'),
+                customPoint:!!document.getElementById('symmetry-custom-point-toggle'),
+                count:symmetryGroup.length,
                 positions:symmetryGroup.map(function(spawn){return [spawn.x,spawn.y];})
                     .sort(function(a,b){return a[0]-b[0];}),
                 directions:symmetryGroup.map(function(spawn){return spawn.xDir;})
                     .sort(function(a,b){return a-b;})};
             aamap_removeObjectGroup(symmetryGroup);
+            $('#symmetry-x-toggle').prop('checked',false);
+            $('#symmetry-origin-toggle').prop('checked',true);
+            var originGroup=aamap_addWithSymmetry(symmetrySpawn);
+            result.symmetryUi.originPositions=originGroup.map(function(spawn){
+                return [spawn.x,spawn.y];
+            }).sort(function(a,b){return a[0]-b[0];});
+            aamap_removeObjectGroup(originGroup);
+            $('#symmetry-origin-toggle').prop('checked',false);
+            $('#symmetry-custom-point-toggle').prop('checked',true);
+            $('#symmetry-custom-point-x').val('4');
+            $('#symmetry-custom-point-y').val('-2');
+            var customPointGroup=aamap_addWithSymmetry(symmetrySpawn);
+            result.symmetryUi.customPointPositions=customPointGroup.map(function(spawn){
+                return [spawn.x,spawn.y];
+            }).sort(function(a,b){return a[1]-b[1];});
+            aamap_removeObjectGroup(customPointGroup);
+            $('#symmetry-custom-point-toggle').prop('checked',false);
+            $('#symmetry-x-toggle').prop('checked',true);
+            var savedCursorSnap=cursor_snap;
+            cursor_snap=true;
+            var pasteTranslation=selectTool_pasteTranslation([
+                {getPosition:function(){return [0,0];}},
+                {getPosition:function(){return [vectron_grid_spacing,0];}}
+            ],vectron_grid_spacing*2,vectron_grid_spacing);
+            result.pasteGrid={translation:pasteTranslation,spacing:vectron_grid_spacing,
+                onGrid:Math.abs(pasteTranslation.x/vectron_grid_spacing-
+                    Math.round(pasteTranslation.x/vectron_grid_spacing))<1e-6 &&
+                    Math.abs(pasteTranslation.y/vectron_grid_spacing-
+                    Math.round(pasteTranslation.y/vectron_grid_spacing))<1e-6,
+                avoidedHalfGrid:Math.abs(pasteTranslation.x-
+                    vectron_grid_spacing*1.5)>1e-6};
+            var pasteBatchStart=aamap_objects.length;
+            var pasteRight=new Wall();
+            pasteRight.points=[new WallPoint(2,1),new WallPoint(4,1)];
+            var pasteLeft=new Wall();
+            pasteLeft.points=[new WallPoint(-2,1),new WallPoint(-4,1)];
+            aamap_add(pasteRight);aamap_add(pasteLeft);
+            aamap_addSymmetryCopiesForExistingBatch([pasteRight,pasteLeft]);
+            var pasteBatchObjects=aamap_objects.slice(pasteBatchStart);
+            result.pasteSymmetryDedupe={count:pasteBatchObjects.length,
+                uniqueKeys:new Set(pasteBatchObjects.map(aamap_symmetryObjectKey)).size};
+            aamap_removeObjectGroup(pasteBatchObjects);
+            result.canonicalSaveType=vectron_fileTypeForSave('legacy-map.aamap.xml');
+            var billboardModel=new Billboard({x:-8,y:6},{x:12,y:6},5,
+                'https://cdn.example.com/banner.png',1,'right',false);
+            var noIconZone=new Zone(0,0,2,0,0,0,{zoneName:'death',shapeType:'circle',
+                showIcon:false,options:{}});
+            var billboardDocument=armamap_build('billboard-smoke','smoke','racing','',4,[],
+                '',[billboardModel,noIconZone]).document;
+            var billboardCompatibility=armamap_toCompatibilityXml(billboardDocument);
+            var savedBillboardTool=vectron_currentTool;
+            var savedBillboardModelLevel=billboardModel.level;
+            selectTool_deselectAll();
+            vectron_currentTool='select';
+            billboardModel.level=aamap_activeLevel;
+            billboardModel.isSelected=true;
+            billboardModel.render();
+            var selectedBillboardGlowNode=billboardModel.glowObj.node;
+            selectTool_selectedObjs=[billboardModel];
+            selectTool_deselectAll();
+            var billboardSelectionCleared=!selectedBillboardGlowNode.isConnected &&
+                billboardModel.isSelected===false &&
+                Number(billboardModel.obj.attr('stroke-width'))===3 &&
+                billboardModel.glowObj.node.isConnected;
+            vectron_currentTool=savedBillboardTool;
+            billboardModel.level=savedBillboardModelLevel;
+            $('#symmetry-menu-toggle').trigger('click');
+            var symmetryMenuOpened=$('#symmetry-menu').is(':visible');
+            $('#symmetry-menu-toggle').trigger('click');
+            result.billboard={
+                tool:!!document.getElementById('billboard-tool-window') &&
+                    !!document.getElementById('dBillboardUrl') &&
+                    !!document.getElementById('dBillboardHeight') &&
+                    !!document.getElementById('dBillboardDualSided'),
+                value:billboardDocument.billboards[0],
+                icon:noIconZone.showIcon===false &&
+                    billboardDocument.zones[0].show_icon===false,
+                compatibility:billboardCompatibility.indexOf(
+                    'url="https://cdn.example.com/banner.png" facing="right" dual_sided="false"')>=0 &&
+                    /<Zone[^>]*show_icon="false"/.test(
+                    billboardCompatibility),
+                externalOnly:billboard_isExternalUrl('https://example.com/a.png') &&
+                    !billboard_isExternalUrl('file:///tmp/a.png'),
+                toolbarIcon:getComputedStyle(document.querySelector('.toolbar-toolBillboard'))
+                    .backgroundImage.indexOf('BillboardTool.svg')>=0,
+                selectionClears:billboardSelectionCleared,
+                symmetryDropdown:!!document.getElementById('symmetry-menu') &&
+                    symmetryMenuOpened &&
+                    !document.getElementById('symmetry-custom-popover')
+            };
+            aamap_removeObjectVisuals(billboardModel);
+            aamap_removeObjectVisuals(noIconZone);
+            cursor_snap=savedCursorSnap;
             var symmetryModelCount=aamap_objects.length;
             $('#symmetry-check-toggle').prop('checked',true);
             vectron_render();
@@ -547,28 +649,136 @@ ws.onopen = async () => {
             document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'~',code:'Backquote',shiftKey:true,
                 bubbles:true,cancelable:true}));
             var settingsClosed=!gui_active;
+            var authorTimeSetting='ARCHITECT_TIME 12';
+            xml_map_validation={version:1,ticks:720,fraction:0,tick_rate:60,
+                fraction_scale:1000000,proof_algorithm:'smoke',replay_proof:'proof'};
+            xml_settings=xml_settings.filter(function(setting){
+                return String(setting).toUpperCase().indexOf('ARCHITECT_TIME ')!==0;
+            });
+            xml_settings.push(authorTimeSetting);
+            $('#map_settings').val(xml_settings.join('\\n'));
             document.body.dispatchEvent(new KeyboardEvent('keydown',{key:String.fromCharCode(96),code:'Backquote',
                 bubbles:true,cancelable:true}));
             var shortcutOpened=$('#xml-editor-overlay').hasClass('visible');
             var nativeCode=$('#xml-editor-content').val();
             var nativeFormatLabel=$('#code-viewer-format').text();
+            var nativeDocument=JSON.parse(nativeCode);
+            var invalidFullOriginal=aamap_objects.filter(function(object){
+                return object instanceof Wall;
+            })[0];
+            var invalidFullVisual=invalidFullOriginal && invalidFullOriginal.obj;
+            var invalidFullDocument=JSON.parse(nativeCode);
+            invalidFullDocument.walls[0].points[0][0]='oops';
+            $('#xml-editor-content').val(JSON.stringify(invalidFullDocument,null,2)+'\\n');
             $('#xml-editor-apply').trigger('mouseup');
+            var invalidFullPreserved=!!invalidFullOriginal &&
+                aamap_objects.indexOf(invalidFullOriginal)>=0 &&
+                invalidFullOriginal.obj===invalidFullVisual &&
+                !(invalidFullVisual && invalidFullVisual.removed);
+            var invalidFullError=$('#xml-editor-error').is(':visible') &&
+                /invalid \.neomap.json/i.test($('#xml-editor-error').text());
+            $('#xml-editor-content').val(nativeCode);
+            dispatchEditorKey(document.body,'f','KeyF',70,{ctrlKey:true});
+            var findFocused=document.activeElement===document.getElementById('code-viewer-find');
+            $('#code-viewer-find').val(nativeDocument.metadata.name).trigger('input');
+            $('#code-viewer-find-next').trigger('click');
+            var findCount=$('#code-viewer-find-count').text();
+            $('#code-viewer-replace').val('code-viewer-smoke');
+            $('#code-viewer-replace-all').trigger('click');
+            var replacedName=JSON.parse($('#xml-editor-content').val()).metadata.name;
+            $('#xml-editor-apply').trigger('mouseup');
+            var appliedRevision=xml_version;
+            var applyClearedValidation=xml_map_validation===null &&
+                xml_settings.indexOf(authorTimeSetting)<0;
+            aamap_undo();
+            var undoRestoredValidation=!!xml_map_validation &&
+                xml_settings.indexOf(authorTimeSetting)>=0;
+            aamap_redo();
+            var redoKeptValidationCleared=xml_map_validation===null &&
+                xml_settings.indexOf(authorTimeSetting)<0;
+            var redoRestoredRevision=xml_version===appliedRevision;
             result.xmlEditor={typingGuard:ignoredWhileTyping, shortcut:shortcutOpened,
                 remainsOpen:$('#xml-editor-overlay').hasClass('visible'),
                 settingsShortcut:settingsOpened && settingsClosed,
                 nativeFormat:nativeFormatLabel,
-                nativePretty:/^\\{\\n  "format": "arma-racing-map",/.test(nativeCode) &&
-                    JSON.parse(nativeCode).format==='arma-racing-map'};
+                findFocused:findFocused,
+                findCount:findCount,
+                replacedName:replacedName,
+                invalidFullPreserved:invalidFullPreserved,
+                invalidFullError:invalidFullError,
+                applyClearedValidation:applyClearedValidation,
+                undoRestoredValidation:undoRestoredValidation,
+                redoKeptValidationCleared:redoKeptValidationCleared,
+                redoRestoredRevision:redoRestoredRevision,
+                nativePretty:/^\\{\\n  "format": "neotron-map",/.test(nativeCode) &&
+                    JSON.parse(nativeCode).format==='neotron-map'};
             document.body.dispatchEvent(new KeyboardEvent('keydown',{key:String.fromCharCode(96),code:'Backquote',
                 bubbles:true,cancelable:true}));
             result.xmlEditor.toggledClosed=!$('#xml-editor-overlay').hasClass('visible');
             codeViewer_setSourceFormat('legacy-xml');
             $('.toolbar-toolXml').trigger('mouseup');
             var legacyCode=$('#xml-editor-content').val();
-            result.xmlEditor.legacyFormat=$('#code-viewer-format').text();
-            result.xmlEditor.legacyPretty=/^<Resource[^>]*>\\n  <Map[^>]*>\\n/.test(legacyCode);
+            result.xmlEditor.legacyRequestFormat=$('#code-viewer-format').text();
+            result.xmlEditor.legacyRequestStayedNative=/^\\{\\n  "format": "neotron-map",/.test(legacyCode);
             $('#xml-editor-close').trigger('mouseup');
-            codeViewer_setSourceFormat('armamap');
+            codeViewer_setSourceFormat('neomap-json');
+
+            var selectionCandidate=aamap_objects.filter(function(object){
+                return object instanceof Wall;
+            })[0];
+            selectTool_select(selectionCandidate);
+            selectTool_selectedObjs=[selectionCandidate];
+            $('.toolbar-toolXml').trigger('mouseup');
+            var selectionCode=$('#xml-editor-content').val();
+            var selectionDocument=JSON.parse(selectionCode);
+            result.xmlEditor.selectionFormat=$('#code-viewer-format').text();
+            result.xmlEditor.selectionNative=selectionDocument.format==='neotron-map';
+            result.xmlEditor.selectionObjectCount=['spawns','walls','floors','ramps','zones','billboards']
+                .reduce(function(count,key){return count+selectionDocument[key].length;},0);
+            var selectionOriginalVisual=selectionCandidate.obj;
+            var selectionEnvelopeEdit=JSON.parse(selectionCode);
+            selectionEnvelopeEdit.metadata.name='Rejected selection metadata';
+            $('#xml-editor-content').val(JSON.stringify(selectionEnvelopeEdit,null,2)+'\\n');
+            $('#xml-editor-apply').trigger('mouseup');
+            result.xmlEditor.selectionEnvelopeRejected=
+                selectTool_selectedObjs[0]===selectionCandidate &&
+                selectionCandidate.obj===selectionOriginalVisual &&
+                /use full map/i.test($('#xml-editor-error').text());
+            var invalidSelectionDocument=JSON.parse(selectionCode);
+            invalidSelectionDocument.walls[0].points[0][0]='oops';
+            $('#xml-editor-content').val(JSON.stringify(invalidSelectionDocument,null,2)+'\\n');
+            $('#xml-editor-apply').trigger('mouseup');
+            result.xmlEditor.invalidSelectionPreserved=
+                selectTool_selectedObjs[0]===selectionCandidate &&
+                selectionCandidate.obj===selectionOriginalVisual &&
+                $('#xml-editor-error').is(':visible');
+            var selectionOriginalX=selectionDocument.walls[0].points[0][0];
+            selectionDocument.walls[0].points[0][0]=selectionOriginalX+1;
+            $('#xml-editor-content').val(JSON.stringify(selectionDocument,null,2)+'\\n');
+            $('#xml-editor-apply').trigger('mouseup');
+            result.xmlEditor.selectionApplied=selectTool_selectedObjs.length===1 &&
+                selectTool_selectedObjs[0] instanceof Wall &&
+                selectTool_selectedObjs[0].points[0].x===selectionOriginalX+1;
+            $('#xml-editor-close').trigger('mouseup');
+            selectTool_deselectAll();
+
+            var checkpointForSelection=new Zone(24,24,2,0,5,7,{
+                zoneName:'checkpoint',shapeType:'circle',options:{}});
+            aamap_add(checkpointForSelection);
+            selectTool_select(checkpointForSelection);
+            selectTool_selectedObjs=[checkpointForSelection];
+            var previousCheckpointOrderBase=xml_checkpoint_order_base_one;
+            xml_checkpoint_order_base_one=false;
+            $('.toolbar-toolXml').trigger('mouseup');
+            $('#xml-editor-apply').trigger('mouseup');
+            result.xmlEditor.selectionCheckpointBaseOne=
+                selectTool_selectedObjs.length===1 &&
+                selectTool_selectedObjs[0] instanceof Zone &&
+                selectTool_selectedObjs[0].option===7 &&
+                xml_checkpoint_order_base_one===false;
+            xml_checkpoint_order_base_one=previousCheckpointOrderBase;
+            $('#xml-editor-close').trigger('mouseup');
+            selectTool_deselectAll();
 
             aamap_objects.forEach(aamap_removeObjectVisuals);
             aamap_objects = [];
@@ -596,6 +806,7 @@ ws.onopen = async () => {
             xml_process('<Resource name="zone-import" author="smoke" category="racing" version="1"><Map><World><Field>' +
                 '<Zone type="setting" setting="JUMP_ENABLED" value="1" priority="99" start_tick="4" end_tick="8"><ShapeCircle radius="2"><Point x="0" y="0"/></ShapeCircle></Zone>' +
                 '<Zone type="health" delta="-5" priority="-3" start_tick="1" end_tick="2"><ShapeCircle radius="2"><Point x="10" y="0"/></ShapeCircle></Zone>' +
+                '<Zone effect="rubber" value="-125" duration="240"><ShapeCircle radius="3"><Point x="12" y="6"/></ShapeCircle></Zone>' +
                 '<Zone type="checkpoint" order="0"><ShapeLine width="0"><Point x="-5" y="4"/><Point x="5" y="4"/></ShapeLine></Zone>' +
                 '<Zone effect="checkpoint"><ShapeCircle radius="2"><Point x="15" y="0"/></ShapeCircle><Checkpoint id="2"/></Zone>' +
                 '<Zone type="setting" setting="JUMP_ENABLED" value="2"><ShapeCircle radius="2"><Point x="20" y="0"/></ShapeCircle></Zone>' +
@@ -603,6 +814,10 @@ ws.onopen = async () => {
                 '</Field></World></Map></Resource>', true);
             var importedZones=aamap_objects.filter(function(object){return object instanceof Zone;});
             var importedZoneXml=importedZones.map(function(zone){return zone.getXML();}).join('');
+            var importedRubber=importedZones.filter(function(zone){
+                return zone.zoneName==='rubber';
+            })[0];
+            var importedRubberNative=importedRubber ? armamap_zone(importedRubber) : null;
             result.zoneImport={
                 count:importedZones.length,
                 kinds:importedZones.map(function(zone){return zone.zoneName;}),
@@ -616,6 +831,12 @@ ws.onopen = async () => {
                 nestedCheckpointOrder:importedZones.some(function(zone) {
                     return zone.zoneName==='checkpoint' && zone.option===3;
                 }),
+                rubberPreserved:!!importedRubber && importedRubber.options.delta===-125 &&
+                    importedRubber.options.duration_ticks===240 &&
+                    /type="rubber"[^>]*delta="-125" duration_ticks="240"/.test(
+                        importedRubber.getXML()) && importedRubberNative.type==='rubber' &&
+                    importedRubberNative.delta===-125 &&
+                    importedRubberNative.duration_ticks===240,
                 legacyFieldsDropped:importedZones.every(function(zone){
                     return !Object.prototype.hasOwnProperty.call(zone,'priority') &&
                         !Object.prototype.hasOwnProperty.call(zone,'startTick') &&
@@ -798,18 +1019,22 @@ ws.onopen = async () => {
             $('#dZoneMovementSpeed').val('20');
             $('#dZoneRotationSpeed').val('30');
             $('#dZoneMovementMode').val('instant');
-            $('#dZoneSpawnAtVertices').prop('checked',true);
+            $('#dZonePulse').prop('checked',true);
             zoneTool_type=0; vectron_currentTool='zone'; aamap_activeLevel=0;
+            zoneTool_resetPlacement();
             function cursor(x,y){
                 cursor_realX=cursor_neverSnappedX=aamap_realX(x);
                 cursor_realY=cursor_neverSnappedY=aamap_realY(y);
             }
+            cursor(2,3); zoneTool_complete(); cursor(12,3); zoneTool_complete();
+            var pathFinished=zoneTool_finishMovementPath();
             cursor(2,3); zoneTool_complete(); cursor(6,3); zoneTool_complete();
-            cursor(12,3); zoneTool_complete();
-            result.movementFinished=zoneTool_finishMovementPath();
+            cursor(12,3); zoneTool_complete(); cursor(18,3); zoneTool_complete();
+            result.movementFinished=pathFinished && zoneTool_finishMovementInstances();
             var moving=aamap_objects.filter(function(object){return object instanceof Zone;})[0];
             result.moving={path:moving.movementPath.map(function(point){return [point.x,point.y];}),
-                mode:moving.movementMode, spawnAtVertices:moving.spawnAtVertices,
+                mode:moving.movementMode, instances:moving.movementInstances.slice(),
+                pulseRadii:moving.movementPulseRadii.slice(),
                 arrows:Array.from(moving.movementPathObj).filter(function(object){
                     return object.attr('arrow-end')==='classic-wide-long';
                 }).length,
@@ -930,7 +1155,7 @@ ws.onopen = async () => {
             aamap_objects.forEach(aamap_removeObjectVisuals);
             aamap_objects=[];
             armamap_process({
-                format:'arma-racing-map',format_version:1,
+                format:'neotron-map',format_version:1,
                 metadata:{name:'native-roundtrip',author:'smoke',revision:'1'},
                 axes:[[1,0],[0.2,0.98],[-1,0]],
                 levels:{count:2,gaps:[8]},
@@ -1064,8 +1289,8 @@ ws.onopen = async () => {
                             legacyCoordinatesLine.lineStart.x}
                 }
             };
-            await importMapFile('native-coordinate-smoke.armamap', JSON.stringify({
-                format:'arma-racing-map',format_version:1,
+            await importMapFile('native-coordinate-smoke.neomap.json', JSON.stringify({
+                format:'neotron-map',format_version:1,
                 metadata:{name:'native-coordinate-smoke',tags:['racing']},
                 axes:4,levels:{count:1,gaps:[]},settings:{},
                 spawns:[{level:0,position:[100,200],direction:[1,0]}],
@@ -1094,7 +1319,7 @@ ws.onopen = async () => {
             result.legacyAxes={normalized:normalizedAxes,
                 unnormalized:xml_axis_vectors.map(function(vector){return vector.slice();})};
             aamap_objects.forEach(aamap_removeObjectVisuals); aamap_objects=[];
-            armamap_process({format:'arma-racing-map',format_version:1,
+            armamap_process({format:'neotron-map',format_version:1,
                 metadata:{name:'partial-gaps'},levels:{count:3,gaps:[6]},axes:4,
                 settings:{},spawns:[{position:[0,0],direction:[1,0]}],
                 walls:[],floors:[],ramps:[],zones:[]},true);
@@ -1114,8 +1339,8 @@ ws.onopen = async () => {
                 return originalPerformancePath.apply(this,arguments);
             };
             try {
-                await importMapFile('large-import-smoke.armamap',JSON.stringify({
-                    format:'arma-racing-map',format_version:1,
+                await importMapFile('large-import-smoke.neomap.json',JSON.stringify({
+                    format:'neotron-map',format_version:1,
                     metadata:{name:'large-import-smoke',author:'smoke',tags:['racing']},
                     axes:8,levels:{count:1,gaps:[]},settings:{},
                     spawns:[{level:0,position:[0,0],direction:[1,0]}],
@@ -1137,7 +1362,7 @@ ws.onopen = async () => {
         const value = JSON.parse(evaluated.result.value);
         assert.deepStrictEqual(value.legacyImportCoordinates, {
             legacy:{
-                format:'legacy-xml',bounds:{minx:100,miny:200,maxx:162,maxy:262},
+                format:'neomap-json',bounds:{minx:100,miny:200,maxx:162,maxy:262},
                 viewport:[-131,-231],spawn:[110,210,0,1],
                 wall:[[100,200],[140,200]],
                 floor:[{x:105,y:205},{x:115,y:205},{x:105,y:215}],
@@ -1149,7 +1374,7 @@ ws.onopen = async () => {
                 line:[{x:100,y:250},{x:120,y:250}],
                 dimensions:{wall:40,rampWidth:4,circleRadius:12,rectangle:[15,15],line:20}
             },
-            native:{format:'armamap',spawn:[100,200],wall:[[100,200],[140,200]]}
+            native:{format:'neomap-json',spawn:[100,200],wall:[[100,200],[140,200]]}
         });
         if(process.env.VECTRON_IMPORT_COORDINATES_ONLY === "1") {
             console.log("Vectron legacy-import coordinate preservation browser test passed.");
@@ -1176,6 +1401,7 @@ ws.onopen = async () => {
             teleportInputsRemoved:true, quickPlacementRemoved:true,
             triggerHelp:true, keyboardHelp:true, noActionLabel:true,
             panelDefault:["340px","auto"], movementDefaults:["20","0","circular",false],
+            legacyVertexCopiesRemoved:true,
             checkpointAutoIncrement:true, checkpointColor:"#ffffff",
             lineWidthMinimum:"0", zeroLineWidthAccepted:true, zonePulseDefault:"0.1",
             circleRotation:["0",true], rectangleRotationVisible:true
@@ -1225,7 +1451,23 @@ ws.onopen = async () => {
                 '  <Point x="10" y="0" height="7.25"/>\n</Wall>'
         });
         assert.deepStrictEqual(value.symmetryUi, {
-            x:true, y:true, count:2, positions:[[-6,2],[6,2]], directions:[-1,1]
+            x:true, y:true, origin:true, customX:true, customY:true, customPoint:true,
+            count:2, positions:[[-6,2],[6,2]], directions:[-1,1],
+            originPositions:[[-6,-2],[6,2]], customPointPositions:[[2,-6],[6,2]]
+        });
+        assert.strictEqual(value.pasteGrid.onGrid, true);
+        assert.strictEqual(value.pasteGrid.avoidedHalfGrid, true);
+        assert.deepStrictEqual(value.pasteSymmetryDedupe, {count:2,uniqueKeys:2});
+        assert.deepStrictEqual(value.canonicalSaveType, {
+            fileName:'legacy-map.neomap.json',mime:'application/json',
+            description:'Neotron map (.neomap.json)',extension:'.neomap.json'
+        });
+        assert.deepStrictEqual(value.billboard, {
+            tool:true,
+            value:{level:1,start:[-8,6],end:[12,6],height:5,
+                url:'https://cdn.example.com/banner.png',facing:'right',dual_sided:false},
+            icon:true,compatibility:true,externalOnly:true,toolbarIcon:true,
+            selectionClears:true,symmetryDropdown:true
         });
         assert.deepStrictEqual(value.symmetryCheck, {
             exists:true, sourceStartsAtAxis:true, fullHeight:true,
@@ -1234,12 +1476,22 @@ ws.onopen = async () => {
         });
         assert.deepStrictEqual(value.xmlEditor, {
             typingGuard:true, shortcut:true, remainsOpen:true,
-            settingsShortcut:true, nativeFormat:'.armamap JSON', nativePretty:true,
-            toggledClosed:true, legacyFormat:'Legacy XML', legacyPretty:true
+            settingsShortcut:true, nativeFormat:'.neomap.json JSON', nativePretty:true,
+            findFocused:true, findCount:'1 / 1', replacedName:'code-viewer-smoke',
+            invalidFullPreserved:true, invalidFullError:true,
+            applyClearedValidation:true, undoRestoredValidation:true,
+            redoKeptValidationCleared:true, redoRestoredRevision:true,
+            toggledClosed:true, legacyRequestFormat:'.neomap.json JSON',
+            legacyRequestStayedNative:true,
+            selectionFormat:'Selection .neomap.json JSON', selectionNative:true,
+            selectionObjectCount:1, selectionEnvelopeRejected:true,
+            invalidSelectionPreserved:true, selectionApplied:true,
+            selectionCheckpointBaseOne:true
         });
         assert.deepStrictEqual(value.zoneImport, {
-            count:4, kinds:["setting","health","checkpoint","checkpoint"], zeroWidth:true,
+            count:5, kinds:["setting","health","rubber","checkpoint","checkpoint"], zeroWidth:true,
             priorityDropped:true, timingPreserved:true, nestedCheckpointOrder:true,
+            rubberPreserved:true,
             legacyFieldsDropped:true
         });
         assert.deepStrictEqual(value.selectedLineWidth, {
@@ -1268,11 +1520,14 @@ ws.onopen = async () => {
         assert.strictEqual(value.movementFinished, true);
         assert.deepStrictEqual(value.moving.path, [[2,3],[12,3]]);
         assert.strictEqual(value.moving.mode, 'instant');
-        assert.strictEqual(value.moving.spawnAtVertices, true);
+        assert.deepStrictEqual(value.moving.instances, [1]);
+        assert.deepStrictEqual(value.moving.pulseRadii, [4,6]);
         assert.strictEqual(value.moving.arrows, 1);
         assert.match(value.moving.xml, /movement_speed="20" rotation_speed="0"/);
         assert.match(value.moving.xml, /<MovementPath\b[^>]*\bloop="true"/);
-        assert.match(value.moving.xml, /mode="instant" spawn_at_vertices="true"/);
+        assert.match(value.moving.xml, /mode="instant" instances="1"/);
+        assert.match(value.moving.xml, /radius="4"[\s\S]*radius="6"/);
+        assert.doesNotMatch(value.moving.xml, /spawn_at_vertices/);
         assert.deepStrictEqual(value.moving.errors, []);
         assert.deepStrictEqual(value.diagonal, [true,false]);
         assert.deepStrictEqual(value.zoneDiagonal, ['#00cfff','#ff0000','#00cfff']);

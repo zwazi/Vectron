@@ -210,6 +210,47 @@ function preview3d_addTriangle(scene, a, b, c, color, alpha) {
     preview3d_extendBounds(scene, c);
 }
 
+function preview3d_addBillboard(scene, billboard) {
+    var start = billboard.start, end = billboard.end;
+    var dx = Number(end.x) - Number(start.x);
+    var dy = Number(end.y) - Number(start.y);
+    var width = Math.hypot(dx, dy);
+    if(!isFinite(width) || width < 1e-9) return;
+    // External image dimensions are deliberately not fetched by the editor's
+    // software preview. A 2:1 placeholder still communicates placement,
+    // elevation, facing, and one/two-sided visibility accurately.
+    var bottom = preview3d_levelElevation(billboard.level) + Number(billboard.height || 0);
+    var top = bottom + width / 2;
+    var bottomStart = [Number(start.x), Number(start.y), bottom];
+    var bottomEnd = [Number(end.x), Number(end.y), bottom];
+    var topStart = [Number(start.x), Number(start.y), top];
+    var topEnd = [Number(end.x), Number(end.y), top];
+    var side = billboard.facing === "left" ? 1 : -1;
+    var normal = [-dy / width * side, dx / width * side, 0];
+    var triangleStart = scene.triangles.length;
+    preview3d_addTriangle(scene, bottomStart, bottomEnd, topEnd, "#287d91", 0.72);
+    preview3d_addTriangle(scene, bottomStart, topEnd, topStart, "#287d91", 0.72);
+    for(var index = triangleStart; index < scene.triangles.length; index++) {
+        scene.triangles[index].frontNormal = normal;
+        scene.triangles[index].dualSided = !!billboard.dualSided;
+        scene.triangles[index].center = [
+            (Number(start.x) + Number(end.x)) / 2,
+            (Number(start.y) + Number(end.y)) / 2,
+            (bottom + top) / 2
+        ];
+    }
+    preview3d_addLine(scene, bottomStart, bottomEnd, "#48e8ff", 1.7, 0.95);
+    preview3d_addLine(scene, bottomEnd, topEnd, "#48e8ff", 1.7, 0.95);
+    preview3d_addLine(scene, topEnd, topStart, "#48e8ff", 1.7, 0.95);
+    preview3d_addLine(scene, topStart, bottomStart, "#48e8ff", 1.7, 0.95);
+    var center = [(start.x + end.x) / 2, (start.y + end.y) / 2, bottom];
+    var arrowLength = Math.min(6, Math.max(1, width * 0.24));
+    preview3d_addLine(scene, center,
+        [center[0] + normal[0] * arrowLength,
+            center[1] + normal[1] * arrowLength, center[2]],
+        "#48e8ff", 1.4, 0.9);
+}
+
 /** Uses the same geometry and palette for ordinary rims and sloped ramp rails. */
 function preview3d_addRimWall(scene, a, b, heightA, heightB) {
     heightA = Number(heightA);
@@ -530,6 +571,64 @@ function preview3d_closedPathPosition(path, speed, seconds, mode) {
     return {x:path[0].x, y:path[0].y};
 }
 
+function preview3d_pulseRadius(motion, seconds) {
+    var path = motion.path || [];
+    var radii = motion.pulseRadii || [];
+    if(path.length < 2 || radii.length !== path.length) return null;
+    var vertexDistances = [0], forwardLength = 0;
+    for(var index = 1; index < path.length; index++) {
+        forwardLength += Math.hypot(path[index].x - path[index - 1].x,
+            path[index].y - path[index - 1].y);
+        vertexDistances.push(forwardLength);
+    }
+    var keys = radii.map(function(radius, index) {
+        radius = radius === null || radius === undefined ? null : Number(radius);
+        return radius !== null && isFinite(radius) && radius > 0 ?
+            {distance:vertexDistances[index], radius:radius} : null;
+    }).filter(Boolean);
+    if(keys.length < 2 || forwardLength <= 1e-9) return null;
+    var segments = preview3d_motionSegments(path, motion.mode);
+    var totalLength = segments.reduce(function(total, segment) {
+        return total + Math.hypot(segment.end.x - segment.start.x,
+            segment.end.y - segment.start.y);
+    }, 0);
+    if(totalLength <= 1e-9) return keys[0].radius;
+    var position = ((Number(motion.speed) * Number(seconds)) % totalLength + totalLength) %
+        totalLength;
+    if(motion.mode === "ping_pong" && position > forwardLength) {
+        position = totalLength - position;
+    }
+    if(motion.mode !== "circular") position = Math.min(forwardLength, position);
+    position = Math.max(0, position);
+    var interpolate = function(start, end, sample) {
+        var length = end.distance - start.distance;
+        if(length <= 1e-9) return end.radius;
+        var amount = (sample - start.distance) / length;
+        return start.radius + (end.radius - start.radius) * amount;
+    };
+    if(motion.mode === "circular") {
+        if(position < keys[0].distance) {
+            return interpolate(keys[keys.length - 1], {
+                distance:keys[0].distance + totalLength, radius:keys[0].radius
+            }, position + totalLength);
+        }
+        if(position >= keys[keys.length - 1].distance) {
+            return interpolate(keys[keys.length - 1], {
+                distance:keys[0].distance + totalLength, radius:keys[0].radius
+            }, position);
+        }
+    } else {
+        if(position <= keys[0].distance) return keys[0].radius;
+        if(position >= keys[keys.length - 1].distance) return keys[keys.length - 1].radius;
+    }
+    for(var keyIndex = 1; keyIndex < keys.length; keyIndex++) {
+        if(position <= keys[keyIndex].distance) {
+            return interpolate(keys[keyIndex - 1], keys[keyIndex], position);
+        }
+    }
+    return keys[keys.length - 1].radius;
+}
+
 function preview3d_transformMovingZonePoint(point, motion, seconds) {
     var path = motion.path || [];
     if(!path.length) return point.slice();
@@ -552,6 +651,12 @@ function preview3d_transformMovingZonePoint(point, motion, seconds) {
                 0.5);
         }
     }
+    var pulseRadius = preview3d_pulseRadius(motion, seconds);
+    if(pulseRadius !== null && Number(motion.baseRadius) > 0) {
+        // Explicit circle pulse keyframes own size; instant mode's legacy
+        // restart regrowth is used only by non-pulsing zones.
+        scale = pulseRadius / Number(motion.baseRadius);
+    }
     var scaleCenter = motion.scaleCenter || anchor;
     var scaledX = scaleCenter.x + (point[0] - scaleCenter.x) * scale;
     var scaledY = scaleCenter.y + (point[1] - scaleCenter.y) * scale;
@@ -573,15 +678,19 @@ function preview3d_addDynamicZone(scene, lines, zone) {
         speed:Number(zone.movementSpeed),
         rotationSpeed:Number(zone.rotationSpeed),
         mode:zone.movementMode || "circular",
-        scaleCenter:{x:Number(zone.x), y:Number(zone.y)}
+        scaleCenter:{x:Number(zone.x), y:Number(zone.y)},
+        baseRadius:Number(zone.radius),
+        pulseRadii:(zone.movementPulseRadii || []).slice()
     };
     scene.dynamicZones.push({lines:lines, motion:motion, phaseSeconds:0});
 
-    if(zone.spawnAtVertices) {
+    if(zone.movementInstances && zone.movementInstances.length) {
         var phaseDistance = 0;
+        var wantedInstances = zone.movementInstances.map(Number);
         for(var copyIndex = 1; copyIndex < path.length; copyIndex++) {
             phaseDistance += Math.hypot(path[copyIndex].x - path[copyIndex - 1].x,
                 path[copyIndex].y - path[copyIndex - 1].y);
+            if(wantedInstances.indexOf(copyIndex) < 0) continue;
             var instanceDistance = phaseDistance;
             if(motion.mode === "instant" && copyIndex === path.length - 1) {
                 instanceDistance = Math.max(0, instanceDistance - 0.001);
@@ -604,6 +713,13 @@ function preview3d_addDynamicZone(scene, lines, zone) {
             radius = Math.max(radius, Math.hypot(point[0] - anchor.x, point[1] - anchor.y));
         });
     });
+    if(motion.baseRadius > 0 && motion.pulseRadii.length) {
+        var largestPulseRadius = motion.pulseRadii.reduce(function(maximum, value) {
+            return value === null || value === undefined ? maximum :
+                Math.max(maximum, Number(value) || 0);
+        }, motion.baseRadius);
+        radius *= Math.max(1, largestPulseRadius / motion.baseRadius);
+    }
     path.forEach(function(point) {
         preview3d_extendBounds(scene, [point.x - radius, point.y - radius, lines[0].a[2]]);
         preview3d_extendBounds(scene, [point.x + radius, point.y + radius, lines[0].a[2]]);
@@ -753,6 +869,8 @@ function preview3d_buildScene(objects) {
             }
         } else if(typeof Zone !== "undefined" && object instanceof Zone) {
             preview3d_addZone(scene, object);
+        } else if(typeof Billboard !== "undefined" && object instanceof Billboard) {
+            preview3d_addBillboard(scene, object);
         } else if(typeof Spawn !== "undefined" && object instanceof Spawn) {
             preview3d_addSpawn(scene, object);
         }
@@ -805,6 +923,16 @@ function preview3d_drawScene() {
 
     var triangles = [];
     preview3d_scene.triangles.forEach(function(triangle) {
+        if(triangle.frontNormal && !triangle.dualSided) {
+            var toCamera = [
+                preview3d_camera.x - triangle.center[0],
+                preview3d_camera.y - triangle.center[1],
+                preview3d_camera.z - triangle.center[2]
+            ];
+            if(toCamera[0] * triangle.frontNormal[0] +
+                toCamera[1] * triangle.frontNormal[1] +
+                toCamera[2] * triangle.frontNormal[2] <= 0) return;
+        }
         var points = preview3d_clipProjectPolygon(
             [triangle.a, triangle.b, triangle.c], preview3d_camera, width, height);
         if(points.length >= 3) {
