@@ -32,6 +32,17 @@ function call(method, params) {
 
 ws.onmessage = event => {
     const message = JSON.parse(event.data);
+    if(process.env.VECTRON_DEBUG_NETWORK === "1" && message.type === "event" &&
+       message.method && message.method.startsWith("network.")) {
+        const requestUrl = message.params && message.params.request && message.params.request.url;
+        const responseUrl = message.params && message.params.response && message.params.response.url;
+        const url = requestUrl || responseUrl || "";
+        if(url.includes("firebasestorage.googleapis.com")) {
+            console.log("STORAGE_NETWORK", message.method,
+                message.params.response && message.params.response.status,
+                message.params.errorText || "", url);
+        }
+    }
     if(!message.id || !pending.has(message.id)) return;
     const task = pending.get(message.id);
     pending.delete(message.id);
@@ -118,6 +129,9 @@ ws.onopen = async () => {
         if(process.env.VECTRON_BIDI_ATTACHED !== "1") {
             await call("session.new", {capabilities: {}});
             sessionCreated = true;
+        }
+        if(process.env.VECTRON_DEBUG_NETWORK === "1") {
+            await call("session.subscribe", {events: ["network.responseCompleted", "network.fetchError"]});
         }
         const tree = await call("browsingContext.getTree", {});
         const context = tree.contexts[0].context;
@@ -209,6 +223,56 @@ ws.onopen = async () => {
                 result.uploadPath = document.getElementById('vt-toast').textContent.replace('Uploaded to ', '');
             }
 
+            document.querySelector('[data-map-repository]').click();
+            await waitFor(function() {
+                return !document.getElementById('map-repository-overlay').hidden &&
+                    document.querySelectorAll('[data-repository-load]').length >= 275;
+            }, 'Repository maps did not become available', 30000);
+            const repositoryAuthors = Array.from(document.querySelectorAll('.repository-author-heading span:first-child'))
+                .map(function(node) { return node.textContent; });
+            const repositoryLoad = document.querySelector('[data-repository-load="Zwazi/maps/Default-v1.aamap.xml"]');
+            if(!repositoryLoad) throw new Error('Expected cross-user repository map was not listed');
+            const repositoryCount = document.querySelectorAll('[data-repository-load]').length;
+            window.confirm = function() { return true; };
+            repositoryLoad.click();
+            try {
+                await waitFor(function() {
+                    const toast = document.getElementById('vt-toast');
+                    const repositoryStatus = document.getElementById('map-repository-status');
+                    return (document.getElementById('map-repository-overlay').hidden &&
+                        document.getElementById('map_name').value === 'Default' &&
+                        toast && toast.textContent === 'Loaded Default-v1 by Zwazi.') ||
+                        (!repositoryStatus.hidden && repositoryStatus.classList.contains('error'));
+                }, 'Cross-user repository map did not load', 30000);
+            } catch(error) {
+                const repositoryStatus = document.getElementById('map-repository-status');
+                const toast = document.getElementById('vt-toast');
+                throw new Error('Cross-user repository map did not load: ' + JSON.stringify({
+                    overlayHidden: document.getElementById('map-repository-overlay').hidden,
+                    buttonDisabled: repositoryLoad.disabled,
+                    mapName: document.getElementById('map_name').value,
+                    status: repositoryStatus.textContent,
+                    statusClass: repositoryStatus.className,
+                    toast: toast && toast.textContent,
+                    errorDetail: repositoryStatus.dataset.errorDetail
+                }));
+            }
+            const repositoryError = document.getElementById('map-repository-status');
+            if(!repositoryError.hidden && repositoryError.classList.contains('error')) {
+                throw new Error('Cross-user repository map failed: ' + repositoryError.textContent +
+                    ' (' + (repositoryError.dataset.errorDetail || 'no detail') + ')');
+            }
+            result.repository = {
+                mapCount: repositoryCount,
+                hasZwazi: repositoryAuthors.includes('Zwazi'),
+                hasAnimuson: repositoryAuthors.includes('Animuson'),
+                loadedMap: document.getElementById('map_name').value,
+                authorStillLocked: document.getElementById('map_author').value === 'Browser Pilot' &&
+                    document.getElementById('map_author').readOnly,
+                categoryStillLocked: document.getElementById('map_category').value === 'maps' &&
+                    document.getElementById('map_category').readOnly
+            };
+
             const draftName = document.getElementById('map_name');
             draftName.value = 'Browser Draft';
             draftName.dispatchEvent(new Event('input', {bubbles: true}));
@@ -267,6 +331,15 @@ ws.onopen = async () => {
             accountDockTopRight: true
         });
         if(testUploadEnabled) assert.strictEqual(firstPass.uploadPath, uploadPath);
+        const {mapCount, ...repositoryState} = firstPass.repository;
+        assert.ok(mapCount >= 275);
+        assert.deepStrictEqual(repositoryState, {
+            hasZwazi: true,
+            hasAnimuson: true,
+            loadedMap: "Default",
+            authorStillLocked: true,
+            categoryStillLocked: true
+        });
         assert.deepStrictEqual(firstPass.signedOut, {
             locked: true,
             editorInert: true,

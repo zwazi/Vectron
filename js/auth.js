@@ -41,6 +41,14 @@ const profileStatus = document.getElementById("auth-profile-status");
 const profileSubmit = document.getElementById("auth-profile-submit");
 const profileSignout = document.getElementById("auth-profile-signout");
 const uploadButton = document.querySelector("[data-map-upload]");
+const repositoryButton = document.querySelector("[data-map-repository]");
+const repositoryOverlay = document.getElementById("map-repository-overlay");
+const repositoryCloseButton = document.getElementById("map-repository-close");
+const repositoryRefreshButton = document.getElementById("map-repository-refresh");
+const repositorySearchInput = document.getElementById("map-repository-search");
+const repositorySummary = document.getElementById("map-repository-summary");
+const repositoryStatus = document.getElementById("map-repository-status");
+const repositoryList = document.getElementById("map-repository-list");
 
 let auth = null;
 let authSdk = null;
@@ -52,6 +60,9 @@ let editorStartQueued = false;
 let profileBusy = false;
 let profileUser = null;
 let uploadBusy = false;
+let repositoryBusy = false;
+let repositoryMaps = [];
+let repositoryPreviousFocus = null;
 
 function setEditorInert(locked) {
     Array.from(document.body.children).forEach(element => {
@@ -247,6 +258,7 @@ function unlockEditor(user) {
 }
 
 function lockEditor() {
+    if(repositoryOverlay && !repositoryOverlay.hidden) closeRepository();
     if(typeof window.vectron_localDraftSetUser === "function") {
         window.vectron_localDraftSetUser("");
     }
@@ -510,6 +522,240 @@ async function uploadCurrentMap() {
 
 window.vectron_uploadCurrentMap = uploadCurrentMap;
 
+function repositoryMapDetails(fullPath) {
+    const parts = String(fullPath || "").split("/").filter(Boolean);
+    const fileName = parts.pop() || "Untitled map";
+    const author = parts.shift() || "Unknown";
+    const category = parts.join("/") || MAP_CATEGORY;
+    return {
+        fullPath,
+        author,
+        category,
+        name: fileName.replace(/\.aamap\.xml$/i, "")
+    };
+}
+
+async function listRepositoryReferences(folderReference) {
+    const result = await storageSdk.listAll(folderReference);
+    const descendants = await Promise.all(result.prefixes.map(listRepositoryReferences));
+    return result.items.concat(descendants.flat());
+}
+
+async function downloadRepositoryMap(fullPath) {
+    const idToken = await authSdk.getIdToken(auth.currentUser);
+    const objectUrl = new URL(
+        `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_CONFIG.storageBucket)}/o/${encodeURIComponent(fullPath)}`
+    );
+    objectUrl.searchParams.set("alt", "media");
+    const response = await fetch(objectUrl, {
+        headers: {Authorization: `Firebase ${idToken}`}
+    });
+    if(!response.ok) {
+        const error = new Error(`Repository download failed (${response.status}).`);
+        if(response.status === 401 || response.status === 403) error.code = "storage/unauthorized";
+        throw error;
+    }
+    const contentLength = Number(response.headers.get("content-length")) || 0;
+    if(contentLength > 10 * 1024 * 1024) throw new Error("Repository map is too large.");
+    const bytes = await response.arrayBuffer();
+    if(bytes.byteLength > 10 * 1024 * 1024) throw new Error("Repository map is too large.");
+    return new TextDecoder().decode(bytes);
+}
+
+function setRepositoryStatus(message, type = "") {
+    repositoryStatus.textContent = message || "";
+    repositoryStatus.className = `repository-status${type ? ` ${type}` : ""}`;
+    repositoryStatus.hidden = !message;
+    if(!message) delete repositoryStatus.dataset.errorDetail;
+}
+
+function setRepositoryBusy(nextBusy) {
+    repositoryBusy = nextBusy;
+    repositoryRefreshButton.disabled = nextBusy;
+    repositorySearchInput.disabled = nextBusy && !repositoryMaps.length;
+    repositoryList.querySelectorAll(".repository-load-button").forEach(button => {
+        button.disabled = nextBusy;
+    });
+}
+
+function renderRepositoryMaps() {
+    const query = repositorySearchInput.value.trim().toLocaleLowerCase();
+    const visibleMaps = repositoryMaps.filter(map => {
+        if(!query) return true;
+        return `${map.name} ${map.author} ${map.category} ${map.fullPath}`
+            .toLocaleLowerCase()
+            .includes(query);
+    });
+    const authors = new Map();
+    visibleMaps.forEach(map => {
+        if(!authors.has(map.author)) authors.set(map.author, []);
+        authors.get(map.author).push(map);
+    });
+
+    repositoryList.replaceChildren();
+    repositorySummary.textContent = repositoryMaps.length
+        ? `Showing ${visibleMaps.length} of ${repositoryMaps.length} maps across ${authors.size} ${authors.size === 1 ? "author" : "authors"}.`
+        : "No repository maps loaded.";
+
+    if(!visibleMaps.length) {
+        const empty = document.createElement("div");
+        empty.className = "repository-empty";
+        empty.textContent = repositoryMaps.length
+            ? "No maps match that search."
+            : "The repository does not contain any maps yet.";
+        repositoryList.appendChild(empty);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    Array.from(authors.keys()).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: "base"}))
+        .forEach(author => {
+            const maps = authors.get(author);
+            const group = document.createElement("section");
+            group.className = "repository-author-group";
+
+            const heading = document.createElement("header");
+            heading.className = "repository-author-heading";
+            const authorName = document.createElement("span");
+            authorName.textContent = author;
+            const count = document.createElement("span");
+            count.textContent = `${maps.length} ${maps.length === 1 ? "map" : "maps"}`;
+            heading.append(authorName, count);
+            group.appendChild(heading);
+
+            maps.forEach(map => {
+                const row = document.createElement("div");
+                row.className = "repository-map-row";
+                const copy = document.createElement("span");
+                copy.className = "repository-map-copy";
+                const name = document.createElement("strong");
+                name.textContent = map.name;
+                const path = document.createElement("small");
+                path.textContent = map.category === MAP_CATEGORY ? map.fullPath : `${map.category} · ${map.fullPath}`;
+                copy.append(name, path);
+
+                const loadButton = document.createElement("button");
+                loadButton.className = "repository-load-button";
+                loadButton.type = "button";
+                loadButton.dataset.repositoryLoad = map.fullPath;
+                loadButton.disabled = repositoryBusy;
+                loadButton.innerHTML = '<i class="fa-solid fa-arrow-down" aria-hidden="true"></i><span>Load</span>';
+                loadButton.setAttribute("aria-label", `Load ${map.name} by ${map.author}`);
+                row.append(copy, loadButton);
+                group.appendChild(row);
+            });
+            fragment.appendChild(group);
+        });
+    repositoryList.appendChild(fragment);
+}
+
+async function refreshRepositoryMaps() {
+    if(repositoryBusy || !storage || !storageSdk || !auth || !auth.currentUser) return;
+    let shouldRender = false;
+    setRepositoryBusy(true);
+    setRepositoryStatus("Loading repository maps…");
+    try {
+        const references = await listRepositoryReferences(storageSdk.ref(storage));
+        repositoryMaps = references
+            .filter(reference => reference.fullPath.toLocaleLowerCase().endsWith(".aamap.xml"))
+            .map(reference => repositoryMapDetails(reference.fullPath))
+            .sort((a, b) => a.author.localeCompare(b.author, undefined, {sensitivity: "base"}) ||
+                a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: "base"}));
+        setRepositoryStatus("");
+        shouldRender = true;
+    } catch(error) {
+        console.error("Vectron repository listing failed.", error);
+        setRepositoryStatus(
+            error && error.code === "storage/unauthorized"
+                ? "Your account cannot read the map repository."
+                : "The map repository could not be loaded. Try refreshing.",
+            "error"
+        );
+        repositorySummary.textContent = "Repository unavailable.";
+    } finally {
+        setRepositoryBusy(false);
+        if(shouldRender) renderRepositoryMaps();
+    }
+}
+
+function openRepository() {
+    if(!auth || !auth.currentUser || !storage || !storageSdk) {
+        showEditorMessage("The map repository is not ready yet.");
+        return;
+    }
+    repositoryPreviousFocus = document.activeElement;
+    repositoryOverlay.hidden = false;
+    repositoryButton.setAttribute("aria-expanded", "true");
+    window.setTimeout(() => repositorySearchInput.focus(), 0);
+    if(repositoryMaps.length) renderRepositoryMaps();
+    else refreshRepositoryMaps();
+}
+
+function closeRepository() {
+    if(repositoryOverlay.hidden) return;
+    repositoryOverlay.hidden = true;
+    repositoryButton.setAttribute("aria-expanded", "false");
+    if(repositoryPreviousFocus && typeof repositoryPreviousFocus.focus === "function") {
+        repositoryPreviousFocus.focus();
+    }
+}
+
+async function loadRepositoryMap(fullPath) {
+    if(repositoryBusy || !auth || !auth.currentUser) return;
+    const map = repositoryMaps.find(candidate => candidate.fullPath === fullPath);
+    if(!map) return;
+    if(!window.confirm(`Load ${map.name} by ${map.author}? This replaces your current local draft.`)) return;
+
+    setRepositoryBusy(true);
+    setRepositoryStatus(`Loading ${map.name}…`);
+    try {
+        const xml = await downloadRepositoryMap(fullPath);
+        const parsed = $.parseXML(xml);
+        const resource = parsed.documentElement;
+        if(!resource || resource.tagName.toLocaleLowerCase() !== "resource" ||
+           resource.getAttribute("type") !== "aamap") {
+            throw new Error("The selected file is not an Armagetron map resource.");
+        }
+
+        if(typeof window.vectron_localDraftSaveNow === "function") {
+            window.vectron_localDraftSaveNow();
+        }
+        try {
+            if(typeof window.vectron_resetForInitialMap === "function") {
+                window.vectron_resetForInitialMap();
+            } else {
+                window.aamap_objects = [];
+            }
+            window.xml_process(xml);
+            syncMapMetadata(auth.currentUser);
+            if(typeof window.vectron_localDraftSaveNow === "function") {
+                window.vectron_localDraftSaveNow();
+            }
+        } catch(processError) {
+            if(typeof window.vectron_localDraftRestore === "function") {
+                window.vectron_localDraftRestore();
+            }
+            throw processError;
+        }
+        setRepositoryStatus("");
+        closeRepository();
+        showEditorMessage(`Loaded ${map.name} by ${map.author}.`);
+    } catch(error) {
+        console.error("Vectron repository map load failed.", error);
+        repositoryStatus.dataset.errorDetail = error && error.message ? error.message : String(error);
+        setRepositoryStatus(
+            error && error.code === "storage/unauthorized"
+                ? "Your account cannot read that map."
+                : "That map could not be loaded. Your current work was kept.",
+            "error"
+        );
+    } finally {
+        setRepositoryBusy(false);
+    }
+}
+
+window.vectron_openMapRepository = openRepository;
+
 function bindUi() {
     loginTab.addEventListener("click", () => setMode("login"));
     signupTab.addEventListener("click", () => setMode("signup"));
@@ -524,6 +770,28 @@ function bindUi() {
             uploadCurrentMap();
         });
     }
+    if(repositoryButton) {
+        repositoryButton.addEventListener("click", event => {
+            event.preventDefault();
+            openRepository();
+        });
+    }
+    repositoryCloseButton.addEventListener("click", closeRepository);
+    repositoryRefreshButton.addEventListener("click", refreshRepositoryMaps);
+    repositorySearchInput.addEventListener("input", renderRepositoryMaps);
+    repositoryList.addEventListener("click", event => {
+        const button = event.target.closest("[data-repository-load]");
+        if(button) loadRepositoryMap(button.dataset.repositoryLoad);
+    });
+    repositoryOverlay.addEventListener("mousedown", event => {
+        if(event.target === repositoryOverlay) closeRepository();
+    });
+    repositoryOverlay.addEventListener("keydown", event => {
+        if(event.key === "Escape") {
+            event.preventDefault();
+            closeRepository();
+        }
+    });
     document.querySelectorAll("[data-auth-signout]").forEach(button => {
         button.addEventListener("click", handleSignOut);
     });
