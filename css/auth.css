@@ -27,8 +27,8 @@ body.auth-locked {
   inset: 0;
   z-index: 20000;
   display: grid;
-  align-items: start;
-  justify-items: end;
+  align-items: center;
+  justify-items: center;
   min-width: 280px;
   min-height: 420px;
   padding: 24px;
