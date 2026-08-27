@@ -14,7 +14,7 @@ const testEmail = `vectron-browser-${Date.now()}-${crypto.randomBytes(4).toStrin
 const testPassword = `Vt-${crypto.randomUUID()}!`;
 const bidiUrl = process.env.VECTRON_BIDI_URL || "ws://127.0.0.1:9223/session";
 const testUploadEnabled = process.env.VECTRON_TEST_UPLOAD !== "0";
-const uploadPath = "Browser Pilot/maps/Browser Upload-7.aamap.xml";
+const uploadPath = "Browser Pilot/maps/Browser Upload-0.1.aamap.xml";
 const storageBucket = "tronnerrepository.firebasestorage.app";
 
 const ws = new WebSocket(bidiUrl);
@@ -154,9 +154,10 @@ ws.onopen = async () => {
                     editorStopped: window.vectron_started === false,
                     canvasEmpty: document.getElementById('canvas_container').childElementCount === 0,
                     loginSelected: document.getElementById('auth-login-tab').getAttribute('aria-selected'),
-                    loginOverlayTopRight: (function() {
+                    loginOverlayCentered: (function() {
                         const rect = document.querySelector('.auth-card').getBoundingClientRect();
-                        return window.innerWidth - rect.right <= 30 && rect.top <= 30;
+                        return Math.abs(rect.left + rect.width / 2 - window.innerWidth / 2) <= 2 &&
+                            Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2) <= 2;
                     })()
                 }
             };
@@ -170,7 +171,8 @@ ws.onopen = async () => {
             await waitFor(function() {
                 return window.vectron_started === true &&
                     !document.body.classList.contains('auth-locked') &&
-                    document.querySelector('.auth-session-plan [data-auth-name]').textContent === 'Browser Pilot';
+                    document.querySelector('.auth-session-plan [data-auth-name]').textContent === 'Browser Pilot' &&
+                    document.getElementById('map_version').value === '0.1';
             }, 'Account creation did not unlock Vectron');
             result.created = {
                 gateHidden: document.getElementById('auth-gate').hidden,
@@ -182,6 +184,8 @@ ws.onopen = async () => {
                 authorLocked: document.getElementById('map_author').readOnly,
                 category: document.getElementById('map_category').value,
                 categoryLocked: document.getElementById('map_category').readOnly,
+                version: document.getElementById('map_version').value,
+                versionLocked: document.getElementById('map_version').readOnly,
                 accountDockTopRight: (function() {
                     const dock = document.getElementById('auth-account-controls');
                     const toolbar = document.getElementById('top-settings-bar');
@@ -197,14 +201,18 @@ ws.onopen = async () => {
 
             if(testUpload) {
                 document.getElementById('map_name').value = 'Browser Upload';
-                document.getElementById('map_version').value = '7';
                 document.querySelector('[data-map-upload]').click();
                 await waitFor(function() {
                     const toast = document.getElementById('vt-toast');
-                    return toast && toast.textContent === 'Uploaded to Browser Pilot/maps/Browser Upload-7.aamap.xml';
+                    return toast && toast.textContent === 'Uploaded to Browser Pilot/maps/Browser Upload-0.1.aamap.xml';
                 }, 'Map did not upload to the locked author/maps path', 30000);
                 result.uploadPath = document.getElementById('vt-toast').textContent.replace('Uploaded to ', '');
             }
+
+            const draftName = document.getElementById('map_name');
+            draftName.value = 'Browser Draft';
+            draftName.dispatchEvent(new Event('input', {bubbles: true}));
+            result.created.draftSavedLocally = window.vectron_localDraftSaveNow();
 
             document.querySelector('.auth-session-plan [data-auth-signout]').click();
             await waitFor(function() {
@@ -224,11 +232,14 @@ ws.onopen = async () => {
             document.getElementById('auth-password').value = password;
             document.getElementById('auth-form').requestSubmit();
             await waitFor(function() {
-                return !document.body.classList.contains('auth-locked');
-            }, 'Sign in did not unlock Vectron');
+                return !document.body.classList.contains('auth-locked') &&
+                    document.getElementById('map_name').value === 'Browser Draft';
+            }, 'Sign in did not restore the local draft');
             result.loggedIn = {
                 unlocked: !document.body.classList.contains('auth-locked'),
-                gateHidden: document.getElementById('auth-gate').hidden
+                gateHidden: document.getElementById('auth-gate').hidden,
+                mapName: document.getElementById('map_name').value,
+                versionLocked: document.getElementById('map_version').readOnly
             };
             return JSON.stringify(result);
         })()`);
@@ -238,7 +249,7 @@ ws.onopen = async () => {
             editorStopped: true,
             canvasEmpty: true,
             loginSelected: "true",
-            loginOverlayTopRight: true
+            loginOverlayCentered: true
         });
         assert.deepStrictEqual(firstPass.created, {
             gateHidden: true,
@@ -250,6 +261,9 @@ ws.onopen = async () => {
             authorLocked: true,
             category: "maps",
             categoryLocked: true,
+            version: "0.1",
+            versionLocked: true,
+            draftSavedLocally: true,
             accountDockTopRight: true
         });
         if(testUploadEnabled) assert.strictEqual(firstPass.uploadPath, uploadPath);
@@ -258,7 +272,12 @@ ws.onopen = async () => {
             editorInert: true,
             sessionsHidden: true
         });
-        assert.deepStrictEqual(firstPass.loggedIn, {unlocked: true, gateHidden: true});
+        assert.deepStrictEqual(firstPass.loggedIn, {
+            unlocked: true,
+            gateHidden: true,
+            mapName: "Browser Draft",
+            versionLocked: true
+        });
 
         if(testUploadEnabled) {
             const uploadedXml = await readUploadedMap();
@@ -277,7 +296,9 @@ ws.onopen = async () => {
             const result = {
                 unlocked: !document.body.classList.contains('auth-locked'),
                 editorStarted: window.vectron_started === true,
-                email: document.querySelector('.auth-session-plan [data-auth-email]').textContent
+                email: document.querySelector('.auth-session-plan [data-auth-email]').textContent,
+                mapName: document.getElementById('map_name').value,
+                versionLocked: document.getElementById('map_version').readOnly
             };
             document.querySelector('.auth-session-plan [data-auth-signout]').click();
             while(Date.now() - started < 20000 && !document.body.classList.contains('auth-locked')) {
@@ -290,6 +311,8 @@ ws.onopen = async () => {
             unlocked: true,
             editorStarted: true,
             email: testEmail,
+            mapName: "Browser Draft",
+            versionLocked: true,
             lockedAfterLogout: true
         });
 

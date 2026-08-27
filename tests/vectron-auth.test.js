@@ -14,6 +14,7 @@ const index = read("index.html");
 const authSource = read("js/auth.js");
 const authCss = read("css/auth.css");
 const vectronSource = read("js/vectron.js");
+const localDraftSource = read("js/localDraft.js");
 
 assert.deepStrictEqual(firebase.auth.providers, {emailPassword: true});
 assert.deepStrictEqual(firebase.storage, {rules: "storage.rules"});
@@ -31,6 +32,8 @@ assert.match(index, /id="top-settings-bar"[\s\S]*id="auth-account-controls"/);
 assert.doesNotMatch(index, /class="toolbar-upload"/);
 assert.match(index, /id="map_author"[^>]*readonly/);
 assert.match(index, /id="map_category"[^>]*value="maps"[^>]*readonly/);
+assert.match(index, /id="map_version"[^>]*value="1"[^>]*readonly/);
+assert.match(index, /src="\.\/js\/localDraft\.js"/);
 assert.match(index, /<script type="module" src="\.\/js\/auth\.js"><\/script>/);
 
 assert.match(authSource, /projectId:\s*"tronnerrepository"/);
@@ -46,15 +49,24 @@ assert.match(authSource, /uploadString\(mapRef, map\.xml/);
 assert.match(authSource, /`\$\{author\}\/\$\{MAP_CATEGORY\}\/\$\{fileName\}`/);
 assert.match(authSource, /window\.xml_author = author/);
 assert.match(authSource, /window\.xml_category = MAP_CATEGORY/);
+assert.match(authSource, /vectron_localDraftSetUser\(user\.uid\)/);
+assert.match(authSource, /vectron_localDraftSaveNow/);
 assert.match(authSource, /setEditorInert\(true\)/);
 assert.doesNotMatch(authSource, /[?&](?:skip|bypass|noauth)=/i);
 
 assert.match(vectronSource, /function vectron_start\(\)/);
 assert.match(vectronSource, /if\(vectron_started\) return;/);
+assert.match(vectronSource, /vectron_localDraftRestore\(\)/);
 assert.doesNotMatch(vectronSource, /window\.onload\s*=\s*function\s*\(\)\s*\{\s*vectron_init/);
 
+assert.match(localDraftSource, /vectron\.localDraft\.v1\./);
+assert.match(localDraftSource, /localStorage\.setItem/);
+assert.match(localDraftSource, /localStorage\.getItem/);
+assert.match(localDraftSource, /beforeunload/);
+assert.match(localDraftSource, /visibilitychange/);
+
 assert.match(authCss, /#auth-gate\s*\{[^}]*z-index:\s*20000/s);
-assert.match(authCss, /#auth-gate\s*\{[^}]*align-items:\s*start[^}]*justify-items:\s*end/s);
+assert.match(authCss, /#auth-gate\s*\{[^}]*align-items:\s*center[^}]*justify-items:\s*center/s);
 assert.match(authCss, /#auth-gate\s*\{[^}]*background:\s*rgba\(0,\s*0,\s*0,\s*0\.48\)/s);
 assert.match(authCss, /\.auth-account-controls\s*\{[^}]*position:\s*static[^}]*margin-left:\s*auto/s);
 assert.match(authCss, /\.auth-account-controls\s*\{[^}]*border:\s*0[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s);

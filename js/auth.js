@@ -174,6 +174,7 @@ function syncMapMetadata(user = auth && auth.currentUser) {
     const author = user.displayName.trim();
     const authorInput = document.getElementById("map_author");
     const categoryInput = document.getElementById("map_category");
+    const versionInput = document.getElementById("map_version");
 
     window.xml_author = author;
     window.xml_category = MAP_CATEGORY;
@@ -191,6 +192,13 @@ function syncMapMetadata(user = auth && auth.currentUser) {
         categoryInput.readOnly = true;
         categoryInput.setAttribute("aria-readonly", "true");
         categoryInput.title = "Uploaded maps always use the maps category";
+    }
+    if(versionInput) {
+        if(!versionInput.value.trim()) versionInput.value = "1";
+        window.xml_version = versionInput.value;
+        versionInput.readOnly = true;
+        versionInput.setAttribute("aria-readonly", "true");
+        versionInput.title = "Locked to the current map revision";
     }
 }
 
@@ -219,6 +227,10 @@ function queueEditorStart() {
 }
 
 function unlockEditor(user) {
+    const editorAlreadyStarted = window.vectron_started === true;
+    const userChanged = typeof window.vectron_localDraftSetUser === "function"
+        ? window.vectron_localDraftSetUser(user.uid)
+        : false;
     syncSessionControls(user);
     syncMapMetadata(user);
     setEditorInert(false);
@@ -228,10 +240,16 @@ function unlockEditor(user) {
     gate.setAttribute("aria-hidden", "true");
     document.title = "Vectron";
     profilePanel.hidden = true;
+    if(editorAlreadyStarted && userChanged && typeof window.vectron_loadInitialMap === "function") {
+        window.vectron_loadInitialMap();
+    }
     queueEditorStart();
 }
 
 function lockEditor() {
+    if(typeof window.vectron_localDraftSetUser === "function") {
+        window.vectron_localDraftSetUser("");
+    }
     hideSessionControls();
     setEditorInert(true);
     document.documentElement.classList.remove("auth-pending");
@@ -396,8 +414,12 @@ function hasUnsavedWork() {
 
 async function handleSignOut() {
     if(!auth || !authSdk) return;
-    if(hasUnsavedWork() && !window.confirm("Sign out of Vectron? Export your map first if you want to keep these changes.")) {
+    if(hasUnsavedWork() && !window.confirm("Sign out of Vectron? Your in-progress map is saved locally and will be restored when you return.")) {
         return;
+    }
+
+    if(typeof window.vectron_localDraftSaveNow === "function") {
+        window.vectron_localDraftSaveNow();
     }
 
     const buttons = document.querySelectorAll("[data-auth-signout]");

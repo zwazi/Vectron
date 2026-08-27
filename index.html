@@ -37,6 +37,7 @@
         <script type="text/javascript" src="./js/eventHandler.js"></script>
         <script type="text/javascript" src="./js/gui.js"></script>
         <script type="text/javascript" src="./js/config.js"></script>
+        <script type="text/javascript" src="./js/localDraft.js"></script>
         <script type="text/javascript" src="./js/vectron.js"></script>
 
         <script type="text/javascript">
@@ -152,7 +153,7 @@
 
                 <footer class="auth-card-footer">
                     <i class="fa-solid fa-shield" aria-hidden="true"></i>
-                    <span>Your maps stay in this browser until you export them.</span>
+                    <span>In-progress maps are saved locally in this browser.</span>
                 </footer>
             </main>
         </div>
@@ -322,7 +323,7 @@
                                 <tr><td><b>Name</b></td><td>Map name included in the exported file</td></tr>
                                 <tr><td><b>Author</b></td><td>Author name included in the exported file</td></tr>
                                 <tr><td><b>Category</b></td><td>Map category (e.g. <i>racing</i>, <i>sumo</i>)</td></tr>
-                                <tr><td><b>Revision</b></td><td>Map version number. Servers and clients cache maps; increment this each time you update so the new version is downloaded.</td></tr>
+                                <tr><td><b>Revision</b></td><td>Locked to the revision declared by the current map; new blank maps start at version 1.</td></tr>
                                 <tr><td><b>DTD</b></td><td>The DTD file the map is validated against. Common values: <code>sty.dtd</code>, <code>map-0.2.8.dtd</code>, <code>aacockpit-0.1.dtd</code>. Don't change this unless you know what you're doing.</td></tr>
                                 <tr><td><b>Axes ☐</b></td><td>Number of axes (turning directions). <i>axes = 360 / angle</i>. Check the box to include this in the exported map file.</td></tr>
                             </tbody>
@@ -342,7 +343,7 @@
                         <table class="table table-bordered" style="font-size:12px;">
                             <tbody>
                                 <tr><td><b>XML Editor</b></td><td>View and edit the map XML directly. Changes are applied immediately.</td></tr>
-                                <tr><td><b>New Map</b></td><td>Clears all objects and resets the map. Unsaved changes are lost.</td></tr>
+                                <tr><td><b>New Map</b></td><td>Clears all objects and replaces the current local draft with a blank map.</td></tr>
                                 <tr><td><b>Import</b></td><td>Load an <code>.aamap.xml</code> file from disk.</td></tr>
                                 <tr><td><b>Export</b></td><td>Save the current map as an <code>.aamap.xml</code> file.</td></tr>
                                 <tr><td><b>Action History</b></td><td>Toggle the action history panel (also accessible from Configure).</td></tr>
@@ -437,8 +438,8 @@
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
-                    <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The current revision of the map. Clients and servers cache map files. Change this every time you update the map.">Revision</label>
-                    <input type="text" class="tsb-input tsb-input-sm" id="map_version" placeholder="Version">
+                    <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The map revision is locked to the current map metadata.">Revision</label>
+                    <input type="text" class="tsb-input tsb-input-sm" id="map_version" value="1" readonly aria-readonly="true" title="Locked to the current map revision">
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
@@ -676,7 +677,7 @@
         </div>
         <div id="new-map-popover" style="display:none;">
             <div class="new-map-popover-body">
-                <p>Create a new blank map?<br><small>Unsaved changes will be lost.</small></p>
+                <p>Create a new blank map?<br><small>This replaces your current local draft.</small></p>
                 <div class="new-map-popover-actions">
                     <button id="new-map-confirm" class="btn btn-sm btn-danger">Create</button>
                     <button id="new-map-cancel" class="btn btn-sm btn-default">Cancel</button>

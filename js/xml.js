@@ -84,14 +84,21 @@ function xml_process(xml, suppressHistoryClear) {
     var pt = xml_process_piece(xml);
     var ptsx = pt[0], ptsy = pt[1];
 
-    var max_x = Math.max.apply(Math, ptsx);
-    var min_x = Math.min.apply(Math, ptsx);
-    var max_y = Math.max.apply(Math, ptsy);
-    var min_y = Math.min.apply(Math, ptsy);
+    if(ptsx.length && ptsy.length) {
+        var max_x = Math.max.apply(Math, ptsx);
+        var min_x = Math.min.apply(Math, ptsx);
+        var max_y = Math.max.apply(Math, ptsy);
+        var min_y = Math.min.apply(Math, ptsy);
 
-    vectron_panX = -1*(max_x + min_x)/2;
-    vectron_panY = -1*(max_y + min_y)/2;
-    vectron_zoom = (((vectron_width+vectron_height)/2))/((max_x-min_x)+(max_y-min_y));
+        vectron_panX = -1*(max_x + min_x)/2;
+        vectron_panY = -1*(max_y + min_y)/2;
+        var mapSpan = (max_x-min_x)+(max_y-min_y);
+        vectron_zoom = mapSpan > 0 ? (((vectron_width+vectron_height)/2))/mapSpan : 1;
+    } else {
+        vectron_panX = 0;
+        vectron_panY = 0;
+        vectron_zoom = 1;
+    }
     vectron_render();
     if(!suppressHistoryClear) aamap_clearHistory();
 }

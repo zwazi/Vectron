@@ -891,6 +891,9 @@ function aamap_recordAction(action) {
     aamap_undoStack.push(action);
     aamap_redoStack = [];
     actionHistory_update();
+    if(typeof window.vectron_localDraftScheduleSave === "function") {
+        window.vectron_localDraftScheduleSave();
+    }
 }
 
 function aamap_clearHistory() {
@@ -926,6 +929,9 @@ function aamap_undo() {
     action.undo();
     aamap_redoStack.push(action);
     actionHistory_update();
+    if(typeof window.vectron_localDraftScheduleSave === "function") {
+        window.vectron_localDraftScheduleSave();
+    }
 }
 
 function aamap_redo() {
@@ -934,6 +940,9 @@ function aamap_redo() {
     action.redo();
     aamap_undoStack.push(action);
     actionHistory_update();
+    if(typeof window.vectron_localDraftScheduleSave === "function") {
+        window.vectron_localDraftScheduleSave();
+    }
 }
 
 function aamap_activate() {
