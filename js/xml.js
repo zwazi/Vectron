@@ -32,25 +32,8 @@ var xml_version;
 var xml_category;
 var xml_wallheight = 4;
 var xml_axes = 4;
-var xml_axis_vectors = [];
-var xml_game_mode = "armagetron";
 var xml_settings = [];
 var xml_latest_read_id = 0;
-
-function xml_detectGameMode(parsed) {
-    if(xml_axis_vectors.length > 0 ||
-        $(parsed).find("Zone[type],Zone[kind],ShapeRectangle,ShapePolygon," +
-            "Zone[priority],Zone[start_tick],Zone[end_tick],Zone[trigger]").length > 0) {
-        return "armaracing";
-    }
-    for(var i = 0; i < xml_settings.length; i++) {
-        var settingName = xml_settings[i].trim().split(/\s+/, 1)[0];
-        if(/^(?:(?:RACING_)?(?:PROGRAM|USER|ADMIN|ARCHITECT)_TIME|(?:BRONZE|SILVER|GOLD|AUTHOR)_TIME)$/i.test(settingName)) {
-            return "armaracing";
-        }
-    }
-    return "armagetron";
-}
 
 function xml_init() {
 
@@ -74,53 +57,31 @@ function xml_init() {
 
 function xml_process(xml, suppressHistoryClear) {
 
-    var parsed;
-    try {
-        parsed = typeof xml === "string" ? $.parseXML(xml) : xml;
-    } catch(e) {
-        gui_writeLog("Could not parse map XML: " + e.message);
-        return;
-    }
-    var root = $(parsed.documentElement);
-    var resource = root.is("Resource") ? root : root.find("Resource").first();
+    var resource = $(xml).filter(":first");
     gui_writeLog(resource.attr("name"));
-    xml_name = resource.attr("name") || "";
-    xml_author = resource.attr("author") || "";
-    xml_version = resource.attr("version") || "";
-    xml_category = resource.attr("category") || "";
+    xml_name = resource.attr("name");
+    xml_author = resource.attr("author");
+    xml_version = resource.attr("version");
+    xml_category = resource.attr("category");
 
-    try{xml_dtd = parsed.doctype ? parsed.doctype.systemId : "sty.dtd";}
+    try{xml_dtd = $.parseXML(xml).firstChild.systemId;}
     catch(e){xml_dtd = "sty.dtd"; gui_writeLog("Could not determine dtd!");}
 
     xml_settings.splice(0);
-    $(parsed).find("Setting").each(function() {
+    $(xml).find("Setting").each(function() {
         xml_settings.push($(this).attr("name")+" "+$(this).attr("value"));
     });
 
     xml_axes = 4;
-    xml_axis_vectors = [];
     $("#map_axes_forced")[0].checked = false;
-    $(parsed).find("Axes").first().each(function() {
-        var parsedAxes = parseInt($(this).attr("number"));
-        if(isFinite(parsedAxes) && parsedAxes >= 1 && parsedAxes <= 65535 &&
-            Math.floor(parsedAxes) === parsedAxes) {
-            xml_axes = parsedAxes;
-        } else if($(this).attr("number") !== undefined) {
-            gui_writeLog("Ignored invalid Axes count.");
-        }
-        $(this).children("Axis").each(function() {
-            var xdir = Number($(this).attr("xdir"));
-            var ydir = Number($(this).attr("ydir"));
-            if(isFinite(xdir) && isFinite(ydir)) xml_axis_vectors.push({xdir:xdir, ydir:ydir});
-        });
-        if(xml_axis_vectors.length && !isFinite(parsedAxes)) xml_axes = xml_axis_vectors.length;
+    $(xml).find("Axes").each(function() {
+        xml_axes = parseInt($(this).attr("number"));
         $("#map_axes_forced")[0].checked = true;
     });
 
-    zoneTool_setGameMode(xml_detectGameMode(parsed));
     gui_fillInput();
 
-    var pt = xml_process_piece(parsed);
+    var pt = xml_process_piece(xml);
     var ptsx = pt[0], ptsy = pt[1];
 
     var max_x = Math.max.apply(Math, ptsx);
@@ -169,112 +130,32 @@ function xml_process_piece(xml)
     
     case "zone": {
         var zone = $(this);
-        var effect = zone.attr("effect") || zone.attr("type") || zone.attr("kind");
-        var circle = zone.children("ShapeCircle").first();
-        var rectangle = zone.children("ShapeRectangle").first();
-        var polygon = zone.children("ShapePolygon").first();
-        var shape = circle.length ? circle : (rectangle.length ? rectangle : polygon);
-        if(!shape.length) {
-            gui_writeLog("Skipped zone without a supported shape.");
-            return;
-        }
-        var radius = circle.length ? Number(circle.attr("radius")) : 0;
-        var growth = circle.attr("growth") === undefined ? ZONE_DEFAULT_GROWTH : Number(circle.attr("growth"));
-        if(circle.length && (!isFinite(radius) || !isFinite(growth))) {
-            gui_writeLog("Skipped zone with non-numeric circle geometry.");
-            return;
-        }
+        var effect = zone.attr("effect");
+        var radius = zone.find("ShapeCircle").attr("radius");
+        var growth = zone.find("ShapeCircle").attr("growth");
         var option;
-        var details = {
-            zoneName: effect,
-            shapeType: circle.length ? "circle" : (rectangle.length ? "rectangle" : "polygon"),
-            priority: zone.attr("priority"),
-            startTick: zone.attr("start_tick"),
-            endTick: zone.attr("end_tick"),
-            trigger: zone.attr("trigger") || "",
-            options: {}
-        };
         switch(effect)
         {
             case "rubber":
                 option = zone.attr("rubberVal");
-                details.options.delta = zone.attr("delta");
-                details.options.duration_ticks = zone.attr("duration_ticks");
                 break;
             case "checkpoint":
-                // Armaracing uses zero-based Zone order; legacy maps use positive Checkpoint id.
-                option = zone.attr("order") !== undefined ? Number(zone.attr("order")) :
-                    Number(zone.find("Checkpoint").first().attr("id"));
-                if(!zoneTool_validCheckpointOrder(option, zone.attr("order") !== undefined)) {
+                option = Number(zone.find("Checkpoint").attr("id"));
+                if(!isFinite(option) || option <= 0 || Math.floor(option) !== option) {
                     gui_writeLog("Skipped checkpoint zone with invalid order.");
                     return;
-                }
-                break;
-            case "speed":
-                details.options.delta_mps = zone.attr("delta_mps");
-                details.options.duration_ticks = zone.attr("duration_ticks");
-                break;
-            case "teleport":
-                details.options.destination_x = zone.attr("destination_x");
-                details.options.destination_y = zone.attr("destination_y");
-                if(zone.attr("angle") !== undefined) details.options.angle = zone.attr("angle");
-                else if(zone.attr("direction") !== undefined) details.options.direction = zone.attr("direction");
-                else {
-                    details.options.xdir = zone.attr("xdir");
-                    details.options.ydir = zone.attr("ydir");
                 }
                 break;
             default:
                 option = undefined;
         }
-        if(circle.length) {
-            var center = circle.children("Point").first();
-            x = Number(center.attr("x"));
-            y = Number(center.attr("y"));
-            var circleExtent = radius + Math.abs(growth);
-            ptsx.push(x - circleExtent, x + circleExtent);
-            ptsy.push(y - circleExtent, y + circleExtent);
-        } else if(rectangle.length) {
-            details.minx = Number(rectangle.attr("minx"));
-            details.miny = Number(rectangle.attr("miny"));
-            details.maxx = Number(rectangle.attr("maxx"));
-            details.maxy = Number(rectangle.attr("maxy"));
-            if(!isFinite(details.minx) || !isFinite(details.miny) ||
-                !isFinite(details.maxx) || !isFinite(details.maxy)) {
-                gui_writeLog("Skipped zone with non-numeric rectangle geometry.");
-                return;
-            }
-            x = (details.minx + details.maxx) / 2;
-            y = (details.miny + details.maxy) / 2;
-            ptsx.push(details.minx, details.maxx);
-            ptsy.push(details.miny, details.maxy);
-        } else {
-            details.polygonScale = Number(polygon.attr("scale"));
-            if(!isFinite(details.polygonScale)) details.polygonScale = 1;
-            var polygonPoints = polygon.children("Point");
-            var origin = polygonPoints.first();
-            x = Number(origin.attr("x"));
-            y = Number(origin.attr("y"));
-            details.polygonPoints = [];
-            var invalidPolygon = !isFinite(x) || !isFinite(y);
-            polygonPoints.slice(1).each(function() {
-                var localX = Number($(this).attr("x"));
-                var localY = Number($(this).attr("y"));
-                if(!isFinite(localX) || !isFinite(localY)) invalidPolygon = true;
-                details.polygonPoints.push({x:localX, y:localY});
-                ptsx.push(x + localX * details.polygonScale);
-                ptsy.push(y + localY * details.polygonScale);
-            });
-            if(invalidPolygon || details.polygonPoints.length < ZONE_TOOL_MIN_POLYGON_POINTS) {
-                gui_writeLog("Skipped polygon zone with invalid static geometry.");
-                return;
-            }
-        }
-        if(!isFinite(x) || !isFinite(y)) {
-            gui_writeLog("Skipped zone with invalid coordinates.");
-            return;
-        }
-        aamap_add(new Zone(x, y, radius, growth, zoneTool_whatType[effect], option, details));
+        x = zone.find("Point").attr("x");
+        y = zone.find("Point").attr("y");
+        ptsx.push(parseFloat(x));
+        ptsy.push(parseFloat(y));
+        aamap_add(
+            new Zone(parseFloat(x), parseFloat(y), parseFloat(radius), parseFloat(growth)||0, zoneTool_whatType[effect], option)
+        );
     } break;
     
     case "wall": {
