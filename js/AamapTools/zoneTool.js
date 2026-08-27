@@ -150,11 +150,11 @@ function zoneTool_complete() {
         var cx = aamap_mapX(cursor_realX);
         var cy = aamap_mapY(cursor_realY);
         var newZone = new Zone(cx, cy, quickR, 0, zoneTool_type);
-        aamap_add(newZone);
+        var addedQuickZones = aamap_addWithSymmetry(newZone);
         aamap_recordAction({
             label: "Add zone",
-            undo: function() { _aamap_removeObj(newZone); vectron_render(); },
-            redo: function() { aamap_objects.push(newZone); vectron_render(); }
+            undo: function() { aamap_removeObjectGroup(addedQuickZones); vectron_render(); },
+            redo: function() { aamap_restoreObjectGroup(addedQuickZones); vectron_render(); }
         });
         zoneTool_removeGuide();
         vectron_render();
@@ -199,11 +199,11 @@ function zoneTool_complete() {
     }
 
     var newZone = new Zone(newX, newY, radius, 0, zoneTool_type);
-    aamap_add(newZone);
+    var addedZones = aamap_addWithSymmetry(newZone);
     aamap_recordAction({
         label: "Add zone",
-        undo: function() { _aamap_removeObj(newZone); vectron_render(); },
-        redo: function() { aamap_objects.push(newZone); vectron_render(); }
+        undo: function() { aamap_removeObjectGroup(addedZones); vectron_render(); },
+        redo: function() { aamap_restoreObjectGroup(addedZones); vectron_render(); }
     });
     zoneTool_removeGuide();
     zoneTool_placingSize = false;

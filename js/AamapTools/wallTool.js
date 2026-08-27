@@ -846,12 +846,12 @@ function wallTool_finalizePoints(points) {
     wallTool_clearCurrentWall();
     wallTool_stagePoints = [];
     wallTool_step = 0;
-    aamap_add(wall);
-    wall.render();
+    var addedWalls = aamap_addWithSymmetry(wall);
+    addedWalls.forEach(function(addedWall) { addedWall.render(); });
     aamap_recordAction({
         label: "Add wall",
-        undo: function() { _aamap_removeObj(wall); vectron_render(); },
-        redo: function() { aamap_objects.push(wall); vectron_render(); }
+        undo: function() { aamap_removeObjectGroup(addedWalls); vectron_render(); },
+        redo: function() { aamap_restoreObjectGroup(addedWalls); vectron_render(); }
     });
     vectron_toolActive = false;
     wallTool_updateWindow();
@@ -878,8 +878,7 @@ function wallTool_completeShape() {
             var wall = new Wall();
             wall.height = wallTool_getHeight();
             wall.points = draftWallPoints[tw];
-            addedTextWalls.push(wall);
-            aamap_add(wall);
+            addedTextWalls = addedTextWalls.concat(aamap_addWithSymmetry(wall));
         }
         wallTool_clearPreview();
         wallTool_stagePoints = [];
@@ -889,19 +888,15 @@ function wallTool_completeShape() {
         aamap_recordAction({
             label: "Add text walls",
             undo: function() {
-                addedTextWalls.forEach(function(wall) {
-                    wall.isSelected = false;
-                    _aamap_removeObj(wall);
-                });
+                addedTextWalls.forEach(function(wall) { wall.isSelected = false; });
+                aamap_removeObjectGroup(addedTextWalls);
                 selectTool_selectedObjs = [];
                 selectTool_hoveredSet = null;
                 selectTool_hoveredAamapObj = null;
                 vectron_render();
             },
             redo: function() {
-                addedTextWalls.forEach(function(wall) {
-                    aamap_objects.push(wall);
-                });
+                aamap_restoreObjectGroup(addedTextWalls);
                 wallTool_selectWalls(addedTextWalls);
                 vectron_render();
             }
@@ -1192,11 +1187,11 @@ function wallTool_complete() {
     }
     wallTool_currentObj.guideObj.remove();
     var completedWall = wallTool_currentObj;
-    aamap_add(completedWall);
+    var addedWalls = aamap_addWithSymmetry(completedWall);
     aamap_recordAction({
         label: "Add wall",
-        undo: function() { _aamap_removeObj(completedWall); vectron_render(); },
-        redo: function() { aamap_objects.push(completedWall); vectron_render(); }
+        undo: function() { aamap_removeObjectGroup(addedWalls); vectron_render(); },
+        redo: function() { aamap_restoreObjectGroup(addedWalls); vectron_render(); }
     });
     wallTool_currentObj = null;
     vectron_toolActive = false;
@@ -1221,11 +1216,11 @@ function wallTool_finishWall() {
     }
     wallTool_currentObj.guideObj.remove();
     var completedWall = wallTool_currentObj;
-    aamap_add(completedWall);
+    var addedWalls = aamap_addWithSymmetry(completedWall);
     aamap_recordAction({
         label: "Add wall",
-        undo: function() { _aamap_removeObj(completedWall); vectron_render(); },
-        redo: function() { aamap_objects.push(completedWall); vectron_render(); }
+        undo: function() { aamap_removeObjectGroup(addedWalls); vectron_render(); },
+        redo: function() { aamap_restoreObjectGroup(addedWalls); vectron_render(); }
     });
     wallTool_currentObj = null;
     vectron_toolActive = false;
