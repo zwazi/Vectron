@@ -625,7 +625,7 @@ body.auth-locked {
   height: min(720px, 100%);
   min-height: 360px;
   display: grid;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--auth-border);
   border-radius: 13px;
@@ -634,6 +634,7 @@ body.auth-locked {
 }
 
 .repository-header {
+  grid-row: 1;
   min-height: 67px;
   display: flex;
   align-items: center;
@@ -713,6 +714,7 @@ body.auth-locked {
 }
 
 .repository-tools {
+  grid-row: 2;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -765,13 +767,73 @@ body.auth-locked {
   font-weight: 700;
 }
 
+.repository-tabs {
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 18px 11px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(16, 16, 16, 0.5);
+}
+
+.repository-tab {
+  min-width: 0;
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 1 1 50%;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #8f929b;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.repository-tab span {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #a5a8b0;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 8px;
+}
+
+.repository-tab:hover,
+.repository-tab:focus-visible {
+  color: #fff;
+  outline: none;
+}
+
+.repository-tab.active,
+.repository-tab[aria-selected="true"] {
+  border-color: rgba(85, 244, 220, 0.25);
+  color: #fff;
+  background: linear-gradient(135deg, rgba(85, 244, 220, 0.11), rgba(154, 124, 255, 0.1));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.repository-tab.active span,
+.repository-tab[aria-selected="true"] span {
+  color: var(--auth-cyan);
+  background: rgba(85, 244, 220, 0.09);
+}
+
 .repository-summary {
+  grid-row: 4;
   padding: 0 18px 10px;
   color: #92949c;
   font-size: 9px;
 }
 
 .repository-status {
+  grid-row: 5;
   margin: 0 18px 10px;
   padding: 9px 11px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -788,6 +850,7 @@ body.auth-locked {
 }
 
 .repository-list {
+  grid-row: 6;
   min-height: 0;
   overflow: auto;
   padding: 0 18px 18px;
@@ -862,7 +925,7 @@ body.auth-locked {
   font-size: 8px;
 }
 
-.repository-load-button {
+.repository-remix-button {
   height: 27px;
   display: inline-flex;
   align-items: center;
@@ -876,15 +939,15 @@ body.auth-locked {
   font-weight: 700;
 }
 
-.repository-load-button:hover,
-.repository-load-button:focus-visible {
+.repository-remix-button:hover,
+.repository-remix-button:focus-visible {
   border-color: rgba(85, 244, 220, 0.55);
   color: #fff;
   background: rgba(85, 244, 220, 0.1);
   outline: none;
 }
 
-.repository-load-button:disabled,
+.repository-remix-button:disabled,
 .repository-refresh-button:disabled {
   cursor: wait;
   opacity: 0.48;
@@ -971,9 +1034,16 @@ body.auth-locked {
   }
 
   .repository-summary,
+  .repository-tabs,
   .repository-list {
     padding-left: 12px;
     padding-right: 12px;
+  }
+
+  .repository-tabs {
+    margin-left: 12px;
+    margin-right: 12px;
+    padding: 3px;
   }
 
   .repository-refresh-button span {

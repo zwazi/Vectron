@@ -49,6 +49,9 @@ const repositorySearchInput = document.getElementById("map-repository-search");
 const repositorySummary = document.getElementById("map-repository-summary");
 const repositoryStatus = document.getElementById("map-repository-status");
 const repositoryList = document.getElementById("map-repository-list");
+const repositoryTabs = Array.from(document.querySelectorAll("[data-repository-tab]"));
+const repositoryMineCount = document.getElementById("map-repository-mine-count");
+const repositoryOthersCount = document.getElementById("map-repository-others-count");
 
 let auth = null;
 let authSdk = null;
@@ -62,6 +65,7 @@ let profileUser = null;
 let uploadBusy = false;
 let repositoryBusy = false;
 let repositoryMaps = [];
+let repositoryTab = "mine";
 let repositoryPreviousFocus = null;
 
 function setEditorInert(locked) {
@@ -507,6 +511,7 @@ async function uploadCurrentMap() {
                 category: MAP_CATEGORY
             }
         });
+        repositoryMaps = [];
         showEditorMessage(`Uploaded to ${objectPath}`);
     } catch(error) {
         console.error("Vectron map upload failed.", error);
@@ -531,8 +536,25 @@ function repositoryMapDetails(fullPath) {
         fullPath,
         author,
         category,
-        name: fileName.replace(/\.aamap\.xml$/i, "")
+        name: fileName.replace(/\.aamap\.xml$/i, ""),
+        ownerUid: ""
     };
+}
+
+async function addRepositoryOwnership(maps) {
+    const user = auth && auth.currentUser;
+    const author = repositoryCurrentAuthor();
+    if(!user || !author) return maps;
+    const possibleOwnMaps = maps.filter(map => map.author === author);
+    await Promise.all(possibleOwnMaps.map(async map => {
+        try {
+            const metadata = await storageSdk.getMetadata(storageSdk.ref(storage, map.fullPath));
+            map.ownerUid = metadata.customMetadata && metadata.customMetadata.ownerUid || "";
+        } catch(error) {
+            console.warn(`Could not verify ownership for ${map.fullPath}.`, error);
+        }
+    }));
+    return maps;
 }
 
 async function listRepositoryReferences(folderReference) {
@@ -573,14 +595,41 @@ function setRepositoryBusy(nextBusy) {
     repositoryBusy = nextBusy;
     repositoryRefreshButton.disabled = nextBusy;
     repositorySearchInput.disabled = nextBusy && !repositoryMaps.length;
-    repositoryList.querySelectorAll(".repository-load-button").forEach(button => {
+    repositoryList.querySelectorAll(".repository-remix-button").forEach(button => {
         button.disabled = nextBusy;
     });
 }
 
+function repositoryCurrentAuthor() {
+    return auth && auth.currentUser && typeof auth.currentUser.displayName === "string"
+        ? auth.currentUser.displayName.trim()
+        : "";
+}
+
+function repositoryMapIsMine(map) {
+    return Boolean(map && auth && auth.currentUser && map.ownerUid === auth.currentUser.uid);
+}
+
+function setRepositoryTab(nextTab, focusTab = false) {
+    repositoryTab = nextTab === "others" ? "others" : "mine";
+    repositoryTabs.forEach(tab => {
+        const selected = tab.dataset.repositoryTab === repositoryTab;
+        tab.classList.toggle("active", selected);
+        tab.setAttribute("aria-selected", selected ? "true" : "false");
+        tab.tabIndex = selected ? 0 : -1;
+        if(selected && focusTab) tab.focus();
+    });
+    if(repositoryMaps.length) renderRepositoryMaps();
+}
+
 function renderRepositoryMaps() {
+    const mine = repositoryMaps.filter(repositoryMapIsMine);
+    const others = repositoryMaps.filter(map => !repositoryMapIsMine(map));
+    repositoryMineCount.textContent = String(mine.length);
+    repositoryOthersCount.textContent = String(others.length);
+    const tabMaps = repositoryTab === "mine" ? mine : others;
     const query = repositorySearchInput.value.trim().toLocaleLowerCase();
-    const visibleMaps = repositoryMaps.filter(map => {
+    const visibleMaps = tabMaps.filter(map => {
         if(!query) return true;
         return `${map.name} ${map.author} ${map.category} ${map.fullPath}`
             .toLocaleLowerCase()
@@ -594,15 +643,16 @@ function renderRepositoryMaps() {
 
     repositoryList.replaceChildren();
     repositorySummary.textContent = repositoryMaps.length
-        ? `Showing ${visibleMaps.length} of ${repositoryMaps.length} maps across ${authors.size} ${authors.size === 1 ? "author" : "authors"}.`
+        ? `Showing ${visibleMaps.length} of ${tabMaps.length} ${repositoryTab === "mine" ? "your" : "other"} ${tabMaps.length === 1 ? "map" : "maps"}${authors.size ? ` across ${authors.size} ${authors.size === 1 ? "author" : "authors"}` : ""}.`
         : "No repository maps loaded.";
 
     if(!visibleMaps.length) {
         const empty = document.createElement("div");
         empty.className = "repository-empty";
-        empty.textContent = repositoryMaps.length
-            ? "No maps match that search."
-            : "The repository does not contain any maps yet.";
+        if(query && tabMaps.length) empty.textContent = "No maps match that search.";
+        else if(repositoryMaps.length && repositoryTab === "mine") empty.textContent = "You haven't uploaded any maps yet.";
+        else if(repositoryMaps.length) empty.textContent = "There aren't any maps from other authors yet.";
+        else empty.textContent = "The repository does not contain any maps yet.";
         repositoryList.appendChild(empty);
         return;
     }
@@ -634,14 +684,14 @@ function renderRepositoryMaps() {
                 path.textContent = map.category === MAP_CATEGORY ? map.fullPath : `${map.category} · ${map.fullPath}`;
                 copy.append(name, path);
 
-                const loadButton = document.createElement("button");
-                loadButton.className = "repository-load-button";
-                loadButton.type = "button";
-                loadButton.dataset.repositoryLoad = map.fullPath;
-                loadButton.disabled = repositoryBusy;
-                loadButton.innerHTML = '<i class="fa-solid fa-arrow-down" aria-hidden="true"></i><span>Load</span>';
-                loadButton.setAttribute("aria-label", `Load ${map.name} by ${map.author}`);
-                row.append(copy, loadButton);
+                const remixButton = document.createElement("button");
+                remixButton.className = "repository-remix-button";
+                remixButton.type = "button";
+                remixButton.dataset.repositoryRemix = map.fullPath;
+                remixButton.disabled = repositoryBusy;
+                remixButton.innerHTML = '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
+                remixButton.setAttribute("aria-label", `Remix ${map.name} by ${map.author}`);
+                row.append(copy, remixButton);
                 group.appendChild(row);
             });
             fragment.appendChild(group);
@@ -656,9 +706,10 @@ async function refreshRepositoryMaps() {
     setRepositoryStatus("Loading repository maps…");
     try {
         const references = await listRepositoryReferences(storageSdk.ref(storage));
-        repositoryMaps = references
+        const maps = references
             .filter(reference => reference.fullPath.toLocaleLowerCase().endsWith(".aamap.xml"))
-            .map(reference => repositoryMapDetails(reference.fullPath))
+            .map(reference => repositoryMapDetails(reference.fullPath));
+        repositoryMaps = (await addRepositoryOwnership(maps))
             .sort((a, b) => a.author.localeCompare(b.author, undefined, {sensitivity: "base"}) ||
                 a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: "base"}));
         setRepositoryStatus("");
@@ -683,6 +734,8 @@ function openRepository() {
         showEditorMessage("The map repository is not ready yet.");
         return;
     }
+    repositorySearchInput.value = "";
+    setRepositoryTab("mine");
     repositoryPreviousFocus = document.activeElement;
     repositoryOverlay.hidden = false;
     repositoryButton.setAttribute("aria-expanded", "true");
@@ -700,14 +753,14 @@ function closeRepository() {
     }
 }
 
-async function loadRepositoryMap(fullPath) {
+async function remixRepositoryMap(fullPath) {
     if(repositoryBusy || !auth || !auth.currentUser) return;
     const map = repositoryMaps.find(candidate => candidate.fullPath === fullPath);
     if(!map) return;
-    if(!window.confirm(`Load ${map.name} by ${map.author}? This replaces your current local draft.`)) return;
+    if(!window.confirm(`Remix ${map.name} by ${map.author}? This replaces your current local draft.`)) return;
 
     setRepositoryBusy(true);
-    setRepositoryStatus(`Loading ${map.name}…`);
+    setRepositoryStatus(`Preparing ${map.name} for remix…`);
     try {
         const xml = await downloadRepositoryMap(fullPath);
         const parsed = $.parseXML(xml);
@@ -727,6 +780,15 @@ async function loadRepositoryMap(fullPath) {
                 window.aamap_objects = [];
             }
             window.xml_process(xml);
+            if(typeof window.xml_appendRemixSource !== "function") {
+                throw new Error("Remix provenance is unavailable.");
+            }
+            window.xml_appendRemixSource({
+                map: resource.getAttribute("name") || map.name,
+                author: resource.getAttribute("author") || map.author,
+                version: resource.getAttribute("version") || "",
+                path: map.fullPath
+            });
             syncMapMetadata(auth.currentUser);
             if(typeof window.vectron_localDraftSaveNow === "function") {
                 window.vectron_localDraftSaveNow();
@@ -739,14 +801,14 @@ async function loadRepositoryMap(fullPath) {
         }
         setRepositoryStatus("");
         closeRepository();
-        showEditorMessage(`Loaded ${map.name} by ${map.author}.`);
+        showEditorMessage(`Remixing ${map.name} by ${map.author}.`);
     } catch(error) {
-        console.error("Vectron repository map load failed.", error);
+        console.error("Vectron repository map remix failed.", error);
         repositoryStatus.dataset.errorDetail = error && error.message ? error.message : String(error);
         setRepositoryStatus(
             error && error.code === "storage/unauthorized"
                 ? "Your account cannot read that map."
-                : "That map could not be loaded. Your current work was kept.",
+                : "That map could not be remixed. Your current work was kept.",
             "error"
         );
     } finally {
@@ -779,9 +841,18 @@ function bindUi() {
     repositoryCloseButton.addEventListener("click", closeRepository);
     repositoryRefreshButton.addEventListener("click", refreshRepositoryMaps);
     repositorySearchInput.addEventListener("input", renderRepositoryMaps);
+    repositoryTabs.forEach(tab => {
+        tab.addEventListener("click", () => setRepositoryTab(tab.dataset.repositoryTab));
+        tab.addEventListener("keydown", event => {
+            if(!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const nextTab = event.key === "ArrowLeft" || event.key === "Home" ? "mine" : "others";
+            setRepositoryTab(nextTab, true);
+        });
+    });
     repositoryList.addEventListener("click", event => {
-        const button = event.target.closest("[data-repository-load]");
-        if(button) loadRepositoryMap(button.dataset.repositoryLoad);
+        const button = event.target.closest("[data-repository-remix]");
+        if(button) remixRepositoryMap(button.dataset.repositoryRemix);
     });
     repositoryOverlay.addEventListener("mousedown", event => {
         if(event.target === repositoryOverlay) closeRepository();
