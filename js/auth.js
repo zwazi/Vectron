@@ -69,6 +69,7 @@ let repositoryTab = "mine";
 let repositoryPreviousFocus = null;
 let repositoryEditState = null;
 let currentUserRole = "user";
+let repositoryExpandedAuthors = new Set();
 
 function setEditorInert(locked) {
     Array.from(document.body.children).forEach(element => {
@@ -876,6 +877,9 @@ function setRepositoryBusy(nextBusy) {
     repositoryList.querySelectorAll(".repository-remix-button").forEach(button => {
         button.disabled = nextBusy;
     });
+    repositoryList.querySelectorAll("[data-repository-author]").forEach(button => {
+        button.disabled = nextBusy;
+    });
 }
 
 function repositoryCurrentAuthor() {
@@ -942,19 +946,41 @@ function renderRepositoryMaps() {
 
     const fragment = document.createDocumentFragment();
     Array.from(authors.keys()).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: "base"}))
-        .forEach(author => {
+        .forEach((author, authorIndex) => {
             const maps = authors.get(author);
             const group = document.createElement("section");
             group.className = "repository-author-group";
+            const collapsible = repositoryTab === "others";
+            const expanded = !collapsible || Boolean(query) || repositoryExpandedAuthors.has(author);
+            group.classList.toggle("collapsed", !expanded);
 
-            const heading = document.createElement("header");
+            const heading = document.createElement(collapsible ? "button" : "header");
             heading.className = "repository-author-heading";
+            if(collapsible) {
+                heading.type = "button";
+                heading.dataset.repositoryAuthor = author;
+                heading.disabled = repositoryBusy;
+                heading.setAttribute("aria-expanded", String(expanded));
+                heading.setAttribute("aria-controls", `repository-author-maps-${authorIndex}`);
+            }
             const authorName = document.createElement("span");
             authorName.textContent = author;
             const count = document.createElement("span");
-            count.textContent = `${maps.length} ${maps.length === 1 ? "map" : "maps"}`;
+            count.className = "repository-author-count";
+            count.append(document.createTextNode(`${maps.length} ${maps.length === 1 ? "map" : "maps"}`));
+            if(collapsible) {
+                const chevron = document.createElement("i");
+                chevron.className = "fa-solid fa-chevron-down";
+                chevron.setAttribute("aria-hidden", "true");
+                count.appendChild(chevron);
+            }
             heading.append(authorName, count);
             group.appendChild(heading);
+
+            const mapList = document.createElement("div");
+            mapList.className = "repository-author-maps";
+            mapList.id = `repository-author-maps-${authorIndex}`;
+            mapList.hidden = !expanded;
 
             maps.forEach(map => {
                 const row = document.createElement("div");
@@ -986,8 +1012,9 @@ function renderRepositoryMaps() {
                 if(repositoryMapCanEdit(map)) addAction("edit");
                 if(!repositoryMapIsMine(map) || currentUserIsAdmin()) addAction("remix");
                 row.append(copy, actions);
-                group.appendChild(row);
+                mapList.appendChild(row);
             });
+            group.appendChild(mapList);
             fragment.appendChild(group);
         });
     repositoryList.appendChild(fragment);
@@ -1029,6 +1056,7 @@ function openRepository() {
         return;
     }
     repositorySearchInput.value = "";
+    repositoryExpandedAuthors.clear();
     setRepositoryTab("mine");
     repositoryPreviousFocus = document.activeElement;
     repositoryOverlay.hidden = false;
@@ -1179,6 +1207,17 @@ function bindUi() {
         });
     });
     repositoryList.addEventListener("click", event => {
+        const authorToggle = event.target.closest("[data-repository-author]");
+        if(authorToggle) {
+            const author = authorToggle.dataset.repositoryAuthor;
+            if(repositoryExpandedAuthors.has(author)) repositoryExpandedAuthors.delete(author);
+            else repositoryExpandedAuthors.add(author);
+            renderRepositoryMaps();
+            const nextToggle = Array.from(repositoryList.querySelectorAll("[data-repository-author]"))
+                .find(button => button.dataset.repositoryAuthor === author);
+            if(nextToggle) nextToggle.focus();
+            return;
+        }
         const button = event.target.closest("[data-repository-open]");
         if(button) openRepositoryMap(button.dataset.repositoryOpen, button.dataset.repositoryAction);
     });
