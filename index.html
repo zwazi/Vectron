@@ -324,8 +324,8 @@
                                 <tr><td><b>Author</b></td><td>Author name included in the exported file</td></tr>
                                 <tr><td><b>Category</b></td><td>Map category (e.g. <i>racing</i>, <i>sumo</i>)</td></tr>
                                 <tr><td><b>Revision</b></td><td>Locked to the revision declared by the current map; new blank maps start at version 1.</td></tr>
-                                <tr><td><b>DTD</b></td><td>The DTD file the map is validated against. Common values: <code>sty.dtd</code>, <code>map-0.2.8.dtd</code>, <code>aacockpit-0.1.dtd</code>. Don't change this unless you know what you're doing.</td></tr>
-                                <tr><td><b>Axes ☐</b></td><td>Number of axes (turning directions). <i>axes = 360 / angle</i>. Check the box to include this in the exported map file.</td></tr>
+                                <tr><td><b>DTD</b></td><td>The DTD file the map is validated against. Choose any known DTD from the dropdown or type a custom path.</td></tr>
+                                <tr><td><b>Axes</b></td><td>Number of axes (turning directions). <i>axes = 360 / angle</i>. Axes are always included in the map file.</td></tr>
                             </tbody>
                         </table>
 
@@ -444,21 +444,14 @@
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
                     <label for="map_dtd" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The DTD file this map is verified against. Don't change this unless you know what you're doing.">DTD</label>
-                    <input type="text" class="tsb-input" id="map_dtd" placeholder="sty.dtd" default="sty.dtd" list="dtds">
-                    <datalist id="dtds">
-                        <option value="sty.dtd"/>
-                        <option value="map-0.2.8.dtd"/>
-                        <option value="map-0.2.9.dtd"/>
-                        <option value="map-0.3.1-a.dtd"/>
-                        <option value="Anonymous/map-0.2.8.dtd"/>
-                        <option value="Loverboy/map-0.2.9_styctap_v1.5.dtd"/>
-                        <option value="aacockpit-0.1.dtd"/>
-                        <option value="wrtlprnft/map-0.2.8-0.1.dtd"/>
-                    </datalist>
+                    <span class="tsb-combobox">
+                        <input type="text" class="tsb-input" id="map_dtd" value="sty.dtd" autocomplete="off" role="combobox" aria-autocomplete="none" aria-haspopup="listbox" aria-expanded="false" aria-controls="map-dtd-options">
+                        <button id="map-dtd-toggle" class="tsb-combobox-toggle" type="button" aria-label="Show all DTD options" aria-expanded="false" aria-controls="map-dtd-options"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+                    </span>
                 </span>
                 <span class="tsb-sep">|</span>
-                <span class="tsb-field" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Map axes control turning directions. Check the box to force axes in the map file.">
-                    <label for="map_axes_forced"><input class="form-check-input" id="map_axes_forced" type="checkbox" /> Axes</label>
+                <span class="tsb-field" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Map axes control turning directions and are always written to the map file.">
+                    <label for="map_axes">Axes</label>
                     <input type="number" class="tsb-input tsb-input-sm" id="map_axes" name="map_axes" min="2" max="360" value="4" />
                 </span>
             </div>
@@ -721,10 +714,24 @@
                     </label>
                     <button id="map-repository-refresh" class="repository-refresh-button" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Refresh</span></button>
                 </div>
-                <div id="map-repository-summary" class="repository-summary" aria-live="polite">Open the repository to load maps.</div>
+                <div class="repository-tabs" role="tablist" aria-label="Repository map scope">
+                    <button id="map-repository-mine-tab" class="repository-tab active" type="button" role="tab" aria-selected="true" aria-controls="map-repository-list" data-repository-tab="mine">My maps <span id="map-repository-mine-count">0</span></button>
+                    <button id="map-repository-others-tab" class="repository-tab" type="button" role="tab" aria-selected="false" aria-controls="map-repository-list" data-repository-tab="others">Other maps <span id="map-repository-others-count">0</span></button>
+                </div>
+                <div id="map-repository-summary" class="repository-summary" aria-live="polite">Open the repository to remix maps.</div>
                 <div id="map-repository-status" class="repository-status" role="status" aria-live="polite" hidden></div>
                 <div id="map-repository-list" class="repository-list" aria-label="Repository maps"></div>
             </section>
+        </div>
+        <div id="map-dtd-options" class="tsb-combobox-menu" role="listbox" aria-label="Known DTD files" hidden>
+            <button id="map-dtd-option-0" type="button" role="option" data-dtd-value="sty.dtd">sty.dtd</button>
+            <button id="map-dtd-option-1" type="button" role="option" data-dtd-value="map-0.2.8.dtd">map-0.2.8.dtd</button>
+            <button id="map-dtd-option-2" type="button" role="option" data-dtd-value="map-0.2.9.dtd">map-0.2.9.dtd</button>
+            <button id="map-dtd-option-3" type="button" role="option" data-dtd-value="map-0.3.1-a.dtd">map-0.3.1-a.dtd</button>
+            <button id="map-dtd-option-4" type="button" role="option" data-dtd-value="Anonymous/map-0.2.8.dtd">Anonymous/map-0.2.8.dtd</button>
+            <button id="map-dtd-option-5" type="button" role="option" data-dtd-value="Loverboy/map-0.2.9_styctap_v1.5.dtd">Loverboy/map-0.2.9_styctap_v1.5.dtd</button>
+            <button id="map-dtd-option-6" type="button" role="option" data-dtd-value="aacockpit-0.1.dtd">aacockpit-0.1.dtd</button>
+            <button id="map-dtd-option-7" type="button" role="option" data-dtd-value="wrtlprnft/map-0.2.8-0.1.dtd">wrtlprnft/map-0.2.8-0.1.dtd</button>
         </div>
         <input type="file" id="toolbar-files" name="file" style="display:none;" />
 

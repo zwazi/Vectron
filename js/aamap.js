@@ -692,6 +692,7 @@ function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
     xml += '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>'+"\n";
     xml += '<!DOCTYPE Resource SYSTEM "' + dtd + '">'+"\n";
     xml += '<Resource type="aamap" name="'+ name +'" version="'+ version +'" author="'+ author +'" category="'+ category +'">'+"\n";
+    if(typeof xml_buildRemixComments == "function") xml += xml_buildRemixComments("  ");
     xml += '  <Map version="0.2.8">'+"\n";
     var mapSettings = [];
     for(var i = 0, ii = settings.length; i < ii; i++)
@@ -716,10 +717,7 @@ function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
     }
     xml += '    <World>\n';
     xml += '      <Field>\n';
-    if($("#map_axes_forced")[0].checked)
-    {
-        xml += '        <Axes number="'+axes+'"/>'+"\n";
-    }
+    xml += '        <Axes number="'+axes+'"/>'+"\n";
     for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
         xml += indentLines(aamap_objects[i].getXML(), '        ');
         xml += "\n";

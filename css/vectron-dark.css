@@ -19,6 +19,36 @@
   box-shadow: 0 0 4px rgba(74,158,255,0.3);
 }
 
+.tsb-combobox-toggle {
+  border-color: #555;
+  color: #aaa;
+  background: #292929;
+}
+
+.tsb-combobox-toggle:hover,
+.tsb-combobox-toggle:focus-visible,
+.tsb-combobox-toggle[aria-expanded="true"] {
+  color: #fff;
+  background: #363636;
+}
+
+.tsb-combobox-menu {
+  border-color: #555;
+  background: #222;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.58);
+}
+
+.tsb-combobox-menu button {
+  color: #d9d9dd;
+}
+
+.tsb-combobox-menu button:hover,
+.tsb-combobox-menu button.active,
+.tsb-combobox-menu button[aria-selected="true"] {
+  color: #fff;
+  background: #393939;
+}
+
 /* Grid line appearance — color picker fix in dark mode */
 #grid-config input[type="color"] {
   background: transparent;

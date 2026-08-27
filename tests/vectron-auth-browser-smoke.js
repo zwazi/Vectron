@@ -104,7 +104,7 @@ async function deleteTestData() {
                 headers: {authorization: `Bearer ${account.idToken}`}
             }
         );
-        if(!removeMap.ok && removeMap.status !== 404) {
+        if(!removeMap.ok && removeMap.status !== 403 && removeMap.status !== 404) {
             throw new Error(`Could not delete disposable map (${removeMap.status}).`);
         }
     }
@@ -188,6 +188,25 @@ ws.onopen = async () => {
                     document.querySelector('.auth-session-plan [data-auth-name]').textContent === 'Browser Pilot' &&
                     document.getElementById('map_version').value === '0.1';
             }, 'Account creation did not unlock Vectron');
+            const dtdInput = document.getElementById('map_dtd');
+            dtdInput.click();
+            await waitFor(function() {
+                return !document.getElementById('map-dtd-options').hidden;
+            }, 'DTD dropdown did not open');
+            const dtdOptionCount = document.querySelectorAll('#map-dtd-options [data-dtd-value]').length;
+            document.querySelector('[data-dtd-value="map-0.2.9.dtd"]').click();
+            const dtdKnownOptionSelected = dtdInput.value === 'map-0.2.9.dtd';
+            dtdInput.value = 'custom/browser-map.dtd';
+            dtdInput.dispatchEvent(new Event('input', {bubbles: true}));
+            const dtdMenu = document.getElementById('map-dtd-options');
+            const dtdMenuRect = dtdMenu.getBoundingClientRect();
+            const dtdAllOptionsRemainVisible = !dtdMenu.hidden &&
+                Array.from(dtdMenu.querySelectorAll('[data-dtd-value]')).every(function(option) {
+                    const rect = option.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 &&
+                        rect.top >= dtdMenuRect.top && rect.bottom <= dtdMenuRect.bottom;
+                });
+            dtdInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
             result.created = {
                 gateHidden: document.getElementById('auth-gate').hidden,
                 sessionVisible: !document.querySelector('.auth-session-plan').hidden,
@@ -200,6 +219,12 @@ ws.onopen = async () => {
                 categoryLocked: document.getElementById('map_category').readOnly,
                 version: document.getElementById('map_version').value,
                 versionLocked: document.getElementById('map_version').readOnly,
+                axesCheckboxGone: !document.getElementById('map_axes_forced'),
+                exportAlwaysHasAxes: window.eventHandler_getExportMap().xml.includes('<Axes number="8"/>'),
+                typedDtd: document.getElementById('map_dtd').value,
+                dtdOptionCount: dtdOptionCount,
+                dtdKnownOptionSelected: dtdKnownOptionSelected,
+                dtdAllOptionsRemainVisible: dtdAllOptionsRemainVisible,
                 accountDockTopRight: (function() {
                     const dock = document.getElementById('auth-account-controls');
                     const toolbar = document.getElementById('top-settings-bar');
@@ -224,32 +249,48 @@ ws.onopen = async () => {
             }
 
             document.querySelector('[data-map-repository]').click();
+            if(testUpload) {
+                await waitFor(function() {
+                    return !document.getElementById('map-repository-overlay').hidden &&
+                        document.querySelector('[data-repository-remix="Browser Pilot/maps/Browser Upload-0.1.aamap.xml"]');
+                }, "The user's repository maps did not become available", 30000);
+            }
+            const mineTabSelectedByDefault = document.getElementById('map-repository-mine-tab').getAttribute('aria-selected') === 'true';
+            const ownMapCount = document.querySelectorAll('[data-repository-remix]').length;
+            const ownTabOnlyShowsCurrentUser = Array.from(document.querySelectorAll('.repository-author-heading span:first-child'))
+                .every(function(node) { return node.textContent === 'Browser Pilot'; });
+            document.getElementById('map-repository-others-tab').click();
             await waitFor(function() {
-                return !document.getElementById('map-repository-overlay').hidden &&
-                    document.querySelectorAll('[data-repository-load]').length >= 275;
-            }, 'Repository maps did not become available', 30000);
+                return document.getElementById('map-repository-others-tab').getAttribute('aria-selected') === 'true' &&
+                    document.querySelectorAll('[data-repository-remix]').length >= 275;
+            }, "Other authors' repository maps did not become available", 30000);
             const repositoryAuthors = Array.from(document.querySelectorAll('.repository-author-heading span:first-child'))
                 .map(function(node) { return node.textContent; });
-            const repositoryLoad = document.querySelector('[data-repository-load="Zwazi/maps/Default-v1.aamap.xml"]');
-            if(!repositoryLoad) throw new Error('Expected cross-user repository map was not listed');
-            const repositoryCount = document.querySelectorAll('[data-repository-load]').length;
+            const repositoryRemix = document.querySelector('[data-repository-remix="Zwazi/maps/Default-v1.aamap.xml"]');
+            if(!repositoryRemix) throw new Error('Expected cross-user repository map was not listed');
+            const repositoryCount = document.querySelectorAll('[data-repository-remix]').length;
+            const repositoryLayoutFits = (function() {
+                const dialogRect = document.querySelector('.repository-dialog').getBoundingClientRect();
+                const listRect = document.getElementById('map-repository-list').getBoundingClientRect();
+                return listRect.height > 100 && listRect.top >= dialogRect.top && listRect.bottom <= dialogRect.bottom;
+            })();
             window.confirm = function() { return true; };
-            repositoryLoad.click();
+            repositoryRemix.click();
             try {
                 await waitFor(function() {
                     const toast = document.getElementById('vt-toast');
                     const repositoryStatus = document.getElementById('map-repository-status');
                     return (document.getElementById('map-repository-overlay').hidden &&
                         document.getElementById('map_name').value === 'Default' &&
-                        toast && toast.textContent === 'Loaded Default-v1 by Zwazi.') ||
+                        toast && toast.textContent === 'Remixing Default-v1 by Zwazi.') ||
                         (!repositoryStatus.hidden && repositoryStatus.classList.contains('error'));
-                }, 'Cross-user repository map did not load', 30000);
+                }, 'Cross-user repository map did not begin remixing', 30000);
             } catch(error) {
                 const repositoryStatus = document.getElementById('map-repository-status');
                 const toast = document.getElementById('vt-toast');
-                throw new Error('Cross-user repository map did not load: ' + JSON.stringify({
+                throw new Error('Cross-user repository map did not begin remixing: ' + JSON.stringify({
                     overlayHidden: document.getElementById('map-repository-overlay').hidden,
-                    buttonDisabled: repositoryLoad.disabled,
+                    buttonDisabled: repositoryRemix.disabled,
                     mapName: document.getElementById('map_name').value,
                     status: repositoryStatus.textContent,
                     statusClass: repositoryStatus.className,
@@ -259,14 +300,25 @@ ws.onopen = async () => {
             }
             const repositoryError = document.getElementById('map-repository-status');
             if(!repositoryError.hidden && repositoryError.classList.contains('error')) {
-                throw new Error('Cross-user repository map failed: ' + repositoryError.textContent +
+                throw new Error('Cross-user repository remix failed: ' + repositoryError.textContent +
                     ' (' + (repositoryError.dataset.errorDetail || 'no detail') + ')');
             }
+            const remixXml = window.eventHandler_getExportMap().xml;
             result.repository = {
                 mapCount: repositoryCount,
+                mineTabSelectedByDefault: mineTabSelectedByDefault,
+                ownMapCount: ownMapCount,
+                ownTabOnlyShowsCurrentUser: ownTabOnlyShowsCurrentUser,
+                otherTabExcludesCurrentUser: !repositoryAuthors.includes('Browser Pilot'),
+                panelLayoutFits: repositoryLayoutFits,
                 hasZwazi: repositoryAuthors.includes('Zwazi'),
                 hasAnimuson: repositoryAuthors.includes('Animuson'),
                 loadedMap: document.getElementById('map_name').value,
+                remixProvenance: remixXml.includes('Original map: "Default"') &&
+                    remixXml.includes('Original author: "Zwazi"') &&
+                    remixXml.includes('Source file: "Zwazi/maps/Default-v1.aamap.xml"') &&
+                    remixXml.includes('Vectron remix provenance data:'),
+                remixedMapHasAxes: remixXml.includes('<Axes number="'),
                 authorStillLocked: document.getElementById('map_author').value === 'Browser Pilot' &&
                     document.getElementById('map_author').readOnly,
                 categoryStillLocked: document.getElementById('map_category').value === 'maps' &&
@@ -303,7 +355,8 @@ ws.onopen = async () => {
                 unlocked: !document.body.classList.contains('auth-locked'),
                 gateHidden: document.getElementById('auth-gate').hidden,
                 mapName: document.getElementById('map_name').value,
-                versionLocked: document.getElementById('map_version').readOnly
+                versionLocked: document.getElementById('map_version').readOnly,
+                remixProvenanceRestored: window.eventHandler_getExportMap().xml.includes('Original author: "Zwazi"')
             };
             return JSON.stringify(result);
         })()`);
@@ -327,16 +380,30 @@ ws.onopen = async () => {
             categoryLocked: true,
             version: "0.1",
             versionLocked: true,
+            axesCheckboxGone: true,
+            exportAlwaysHasAxes: true,
+            typedDtd: "custom/browser-map.dtd",
+            dtdOptionCount: 8,
+            dtdKnownOptionSelected: true,
+            dtdAllOptionsRemainVisible: true,
             draftSavedLocally: true,
             accountDockTopRight: true
         });
         if(testUploadEnabled) assert.strictEqual(firstPass.uploadPath, uploadPath);
         const {mapCount, ...repositoryState} = firstPass.repository;
         assert.ok(mapCount >= 275);
+        assert.strictEqual(firstPass.repository.ownMapCount, testUploadEnabled ? 1 : 0);
         assert.deepStrictEqual(repositoryState, {
+            mineTabSelectedByDefault: true,
+            ownMapCount: testUploadEnabled ? 1 : 0,
+            ownTabOnlyShowsCurrentUser: true,
+            otherTabExcludesCurrentUser: true,
+            panelLayoutFits: true,
             hasZwazi: true,
             hasAnimuson: true,
             loadedMap: "Default",
+            remixProvenance: true,
+            remixedMapHasAxes: true,
             authorStillLocked: true,
             categoryStillLocked: true
         });
@@ -349,7 +416,8 @@ ws.onopen = async () => {
             unlocked: true,
             gateHidden: true,
             mapName: "Browser Draft",
-            versionLocked: true
+            versionLocked: true,
+            remixProvenanceRestored: true
         });
 
         if(testUploadEnabled) {
@@ -357,6 +425,8 @@ ws.onopen = async () => {
             assert.match(uploadedXml, /<Resource[^>]*name="Browser Upload"/);
             assert.match(uploadedXml, /author="Browser Pilot"/);
             assert.match(uploadedXml, /category="maps"/);
+            assert.match(uploadedXml, /<!DOCTYPE Resource SYSTEM "custom\/browser-map\.dtd">/);
+            assert.match(uploadedXml, /<Axes number="8"\/>/);
         }
 
         await call("browsingContext.reload", {context, wait: "complete"});
@@ -371,7 +441,8 @@ ws.onopen = async () => {
                 editorStarted: window.vectron_started === true,
                 email: document.querySelector('.auth-session-plan [data-auth-email]').textContent,
                 mapName: document.getElementById('map_name').value,
-                versionLocked: document.getElementById('map_version').readOnly
+                versionLocked: document.getElementById('map_version').readOnly,
+                remixProvenanceRestored: window.eventHandler_getExportMap().xml.includes('Original author: "Zwazi"')
             };
             document.querySelector('.auth-session-plan [data-auth-signout]').click();
             while(Date.now() - started < 20000 && !document.body.classList.contains('auth-locked')) {
@@ -386,6 +457,7 @@ ws.onopen = async () => {
             email: testEmail,
             mapName: "Browser Draft",
             versionLocked: true,
+            remixProvenanceRestored: true,
             lockedAfterLogout: true
         });
 
