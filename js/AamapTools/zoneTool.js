@@ -56,9 +56,6 @@ var zoneTool_centerRealX = 0;
 var zoneTool_centerRealY = 0;
 var zoneTool_centerMapX = 0;
 var zoneTool_centerMapY = 0;
-var zoneTool_points = [];
-var zoneTool_stage = "shape";
-var zoneTool_pendingZone = null;
 
 var ZONE_TOOL_CENTER_MARKER_RADIUS = 4;
 var ZONE_TOOL_MIN_POLYGON_POINTS = 3;
@@ -79,57 +76,12 @@ function zoneTool_removeGuide() {
     }
 }
 
-function zoneTool_setStatus(message) {
-    $("#zone-tool-status").text(message);
-}
-
-function zoneTool_resetPlacement() {
-    zoneTool_removeGuide();
-    if(zoneTool_pendingZone && aamap_objects.indexOf(zoneTool_pendingZone) < 0) {
-        _aamap_removeObj(zoneTool_pendingZone);
-    }
-    zoneTool_points = [];
-    zoneTool_stage = "shape";
-    zoneTool_pendingZone = null;
-    zoneTool_placingSize = false;
-    vectron_toolActive = false;
-}
-
-function zoneTool_cancelPlacement() {
-    zoneTool_resetPlacement();
-    zoneTool_updateStatus();
-    zoneTool_guide();
-}
-
-function zoneTool_updateStatus() {
-    var shape = xml_game_mode === "armaracing" ? $("#dZoneShape").val() : "circle";
-    if(zoneTool_stage === "teleport-position") {
-        zoneTool_setStatus("Click the teleport destination.");
-    } else if(zoneTool_stage === "teleport-direction") {
-        zoneTool_setStatus("Click to set the destination direction.");
-    } else if(shape === "polygon") {
-        zoneTool_setStatus(zoneTool_points.length ?
-            "Keep placing vertices; double-click or use Finish Polygon." :
-            "Click to place polygon vertices.");
-    } else if(shape === "rectangle") {
-        zoneTool_setStatus(zoneTool_points.length ?
-            "Click the opposite corner." : "Click the first corner.");
-    } else {
-        zoneTool_setStatus(zoneTool_placingSize ?
-            "Click the circle edge." : "Click the circle center.");
-    }
-    $("#zone-tool-finish").toggle(shape === "polygon" && zoneTool_stage === "shape" &&
-        zoneTool_points.length >= ZONE_TOOL_MIN_POLYGON_POINTS);
-    $("#zone-tool-cancel").toggle(vectron_toolActive);
-}
-
 function zoneTool_connect() {
     $(".toolbar-toolZone").addClass("toolbar-tool-active");
     zoneTool_radius = vectron_grid_spacing;
     zoneTool_updateRubberBar();
     $("#zone-tool-window").show();
     zoneTool_updateWindowActiveType();
-    zoneTool_updateStatus();
     gui_refreshFloatingWindows();
 }
 
@@ -157,7 +109,9 @@ function zoneTool_setGameMode(mode) {
 }
 
 function zoneTool_disconnect() {
-    zoneTool_resetPlacement();
+    zoneTool_removeGuide();
+    zoneTool_placingSize = false;
+    vectron_toolActive = false;
     $(".toolbar-toolZone").removeClass("toolbar-tool-active");
     $("#rubber-zone-bar").hide();
     $("#zone-tool-window").hide();
@@ -178,11 +132,7 @@ function zoneTool_updateRubberBar() {
     $("#zone-speed-setting").toggle(xml_game_mode === "armaracing" && zoneTool_type === 6);
     $("#zone-racing-rubber-setting").toggle(xml_game_mode === "armaracing" && zoneTool_type === 3);
     $("#zone-teleport-setting").toggle(xml_game_mode === "armaracing" && zoneTool_type === 7);
-    var customShape = xml_game_mode === "armaracing" && $("#dZoneShape").val() !== "circle";
     $("#zone-polygon-setting").toggle(xml_game_mode === "armaracing" && $("#dZoneShape").val() === "polygon");
-    $("#zone-quick-placement").toggle(!customShape);
-    $("#zone-quick-size-row").toggle(!customShape && $("#zone-quick-placement-toggle").is(":checked"));
-    zoneTool_updateStatus();
     vectron_render();
 }
 
@@ -195,47 +145,8 @@ function zoneTool_guide() {
     zoneTool_removeGuide();
 
     var color = zoneTool_typeArray[zoneTool_type][1];
-    if(zoneTool_stage === "teleport-position") {
-        zoneTool_guideObj = vectron_screen.circle(cursor_realX, cursor_realY, 6)
-            .attr({"stroke":"#00d9ff", "fill":"#00d9ff", "fill-opacity":0.45});
-        return;
-    }
-    if(zoneTool_stage === "teleport-direction") {
-        var start = zoneTool_points[0];
-        zoneTool_guideObj = vectron_screen.path([
-            "M", aamap_realX(start.x), aamap_realY(start.y),
-            "L", cursor_realX, cursor_realY
-        ]).attr({"stroke":"#00d9ff", "stroke-width":2, "stroke-dasharray":"--"});
-        return;
-    }
 
-    var shape = xml_game_mode === "armaracing" ? $("#dZoneShape").val() : "circle";
-    if(shape === "polygon" && zoneTool_points.length) {
-        var polygonPath = ["M", aamap_realX(zoneTool_points[0].x), aamap_realY(zoneTool_points[0].y)];
-        for(var p = 1; p < zoneTool_points.length; p++) {
-            polygonPath.push("L", aamap_realX(zoneTool_points[p].x), aamap_realY(zoneTool_points[p].y));
-        }
-        polygonPath.push("L", cursor_realX, cursor_realY);
-        if(zoneTool_points.length >= ZONE_TOOL_MIN_POLYGON_POINTS) {
-            polygonPath.push("L", aamap_realX(zoneTool_points[0].x), aamap_realY(zoneTool_points[0].y));
-        }
-        zoneTool_guideObj = vectron_screen.path(polygonPath).attr({
-            "stroke":color, "stroke-dasharray":"--..", "fill":"none"
-        });
-        return;
-    }
-    if(shape === "rectangle" && zoneTool_points.length) {
-        var corner = zoneTool_points[0];
-        zoneTool_guideObj = vectron_screen.rect(
-            Math.min(aamap_realX(corner.x), cursor_realX),
-            Math.min(aamap_realY(corner.y), cursor_realY),
-            Math.abs(aamap_realX(corner.x) - cursor_realX),
-            Math.abs(aamap_realY(corner.y) - cursor_realY)
-        ).attr({"stroke":color, "stroke-dasharray":"--..", "fill":color, "fill-opacity":0.2});
-        return;
-    }
-
-    if (shape === "circle" && zoneTool_placingSize) {
+    if (zoneTool_placingSize) {
         var dx = cursor_realX - zoneTool_centerRealX;
         var dy = cursor_realY - zoneTool_centerRealY;
         var screenRadius = Math.sqrt(dx * dx + dy * dy);
@@ -245,7 +156,7 @@ function zoneTool_guide() {
             "stroke": color, "stroke-dasharray": "--..",
             "fill": color, "fill-opacity": "0.2"
         });
-    } else if (shape === "circle" && $("#zone-quick-placement-toggle").is(":checked")) {
+    } else if ($("#zone-quick-placement-toggle").is(":checked")) {
         var quickR = parseFloat($("#zone-quick-size").val());
         if (isNaN(quickR) || quickR <= 0) quickR = 32;
         var screenR = quickR * vectron_zoom;
@@ -262,50 +173,6 @@ function zoneTool_guide() {
     }
 }
 
-function zoneTool_addZone(newZone) {
-    aamap_add(newZone);
-    aamap_recordAction({
-        label: "Add zone",
-        undo: function() { _aamap_removeObj(newZone); vectron_render(); },
-        redo: function() { aamap_objects.push(newZone); vectron_render(); }
-    });
-    zoneTool_resetPlacement();
-    zoneTool_updateStatus();
-    vectron_render();
-}
-
-function zoneTool_finishGeometry(newZone) {
-    if(zoneTool_type === 7 && xml_game_mode === "armaracing") {
-        zoneTool_pendingZone = newZone;
-        zoneTool_points = [];
-        zoneTool_stage = "teleport-position";
-        zoneTool_placingSize = true;
-        vectron_toolActive = true;
-        zoneTool_updateStatus();
-        zoneTool_guide();
-        return;
-    }
-    zoneTool_addZone(newZone);
-}
-
-function zoneTool_finishPolygon() {
-    if(zoneTool_stage !== "shape" || zoneTool_points.length < ZONE_TOOL_MIN_POLYGON_POINTS) {
-        gui_writeLog("Polygon zones require at least three points.");
-        return;
-    }
-    var points = zoneTool_points.slice();
-    var x = 0, y = 0;
-    for(var i = 0; i < points.length; i++) { x += points[i].x; y += points[i].y; }
-    x /= points.length; y /= points.length;
-    var details = zoneTool_buildDetails();
-    details.polygonScale = 1;
-    // ShapePolygon stores an absolute origin followed by vertices local to that origin.
-    details.polygonPoints = points.map(function(point) {
-        return {x:point.x - x, y:point.y - y};
-    });
-    zoneTool_finishGeometry(new Zone(x, y, 0, ZONE_DEFAULT_GROWTH, zoneTool_type,
-        zoneTool_getOption(), details));
-}
 
 function zoneTool_complete() {
     if(zoneTool_type === 5) {
@@ -318,87 +185,24 @@ function zoneTool_complete() {
         }
     }
 
-    if(zoneTool_stage === "teleport-position") {
-        var destinationX = aamap_mapX(cursor_realX);
-        var destinationY = aamap_mapY(cursor_realY);
-        zoneTool_pendingZone.options.destination_x = destinationX;
-        zoneTool_pendingZone.options.destination_y = destinationY;
-        $("#dTeleportX").val(destinationX);
-        $("#dTeleportY").val(destinationY);
-        zoneTool_points = [{x:destinationX, y:destinationY}];
-        zoneTool_stage = "teleport-direction";
-        zoneTool_updateStatus();
-        zoneTool_guide();
-        return;
-    }
-    if(zoneTool_stage === "teleport-direction") {
-        var destination = zoneTool_points[0];
-        var directionX = aamap_mapX(cursor_realX) - destination.x;
-        var directionY = aamap_mapY(cursor_realY) - destination.y;
-        var directionLength = Math.sqrt(directionX * directionX + directionY * directionY);
-        if(directionLength <= ZONE_DIRECTION_EPSILON) {
-            // A click very close to the destination keeps the default eastward direction.
-            directionX = ZONE_DEFAULT_XDIR;
-            directionY = ZONE_DEFAULT_YDIR;
-        }
-        else { directionX /= directionLength; directionY /= directionLength; }
-        zoneTool_pendingZone.options.xdir = directionX;
-        zoneTool_pendingZone.options.ydir = directionY;
-        $("#dTeleportXDir").val(directionX);
-        $("#dTeleportYDir").val(directionY);
-        zoneTool_addZone(zoneTool_pendingZone);
-        return;
-    }
-
-    var shape = xml_game_mode === "armaracing" ? $("#dZoneShape").val() : "circle";
-    var clickPoint = {x:aamap_mapX(cursor_realX), y:aamap_mapY(cursor_realY)};
-    if(shape === "polygon") {
-        var previous = zoneTool_points[zoneTool_points.length - 1];
-        // A finishing double-click produces two mouse-up events at the same vertex.
-        if(!previous || previous.x !== clickPoint.x || previous.y !== clickPoint.y) {
-            zoneTool_points.push(clickPoint);
-        }
-        zoneTool_placingSize = true;
-        vectron_toolActive = true;
-        zoneTool_updateStatus();
-        zoneTool_guide();
-        return;
-    }
-    if(shape === "rectangle") {
-        if(!zoneTool_points.length) {
-            zoneTool_points.push(clickPoint);
-            zoneTool_placingSize = true;
-            vectron_toolActive = true;
-            zoneTool_updateStatus();
-            zoneTool_guide();
-            return;
-        }
-        var first = zoneTool_points[0];
-        if(first.x === clickPoint.x || first.y === clickPoint.y) {
-            gui_writeLog("Rectangle width and height must be greater than 0.");
-            return;
-        }
-        var rectangleDetails = zoneTool_buildDetails();
-        rectangleDetails.minx = Math.min(first.x, clickPoint.x);
-        rectangleDetails.miny = Math.min(first.y, clickPoint.y);
-        rectangleDetails.maxx = Math.max(first.x, clickPoint.x);
-        rectangleDetails.maxy = Math.max(first.y, clickPoint.y);
-        zoneTool_finishGeometry(new Zone(0, 0, 0, ZONE_DEFAULT_GROWTH, zoneTool_type,
-            zoneTool_getOption(), rectangleDetails));
-        return;
-    }
-
-    // Quick placement: place a circular zone at the cursor with a preset radius.
+    // Quick placement: place zone at cursor with preset radius in one click
     if ($("#zone-quick-placement-toggle").is(":checked")) {
         var quickR = parseFloat($("#zone-quick-size").val());
         if (isNaN(quickR) || quickR <= 0) quickR = 32;
         var cx = aamap_mapX(cursor_realX);
         var cy = aamap_mapY(cursor_realY);
-        var quickDetails = zoneTool_buildDetails();
+        var quickDetails = zoneTool_buildDetails(cx, cy, quickR);
         if(!quickDetails) return;
         var newZone = new Zone(cx, cy, quickR, ZONE_DEFAULT_GROWTH, zoneTool_type,
             zoneTool_getOption(), quickDetails);
-        zoneTool_finishGeometry(newZone);
+        aamap_add(newZone);
+        aamap_recordAction({
+            label: "Add zone",
+            undo: function() { _aamap_removeObj(newZone); vectron_render(); },
+            redo: function() { aamap_objects.push(newZone); vectron_render(); }
+        });
+        zoneTool_removeGuide();
+        vectron_render();
         return;
     }
 
@@ -439,11 +243,20 @@ function zoneTool_complete() {
         }
     }
 
-    var details = zoneTool_buildDetails();
+    var details = zoneTool_buildDetails(newX, newY, radius);
     if(!details) return;
     var newZone = new Zone(newX, newY, radius, ZONE_DEFAULT_GROWTH, zoneTool_type,
         zoneTool_getOption(), details);
-    zoneTool_finishGeometry(newZone);
+    aamap_add(newZone);
+    aamap_recordAction({
+        label: "Add zone",
+        undo: function() { _aamap_removeObj(newZone); vectron_render(); },
+        redo: function() { aamap_objects.push(newZone); vectron_render(); }
+    });
+    zoneTool_removeGuide();
+    zoneTool_placingSize = false;
+    vectron_toolActive = false;
+    vectron_render();
 }
 
 function zoneTool_numberValue(selector, fallback) {
@@ -459,7 +272,7 @@ function zoneTool_getOption() {
     return 0;
 }
 
-function zoneTool_buildDetails() {
+function zoneTool_buildDetails(x, y, size) {
     var details = {
         zoneName: zoneTool_typeArray[zoneTool_type][0],
         shapeType: xml_game_mode === "armaracing" ? $("#dZoneShape").val() : "circle",
@@ -475,9 +288,27 @@ function zoneTool_buildDetails() {
     details.endTick = endTick === "" ? undefined : Number(endTick);
     details.trigger = $("#dZoneTrigger").val();
 
-    if(details.shapeType === "polygon") {
-        details.polygonScale = 1;
+    if(details.shapeType === "rectangle") {
+        details.minx = x - size; details.miny = y - size;
+        details.maxx = x + size; details.maxy = y + size;
+    } else if(details.shapeType === "polygon") {
+        details.polygonScale = size;
         details.polygonPoints = [];
+        var tokens = $("#dPolygonPoints").val().trim().split(/\s+/);
+        for(var i = 0; i < tokens.length; i++) {
+            var pair = tokens[i].split(",");
+            var px = Number(pair[0]), py = Number(pair[1]);
+            if(pair.length !== 2 || !isFinite(px) || !isFinite(py)) {
+                gui_writeLog("Invalid polygon point " + (i + 1) + ' ("' + tokens[i] +
+                    '"); use space-separated x,y pairs.');
+                return null;
+            }
+            details.polygonPoints.push({x:px, y:py});
+        }
+        if(details.polygonPoints.length < ZONE_TOOL_MIN_POLYGON_POINTS) {
+            gui_writeLog("Polygon zones require at least three local points.");
+            return null;
+        }
     }
 
     if(zoneTool_type === 6) {
