@@ -87,6 +87,49 @@ body.noscroll {
 	white-space: nowrap;
 }
 
+.info-symmetry-section {
+  display:inline-flex;
+  align-items:center;
+  white-space:nowrap;
+}
+
+#symmetry-dropdown { position:relative; display:inline-flex; align-items:center; gap:4px; }
+.symmetry-picker-label { margin-right:2px; }
+.symmetry-menu-btn { width:auto; min-width:44px; padding:1px 7px; color:#eee; }
+#symmetry-menu {
+  position:absolute;
+  left:0;
+  bottom:30px;
+  width:min(390px, calc(100vw - 70px));
+  padding:8px;
+  background:#fff;
+  color:#222;
+  border:1px solid #aaa;
+  border-radius:5px;
+  box-shadow:0 -4px 16px rgba(0,0,0,0.25);
+  text-align:left;
+  z-index:1100;
+}
+.symmetry-menu-row {
+  display:grid;
+  grid-template-columns:18px minmax(0,1fr);
+  align-items:center;
+  gap:6px;
+  margin:3px 0;
+  min-height:26px;
+  font-weight:normal;
+  cursor:pointer;
+}
+.symmetry-menu-row input { margin:0; }
+.symmetry-value-row { grid-template-columns:18px minmax(120px,1fr) 82px; }
+.symmetry-point-row { grid-template-columns:18px 72px 68px 20px 68px; }
+.symmetry-value-row input[type="number"] {
+  width:100%; min-width:0;
+  height:25px;
+  padding:2px 5px;
+}
+.symmetry-check-row { margin-top:7px; padding-top:5px; border-top:1px solid #ccc; }
+
 #tool_bar {
   position:absolute;
   left:0;

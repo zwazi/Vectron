@@ -906,21 +906,44 @@ function eventHandler_init() {
     $('#map_version').on('input change', function() { xml_version = this.value; });
     $('#map_dtd').on('input change', function() { xml_dtd = this.value; });
     $('#map_axes').on('input change', function() { xml_axes = parseInt(this.value) || 4; });
-    $('#map_axis_vectors').on('input change', function() {
-        var vectors = aamap_parseAxisVectors(this.value);
-        if(vectors !== null) xml_axis_vectors = vectors;
+    function eventHandler_updateSymmetry() {
+        var transforms = aamap_symmetryTransforms();
+        if($("#symmetry-check-toggle").is(":checked") && !transforms.length) {
+            $("#symmetry-check-toggle").prop("checked", false);
+            gui_toast("Choose a symmetry line or point before enabling symmetry check.");
+        }
+        var descriptions = transforms.map(function(transform) { return transform.line; });
+        var checking = aamap_symmetryCheckEnabled();
+        $("#symmetry-summary").text(descriptions.length ?
+            descriptions.length + (checking ? " + check" : " active") : "Off");
+        gui_writeLog(descriptions.length ? (checking ? "Symmetry check enabled for " :
+            "Symmetry enabled across ") + descriptions.join(", ") + "." : "Symmetry disabled.");
+        vectron_render();
+    }
+    $('#symmetry-x-toggle,#symmetry-y-toggle,#symmetry-origin-toggle,' +
+        '#symmetry-custom-x-toggle,#symmetry-custom-y-toggle,' +
+        '#symmetry-custom-point-toggle,#symmetry-check-toggle').on('change',
+        eventHandler_updateSymmetry);
+    $('#symmetry-custom-x-value,#symmetry-custom-y-value,' +
+        '#symmetry-custom-point-x,#symmetry-custom-point-y').on('input change', function() {
+        if(this.value !== '' && isFinite(Number(this.value))) eventHandler_updateSymmetry();
+    }).on('blur', function() {
+        if(this.value === '' || !isFinite(Number(this.value))) this.value = '0';
     });
-    $('#map_game_mode').on('change', function() {
-        zoneTool_setGameMode(this.value);
-        gui_writeLog(this.value === "armaracing" ? "Armaracing features enabled." : "Legacy Armagetron features enabled.");
+    $('#symmetry-menu-toggle').on('click', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var menu = $('#symmetry-menu');
+        var open = !menu.is(':visible');
+        menu.toggle(open);
+        $(this).attr('aria-expanded', open ? 'true' : 'false');
     });
-    $('#dZoneShape').on('change', function() {
-        zoneTool_resetPlacement();
-        zoneTool_updateRubberBar();
-        zoneTool_guide();
+    $(document).on('mousedown', function(event) {
+        if(!$(event.target).closest('#symmetry-dropdown').length) {
+            $('#symmetry-menu').hide();
+            $('#symmetry-menu-toggle').attr('aria-expanded', 'false');
+        }
     });
-    $(document).on("click", "#zone-tool-finish", zoneTool_finishPolygon);
-    $(document).on("click", "#zone-tool-cancel", zoneTool_cancelPlacement);
     $('#map_settings').on('input change', function() {
         xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
     });
@@ -1159,12 +1182,13 @@ function eventHandler_init() {
     $(document).on("click", ".zone-type-btn", function(e) {
         e.stopPropagation();
         var type = parseInt($(this).data("type"));
+        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress", "Checkpoint"];
         vectron_connectTool("zone");
         zoneTool_type = type;
         zoneTool_guide();
         zoneTool_updateRubberBar();
         zoneTool_updateWindowActiveType();
-        gui_writeLog(zoneTool_typeArray[type][0] + ' zone selected.');
+        gui_writeLog(typeNames[type] + 'Zone selected.');
     });
 
     // Quick placement toggle
@@ -1381,8 +1405,10 @@ function eventHandler_init() {
             xml += '    </Settings>\n';
         }
         xml += '    <World>\n      <Field>\n';
-        var axes = parseInt(document.getElementById('map_axes').value) || 4;
-        xml += aamap_getAxesXML(axes, "        ");
+        if (document.getElementById('map_axes_forced').checked) {
+            var axes = parseInt(document.getElementById('map_axes').value) || 4;
+            xml += '        <Axes number="' + axes + '"/>\n';
+        }
         for (var i = 0; i < aamap_objects.length; i++) {
             xml += xmlEditor_indentLines(aamap_objects[i].getXML(), '        ') + '\n';
         }
@@ -1800,9 +1826,6 @@ function eventHandler_init() {
         e.preventDefault();
         if(aamap_active && vectron_currentTool == "wall" && vectron_toolActive) {
             wallTool_complete();
-        } else if(aamap_active && vectron_currentTool == "zone" &&
-            zoneTool_stage === "shape" && $("#dZoneShape").val() === "polygon") {
-            zoneTool_finishPolygon();
         }
     });
 
@@ -2041,10 +2064,10 @@ function eventHandler_init() {
         if(!aamap_active) return;
 
         if(vectron_currentTool == "zone") {
-            var availableTypes = xml_game_mode === "armaracing" ?
-                ZONE_TOOL_RACING_TYPES : ZONE_TOOL_LEGACY_TYPES;
-            var currentIndex = availableTypes.indexOf(zoneTool_type);
-            zoneTool_type = availableTypes[(currentIndex + 1) % availableTypes.length];
+            zoneTool_type += 1;
+            if(zoneTool_type > 5) {
+                zoneTool_type = 0;
+            }
            gui_writeLog('Zone Tool Toggled: '
                 + zoneTool_typeArray[zoneTool_type][0]);
             zoneTool_guide();
@@ -2079,8 +2102,11 @@ function eventHandler_init() {
     Mousetrap.bind('escape', function(e) {
         // Priority: cancel active tool / switch to select → deselect
         // NOTE: Escape does NOT close the settings menu or the XML editor.
-        if(vectron_currentTool == "zone" && vectron_toolActive) {
-            zoneTool_cancelPlacement();
+        if(vectron_currentTool == "zone" && zoneTool_placingSize) {
+            zoneTool_placingSize = false;
+            vectron_toolActive = false;
+            if(zoneTool_guideObj != null) { zoneTool_guideObj.remove(); zoneTool_guideObj = null; }
+            zoneTool_guide();
             return false;
         }
         if(vectron_currentTool == "wall" && vectron_toolActive) {
@@ -2219,8 +2245,6 @@ function eventHandler_init() {
         vectron_zoom = 1;
         $("#map_name,#map_author,#map_category,#map_version,#map_dtd,#map_settings").val("");
         $("#map_axes").val("");
-        $("#map_axis_vectors").val("");
-        zoneTool_setGameMode("armagetron");
         $("#map_axes_forced").prop("checked", false);
         xml_name = "";
         xml_author = "";
@@ -2228,7 +2252,6 @@ function eventHandler_init() {
         xml_version = "";
         xml_dtd = "";
         xml_axes = 4;
-        xml_axis_vectors = [];
         xml_settings = [];
         aamap_clearHistory();
         vectron_render();

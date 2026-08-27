@@ -49,12 +49,12 @@ function spawnTool_complete() {
     spawnTool_currentObj.guideUpdate();
     spawnTool_currentObj.guideObj.remove();
     var completedSpawn = spawnTool_currentObj;
-    aamap_add(completedSpawn);
-    completedSpawn.render();
+    var addedSpawns = aamap_addWithSymmetry(completedSpawn);
+    addedSpawns.forEach(function(spawn) { spawn.render(); });
     aamap_recordAction({
         label: "Add spawn",
-        undo: function() { _aamap_removeObj(completedSpawn); vectron_render(); },
-        redo: function() { aamap_objects.push(completedSpawn); vectron_render(); }
+        undo: function() { aamap_removeObjectGroup(addedSpawns); vectron_render(); },
+        redo: function() { aamap_restoreObjectGroup(addedSpawns); vectron_render(); }
     });
     spawnTool_currentObj = null;
     vectron_toolActive = false;
