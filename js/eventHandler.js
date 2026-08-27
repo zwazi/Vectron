@@ -2400,6 +2400,9 @@ function eventHandler_init() {
         xml_axes = 4;
         xml_settings = [];
         if(typeof xml_clearRemixHistory == "function") xml_clearRemixHistory();
+        if(typeof window.vectron_clearRepositoryEditState == "function") {
+            window.vectron_clearRepositoryEditState();
+        }
         if(typeof window.vectron_syncLockedMetadata == "function") {
             window.vectron_syncLockedMetadata();
         }

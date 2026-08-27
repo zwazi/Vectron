@@ -12,6 +12,13 @@ let resetCount = 0;
 let renderCount = 0;
 let processedXml = "";
 let toast = "";
+let repositoryEdit = {
+    sourcePath: "Draft Author/maps/Draft-1.aamap.xml",
+    sourceName: "Draft",
+    sourceVersion: "1",
+    sourceCategory: "maps"
+};
+let restoredRepositoryEdit = undefined;
 
 const context = {
     console: {warn() {}},
@@ -44,6 +51,8 @@ const context = {
     eventHandler_getExportMap() {
         return {xml: '<Resource type="aamap" name="Draft"></Resource>'};
     },
+    vectron_getRepositoryEditState() { return repositoryEdit; },
+    vectron_setRepositoryEditState(value) { restoredRepositoryEdit = value; },
     vectron_resetForInitialMap() { resetCount++; },
     aamap_disableSymmetry() {},
     aamap_clearHistory() {},
@@ -67,6 +76,7 @@ assert.strictEqual(userADraft.viewport.panX, 12);
 assert.strictEqual(userADraft.viewport.panY, -8);
 assert.strictEqual(userADraft.viewport.zoom, 2.5);
 assert.match(userADraft.xml, /name="Draft"/);
+assert.deepStrictEqual(userADraft.repositoryEdit, repositoryEdit);
 
 assert.strictEqual(context.vectron_localDraftSetUser("user-b"), true);
 const userBKey = "vectron.localDraft.v1.user-b";
@@ -74,6 +84,7 @@ stored.set(userBKey, JSON.stringify({
     schema: 1,
     savedAt: new Date().toISOString(),
     xml: '<Resource type="aamap" name="Restored"></Resource>',
+    repositoryEdit,
     viewport: {panX: 3, panY: 4, zoom: 1.5}
 }));
 
@@ -85,6 +96,7 @@ assert.strictEqual(context.vectron_zoom, 1.5);
 assert.strictEqual(resetCount, 1);
 assert.strictEqual(renderCount, 1);
 assert.strictEqual(toast, "Restored your local draft.");
+assert.deepStrictEqual(restoredRepositoryEdit, repositoryEdit);
 
 assert.strictEqual(context.vectron_localDraftSetUser("corrupt-user"), true);
 const corruptKey = "vectron.localDraft.v1.corrupt-user";
