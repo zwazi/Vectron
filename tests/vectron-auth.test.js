@@ -25,6 +25,9 @@ assert.match(index, /id="auth-login-tab"/);
 assert.match(index, /id="auth-signup-tab"/);
 assert.match(index, /data-auth-signout/);
 assert.match(index, /data-map-upload/);
+assert.match(index, /id="auth-account-controls"[^>]*auth-account-controls/);
+assert.match(index, /id="auth-account-controls"[\s\S]*data-map-upload[\s\S]*data-auth-signout/);
+assert.doesNotMatch(index, /class="toolbar-upload"/);
 assert.match(index, /id="map_author"[^>]*readonly/);
 assert.match(index, /id="map_category"[^>]*value="maps"[^>]*readonly/);
 assert.match(index, /<script type="module" src="\.\/js\/auth\.js"><\/script>/);
@@ -51,6 +54,7 @@ assert.doesNotMatch(vectronSource, /window\.onload\s*=\s*function\s*\(\)\s*\{\s*
 
 assert.match(authCss, /#auth-gate\s*\{[^}]*z-index:\s*20000/s);
 assert.match(authCss, /#auth-gate\s*\{[^}]*align-items:\s*start[^}]*justify-items:\s*start/s);
+assert.match(authCss, /\.auth-account-controls\s*\{[^}]*top:\s*44px[^}]*left:\s*58px/s);
 assert.match(authCss, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(authCss, /@media \(max-width: 720px\)/);
 

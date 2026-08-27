@@ -162,6 +162,13 @@
             </main>
         </div>
 
+        <div id="auth-account-controls" class="auth-session auth-session-plan auth-account-controls" hidden aria-label="Signed-in account and map actions">
+            <span class="auth-session-avatar" data-auth-avatar aria-hidden="true">V</span>
+            <span class="auth-session-copy"><strong data-auth-name>Vectron user</strong><small data-auth-email></small></span>
+            <button class="auth-upload-button" type="button" data-map-upload title="Upload map" aria-label="Upload map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Upload</span></button>
+            <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
+        </div>
+
         <div class="info" style="display:none">
             <span class="info-section info-cursor-section"><b>cursor</b>&nbsp;<span class="var">x:&nbsp;<span id="cursor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="cursor-y">0</span></span></span>
             <span class="info-sep">|</span>
@@ -186,12 +193,6 @@
             </span>
             <span class="info-sep">|</span>
             <span class="info-section info-anchor-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Return to origin" aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
-            <span class="info-sep auth-session-separator" hidden>|</span>
-            <span class="auth-session auth-session-plan" hidden aria-label="Signed-in account">
-                <span class="auth-session-avatar" data-auth-avatar aria-hidden="true">V</span>
-                <span class="auth-session-copy"><strong data-auth-name>Vectron user</strong><small data-auth-email></small></span>
-                <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
-            </span>
         </div>
 
         <div id="control_box">
@@ -610,9 +611,6 @@
                 </li>
                 <li>
                     <a class="toolbar-export" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Export"><i class="fa-solid fa-download" aria-hidden="true"></i></a>
-                </li>
-                <li>
-                    <a class="toolbar-upload" href="#" data-map-upload rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Upload Map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i></a>
                 </li>
                 <li>
                     <a class="toolbar-armawebtron-preview" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Preview in Armawebtron"><i class="fa-solid fa-gamepad" aria-hidden="true"></i></a>
