@@ -2253,6 +2253,9 @@ function eventHandler_init() {
         xml_dtd = "";
         xml_axes = 4;
         xml_settings = [];
+        if(typeof window.vectron_syncLockedMetadata == "function") {
+            window.vectron_syncLockedMetadata();
+        }
         aamap_clearHistory();
         vectron_render();
         gui_writeLog("New map created.");
