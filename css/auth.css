@@ -371,7 +371,7 @@ body.auth-locked {
   background: rgba(42, 102, 140, 0.12);
 }
 
-.toolbar-upload.auth-uploading {
+.auth-upload-button.auth-uploading {
   pointer-events: none;
   opacity: 0.55;
 }
@@ -582,6 +582,34 @@ body.auth-locked {
   flex-shrink: 0;
 }
 
+.auth-account-controls {
+  position: absolute;
+  top: 44px;
+  left: 58px;
+  z-index: 1060;
+  min-height: 38px;
+  padding: 6px;
+  border: 1px solid rgba(119, 177, 210, 0.26);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(19, 35, 47, 0.96), rgba(10, 21, 30, 0.96));
+  box-shadow: 0 9px 28px rgba(0, 0, 0, 0.3), inset 0 1px rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(14px);
+}
+
+.auth-account-controls::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 14px;
+  width: 54px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(104, 214, 232, 0.75), transparent);
+}
+
+.auth-account-controls .auth-session-copy {
+  min-width: 92px;
+}
+
 .auth-session-avatar {
   width: 25px;
   height: 25px;
@@ -640,6 +668,28 @@ body.auth-locked {
   font-weight: 650;
 }
 
+.auth-upload-button {
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid rgba(93, 184, 226, 0.4);
+  border-radius: 6px;
+  color: #dff6ff;
+  background: linear-gradient(145deg, rgba(45, 137, 196, 0.55), rgba(25, 91, 139, 0.5));
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.auth-upload-button:hover,
+.auth-upload-button:focus-visible {
+  border-color: rgba(112, 209, 240, 0.72);
+  color: #fff;
+  background: linear-gradient(145deg, rgba(54, 157, 216, 0.72), rgba(29, 110, 165, 0.68));
+  outline: none;
+}
+
 .auth-signout-button:hover,
 .auth-signout-button:focus-visible {
   border-color: rgba(105, 191, 231, 0.52);
@@ -658,8 +708,8 @@ body.auth-locked {
     display: none !important;
   }
 
-  .auth-session-plan {
-    margin-left: 4px;
+  .auth-account-controls .auth-session-copy {
+    min-width: 0;
   }
 }
 
@@ -694,11 +744,18 @@ body.auth-locked {
 }
 
 @media (max-width: 520px) {
-  .auth-session-plan .auth-signout-button span {
+  .auth-account-controls {
+    top: 42px;
+    left: 56px;
+  }
+
+  .auth-session-plan .auth-signout-button span,
+  .auth-session-plan .auth-upload-button span {
     display: none;
   }
 
-  .auth-session-plan .auth-signout-button {
+  .auth-session-plan .auth-signout-button,
+  .auth-session-plan .auth-upload-button {
     width: 27px;
     padding: 0;
     justify-content: center;

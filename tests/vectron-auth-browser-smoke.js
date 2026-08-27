@@ -181,7 +181,12 @@ ws.onopen = async () => {
                 author: document.getElementById('map_author').value,
                 authorLocked: document.getElementById('map_author').readOnly,
                 category: document.getElementById('map_category').value,
-                categoryLocked: document.getElementById('map_category').readOnly
+                categoryLocked: document.getElementById('map_category').readOnly,
+                accountDockTopLeft: (function() {
+                    const dock = document.getElementById('auth-account-controls');
+                    const rect = dock.getBoundingClientRect();
+                    return rect.left <= 70 && rect.top <= 55 && dock.contains(document.querySelector('[data-map-upload]'));
+                })()
             };
 
             if(testUpload) {
@@ -238,7 +243,8 @@ ws.onopen = async () => {
             author: "Browser Pilot",
             authorLocked: true,
             category: "maps",
-            categoryLocked: true
+            categoryLocked: true,
+            accountDockTopLeft: true
         });
         if(testUploadEnabled) assert.strictEqual(firstPass.uploadPath, uploadPath);
         assert.deepStrictEqual(firstPass.signedOut, {
