@@ -358,6 +358,26 @@ ws.onopen = async () => {
             }, "Other authors' repository maps did not become available", 30000);
             const repositoryAuthors = Array.from(document.querySelectorAll('.repository-author-heading span:first-child'))
                 .map(function(node) { return node.textContent; });
+            const otherAuthorsCollapsedByDefault = Array.from(document.querySelectorAll('.repository-author-group'))
+                .every(function(group) {
+                    const heading = group.querySelector('[data-repository-author]');
+                    const maps = group.querySelector('.repository-author-maps');
+                    return heading && heading.getAttribute('aria-expanded') === 'false' && maps.hidden;
+                });
+            const zwaziGroup = Array.from(document.querySelectorAll('.repository-author-group'))
+                .find(function(group) {
+                    const author = group.querySelector('.repository-author-heading span:first-child');
+                    return author && author.textContent === 'Zwazi';
+                });
+            if(!zwaziGroup) throw new Error('Expected Zwazi author group was not listed');
+            zwaziGroup.querySelector('[data-repository-author]').click();
+            await waitFor(function() {
+                return Array.from(document.querySelectorAll('.repository-author-group')).some(function(group) {
+                    const author = group.querySelector('.repository-author-heading span:first-child');
+                    return author && author.textContent === 'Zwazi' &&
+                        !group.querySelector('.repository-author-maps').hidden;
+                });
+            }, 'The Zwazi author group did not expand');
             const repositoryRemix = document.querySelector('[data-repository-open="Zwazi/maps/Default-v1.aamap.xml"]');
             if(!repositoryRemix) throw new Error('Expected cross-user repository map was not listed');
             const otherButtonSaysRemix = repositoryRemix.textContent.trim() === 'Remix';
@@ -415,6 +435,7 @@ ws.onopen = async () => {
                 ownTabOnlyShowsCurrentUser: ownTabOnlyShowsCurrentUser,
                 ownButtonSaysEdit: ownButtonSaysEdit,
                 otherTabExcludesCurrentUser: !repositoryAuthors.includes('Browser Pilot'),
+                otherAuthorsCollapsedByDefault: otherAuthorsCollapsedByDefault,
                 otherButtonSaysRemix: otherButtonSaysRemix,
                 panelLayoutFits: repositoryLayoutFits,
                 hasZwazi: repositoryAuthors.includes('Zwazi'),
@@ -534,6 +555,7 @@ ws.onopen = async () => {
             ownTabOnlyShowsCurrentUser: true,
             ownButtonSaysEdit: true,
             otherTabExcludesCurrentUser: true,
+            otherAuthorsCollapsedByDefault: true,
             otherButtonSaysRemix: true,
             panelLayoutFits: true,
             hasZwazi: true,
@@ -746,9 +768,25 @@ ws.onopen = async () => {
                 document.getElementById('map-repository-refresh').click();
                 document.getElementById('map-repository-others-tab').click();
                 await waitFor(function() {
-                    return document.querySelector('[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]') &&
-                        document.querySelector('[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="remix"]');
+                    return Array.from(document.querySelectorAll('[data-repository-author]')).some(function(button) {
+                        return button.dataset.repositoryAuthor === 'Admin Target' && !button.disabled;
+                    });
                 }, 'Admin target map was not listed');
+                const adminAuthorsCollapsedByDefault = Array.from(
+                    document.querySelectorAll('.repository-author-group')
+                ).every(function(group) {
+                    return group.querySelector('[data-repository-author]').getAttribute('aria-expanded') === 'false' &&
+                        group.querySelector('.repository-author-maps').hidden;
+                });
+                Array.from(document.querySelectorAll('[data-repository-author]'))
+                    .find(function(button) { return button.dataset.repositoryAuthor === 'Admin Target'; })
+                    .click();
+                await waitFor(function() {
+                    const button = document.querySelector(
+                        '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
+                    );
+                    return button && !button.closest('.repository-author-maps').hidden;
+                }, 'Admin target author did not expand');
                 let editButton = document.querySelector(
                     '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
                 );
@@ -782,11 +820,20 @@ ws.onopen = async () => {
                 document.querySelector('[data-map-repository]').click();
                 document.getElementById('map-repository-others-tab').click();
                 await waitFor(function() {
+                    return Array.from(document.querySelectorAll('[data-repository-author]')).some(function(button) {
+                        return button.dataset.repositoryAuthor === 'Admin Target' && !button.disabled &&
+                            button.getAttribute('aria-expanded') === 'false';
+                    });
+                }, 'Admin target map was not available after remixing');
+                Array.from(document.querySelectorAll('[data-repository-author]'))
+                    .find(function(button) { return button.dataset.repositoryAuthor === 'Admin Target'; })
+                    .click();
+                await waitFor(function() {
                     const button = document.querySelector(
                         '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
                     );
-                    return button && !button.disabled;
-                }, 'Admin target map was not available after remixing');
+                    return button && !button.closest('.repository-author-maps').hidden;
+                }, 'Admin target author did not re-expand');
                 editButton = document.querySelector(
                     '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
                 );
@@ -842,6 +889,7 @@ ws.onopen = async () => {
                 });
                 const result = {
                     role: document.querySelector('[data-auth-role]').textContent,
+                    adminAuthorsCollapsedByDefault,
                     availableActions,
                     remixing,
                     editing,
@@ -858,6 +906,7 @@ ws.onopen = async () => {
             })()`);
             assert.deepStrictEqual(adminPass, {
                 role: "Admin",
+                adminAuthorsCollapsedByDefault: true,
                 availableActions: ["Edit", "Remix"],
                 remixing: {
                     author: "Browser Pilot",
