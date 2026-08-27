@@ -77,11 +77,12 @@
 
                     <form id="auth-form" novalidate>
                         <div id="auth-name-field" class="auth-field" hidden>
-                            <label for="auth-name">Display name <span>Optional</span></label>
+                            <label for="auth-name">Author name</label>
                             <div class="auth-input-wrap">
                                 <i class="fa-regular fa-user" aria-hidden="true"></i>
-                                <input id="auth-name" name="name" type="text" autocomplete="name" maxlength="60" placeholder="Track builder">
+                                <input id="auth-name" name="name" type="text" autocomplete="name" minlength="2" maxlength="60" placeholder="Track builder">
                             </div>
+                            <small class="auth-field-hint">This becomes your permanent map author and upload folder.</small>
                         </div>
 
                         <div class="auth-field">
@@ -120,6 +121,31 @@
                     </form>
 
                     <button id="auth-forgot-password" class="auth-text-button" type="button">Forgot your password?</button>
+                </section>
+
+                <section id="auth-profile" hidden>
+                    <div class="auth-heading">
+                        <span class="auth-eyebrow">One last step</span>
+                        <h1>Choose your author name</h1>
+                        <p>This permanent name identifies your maps and upload folder.</p>
+                    </div>
+                    <form id="auth-profile-form" novalidate>
+                        <div class="auth-field">
+                            <label for="auth-profile-name">Author name</label>
+                            <div class="auth-input-wrap">
+                                <i class="fa-regular fa-user" aria-hidden="true"></i>
+                                <input id="auth-profile-name" type="text" autocomplete="name" minlength="2" maxlength="60" placeholder="Track builder" required>
+                            </div>
+                            <small class="auth-field-hint">Letters, numbers, spaces, periods, hyphens, and underscores.</small>
+                        </div>
+                        <div id="auth-profile-status" class="auth-status" role="status" aria-live="polite" hidden></div>
+                        <button id="auth-profile-submit" class="auth-submit" type="submit">
+                            <span class="auth-submit-label">Save author name</span>
+                            <span class="auth-button-loader" aria-hidden="true"></span>
+                            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                        </button>
+                    </form>
+                    <button id="auth-profile-signout" class="auth-text-button" type="button">Use a different account</button>
                 </section>
 
                 <section id="auth-fatal" class="auth-fatal" hidden role="alert">
@@ -412,12 +438,12 @@
             <span class="tsb-sep">|</span>
             <span class="tsb-field">
                 <label for="map_author" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Who created this map?">Author</label>
-                <input type="text" class="tsb-input" id="map_author" placeholder="Author">
+                <input type="text" class="tsb-input" id="map_author" placeholder="Signed-in author" readonly aria-readonly="true">
             </span>
             <span class="tsb-sep">|</span>
             <span class="tsb-field">
-                <label for="map_category" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="What the map is for; examples: racing, sumo">Category</label>
-                <input type="text" class="tsb-input" id="map_category" placeholder="Category" default="maps">
+                <label for="map_category" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Uploads are stored in the maps category">Category</label>
+                <input type="text" class="tsb-input" id="map_category" value="maps" readonly aria-readonly="true">
             </span>
             <span class="tsb-sep">|</span>
             <span class="tsb-field">
@@ -584,6 +610,9 @@
                 </li>
                 <li>
                     <a class="toolbar-export" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Export"><i class="fa-solid fa-download" aria-hidden="true"></i></a>
+                </li>
+                <li>
+                    <a class="toolbar-upload" href="#" data-map-upload rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Upload Map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i></a>
                 </li>
                 <li>
                     <a class="toolbar-armawebtron-preview" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Preview in Armawebtron"><i class="fa-solid fa-gamepad" aria-hidden="true"></i></a>

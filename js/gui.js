@@ -288,6 +288,9 @@ function gui_fillInput() {
 
     $("#map_axes").val(xml_axes);
     $("#map_settings").val(xml_settings.join("\n"));
+    if(typeof window.vectron_syncLockedMetadata == "function") {
+        window.vectron_syncLockedMetadata();
+    }
     mapSettings_renderList();
 }
 

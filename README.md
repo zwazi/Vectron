@@ -10,21 +10,34 @@ Vectron uses Firebase Authentication in the `tronnerrepository` project. The
 editor does not initialize until Firebase confirms a signed-in user, and the
 workspace becomes inert again after sign-out. The account screen supports
 email/password sign-in, account creation, persistent sessions, password reset,
-and password visibility controls.
+and password visibility controls. Every account has a required author name.
+Vectron locks the map Author field to that profile name and the Category field
+to `maps`.
+
+The cloud-upload toolbar button stores the current `.aamap.xml` file at
+`<author name>/maps/<map file>` in Cloud Storage. Storage Rules require the
+signed-in token name to match the author directory, attach the account UID to
+each object, prevent one account from overwriting another account's objects,
+accept only XML map files under 10 MiB, and require authentication for reads.
 
 The checked-in `.firebaserc` and `firebase.json` keep the email/password
 provider configuration reproducible. Deploy authentication configuration with:
 
 ```sh
 firebase deploy --only auth
+firebase deploy --only storage
 ```
+
+Cloud Storage for Firebase requires the project to use the Blaze plan. Create
+the default `tronnerrepository.firebasestorage.app` bucket in a Google Cloud
+Storage Always Free region before deploying `storage.rules`.
 
 The Firebase web configuration in `js/auth.js` identifies the public browser
 client and is safe to ship. Administrator credentials and service-account keys
 must never be added to this repository. The sign-in curtain controls access to
 the editor UI, but static source files remain publicly downloadable wherever
-the site is hosted. Any future shared map storage must separately require
-`request.auth != null` in its Firebase Security Rules.
+the site is hosted. Map objects are protected independently by the checked-in
+Cloud Storage Security Rules.
 
 
 ### Features legend:
@@ -93,9 +106,10 @@ node tests/vectron-auth.test.js
 ```
 
 The authentication browser smoke test creates a random disposable account in
-the real Firebase project, verifies account creation, login, logout, session
-persistence, and editor locking, then deletes the account. With Vectron served
-locally and Firefox running with WebDriver BiDi enabled:
+the real Firebase project, verifies account creation, locked map metadata,
+upload path/content, login, logout, session persistence, and editor locking,
+then deletes the uploaded map and account. With Vectron served locally and
+Firefox running with WebDriver BiDi enabled:
 
 ```sh
 VECTRON_BIDI_URL=ws://127.0.0.1:9223/session \
