@@ -13,10 +13,12 @@ let renderCount = 0;
 let processedXml = "";
 let toast = "";
 let repositoryEdit = {
-    sourcePath: "Draft Author/maps/Draft-1.aamap.xml",
+    sourcePath: "Target Author/maps/Draft-1.aamap.xml",
     sourceName: "Draft",
     sourceVersion: "1",
-    sourceCategory: "maps"
+    sourceCategory: "maps",
+    targetAuthor: "Target Author",
+    sourceOwnerUid: "target-owner"
 };
 let restoredRepositoryEdit = undefined;
 

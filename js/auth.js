@@ -68,6 +68,7 @@ let repositoryMaps = [];
 let repositoryTab = "mine";
 let repositoryPreviousFocus = null;
 let repositoryEditState = null;
+let currentUserRole = "user";
 
 function setEditorInert(locked) {
     Array.from(document.body.children).forEach(element => {
@@ -169,6 +170,31 @@ function initialsForName(name) {
     return (words[0] || "V").slice(0, 2).toUpperCase();
 }
 
+function normalizeUserRole(value) {
+    return String(value || "").toLocaleLowerCase() === "admin" ? "admin" : "user";
+}
+
+function currentUserIsAdmin() {
+    return currentUserRole === "admin";
+}
+
+function setCurrentUserRole(value) {
+    currentUserRole = normalizeUserRole(value);
+    window.vectron_userRole = currentUserRole;
+    document.documentElement.dataset.userRole = currentUserRole;
+    document.querySelectorAll("[data-auth-role]").forEach(element => {
+        element.textContent = currentUserRole === "admin" ? "Admin" : "User";
+        element.dataset.role = currentUserRole;
+    });
+    return currentUserRole;
+}
+
+async function refreshCurrentUserRole(user) {
+    const token = await authSdk.getIdTokenResult(user, true);
+    const claims = token.claims || {};
+    return setCurrentUserRole(claims.admin === true ? "admin" : claims.role);
+}
+
 function syncSessionControls(user) {
     const displayName = displayNameForUser(user);
     document.querySelectorAll("[data-auth-name]").forEach(element => {
@@ -180,6 +206,7 @@ function syncSessionControls(user) {
     document.querySelectorAll("[data-auth-avatar]").forEach(element => {
         element.textContent = initialsForName(displayName);
     });
+    setCurrentUserRole(currentUserRole);
     document.querySelectorAll(".auth-session, .auth-session-separator").forEach(element => {
         element.hidden = false;
     });
@@ -213,8 +240,16 @@ function normalizeRepositoryEditState(value) {
     const sourceName = safeMapName(rawSourceName);
     const sourceVersion = normalizeMapVersion(value.sourceVersion);
     const sourceCategory = String(value.sourceCategory || MAP_CATEGORY);
-    if(!sourcePath || !rawSourceName || !sourceCategory || sourceCategory.includes("/")) return null;
-    return {sourcePath, sourceName, sourceVersion, sourceCategory};
+    const targetAuthor = String(value.targetAuthor || sourcePath.split("/")[0] || "").trim();
+    const sourceOwnerUid = String(value.sourceOwnerUid || "");
+    const signedInAuthor = auth && auth.currentUser && auth.currentUser.displayName
+        ? auth.currentUser.displayName.trim()
+        : "";
+    if(!sourcePath || !rawSourceName || !sourceCategory || sourceCategory.includes("/") ||
+       !targetAuthor || targetAuthor.includes("/") ||
+       !sourcePath.startsWith(`${targetAuthor}/${sourceCategory}/`)) return null;
+    if(signedInAuthor && targetAuthor !== signedInAuthor && !currentUserIsAdmin()) return null;
+    return {sourcePath, sourceName, sourceVersion, sourceCategory, targetAuthor, sourceOwnerUid};
 }
 
 function setRepositoryEditState(value) {
@@ -234,7 +269,11 @@ function getRepositoryEditState() {
 
 function syncMapMetadata(user = auth && auth.currentUser) {
     if(!user || authorNameError(user.displayName)) return;
-    const author = user.displayName.trim();
+    const signedInAuthor = user.displayName.trim();
+    const author = repositoryEditState &&
+        (repositoryEditState.targetAuthor === signedInAuthor || currentUserIsAdmin())
+        ? repositoryEditState.targetAuthor
+        : signedInAuthor;
     const authorInput = document.getElementById("map_author");
     const categoryInput = document.getElementById("map_category");
     const versionInput = document.getElementById("map_version");
@@ -268,7 +307,9 @@ function syncMapMetadata(user = auth && auth.currentUser) {
         authorInput.value = author;
         authorInput.readOnly = true;
         authorInput.setAttribute("aria-readonly", "true");
-        authorInput.title = "Locked to your Vectron author name";
+        authorInput.title = author === signedInAuthor
+            ? "Locked to your Vectron author name"
+            : "Locked to the map author's repository directory for this admin edit";
     }
     if(categoryInput) {
         categoryInput.value = MAP_CATEGORY;
@@ -337,6 +378,7 @@ function lockEditor() {
     if(typeof window.vectron_localDraftSetUser === "function") {
         window.vectron_localDraftSetUser("");
     }
+    setCurrentUserRole("user");
     hideSessionControls();
     setEditorInert(true);
     document.documentElement.classList.remove("auth-pending");
@@ -433,7 +475,7 @@ async function handleSubmit(event) {
             const credential = await authSdk.createUserWithEmailAndPassword(auth, email, password);
             const requestedName = nameInput.value.trim();
             await authSdk.updateProfile(credential.user, {displayName: requestedName});
-            await authSdk.getIdToken(credential.user, true);
+            await refreshCurrentUserRole(credential.user);
             unlockEditor(credential.user);
         } else {
             await authSdk.signInWithEmailAndPassword(auth, email, password);
@@ -459,7 +501,7 @@ async function handleProfileSubmit(event) {
     setProfileStatus("");
     try {
         await authSdk.updateProfile(profileUser, {displayName: profileNameInput.value.trim()});
-        await authSdk.getIdToken(profileUser, true);
+        await refreshCurrentUserRole(profileUser);
         unlockEditor(profileUser);
     } catch(error) {
         setProfileStatus(friendlyAuthError(error));
@@ -577,11 +619,26 @@ function nextAvailableMapVersion(author, mapName, startingVersion, bumpFirst) {
     return version;
 }
 
-function mapUploadMetadata(user, mapName, mapVersion, operation, editState = null) {
+function uploadAuthorFor(user, editState = null) {
+    const signedInAuthor = user.displayName.trim();
+    if(editState && (editState.targetAuthor === signedInAuthor || currentUserIsAdmin())) {
+        return editState.targetAuthor;
+    }
+    return signedInAuthor;
+}
+
+function uploadOwnerUidFor(user, editState = null) {
+    if(editState && currentUserIsAdmin()) return editState.sourceOwnerUid;
+    return user.uid;
+}
+
+function mapUploadMetadata(user, author, mapName, mapVersion, operation, editState = null) {
     const remixIdentity = currentRemixIdentity();
     return {
-        ownerUid: user.uid,
-        author: user.displayName.trim(),
+        ownerUid: uploadOwnerUidFor(user, editState),
+        editorUid: user.uid,
+        editorRole: currentUserRole,
+        author,
         category: MAP_CATEGORY,
         mapName,
         mapVersion,
@@ -630,13 +687,15 @@ function storageConflict(message) {
 }
 
 async function archiveEditedSource(user, editState) {
-    const author = user.displayName.trim();
+    const author = uploadAuthorFor(user, editState);
     const sourceFileName = editState.sourcePath.split("/").pop();
     const archivePath = `${author}/${editState.sourceCategory}/archive/${sourceFileName}`;
     const existing = await objectMetadataIfExists(archivePath);
     if(existing) {
         const metadata = existing.customMetadata || {};
-        if(metadata.ownerUid !== user.uid || metadata.archivedFrom !== editState.sourcePath) {
+        const createdByCurrentEditor = metadata.editorUid === user.uid ||
+            (!metadata.editorUid && metadata.ownerUid === user.uid);
+        if(!createdByCurrentEditor || metadata.archivedFrom !== editState.sourcePath) {
             throw storageConflict("The archive path is already occupied.");
         }
         return archivePath;
@@ -646,7 +705,9 @@ async function archiveEditedSource(user, editState) {
     await storageSdk.uploadString(storageSdk.ref(storage, archivePath), originalXml, "raw", {
         contentType: "application/xml; charset=UTF-8",
         customMetadata: {
-            ownerUid: user.uid,
+            ownerUid: uploadOwnerUidFor(user, editState),
+            editorUid: user.uid,
+            editorRole: currentUserRole,
             author,
             category: editState.sourceCategory,
             mapName: editState.sourceName,
@@ -671,14 +732,14 @@ async function uploadCurrentMap() {
         return;
     }
 
-    const author = user.displayName.trim();
     syncMapMetadata(user);
+    const editState = getRepositoryEditState();
+    const author = uploadAuthorFor(user, editState);
     const mapName = setCurrentMapName(document.getElementById("map_name").value);
     const mapVersion = setCurrentMapVersion(document.getElementById("map_version").value);
     syncMapMetadata(user);
     const map = window.eventHandler_getExportMap();
     const objectPath = liveMapPath(author, mapName, mapVersion);
-    const editState = getRepositoryEditState();
 
     uploadBusy = true;
     if(uploadButton) {
@@ -691,7 +752,8 @@ async function uploadCurrentMap() {
         const existing = await objectMetadataIfExists(objectPath);
         const existingMetadata = existing && existing.customMetadata || {};
         const resumedEdit = Boolean(editState && existing &&
-            existingMetadata.ownerUid === user.uid &&
+            (existingMetadata.editorUid === user.uid ||
+                (!existingMetadata.editorUid && existingMetadata.ownerUid === user.uid)) &&
             existingMetadata.operation === "edit" &&
             existingMetadata.editSourcePath === editState.sourcePath);
         if(existing && !resumedEdit) throw storageConflict();
@@ -704,7 +766,7 @@ async function uploadCurrentMap() {
             await storageSdk.uploadString(mapRef, map.xml, "raw", {
                 contentType: "application/xml; charset=UTF-8",
                 customMetadata: mapUploadMetadata(
-                    user, mapName, mapVersion, editState ? "edit" : "create", editState
+                    user, author, mapName, mapVersion, editState ? "edit" : "create", editState
                 )
             });
         }
@@ -826,6 +888,11 @@ function repositoryMapIsMine(map) {
     return Boolean(map && auth && auth.currentUser && map.ownerUid === auth.currentUser.uid);
 }
 
+function repositoryMapCanEdit(map) {
+    return Boolean(map && !map.category.includes("/") &&
+        (repositoryMapIsMine(map) || currentUserIsAdmin()));
+}
+
 function setRepositoryTab(nextTab, focusTab = false) {
     repositoryTab = nextTab === "others" ? "others" : "mine";
     repositoryTabs.forEach(tab => {
@@ -905,7 +972,7 @@ function renderRepositoryMaps() {
                 remixButton.type = "button";
                 remixButton.dataset.repositoryOpen = map.fullPath;
                 remixButton.disabled = repositoryBusy;
-                const editing = repositoryMapIsMine(map) && !map.category.includes("/");
+                const editing = repositoryMapCanEdit(map);
                 remixButton.innerHTML = editing
                     ? '<i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span>'
                     : '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
@@ -976,7 +1043,7 @@ async function openRepositoryMap(fullPath) {
     if(repositoryBusy || !auth || !auth.currentUser) return;
     const map = repositoryMaps.find(candidate => candidate.fullPath === fullPath);
     if(!map) return;
-    const editing = repositoryMapIsMine(map) && !map.category.includes("/");
+    const editing = repositoryMapCanEdit(map);
     const action = editing ? "Edit" : "Remix";
     if(!window.confirm(`${action} ${map.name} by ${map.author}? This replaces your current local draft.`)) return;
 
@@ -992,6 +1059,9 @@ async function openRepositoryMap(fullPath) {
         }
         const sourceName = safeMapName(resource.getAttribute("name") || map.name);
         const sourceVersion = normalizeMapVersion(resource.getAttribute("version"));
+        const sourceObjectMetadata = await storageSdk.getMetadata(storageSdk.ref(storage, map.fullPath));
+        const sourceOwnerUid = sourceObjectMetadata.customMetadata &&
+            sourceObjectMetadata.customMetadata.ownerUid || "";
 
         if(typeof window.vectron_localDraftSaveNow === "function") {
             window.vectron_localDraftSaveNow();
@@ -1009,11 +1079,13 @@ async function openRepositoryMap(fullPath) {
                     sourcePath: map.fullPath,
                     sourceName,
                     sourceVersion,
-                    sourceCategory: map.category
+                    sourceCategory: map.category,
+                    targetAuthor: map.author,
+                    sourceOwnerUid
                 });
                 const editName = setCurrentMapName(document.getElementById("map_name").value);
                 nextVersion = nextAvailableMapVersion(
-                    auth.currentUser.displayName.trim(), editName, sourceVersion, true
+                    map.author, editName, sourceVersion, true
                 );
             } else {
                 clearRepositoryEditState();
@@ -1046,7 +1118,7 @@ async function openRepositoryMap(fullPath) {
         setRepositoryStatus("");
         closeRepository();
         showEditorMessage(editing
-            ? `Editing ${sourceName}. Version bumped to ${document.getElementById("map_version").value}.`
+            ? `Editing ${sourceName}${map.author === auth.currentUser.displayName.trim() ? "" : ` by ${map.author}`}. Version bumped to ${document.getElementById("map_version").value}.`
             : `Remixing ${map.name} by ${map.author} as ${document.getElementById("map_name").value}.`);
     } catch(error) {
         console.error(`Vectron repository map ${action.toLocaleLowerCase()} failed.`, error);
@@ -1164,7 +1236,7 @@ async function initializeAuthentication() {
                 showProfileCompletion(user);
                 return;
             }
-            authSdk.getIdToken(user, true)
+            refreshCurrentUserRole(user)
                 .then(() => unlockEditor(user))
                 .catch(error => showFatal(friendlyAuthError(error)));
         }, error => {
