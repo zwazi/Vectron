@@ -27,6 +27,7 @@ assert.match(index, /data-auth-signout/);
 assert.match(index, /data-map-upload/);
 assert.match(index, /id="auth-account-controls"[^>]*auth-account-controls/);
 assert.match(index, /id="auth-account-controls"[\s\S]*data-map-upload[\s\S]*data-auth-signout/);
+assert.match(index, /id="top-settings-bar"[\s\S]*id="auth-account-controls"/);
 assert.doesNotMatch(index, /class="toolbar-upload"/);
 assert.match(index, /id="map_author"[^>]*readonly/);
 assert.match(index, /id="map_category"[^>]*value="maps"[^>]*readonly/);
@@ -53,8 +54,14 @@ assert.match(vectronSource, /if\(vectron_started\) return;/);
 assert.doesNotMatch(vectronSource, /window\.onload\s*=\s*function\s*\(\)\s*\{\s*vectron_init/);
 
 assert.match(authCss, /#auth-gate\s*\{[^}]*z-index:\s*20000/s);
-assert.match(authCss, /#auth-gate\s*\{[^}]*align-items:\s*start[^}]*justify-items:\s*start/s);
-assert.match(authCss, /\.auth-account-controls\s*\{[^}]*top:\s*44px[^}]*left:\s*58px/s);
+assert.match(authCss, /#auth-gate\s*\{[^}]*align-items:\s*start[^}]*justify-items:\s*end/s);
+assert.match(authCss, /#auth-gate\s*\{[^}]*background:\s*rgba\(0,\s*0,\s*0,\s*0\.48\)/s);
+assert.match(authCss, /\.auth-account-controls\s*\{[^}]*position:\s*static[^}]*margin-left:\s*auto/s);
+assert.match(authCss, /\.auth-account-controls\s*\{[^}]*border:\s*0[^}]*background:\s*transparent[^}]*box-shadow:\s*none/s);
+assert.match(authCss, /--auth-cyan:\s*#55f4dc/);
+assert.match(authCss, /--auth-violet:\s*#9a7cff/);
+assert.doesNotMatch(authCss, /#(?:3b94de|1c70bb|68d6e8|398dcc|1c5f96)/i);
+assert.doesNotMatch(index, /auth-backdrop|auth-orbit|auth-horizon/);
 assert.match(authCss, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(authCss, /@media \(max-width: 720px\)/);
 

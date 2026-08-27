@@ -154,9 +154,9 @@ ws.onopen = async () => {
                     editorStopped: window.vectron_started === false,
                     canvasEmpty: document.getElementById('canvas_container').childElementCount === 0,
                     loginSelected: document.getElementById('auth-login-tab').getAttribute('aria-selected'),
-                    loginTopLeft: (function() {
+                    loginOverlayTopRight: (function() {
                         const rect = document.querySelector('.auth-card').getBoundingClientRect();
-                        return rect.left <= 30 && rect.top <= 30;
+                        return window.innerWidth - rect.right <= 30 && rect.top <= 30;
                     })()
                 }
             };
@@ -182,10 +182,16 @@ ws.onopen = async () => {
                 authorLocked: document.getElementById('map_author').readOnly,
                 category: document.getElementById('map_category').value,
                 categoryLocked: document.getElementById('map_category').readOnly,
-                accountDockTopLeft: (function() {
+                accountDockTopRight: (function() {
                     const dock = document.getElementById('auth-account-controls');
+                    const toolbar = document.getElementById('top-settings-bar');
                     const rect = dock.getBoundingClientRect();
-                    return rect.left <= 70 && rect.top <= 55 && dock.contains(document.querySelector('[data-map-upload]'));
+                    const toolbarRect = toolbar.getBoundingClientRect();
+                    return dock.parentElement === toolbar &&
+                        toolbarRect.right - rect.right <= 12 &&
+                        rect.top >= toolbarRect.top &&
+                        rect.bottom <= toolbarRect.bottom &&
+                        dock.contains(document.querySelector('[data-map-upload]'));
                 })()
             };
 
@@ -232,7 +238,7 @@ ws.onopen = async () => {
             editorStopped: true,
             canvasEmpty: true,
             loginSelected: "true",
-            loginTopLeft: true
+            loginOverlayTopRight: true
         });
         assert.deepStrictEqual(firstPass.created, {
             gateHidden: true,
@@ -244,7 +250,7 @@ ws.onopen = async () => {
             authorLocked: true,
             category: "maps",
             categoryLocked: true,
-            accountDockTopLeft: true
+            accountDockTopRight: true
         });
         if(testUploadEnabled) assert.strictEqual(firstPass.uploadPath, uploadPath);
         assert.deepStrictEqual(firstPass.signedOut, {
