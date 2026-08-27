@@ -10,6 +10,8 @@ const FIREBASE_CONFIG = Object.freeze({
 const FIREBASE_SDK_VERSION = "12.17.0";
 const FIREBASE_APP_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`;
 const FIREBASE_AUTH_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`;
+const FIREBASE_STORAGE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-storage.js`;
+const MAP_CATEGORY = "maps";
 
 const gate = document.getElementById("auth-gate");
 const loading = document.getElementById("auth-loading");
@@ -32,12 +34,24 @@ const submitButton = document.getElementById("auth-submit");
 const submitLabel = submitButton.querySelector(".auth-submit-label");
 const forgotButton = document.getElementById("auth-forgot-password");
 const retryButton = document.getElementById("auth-retry");
+const profilePanel = document.getElementById("auth-profile");
+const profileForm = document.getElementById("auth-profile-form");
+const profileNameInput = document.getElementById("auth-profile-name");
+const profileStatus = document.getElementById("auth-profile-status");
+const profileSubmit = document.getElementById("auth-profile-submit");
+const profileSignout = document.getElementById("auth-profile-signout");
+const uploadButton = document.querySelector("[data-map-upload]");
 
 let auth = null;
 let authSdk = null;
+let storage = null;
+let storageSdk = null;
 let mode = "login";
 let busy = false;
 let editorStartQueued = false;
+let profileBusy = false;
+let profileUser = null;
+let uploadBusy = false;
 
 function setEditorInert(locked) {
     Array.from(document.body.children).forEach(element => {
@@ -52,6 +66,21 @@ function setStatus(message, type = "error") {
     status.hidden = !message;
 }
 
+function setProfileStatus(message) {
+    profileStatus.textContent = message || "";
+    profileStatus.hidden = !message;
+}
+
+function authorNameError(value) {
+    const name = String(value || "").trim();
+    if(name.length < 2) return "Choose an author name with at least 2 characters.";
+    if(name.length > 60) return "Keep your author name to 60 characters or fewer.";
+    if(!/^[\p{L}\p{N}][\p{L}\p{N} ._-]*$/u.test(name)) {
+        return "Use letters, numbers, spaces, periods, hyphens, or underscores.";
+    }
+    return "";
+}
+
 function setBusy(nextBusy) {
     busy = nextBusy;
     submitButton.disabled = nextBusy;
@@ -60,6 +89,15 @@ function setBusy(nextBusy) {
     loginTab.disabled = nextBusy;
     signupTab.disabled = nextBusy;
     form.setAttribute("aria-busy", String(nextBusy));
+}
+
+function setProfileBusy(nextBusy) {
+    profileBusy = nextBusy;
+    profileNameInput.disabled = nextBusy;
+    profileSubmit.disabled = nextBusy;
+    profileSubmit.classList.toggle("busy", nextBusy);
+    profileSignout.disabled = nextBusy;
+    profileForm.setAttribute("aria-busy", String(nextBusy));
 }
 
 function setMode(nextMode) {
@@ -72,6 +110,7 @@ function setMode(nextMode) {
     signupTab.classList.toggle("active", signingUp);
     signupTab.setAttribute("aria-selected", String(signingUp));
     nameField.hidden = !signingUp;
+    nameInput.required = signingUp;
     confirmField.hidden = !signingUp;
     confirmInput.required = signingUp;
     passwordInput.autocomplete = signingUp ? "new-password" : "current-password";
@@ -130,6 +169,33 @@ function syncSessionControls(user) {
     });
 }
 
+function syncMapMetadata(user = auth && auth.currentUser) {
+    if(!user || authorNameError(user.displayName)) return;
+    const author = user.displayName.trim();
+    const authorInput = document.getElementById("map_author");
+    const categoryInput = document.getElementById("map_category");
+
+    window.xml_author = author;
+    window.xml_category = MAP_CATEGORY;
+    window.vectron_mapAuthor = author;
+    window.vectron_mapCategory = MAP_CATEGORY;
+
+    if(authorInput) {
+        authorInput.value = author;
+        authorInput.readOnly = true;
+        authorInput.setAttribute("aria-readonly", "true");
+        authorInput.title = "Locked to your Vectron author name";
+    }
+    if(categoryInput) {
+        categoryInput.value = MAP_CATEGORY;
+        categoryInput.readOnly = true;
+        categoryInput.setAttribute("aria-readonly", "true");
+        categoryInput.title = "Uploaded maps always use the maps category";
+    }
+}
+
+window.vectron_syncLockedMetadata = () => syncMapMetadata();
+
 function hideSessionControls() {
     document.querySelectorAll(".auth-session, .auth-session-separator").forEach(element => {
         element.hidden = true;
@@ -154,12 +220,14 @@ function queueEditorStart() {
 
 function unlockEditor(user) {
     syncSessionControls(user);
+    syncMapMetadata(user);
     setEditorInert(false);
     document.documentElement.classList.remove("auth-pending");
     document.body.classList.remove("auth-locked");
     gate.hidden = true;
     gate.setAttribute("aria-hidden", "true");
     document.title = "Vectron";
+    profilePanel.hidden = true;
     queueEditorStart();
 }
 
@@ -172,6 +240,7 @@ function lockEditor() {
     gate.setAttribute("aria-hidden", "false");
     loading.hidden = true;
     fatalPanel.hidden = true;
+    profilePanel.hidden = true;
     panel.hidden = false;
     document.title = "Sign in · Vectron";
     setBusy(false);
@@ -188,9 +257,29 @@ function showFatal(message) {
     gate.setAttribute("aria-hidden", "false");
     loading.hidden = true;
     panel.hidden = true;
+    profilePanel.hidden = true;
     fatalPanel.hidden = false;
     fatalMessage.textContent = message || "Check your connection and try again.";
     document.title = "Connection problem · Vectron";
+}
+
+function showProfileCompletion(user) {
+    profileUser = user;
+    hideSessionControls();
+    setEditorInert(true);
+    document.documentElement.classList.remove("auth-pending");
+    document.body.classList.add("auth-locked");
+    gate.hidden = false;
+    gate.setAttribute("aria-hidden", "false");
+    loading.hidden = true;
+    panel.hidden = true;
+    fatalPanel.hidden = true;
+    profilePanel.hidden = false;
+    profileNameInput.value = user.displayName || "";
+    setProfileBusy(false);
+    setProfileStatus("");
+    document.title = "Choose an author name · Vectron";
+    window.setTimeout(() => profileNameInput.focus(), 0);
 }
 
 function validateForm() {
@@ -204,6 +293,13 @@ function validateForm() {
     if(password.length < 6) {
         passwordInput.focus();
         return "Your password must contain at least 6 characters.";
+    }
+    if(mode === "signup") {
+        const nameError = authorNameError(nameInput.value);
+        if(nameError) {
+            nameInput.focus();
+            return nameError;
+        }
     }
     if(mode === "signup" && password !== confirmInput.value) {
         confirmInput.focus();
@@ -231,10 +327,9 @@ async function handleSubmit(event) {
         if(mode === "signup") {
             const credential = await authSdk.createUserWithEmailAndPassword(auth, email, password);
             const requestedName = nameInput.value.trim();
-            if(requestedName) {
-                await authSdk.updateProfile(credential.user, {displayName: requestedName});
-                syncSessionControls(credential.user);
-            }
+            await authSdk.updateProfile(credential.user, {displayName: requestedName});
+            await authSdk.getIdToken(credential.user, true);
+            unlockEditor(credential.user);
         } else {
             await authSdk.signInWithEmailAndPassword(auth, email, password);
         }
@@ -242,6 +337,29 @@ async function handleSubmit(event) {
         setStatus(friendlyAuthError(error));
     } finally {
         setBusy(false);
+    }
+}
+
+async function handleProfileSubmit(event) {
+    event.preventDefault();
+    if(profileBusy || !profileUser || !authSdk) return;
+    const nameError = authorNameError(profileNameInput.value);
+    if(nameError) {
+        setProfileStatus(nameError);
+        profileNameInput.focus();
+        return;
+    }
+
+    setProfileBusy(true);
+    setProfileStatus("");
+    try {
+        await authSdk.updateProfile(profileUser, {displayName: profileNameInput.value.trim()});
+        await authSdk.getIdToken(profileUser, true);
+        unlockEditor(profileUser);
+    } catch(error) {
+        setProfileStatus(friendlyAuthError(error));
+    } finally {
+        setProfileBusy(false);
     }
 }
 
@@ -293,12 +411,97 @@ async function handleSignOut() {
     }
 }
 
+function safeStorageFileName(fileName) {
+    const withoutSuffix = String(fileName || "map").replace(/\.aamap\.xml$/i, "");
+    const cleaned = withoutSuffix
+        .normalize("NFKC")
+        .replace(/[^\p{L}\p{N} ._-]+/gu, "-")
+        .replace(/\s+/g, " ")
+        .replace(/^[. ]+|[. ]+$/g, "")
+        .slice(0, 120);
+    return `${cleaned || "map"}.aamap.xml`;
+}
+
+function showEditorMessage(message) {
+    if(typeof window.gui_toast === "function") window.gui_toast(message);
+    else window.alert(message);
+}
+
+function friendlyUploadError(error) {
+    const code = error && error.code ? error.code : "";
+    const messages = {
+        "storage/unauthorized": "Your account cannot upload to this author folder.",
+        "storage/retry-limit-exceeded": "The upload timed out. Check your connection and retry.",
+        "storage/quota-exceeded": "Map storage is temporarily full.",
+        "storage/unknown": "The map could not be uploaded. Please try again."
+    };
+    return messages[code] || "The map could not be uploaded. Please try again.";
+}
+
+async function uploadCurrentMap() {
+    if(uploadBusy) return;
+    const user = auth && auth.currentUser;
+    if(!user || authorNameError(user.displayName)) {
+        showEditorMessage("Set your Vectron author name before uploading.");
+        return;
+    }
+    if(!storage || !storageSdk || typeof window.eventHandler_getExportMap !== "function") {
+        showEditorMessage("Map storage is not ready yet. Please try again.");
+        return;
+    }
+
+    syncMapMetadata(user);
+    const map = window.eventHandler_getExportMap();
+    const author = user.displayName.trim();
+    const fileName = safeStorageFileName(map.fileName);
+    const objectPath = `${author}/${MAP_CATEGORY}/${fileName}`;
+
+    uploadBusy = true;
+    if(uploadButton) {
+        uploadButton.classList.add("auth-uploading");
+        uploadButton.setAttribute("aria-busy", "true");
+    }
+    showEditorMessage("Uploading map…");
+
+    try {
+        const mapRef = storageSdk.ref(storage, objectPath);
+        await storageSdk.uploadString(mapRef, map.xml, "raw", {
+            contentType: "application/xml; charset=UTF-8",
+            customMetadata: {
+                ownerUid: user.uid,
+                author,
+                category: MAP_CATEGORY
+            }
+        });
+        showEditorMessage(`Uploaded to ${objectPath}`);
+    } catch(error) {
+        console.error("Vectron map upload failed.", error);
+        showEditorMessage(friendlyUploadError(error));
+    } finally {
+        uploadBusy = false;
+        if(uploadButton) {
+            uploadButton.classList.remove("auth-uploading");
+            uploadButton.removeAttribute("aria-busy");
+        }
+    }
+}
+
+window.vectron_uploadCurrentMap = uploadCurrentMap;
+
 function bindUi() {
     loginTab.addEventListener("click", () => setMode("login"));
     signupTab.addEventListener("click", () => setMode("signup"));
     form.addEventListener("submit", handleSubmit);
     forgotButton.addEventListener("click", handlePasswordReset);
     retryButton.addEventListener("click", () => window.location.reload());
+    profileForm.addEventListener("submit", handleProfileSubmit);
+    profileSignout.addEventListener("click", () => authSdk && authSdk.signOut(auth));
+    if(uploadButton) {
+        uploadButton.addEventListener("click", event => {
+            event.preventDefault();
+            uploadCurrentMap();
+        });
+    }
     document.querySelectorAll("[data-auth-signout]").forEach(button => {
         button.addEventListener("click", handleSignOut);
     });
@@ -327,13 +530,16 @@ async function initializeAuthentication() {
     setMode("login");
 
     try {
-        const [appModule, loadedAuthSdk] = await Promise.all([
+        const [appModule, loadedAuthSdk, loadedStorageSdk] = await Promise.all([
             import(FIREBASE_APP_URL),
-            import(FIREBASE_AUTH_URL)
+            import(FIREBASE_AUTH_URL),
+            import(FIREBASE_STORAGE_URL)
         ]);
         authSdk = loadedAuthSdk;
+        storageSdk = loadedStorageSdk;
         const app = appModule.initializeApp(FIREBASE_CONFIG);
         auth = authSdk.getAuth(app);
+        storage = storageSdk.getStorage(app);
 
         try {
             await authSdk.setPersistence(auth, authSdk.browserLocalPersistence);
@@ -343,8 +549,17 @@ async function initializeAuthentication() {
 
         auth.useDeviceLanguage();
         authSdk.onAuthStateChanged(auth, user => {
-            if(user) unlockEditor(user);
-            else lockEditor();
+            if(!user) {
+                lockEditor();
+                return;
+            }
+            if(authorNameError(user.displayName)) {
+                showProfileCompletion(user);
+                return;
+            }
+            authSdk.getIdToken(user, true)
+                .then(() => unlockEditor(user))
+                .catch(error => showFatal(friendlyAuthError(error)));
         }, error => {
             showFatal(friendlyAuthError(error));
         });

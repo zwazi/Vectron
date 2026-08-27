@@ -26,7 +26,8 @@ body.auth-locked {
   inset: 0;
   z-index: 20000;
   display: grid;
-  place-items: center;
+  align-items: start;
+  justify-items: start;
   min-width: 280px;
   min-height: 420px;
   padding: 24px;
@@ -311,6 +312,14 @@ body.auth-locked {
   font-weight: 500;
 }
 
+.auth-field-hint {
+  display: block;
+  margin: 6px 2px 0;
+  color: #71899a;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .auth-input-wrap {
   position: relative;
   display: flex;
@@ -353,6 +362,18 @@ body.auth-locked {
   border-color: rgba(88, 181, 227, 0.78);
   background: rgba(2, 10, 17, 0.78);
   box-shadow: 0 0 0 3px rgba(54, 145, 202, 0.13), 0 0 20px rgba(48, 149, 207, 0.08);
+}
+
+#top-settings-bar .tsb-input[readonly] {
+  cursor: default;
+  color: #9fc6de;
+  border-color: rgba(77, 153, 199, 0.32);
+  background: rgba(42, 102, 140, 0.12);
+}
+
+.toolbar-upload.auth-uploading {
+  pointer-events: none;
+  opacity: 0.55;
 }
 
 .auth-password-toggle {
@@ -649,7 +670,6 @@ body.auth-locked {
   }
 
   .auth-card {
-    margin: auto 0;
     padding: 21px 20px 18px;
     border-radius: 14px;
   }
@@ -690,9 +710,6 @@ body.auth-locked {
     align-items: start;
   }
 
-  .auth-card {
-    margin: auto 0;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

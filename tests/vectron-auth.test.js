@@ -9,12 +9,14 @@ const read = file => fs.readFileSync(path.join(root, file), "utf8");
 
 const firebase = JSON.parse(read("firebase.json"));
 const firebaseRc = JSON.parse(read(".firebaserc"));
+const storageRules = read("storage.rules");
 const index = read("index.html");
 const authSource = read("js/auth.js");
 const authCss = read("css/auth.css");
 const vectronSource = read("js/vectron.js");
 
 assert.deepStrictEqual(firebase.auth.providers, {emailPassword: true});
+assert.deepStrictEqual(firebase.storage, {rules: "storage.rules"});
 assert.strictEqual(firebaseRc.projects.default, "tronnerrepository");
 
 assert.match(index, /<body class="noscroll auth-locked">/);
@@ -22,6 +24,9 @@ assert.match(index, /id="auth-gate"[^>]*aria-modal="true"/);
 assert.match(index, /id="auth-login-tab"/);
 assert.match(index, /id="auth-signup-tab"/);
 assert.match(index, /data-auth-signout/);
+assert.match(index, /data-map-upload/);
+assert.match(index, /id="map_author"[^>]*readonly/);
+assert.match(index, /id="map_category"[^>]*value="maps"[^>]*readonly/);
 assert.match(index, /<script type="module" src="\.\/js\/auth\.js"><\/script>/);
 
 assert.match(authSource, /projectId:\s*"tronnerrepository"/);
@@ -32,6 +37,11 @@ assert.match(authSource, /sendPasswordResetEmail\(auth/);
 assert.match(authSource, /signOut\(auth\)/);
 assert.match(authSource, /browserLocalPersistence/);
 assert.match(authSource, /browserSessionPersistence/);
+assert.match(authSource, /firebase-storage\.js/);
+assert.match(authSource, /uploadString\(mapRef, map\.xml/);
+assert.match(authSource, /`\$\{author\}\/\$\{MAP_CATEGORY\}\/\$\{fileName\}`/);
+assert.match(authSource, /window\.xml_author = author/);
+assert.match(authSource, /window\.xml_category = MAP_CATEGORY/);
 assert.match(authSource, /setEditorInert\(true\)/);
 assert.doesNotMatch(authSource, /[?&](?:skip|bypass|noauth)=/i);
 
@@ -40,7 +50,14 @@ assert.match(vectronSource, /if\(vectron_started\) return;/);
 assert.doesNotMatch(vectronSource, /window\.onload\s*=\s*function\s*\(\)\s*\{\s*vectron_init/);
 
 assert.match(authCss, /#auth-gate\s*\{[^}]*z-index:\s*20000/s);
+assert.match(authCss, /#auth-gate\s*\{[^}]*align-items:\s*start[^}]*justify-items:\s*start/s);
 assert.match(authCss, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(authCss, /@media \(max-width: 720px\)/);
+
+assert.match(storageRules, /match \/\{author\}\/maps\/\{fileName\}/);
+assert.match(storageRules, /request\.auth\.token\.name == author/);
+assert.match(storageRules, /request\.resource\.metadata\.ownerUid == request\.auth\.uid/);
+assert.match(storageRules, /request\.resource\.metadata\.category == 'maps'/);
+assert.doesNotMatch(storageRules, /allow (?:read|write): if true/);
 
 console.log("Vectron authentication configuration tests passed.");

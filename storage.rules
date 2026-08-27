@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{author}/maps/{fileName} {
+      allow read: if request.auth != null;
+
+      allow create: if validMapUpload(author, fileName);
+
+      allow update: if validMapUpload(author, fileName)
+        && resource.metadata.ownerUid == request.auth.uid;
+
+      allow delete: if request.auth != null
+        && request.auth.token.name is string
+        && request.auth.token.name == author
+        && resource.metadata.ownerUid == request.auth.uid;
+    }
+
+    function validMapUpload(author, fileName) {
+      return request.auth != null
+        && request.auth.token.name is string
+        && request.auth.token.name == author
+        && fileName.matches('.*\\.aamap\\.xml')
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('application/xml.*')
+        && request.resource.metadata.ownerUid == request.auth.uid
+        && request.resource.metadata.author == author
+        && request.resource.metadata.category == 'maps';
+    }
+  }
+}
