@@ -207,6 +207,9 @@ function xml_handleFile(file) {
     gui_writeLog("Loading.");
     reader.onload = function(evt) {
        if(thisReadId !== xml_latest_read_id) return;
+       // File-picker and drag/drop imports both arrive here. Symmetry belongs
+       // to the previous editing session, not to the imported map.
+       aamap_disableSymmetry();
        xml_process(this.result);
     };
     reader.onerror = function() {

@@ -906,6 +906,44 @@ function eventHandler_init() {
     $('#map_version').on('input change', function() { xml_version = this.value; });
     $('#map_dtd').on('input change', function() { xml_dtd = this.value; });
     $('#map_axes').on('input change', function() { xml_axes = parseInt(this.value) || 4; });
+    function eventHandler_updateSymmetry() {
+        var transforms = aamap_symmetryTransforms();
+        if($("#symmetry-check-toggle").is(":checked") && !transforms.length) {
+            $("#symmetry-check-toggle").prop("checked", false);
+            gui_toast("Choose a symmetry line or point before enabling symmetry check.");
+        }
+        var descriptions = transforms.map(function(transform) { return transform.line; });
+        var checking = aamap_symmetryCheckEnabled();
+        $("#symmetry-summary").text(descriptions.length ?
+            descriptions.length + (checking ? " + check" : " active") : "Off");
+        gui_writeLog(descriptions.length ? (checking ? "Symmetry check enabled for " :
+            "Symmetry enabled across ") + descriptions.join(", ") + "." : "Symmetry disabled.");
+        vectron_render();
+    }
+    $('#symmetry-x-toggle,#symmetry-y-toggle,#symmetry-origin-toggle,' +
+        '#symmetry-custom-x-toggle,#symmetry-custom-y-toggle,' +
+        '#symmetry-custom-point-toggle,#symmetry-check-toggle').on('change',
+        eventHandler_updateSymmetry);
+    $('#symmetry-custom-x-value,#symmetry-custom-y-value,' +
+        '#symmetry-custom-point-x,#symmetry-custom-point-y').on('input change', function() {
+        if(this.value !== '' && isFinite(Number(this.value))) eventHandler_updateSymmetry();
+    }).on('blur', function() {
+        if(this.value === '' || !isFinite(Number(this.value))) this.value = '0';
+    });
+    $('#symmetry-menu-toggle').on('click', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var menu = $('#symmetry-menu');
+        var open = !menu.is(':visible');
+        menu.toggle(open);
+        $(this).attr('aria-expanded', open ? 'true' : 'false');
+    });
+    $(document).on('mousedown', function(event) {
+        if(!$(event.target).closest('#symmetry-dropdown').length) {
+            $('#symmetry-menu').hide();
+            $('#symmetry-menu-toggle').attr('aria-expanded', 'false');
+        }
+    });
     $('#map_settings').on('input change', function() {
         xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
     });
