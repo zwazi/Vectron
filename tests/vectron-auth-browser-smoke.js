@@ -22,8 +22,9 @@ const invalidRemixPath = "Browser Pilot/maps/Default_wrong-1.aamap.xml";
 const adminSourcePath = "Admin Target/maps/Admin Fix-0.1.aamap.xml";
 const adminEditedPath = "Admin Target/maps/Admin Fix-0.2.aamap.xml";
 const adminArchivePath = "Admin Target/maps/archive/Admin Fix-0.1.aamap.xml";
+const adminRemixPath = "Browser Pilot/maps/Admin Fix_r-0.1.aamap.xml";
 const cleanupPaths = [uploadPath, editedUploadPath, archivedUploadPath, remixUploadPath, invalidRemixPath,
-    adminSourcePath, adminEditedPath, adminArchivePath];
+    adminSourcePath, adminEditedPath, adminArchivePath, adminRemixPath];
 const storageBucket = "tronnerrepository.firebasestorage.app";
 const adminOAuthToken = process.env.VECTRON_ADMIN_OAUTH_TOKEN || "";
 
@@ -707,7 +708,8 @@ ws.onopen = async () => {
                 const disposablePaths = [
                     ${JSON.stringify(adminSourcePath)},
                     ${JSON.stringify(adminEditedPath)},
-                    ${JSON.stringify(adminArchivePath)}
+                    ${JSON.stringify(adminArchivePath)},
+                    ${JSON.stringify(adminRemixPath)}
                 ];
                 for(const path of disposablePaths) {
                     try { await storageSdk.deleteObject(storageSdk.ref(activeStorage, path)); }
@@ -744,17 +746,71 @@ ws.onopen = async () => {
                 document.getElementById('map-repository-refresh').click();
                 document.getElementById('map-repository-others-tab').click();
                 await waitFor(function() {
-                    return document.querySelector('[data-repository-open=${JSON.stringify(adminSourcePath)}]');
+                    return document.querySelector('[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]') &&
+                        document.querySelector('[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="remix"]');
                 }, 'Admin target map was not listed');
-                const editButton = document.querySelector('[data-repository-open=${JSON.stringify(adminSourcePath)}]');
-                const buttonLabel = editButton.textContent.trim();
+                let editButton = document.querySelector(
+                    '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
+                );
+                const remixButton = document.querySelector(
+                    '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="remix"]'
+                );
+                const availableActions = [editButton.textContent.trim(), remixButton.textContent.trim()];
                 window.confirm = function() { return true; };
-                editButton.click();
+                remixButton.click();
                 await waitFor(function() {
                     const toast = document.getElementById('vt-toast');
                     return document.getElementById('map-repository-overlay').hidden &&
-                        toast && toast.textContent === 'Editing Admin Fix by Admin Target. Version bumped to 0.2.';
-                }, "Admin could not begin editing another author's map");
+                        toast && toast.textContent ===
+                            'Remixing Admin Fix-0.1 by Admin Target as Admin Fix_r.';
+                }, "Admin could not choose Remix for another author's map");
+                const remixing = {
+                    author: document.getElementById('map_author').value,
+                    authorLocked: document.getElementById('map_author').readOnly,
+                    name: document.getElementById('map_name').value,
+                    nameLocked: document.getElementById('map_name').readOnly,
+                    version: document.getElementById('map_version').value,
+                    uploadLabel: document.querySelector('[data-map-upload] span').textContent
+                };
+                document.querySelector('[data-map-upload]').click();
+                await waitFor(function() {
+                    const toast = document.getElementById('vt-toast');
+                    return toast && toast.textContent ===
+                        'Uploaded to Browser Pilot/maps/Admin Fix_r-0.1.aamap.xml';
+                }, 'Admin remix did not upload to the Admin author directory');
+
+                document.querySelector('[data-map-repository]').click();
+                document.getElementById('map-repository-others-tab').click();
+                await waitFor(function() {
+                    const button = document.querySelector(
+                        '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
+                    );
+                    return button && !button.disabled;
+                }, 'Admin target map was not available after remixing');
+                editButton = document.querySelector(
+                    '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
+                );
+                const buttonLabel = editButton.textContent.trim();
+                editButton.click();
+                try {
+                    await waitFor(function() {
+                        const toast = document.getElementById('vt-toast');
+                        return document.getElementById('map-repository-overlay').hidden &&
+                            toast && toast.textContent === 'Editing Admin Fix by Admin Target. Version bumped to 0.2.';
+                    }, "Admin could not begin editing another author's map");
+                } catch(error) {
+                    const status = document.getElementById('map-repository-status');
+                    throw new Error('Admin edit did not open: ' + JSON.stringify({
+                        overlayHidden: document.getElementById('map-repository-overlay').hidden,
+                        toast: document.getElementById('vt-toast').textContent,
+                        status: status.textContent,
+                        statusClass: status.className,
+                        detail: status.dataset.errorDetail || '',
+                        author: document.getElementById('map_author').value,
+                        name: document.getElementById('map_name').value,
+                        version: document.getElementById('map_version').value
+                    }));
+                }
                 const editing = {
                     buttonLabel,
                     author: document.getElementById('map_author').value,
@@ -786,6 +842,8 @@ ws.onopen = async () => {
                 });
                 const result = {
                     role: document.querySelector('[data-auth-role]').textContent,
+                    availableActions,
+                    remixing,
                     editing,
                     sourceDeleted,
                     liveOwnerPreserved: liveMetadata.customMetadata.ownerUid === '',
@@ -800,6 +858,15 @@ ws.onopen = async () => {
             })()`);
             assert.deepStrictEqual(adminPass, {
                 role: "Admin",
+                availableActions: ["Edit", "Remix"],
+                remixing: {
+                    author: "Browser Pilot",
+                    authorLocked: true,
+                    name: "Admin Fix_r",
+                    nameLocked: true,
+                    version: "0.1",
+                    uploadLabel: "Upload"
+                },
                 editing: {
                     buttonLabel: "Edit",
                     author: "Admin Target",
@@ -817,9 +884,13 @@ ws.onopen = async () => {
             });
             const adminEditedXml = await readRepositoryMap(adminEditedPath);
             const adminArchivedXml = await readRepositoryMap(adminArchivePath);
+            const adminRemixedXml = await readRepositoryMap(adminRemixPath);
             assert.match(adminEditedXml, /<Resource[^>]*name="Admin Fix"[^>]*version="0\.2"[^>]*author="Admin Target"/);
             assert.match(adminEditedXml, /<Setting name="CYCLE_SPEED" value="42"\s*\/>/);
             assert.match(adminArchivedXml, /<Resource[^>]*name="Admin Fix"[^>]*version="0\.1"[^>]*author="Admin Target"/);
+            assert.match(adminRemixedXml, /<Resource[^>]*name="Admin Fix_r"[^>]*version="0\.1"[^>]*author="Browser Pilot"/);
+            assert.match(adminRemixedXml, /Original author: "Admin Target"/);
+            assert.match(adminRemixedXml, /Source file: "Admin Target\/maps\/Admin Fix-0\.1\.aamap\.xml"/);
             console.log("Vectron Admin cross-author edit browser smoke test passed.");
         }
 

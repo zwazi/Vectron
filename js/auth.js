@@ -967,17 +967,25 @@ function renderRepositoryMaps() {
                 path.textContent = map.category === MAP_CATEGORY ? map.fullPath : `${map.category} · ${map.fullPath}`;
                 copy.append(name, path);
 
-                const remixButton = document.createElement("button");
-                remixButton.className = "repository-remix-button";
-                remixButton.type = "button";
-                remixButton.dataset.repositoryOpen = map.fullPath;
-                remixButton.disabled = repositoryBusy;
-                const editing = repositoryMapCanEdit(map);
-                remixButton.innerHTML = editing
-                    ? '<i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span>'
-                    : '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
-                remixButton.setAttribute("aria-label", `${editing ? "Edit" : "Remix"} ${map.name} by ${map.author}`);
-                row.append(copy, remixButton);
+                const actions = document.createElement("span");
+                actions.className = "repository-map-actions";
+                const addAction = action => {
+                    const button = document.createElement("button");
+                    const editing = action === "edit";
+                    button.className = "repository-remix-button";
+                    button.type = "button";
+                    button.dataset.repositoryOpen = map.fullPath;
+                    button.dataset.repositoryAction = action;
+                    button.disabled = repositoryBusy;
+                    button.innerHTML = editing
+                        ? '<i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span>'
+                        : '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
+                    button.setAttribute("aria-label", `${editing ? "Edit" : "Remix"} ${map.name} by ${map.author}`);
+                    actions.appendChild(button);
+                };
+                if(repositoryMapCanEdit(map)) addAction("edit");
+                if(!repositoryMapIsMine(map) || currentUserIsAdmin()) addAction("remix");
+                row.append(copy, actions);
                 group.appendChild(row);
             });
             fragment.appendChild(group);
@@ -1039,11 +1047,13 @@ function closeRepository() {
     }
 }
 
-async function openRepositoryMap(fullPath) {
+async function openRepositoryMap(fullPath, requestedAction) {
     if(repositoryBusy || !auth || !auth.currentUser) return;
     const map = repositoryMaps.find(candidate => candidate.fullPath === fullPath);
     if(!map) return;
-    const editing = repositoryMapCanEdit(map);
+    const editing = requestedAction === "edit" && repositoryMapCanEdit(map);
+    const remixing = requestedAction === "remix";
+    if(!editing && !remixing) return;
     const action = editing ? "Edit" : "Remix";
     if(!window.confirm(`${action} ${map.name} by ${map.author}? This replaces your current local draft.`)) return;
 
@@ -1170,7 +1180,7 @@ function bindUi() {
     });
     repositoryList.addEventListener("click", event => {
         const button = event.target.closest("[data-repository-open]");
-        if(button) openRepositoryMap(button.dataset.repositoryOpen);
+        if(button) openRepositoryMap(button.dataset.repositoryOpen, button.dataset.repositoryAction);
     });
     repositoryOverlay.addEventListener("mousedown", event => {
         if(event.target === repositoryOverlay) closeRepository();
