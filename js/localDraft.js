@@ -31,6 +31,9 @@ function vectron_localDraftPayload() {
         schema: 1,
         savedAt: new Date().toISOString(),
         xml: map.xml,
+        repositoryEdit: typeof window.vectron_getRepositoryEditState === "function"
+            ? window.vectron_getRepositoryEditState()
+            : null,
         viewport: {
             panX: Number(window.vectron_panX) || 0,
             panY: Number(window.vectron_panY) || 0,
@@ -97,6 +100,9 @@ function vectron_localDraftRestore() {
         }
         if(typeof aamap_disableSymmetry === "function") aamap_disableSymmetry();
         xml_process(draft.xml);
+        if(typeof window.vectron_setRepositoryEditState === "function") {
+            window.vectron_setRepositoryEditState(draft.repositoryEdit || null);
+        }
 
         var viewport = draft.viewport || {};
         if(isFinite(Number(viewport.panX))) vectron_panX = Number(viewport.panX);

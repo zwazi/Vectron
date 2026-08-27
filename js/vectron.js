@@ -95,6 +95,10 @@ function vectron_resetForInitialMap() {
     });
     aamap_objects = [];
     if(typeof aamap_disableSymmetry === "function") aamap_disableSymmetry();
+    if(typeof xml_clearRemixHistory === "function") xml_clearRemixHistory();
+    if(typeof window.vectron_clearRepositoryEditState === "function") {
+        window.vectron_clearRepositoryEditState();
+    }
     vectron_panX = 0;
     vectron_panY = 0;
     vectron_zoom = 1;

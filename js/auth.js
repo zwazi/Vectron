@@ -67,6 +67,7 @@ let repositoryBusy = false;
 let repositoryMaps = [];
 let repositoryTab = "mine";
 let repositoryPreviousFocus = null;
+let repositoryEditState = null;
 
 function setEditorInert(locked) {
     Array.from(document.body.children).forEach(element => {
@@ -184,17 +185,84 @@ function syncSessionControls(user) {
     });
 }
 
+function currentRemixIdentity() {
+    const history = Array.isArray(window.xml_remixHistory) ? window.xml_remixHistory : [];
+    if(!history.length) return null;
+    const depth = history.length;
+    const suffix = depth === 1 ? "_r" : `_r${depth}`;
+    const originalName = safeMapName(history[0].map, Math.max(1, 100 - suffix.length));
+    return {
+        depth,
+        originalName,
+        mapName: `${originalName}${suffix}`
+    };
+}
+
+function updateUploadButtonLabel() {
+    if(!uploadButton) return;
+    const label = uploadButton.querySelector("span");
+    if(label) label.textContent = repositoryEditState ? "Submit edit" : "Upload";
+    uploadButton.title = repositoryEditState ? "Submit edited map" : "Upload map";
+    uploadButton.setAttribute("aria-label", uploadButton.title);
+}
+
+function normalizeRepositoryEditState(value) {
+    if(!value || typeof value !== "object") return null;
+    const sourcePath = String(value.sourcePath || "");
+    const rawSourceName = String(value.sourceName || "").trim();
+    const sourceName = safeMapName(rawSourceName);
+    const sourceVersion = normalizeMapVersion(value.sourceVersion);
+    const sourceCategory = String(value.sourceCategory || MAP_CATEGORY);
+    if(!sourcePath || !rawSourceName || !sourceCategory || sourceCategory.includes("/")) return null;
+    return {sourcePath, sourceName, sourceVersion, sourceCategory};
+}
+
+function setRepositoryEditState(value) {
+    repositoryEditState = normalizeRepositoryEditState(value);
+    updateUploadButtonLabel();
+    if(auth && auth.currentUser) syncMapMetadata(auth.currentUser);
+    return repositoryEditState ? {...repositoryEditState} : null;
+}
+
+function clearRepositoryEditState() {
+    return setRepositoryEditState(null);
+}
+
+function getRepositoryEditState() {
+    return repositoryEditState ? {...repositoryEditState} : null;
+}
+
 function syncMapMetadata(user = auth && auth.currentUser) {
     if(!user || authorNameError(user.displayName)) return;
     const author = user.displayName.trim();
     const authorInput = document.getElementById("map_author");
     const categoryInput = document.getElementById("map_category");
     const versionInput = document.getElementById("map_version");
+    const nameInput = document.getElementById("map_name");
+    const remixIdentity = currentRemixIdentity();
+    const lockedName = remixIdentity ? remixIdentity.mapName :
+        (repositoryEditState && repositoryEditState.sourceName || "");
 
     window.xml_author = author;
     window.xml_category = MAP_CATEGORY;
     window.vectron_mapAuthor = author;
     window.vectron_mapCategory = MAP_CATEGORY;
+
+    if(nameInput) {
+        if(lockedName) {
+            nameInput.value = lockedName;
+            nameInput.readOnly = true;
+            nameInput.setAttribute("aria-readonly", "true");
+            nameInput.title = remixIdentity
+                ? "Locked to this map's remix lineage"
+                : "Locked while editing this repository map";
+            window.xml_name = lockedName;
+        } else {
+            nameInput.readOnly = false;
+            nameInput.removeAttribute("aria-readonly");
+            nameInput.removeAttribute("title");
+        }
+    }
 
     if(authorInput) {
         authorInput.value = author;
@@ -218,6 +286,9 @@ function syncMapMetadata(user = auth && auth.currentUser) {
 }
 
 window.vectron_syncLockedMetadata = () => syncMapMetadata();
+window.vectron_getRepositoryEditState = getRepositoryEditState;
+window.vectron_setRepositoryEditState = setRepositoryEditState;
+window.vectron_clearRepositoryEditState = clearRepositoryEditState;
 
 function hideSessionControls() {
     document.querySelectorAll(".auth-session, .auth-session-separator").forEach(element => {
@@ -449,15 +520,90 @@ async function handleSignOut() {
     }
 }
 
-function safeStorageFileName(fileName) {
-    const withoutSuffix = String(fileName || "map").replace(/\.aamap\.xml$/i, "");
-    const cleaned = withoutSuffix
+function safeMapName(value, maximumLength = 100) {
+    const cleaned = String(value || "map")
         .normalize("NFKC")
         .replace(/[^\p{L}\p{N} ._-]+/gu, "-")
         .replace(/\s+/g, " ")
         .replace(/^[. ]+|[. ]+$/g, "")
-        .slice(0, 120);
-    return `${cleaned || "map"}.aamap.xml`;
+        .slice(0, maximumLength);
+    return cleaned || "map";
+}
+
+function normalizeMapVersion(value) {
+    const version = String(value || "").trim();
+    return /^\d+(?:\.\d+)*$/.test(version) ? version : "1";
+}
+
+function bumpMapVersion(value) {
+    const parts = normalizeMapVersion(value).split(".");
+    parts[parts.length - 1] = String(Number(parts[parts.length - 1]) + 1);
+    return parts.join(".");
+}
+
+function storageMapFileName(mapName, version) {
+    return `${safeMapName(mapName)}-${normalizeMapVersion(version)}.aamap.xml`;
+}
+
+function liveMapPath(author, mapName, version) {
+    return `${author}/${MAP_CATEGORY}/${storageMapFileName(mapName, version)}`;
+}
+
+function setCurrentMapVersion(version) {
+    const normalized = normalizeMapVersion(version);
+    const versionInput = document.getElementById("map_version");
+    if(versionInput) versionInput.value = normalized;
+    window.xml_version = normalized;
+    return normalized;
+}
+
+function setCurrentMapName(name) {
+    const normalized = safeMapName(name);
+    const nameInput = document.getElementById("map_name");
+    if(nameInput) nameInput.value = normalized;
+    window.xml_name = normalized;
+    return normalized;
+}
+
+function nextAvailableMapVersion(author, mapName, startingVersion, bumpFirst) {
+    let version = bumpFirst ? bumpMapVersion(startingVersion) : normalizeMapVersion(startingVersion);
+    const occupied = new Set(repositoryMaps.map(map => map.fullPath));
+    let attempts = 0;
+    while(occupied.has(liveMapPath(author, mapName, version)) && attempts < 1000) {
+        version = bumpMapVersion(version);
+        attempts += 1;
+    }
+    if(attempts >= 1000) throw new Error("Could not find an available map version.");
+    return version;
+}
+
+function mapUploadMetadata(user, mapName, mapVersion, operation, editState = null) {
+    const remixIdentity = currentRemixIdentity();
+    return {
+        ownerUid: user.uid,
+        author: user.displayName.trim(),
+        category: MAP_CATEGORY,
+        mapName,
+        mapVersion,
+        isRemix: remixIdentity ? "true" : "false",
+        remixDepth: remixIdentity ? String(remixIdentity.depth) : "0",
+        remixOriginalName: remixIdentity ? remixIdentity.originalName : "",
+        archived: "false",
+        operation,
+        editSourcePath: editState ? editState.sourcePath : "",
+        editSourceName: editState ? editState.sourceName : "",
+        editSourceVersion: editState ? editState.sourceVersion : "",
+        editSourceCategory: editState ? editState.sourceCategory : "",
+        editSourceFileName: editState ? editState.sourcePath.split("/").pop() : ""
+    };
+}
+
+async function objectMetadataIfExists(fullPath) {
+    const slash = fullPath.lastIndexOf("/");
+    const parentPath = slash >= 0 ? fullPath.slice(0, slash) : "";
+    const result = await storageSdk.listAll(storageSdk.ref(storage, parentPath));
+    const reference = result.items.find(item => item.fullPath === fullPath);
+    return reference ? storageSdk.getMetadata(reference) : null;
 }
 
 function showEditorMessage(message) {
@@ -468,12 +614,49 @@ function showEditorMessage(message) {
 function friendlyUploadError(error) {
     const code = error && error.code ? error.code : "";
     const messages = {
+        "storage/already-exists": "That map name and version already exist. Choose a different version.",
         "storage/unauthorized": "Your account cannot upload to this author folder.",
         "storage/retry-limit-exceeded": "The upload timed out. Check your connection and retry.",
         "storage/quota-exceeded": "Map storage is temporarily full.",
         "storage/unknown": "The map could not be uploaded. Please try again."
     };
     return messages[code] || "The map could not be uploaded. Please try again.";
+}
+
+function storageConflict(message) {
+    const error = new Error(message || "A map already exists at that repository path.");
+    error.code = "storage/already-exists";
+    return error;
+}
+
+async function archiveEditedSource(user, editState) {
+    const author = user.displayName.trim();
+    const sourceFileName = editState.sourcePath.split("/").pop();
+    const archivePath = `${author}/${editState.sourceCategory}/archive/${sourceFileName}`;
+    const existing = await objectMetadataIfExists(archivePath);
+    if(existing) {
+        const metadata = existing.customMetadata || {};
+        if(metadata.ownerUid !== user.uid || metadata.archivedFrom !== editState.sourcePath) {
+            throw storageConflict("The archive path is already occupied.");
+        }
+        return archivePath;
+    }
+
+    const originalXml = await downloadRepositoryMap(editState.sourcePath);
+    await storageSdk.uploadString(storageSdk.ref(storage, archivePath), originalXml, "raw", {
+        contentType: "application/xml; charset=UTF-8",
+        customMetadata: {
+            ownerUid: user.uid,
+            author,
+            category: editState.sourceCategory,
+            mapName: editState.sourceName,
+            mapVersion: editState.sourceVersion,
+            archived: "true",
+            operation: "archive",
+            archivedFrom: editState.sourcePath
+        }
+    });
+    return archivePath;
 }
 
 async function uploadCurrentMap() {
@@ -488,11 +671,14 @@ async function uploadCurrentMap() {
         return;
     }
 
+    const author = user.displayName.trim();
+    syncMapMetadata(user);
+    const mapName = setCurrentMapName(document.getElementById("map_name").value);
+    const mapVersion = setCurrentMapVersion(document.getElementById("map_version").value);
     syncMapMetadata(user);
     const map = window.eventHandler_getExportMap();
-    const author = user.displayName.trim();
-    const fileName = safeStorageFileName(map.fileName);
-    const objectPath = `${author}/${MAP_CATEGORY}/${fileName}`;
+    const objectPath = liveMapPath(author, mapName, mapVersion);
+    const editState = getRepositoryEditState();
 
     uploadBusy = true;
     if(uploadButton) {
@@ -502,17 +688,41 @@ async function uploadCurrentMap() {
     showEditorMessage("Uploading map…");
 
     try {
+        const existing = await objectMetadataIfExists(objectPath);
+        const existingMetadata = existing && existing.customMetadata || {};
+        const resumedEdit = Boolean(editState && existing &&
+            existingMetadata.ownerUid === user.uid &&
+            existingMetadata.operation === "edit" &&
+            existingMetadata.editSourcePath === editState.sourcePath);
+        if(existing && !resumedEdit) throw storageConflict();
+
+        let archivePath = "";
+        if(editState) archivePath = await archiveEditedSource(user, editState);
+
         const mapRef = storageSdk.ref(storage, objectPath);
-        await storageSdk.uploadString(mapRef, map.xml, "raw", {
-            contentType: "application/xml; charset=UTF-8",
-            customMetadata: {
-                ownerUid: user.uid,
-                author,
-                category: MAP_CATEGORY
+        if(!resumedEdit) {
+            await storageSdk.uploadString(mapRef, map.xml, "raw", {
+                contentType: "application/xml; charset=UTF-8",
+                customMetadata: mapUploadMetadata(
+                    user, mapName, mapVersion, editState ? "edit" : "create", editState
+                )
+            });
+        }
+        if(editState) {
+            try {
+                await storageSdk.deleteObject(storageSdk.ref(storage, editState.sourcePath));
+            } catch(error) {
+                if(!error || error.code !== "storage/object-not-found") throw error;
             }
-        });
+            clearRepositoryEditState();
+        }
         repositoryMaps = [];
-        showEditorMessage(`Uploaded to ${objectPath}`);
+        if(typeof window.vectron_localDraftSaveNow === "function") {
+            window.vectron_localDraftSaveNow();
+        }
+        showEditorMessage(editState
+            ? `Submitted ${objectPath}; archived the previous version in ${archivePath}.`
+            : `Uploaded to ${objectPath}`);
     } catch(error) {
         console.error("Vectron map upload failed.", error);
         showEditorMessage(friendlyUploadError(error));
@@ -539,6 +749,12 @@ function repositoryMapDetails(fullPath) {
         name: fileName.replace(/\.aamap\.xml$/i, ""),
         ownerUid: ""
     };
+}
+
+function isLiveRepositoryMap(reference) {
+    const parts = String(reference && reference.fullPath || "").split("/").filter(Boolean);
+    return parts.length >= 3 && parts[parts.length - 2] !== "archive" &&
+        reference.fullPath.toLocaleLowerCase().endsWith(".aamap.xml");
 }
 
 async function addRepositoryOwnership(maps) {
@@ -687,10 +903,13 @@ function renderRepositoryMaps() {
                 const remixButton = document.createElement("button");
                 remixButton.className = "repository-remix-button";
                 remixButton.type = "button";
-                remixButton.dataset.repositoryRemix = map.fullPath;
+                remixButton.dataset.repositoryOpen = map.fullPath;
                 remixButton.disabled = repositoryBusy;
-                remixButton.innerHTML = '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
-                remixButton.setAttribute("aria-label", `Remix ${map.name} by ${map.author}`);
+                const editing = repositoryMapIsMine(map) && !map.category.includes("/");
+                remixButton.innerHTML = editing
+                    ? '<i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span>'
+                    : '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
+                remixButton.setAttribute("aria-label", `${editing ? "Edit" : "Remix"} ${map.name} by ${map.author}`);
                 row.append(copy, remixButton);
                 group.appendChild(row);
             });
@@ -707,7 +926,7 @@ async function refreshRepositoryMaps() {
     try {
         const references = await listRepositoryReferences(storageSdk.ref(storage));
         const maps = references
-            .filter(reference => reference.fullPath.toLocaleLowerCase().endsWith(".aamap.xml"))
+            .filter(isLiveRepositoryMap)
             .map(reference => repositoryMapDetails(reference.fullPath));
         repositoryMaps = (await addRepositoryOwnership(maps))
             .sort((a, b) => a.author.localeCompare(b.author, undefined, {sensitivity: "base"}) ||
@@ -753,14 +972,16 @@ function closeRepository() {
     }
 }
 
-async function remixRepositoryMap(fullPath) {
+async function openRepositoryMap(fullPath) {
     if(repositoryBusy || !auth || !auth.currentUser) return;
     const map = repositoryMaps.find(candidate => candidate.fullPath === fullPath);
     if(!map) return;
-    if(!window.confirm(`Remix ${map.name} by ${map.author}? This replaces your current local draft.`)) return;
+    const editing = repositoryMapIsMine(map) && !map.category.includes("/");
+    const action = editing ? "Edit" : "Remix";
+    if(!window.confirm(`${action} ${map.name} by ${map.author}? This replaces your current local draft.`)) return;
 
     setRepositoryBusy(true);
-    setRepositoryStatus(`Preparing ${map.name} for remix…`);
+    setRepositoryStatus(`Preparing ${map.name} to ${action.toLocaleLowerCase()}…`);
     try {
         const xml = await downloadRepositoryMap(fullPath);
         const parsed = $.parseXML(xml);
@@ -769,6 +990,8 @@ async function remixRepositoryMap(fullPath) {
            resource.getAttribute("type") !== "aamap") {
             throw new Error("The selected file is not an Armagetron map resource.");
         }
+        const sourceName = safeMapName(resource.getAttribute("name") || map.name);
+        const sourceVersion = normalizeMapVersion(resource.getAttribute("version"));
 
         if(typeof window.vectron_localDraftSaveNow === "function") {
             window.vectron_localDraftSaveNow();
@@ -780,15 +1003,36 @@ async function remixRepositoryMap(fullPath) {
                 window.aamap_objects = [];
             }
             window.xml_process(xml);
-            if(typeof window.xml_appendRemixSource !== "function") {
-                throw new Error("Remix provenance is unavailable.");
+            let nextVersion;
+            if(editing) {
+                setRepositoryEditState({
+                    sourcePath: map.fullPath,
+                    sourceName,
+                    sourceVersion,
+                    sourceCategory: map.category
+                });
+                const editName = setCurrentMapName(document.getElementById("map_name").value);
+                nextVersion = nextAvailableMapVersion(
+                    auth.currentUser.displayName.trim(), editName, sourceVersion, true
+                );
+            } else {
+                clearRepositoryEditState();
+                if(typeof window.xml_appendRemixSource !== "function") {
+                    throw new Error("Remix provenance is unavailable.");
+                }
+                window.xml_appendRemixSource({
+                    map: resource.getAttribute("name") || map.name,
+                    author: resource.getAttribute("author") || map.author,
+                    version: resource.getAttribute("version") || "",
+                    path: map.fullPath
+                });
+                syncMapMetadata(auth.currentUser);
+                const remixName = document.getElementById("map_name").value;
+                nextVersion = nextAvailableMapVersion(
+                    auth.currentUser.displayName.trim(), remixName, sourceVersion, false
+                );
             }
-            window.xml_appendRemixSource({
-                map: resource.getAttribute("name") || map.name,
-                author: resource.getAttribute("author") || map.author,
-                version: resource.getAttribute("version") || "",
-                path: map.fullPath
-            });
+            setCurrentMapVersion(nextVersion);
             syncMapMetadata(auth.currentUser);
             if(typeof window.vectron_localDraftSaveNow === "function") {
                 window.vectron_localDraftSaveNow();
@@ -801,14 +1045,16 @@ async function remixRepositoryMap(fullPath) {
         }
         setRepositoryStatus("");
         closeRepository();
-        showEditorMessage(`Remixing ${map.name} by ${map.author}.`);
+        showEditorMessage(editing
+            ? `Editing ${sourceName}. Version bumped to ${document.getElementById("map_version").value}.`
+            : `Remixing ${map.name} by ${map.author} as ${document.getElementById("map_name").value}.`);
     } catch(error) {
-        console.error("Vectron repository map remix failed.", error);
+        console.error(`Vectron repository map ${action.toLocaleLowerCase()} failed.`, error);
         repositoryStatus.dataset.errorDetail = error && error.message ? error.message : String(error);
         setRepositoryStatus(
             error && error.code === "storage/unauthorized"
                 ? "Your account cannot read that map."
-                : "That map could not be remixed. Your current work was kept.",
+                : `That map could not be ${editing ? "edited" : "remixed"}. Your current work was kept.`,
             "error"
         );
     } finally {
@@ -851,8 +1097,8 @@ function bindUi() {
         });
     });
     repositoryList.addEventListener("click", event => {
-        const button = event.target.closest("[data-repository-remix]");
-        if(button) remixRepositoryMap(button.dataset.repositoryRemix);
+        const button = event.target.closest("[data-repository-open]");
+        if(button) openRepositoryMap(button.dataset.repositoryOpen);
     });
     repositoryOverlay.addEventListener("mousedown", event => {
         if(event.target === repositoryOverlay) closeRepository();

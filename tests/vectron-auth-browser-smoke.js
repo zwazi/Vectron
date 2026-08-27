@@ -15,6 +15,11 @@ const testPassword = `Vt-${crypto.randomUUID()}!`;
 const bidiUrl = process.env.VECTRON_BIDI_URL || "ws://127.0.0.1:9223/session";
 const testUploadEnabled = process.env.VECTRON_TEST_UPLOAD !== "0";
 const uploadPath = "Browser Pilot/maps/Browser Upload-0.1.aamap.xml";
+const editedUploadPath = "Browser Pilot/maps/Browser Upload-0.2.aamap.xml";
+const archivedUploadPath = "Browser Pilot/maps/archive/Browser Upload-0.1.aamap.xml";
+const remixUploadPath = "Browser Pilot/maps/Default_r2-1.aamap.xml";
+const invalidRemixPath = "Browser Pilot/maps/Default_wrong-1.aamap.xml";
+const cleanupPaths = [uploadPath, editedUploadPath, archivedUploadPath, remixUploadPath, invalidRemixPath];
 const storageBucket = "tronnerrepository.firebasestorage.app";
 
 const ws = new WebSocket(bidiUrl);
@@ -80,11 +85,11 @@ async function signInTestAccount() {
     return signIn.json();
 }
 
-async function readUploadedMap() {
+async function readRepositoryMap(fullPath) {
     const account = await signInTestAccount();
     if(!account) throw new Error("Could not sign in to verify the uploaded map.");
     const response = await fetch(
-        `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encodeURIComponent(uploadPath)}?alt=media`,
+        `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encodeURIComponent(fullPath)}?alt=media`,
         {headers: {authorization: `Bearer ${account.idToken}`}}
     );
     if(!response.ok) throw new Error(`Could not read uploaded map (${response.status}).`);
@@ -97,15 +102,17 @@ async function deleteTestData() {
     const tokenClaims = JSON.parse(Buffer.from(account.idToken.split(".")[1], "base64url").toString("utf8"));
     assert.strictEqual(tokenClaims.name, "Browser Pilot");
     if(testUploadEnabled) {
-        const removeMap = await fetch(
-            `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encodeURIComponent(uploadPath)}`,
-            {
-                method: "DELETE",
-                headers: {authorization: `Bearer ${account.idToken}`}
+        for(const fullPath of cleanupPaths) {
+            const removeMap = await fetch(
+                `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encodeURIComponent(fullPath)}`,
+                {
+                    method: "DELETE",
+                    headers: {authorization: `Bearer ${account.idToken}`}
+                }
+            );
+            if(!removeMap.ok && removeMap.status !== 403 && removeMap.status !== 404) {
+                throw new Error(`Could not delete disposable map ${fullPath} (${removeMap.status}).`);
             }
-        );
-        if(!removeMap.ok && removeMap.status !== 403 && removeMap.status !== 404) {
-            throw new Error(`Could not delete disposable map (${removeMap.status}).`);
         }
     }
     const remove = await fetch(
@@ -246,29 +253,74 @@ ws.onopen = async () => {
                     return toast && toast.textContent === 'Uploaded to Browser Pilot/maps/Browser Upload-0.1.aamap.xml';
                 }, 'Map did not upload to the locked author/maps path', 30000);
                 result.uploadPath = document.getElementById('vt-toast').textContent.replace('Uploaded to ', '');
+                document.querySelector('[data-map-upload]').click();
+                await waitFor(function() {
+                    const toast = document.getElementById('vt-toast');
+                    return toast && toast.textContent ===
+                        'That map name and version already exist. Choose a different version.';
+                }, 'A duplicate repository identity was not rejected', 30000);
+                result.duplicateUploadRejected = true;
             }
 
             document.querySelector('[data-map-repository]').click();
             if(testUpload) {
                 await waitFor(function() {
                     return !document.getElementById('map-repository-overlay').hidden &&
-                        document.querySelector('[data-repository-remix="Browser Pilot/maps/Browser Upload-0.1.aamap.xml"]');
+                        document.querySelector('[data-repository-open="Browser Pilot/maps/Browser Upload-0.1.aamap.xml"]');
                 }, "The user's repository maps did not become available", 30000);
             }
             const mineTabSelectedByDefault = document.getElementById('map-repository-mine-tab').getAttribute('aria-selected') === 'true';
-            const ownMapCount = document.querySelectorAll('[data-repository-remix]').length;
+            const ownMapCount = document.querySelectorAll('[data-repository-open]').length;
             const ownTabOnlyShowsCurrentUser = Array.from(document.querySelectorAll('.repository-author-heading span:first-child'))
                 .every(function(node) { return node.textContent === 'Browser Pilot'; });
+            const ownEditButton = document.querySelector('[data-repository-open="Browser Pilot/maps/Browser Upload-0.1.aamap.xml"]');
+            const ownButtonSaysEdit = !testUpload || ownEditButton.textContent.trim() === 'Edit';
+            if(testUpload) {
+                window.confirm = function() { return true; };
+                ownEditButton.click();
+                await waitFor(function() {
+                    const toast = document.getElementById('vt-toast');
+                    return document.getElementById('map-repository-overlay').hidden &&
+                        document.getElementById('map_version').value === '0.2' &&
+                        toast && toast.textContent === 'Editing Browser Upload. Version bumped to 0.2.';
+                }, 'Owned map did not open for editing with a bumped version', 30000);
+                result.edit = {
+                    name: document.getElementById('map_name').value,
+                    nameLocked: document.getElementById('map_name').readOnly,
+                    version: document.getElementById('map_version').value,
+                    versionLocked: document.getElementById('map_version').readOnly,
+                    uploadLabel: document.querySelector('[data-map-upload] span').textContent
+                };
+                document.getElementById('map_settings').value = 'CYCLE_SPEED 30';
+                document.getElementById('map_settings').dispatchEvent(new Event('input', {bubbles: true}));
+                document.querySelector('[data-map-upload]').click();
+                await waitFor(function() {
+                    const toast = document.getElementById('vt-toast');
+                    return toast && toast.textContent ===
+                        'Submitted Browser Pilot/maps/Browser Upload-0.2.aamap.xml; archived the previous version in Browser Pilot/maps/archive/Browser Upload-0.1.aamap.xml.';
+                }, 'Edited map was not submitted and archived', 30000);
+                result.edit.submittedPath = 'Browser Pilot/maps/Browser Upload-0.2.aamap.xml';
+                result.edit.uploadLabelAfterSubmit = document.querySelector('[data-map-upload] span').textContent;
+
+                document.querySelector('[data-map-repository]').click();
+                await waitFor(function() {
+                    return document.querySelector('[data-repository-open="Browser Pilot/maps/Browser Upload-0.2.aamap.xml"]');
+                }, 'The edited live revision did not replace its source', 30000);
+                result.edit.archiveHiddenFromLiveMaps =
+                    !document.querySelector('[data-repository-open*="/archive/"]') &&
+                    !document.querySelector('[data-repository-open="Browser Pilot/maps/Browser Upload-0.1.aamap.xml"]');
+            }
             document.getElementById('map-repository-others-tab').click();
             await waitFor(function() {
                 return document.getElementById('map-repository-others-tab').getAttribute('aria-selected') === 'true' &&
-                    document.querySelectorAll('[data-repository-remix]').length >= 275;
+                    document.querySelectorAll('[data-repository-open]').length >= 275;
             }, "Other authors' repository maps did not become available", 30000);
             const repositoryAuthors = Array.from(document.querySelectorAll('.repository-author-heading span:first-child'))
                 .map(function(node) { return node.textContent; });
-            const repositoryRemix = document.querySelector('[data-repository-remix="Zwazi/maps/Default-v1.aamap.xml"]');
+            const repositoryRemix = document.querySelector('[data-repository-open="Zwazi/maps/Default-v1.aamap.xml"]');
             if(!repositoryRemix) throw new Error('Expected cross-user repository map was not listed');
-            const repositoryCount = document.querySelectorAll('[data-repository-remix]').length;
+            const otherButtonSaysRemix = repositoryRemix.textContent.trim() === 'Remix';
+            const repositoryCount = document.querySelectorAll('[data-repository-open]').length;
             const repositoryLayoutFits = (function() {
                 const dialogRect = document.querySelector('.repository-dialog').getBoundingClientRect();
                 const listRect = document.getElementById('map-repository-list').getBoundingClientRect();
@@ -281,8 +333,8 @@ ws.onopen = async () => {
                     const toast = document.getElementById('vt-toast');
                     const repositoryStatus = document.getElementById('map-repository-status');
                     return (document.getElementById('map-repository-overlay').hidden &&
-                        document.getElementById('map_name').value === 'Default' &&
-                        toast && toast.textContent === 'Remixing Default-v1 by Zwazi.') ||
+                        document.getElementById('map_name').value === 'Default_r' &&
+                        toast && toast.textContent === 'Remixing Default-v1 by Zwazi as Default_r.') ||
                         (!repositoryStatus.hidden && repositoryStatus.classList.contains('error'));
                 }, 'Cross-user repository map did not begin remixing', 30000);
             } catch(error) {
@@ -304,20 +356,38 @@ ws.onopen = async () => {
                     ' (' + (repositoryError.dataset.errorDetail || 'no detail') + ')');
             }
             const remixXml = window.eventHandler_getExportMap().xml;
+            const firstRemixName = document.getElementById('map_name').value;
+            const firstRemixNameLocked = document.getElementById('map_name').readOnly;
+            window.xml_appendRemixSource({
+                map: firstRemixName,
+                author: 'Browser Pilot',
+                version: document.getElementById('map_version').value,
+                path: 'Browser Pilot/maps/' + firstRemixName + '-' +
+                    document.getElementById('map_version').value + '.aamap.xml'
+            });
+            window.vectron_syncLockedMetadata();
+            const chainedRemixXml = window.eventHandler_getExportMap().xml;
             result.repository = {
                 mapCount: repositoryCount,
                 mineTabSelectedByDefault: mineTabSelectedByDefault,
                 ownMapCount: ownMapCount,
                 ownTabOnlyShowsCurrentUser: ownTabOnlyShowsCurrentUser,
+                ownButtonSaysEdit: ownButtonSaysEdit,
                 otherTabExcludesCurrentUser: !repositoryAuthors.includes('Browser Pilot'),
+                otherButtonSaysRemix: otherButtonSaysRemix,
                 panelLayoutFits: repositoryLayoutFits,
                 hasZwazi: repositoryAuthors.includes('Zwazi'),
                 hasAnimuson: repositoryAuthors.includes('Animuson'),
-                loadedMap: document.getElementById('map_name').value,
+                loadedMap: firstRemixName,
+                remixNameLocked: firstRemixNameLocked,
+                chainedRemixName: document.getElementById('map_name').value,
+                chainedRemixNameLocked: document.getElementById('map_name').readOnly,
                 remixProvenance: remixXml.includes('Original map: "Default"') &&
                     remixXml.includes('Original author: "Zwazi"') &&
                     remixXml.includes('Source file: "Zwazi/maps/Default-v1.aamap.xml"') &&
                     remixXml.includes('Vectron remix provenance data:'),
+                chainedRemixProvenance: chainedRemixXml.includes('Remix source 2: Map: "Default_r"') &&
+                    chainedRemixXml.includes('Original author: "Zwazi"'),
                 remixedMapHasAxes: remixXml.includes('<Axes number="'),
                 authorStillLocked: document.getElementById('map_author').value === 'Browser Pilot' &&
                     document.getElementById('map_author').readOnly,
@@ -325,9 +395,17 @@ ws.onopen = async () => {
                     document.getElementById('map_category').readOnly
             };
 
-            const draftName = document.getElementById('map_name');
-            draftName.value = 'Browser Draft';
-            draftName.dispatchEvent(new Event('input', {bubbles: true}));
+            if(testUpload) {
+                document.querySelector('[data-map-upload]').click();
+                await waitFor(function() {
+                    const toast = document.getElementById('vt-toast');
+                    return toast && toast.textContent === 'Uploaded to Browser Pilot/maps/Default_r2-1.aamap.xml';
+                }, 'Canonical chained remix was rejected by repository rules', 30000);
+                result.remixUploadPath = 'Browser Pilot/maps/Default_r2-1.aamap.xml';
+            }
+
+            document.getElementById('map_settings').value += String.fromCharCode(10) + 'CYCLE_ACCEL 10';
+            document.getElementById('map_settings').dispatchEvent(new Event('input', {bubbles: true}));
             result.created.draftSavedLocally = window.vectron_localDraftSaveNow();
 
             document.querySelector('.auth-session-plan [data-auth-signout]').click();
@@ -349,12 +427,13 @@ ws.onopen = async () => {
             document.getElementById('auth-form').requestSubmit();
             await waitFor(function() {
                 return !document.body.classList.contains('auth-locked') &&
-                    document.getElementById('map_name').value === 'Browser Draft';
+                    document.getElementById('map_name').value === 'Default_r2';
             }, 'Sign in did not restore the local draft');
             result.loggedIn = {
                 unlocked: !document.body.classList.contains('auth-locked'),
                 gateHidden: document.getElementById('auth-gate').hidden,
                 mapName: document.getElementById('map_name').value,
+                mapNameLocked: document.getElementById('map_name').readOnly,
                 versionLocked: document.getElementById('map_version').readOnly,
                 remixProvenanceRestored: window.eventHandler_getExportMap().xml.includes('Original author: "Zwazi"')
             };
@@ -389,7 +468,21 @@ ws.onopen = async () => {
             draftSavedLocally: true,
             accountDockTopRight: true
         });
-        if(testUploadEnabled) assert.strictEqual(firstPass.uploadPath, uploadPath);
+        if(testUploadEnabled) {
+            assert.strictEqual(firstPass.uploadPath, uploadPath);
+            assert.strictEqual(firstPass.remixUploadPath, remixUploadPath);
+            assert.strictEqual(firstPass.duplicateUploadRejected, true);
+            assert.deepStrictEqual(firstPass.edit, {
+                name: "Browser Upload",
+                nameLocked: true,
+                version: "0.2",
+                versionLocked: true,
+                uploadLabel: "Submit edit",
+                submittedPath: editedUploadPath,
+                uploadLabelAfterSubmit: "Upload",
+                archiveHiddenFromLiveMaps: true
+            });
+        }
         const {mapCount, ...repositoryState} = firstPass.repository;
         assert.ok(mapCount >= 275);
         assert.strictEqual(firstPass.repository.ownMapCount, testUploadEnabled ? 1 : 0);
@@ -397,12 +490,18 @@ ws.onopen = async () => {
             mineTabSelectedByDefault: true,
             ownMapCount: testUploadEnabled ? 1 : 0,
             ownTabOnlyShowsCurrentUser: true,
+            ownButtonSaysEdit: true,
             otherTabExcludesCurrentUser: true,
+            otherButtonSaysRemix: true,
             panelLayoutFits: true,
             hasZwazi: true,
             hasAnimuson: true,
-            loadedMap: "Default",
+            loadedMap: "Default_r",
+            remixNameLocked: true,
+            chainedRemixName: "Default_r2",
+            chainedRemixNameLocked: true,
             remixProvenance: true,
+            chainedRemixProvenance: true,
             remixedMapHasAxes: true,
             authorStillLocked: true,
             categoryStillLocked: true
@@ -415,18 +514,83 @@ ws.onopen = async () => {
         assert.deepStrictEqual(firstPass.loggedIn, {
             unlocked: true,
             gateHidden: true,
-            mapName: "Browser Draft",
+            mapName: "Default_r2",
+            mapNameLocked: true,
             versionLocked: true,
             remixProvenanceRestored: true
         });
 
         if(testUploadEnabled) {
-            const uploadedXml = await readUploadedMap();
+            const ruleEnforcement = await evaluateJson(context, `(async function() {
+                const [appSdk, authSdk, storageSdk] = await Promise.all([
+                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js'),
+                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js'),
+                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-storage.js')
+                ]);
+                const app = appSdk.getApp();
+                const activeAuth = authSdk.getAuth(app);
+                const activeStorage = storageSdk.getStorage(app);
+                const user = activeAuth.currentUser;
+                if(!user) throw new Error('Rule check requires the active disposable account.');
+                const existingRef = storageSdk.ref(activeStorage, ${JSON.stringify(editedUploadPath)});
+                const existing = await storageSdk.getMetadata(existingRef);
+                let duplicateCode = '';
+                try {
+                    await storageSdk.uploadString(existingRef,
+                        '<Resource type="aamap" name="Browser Upload" version="0.2" author="Browser Pilot" category="maps"></Resource>',
+                        'raw', {contentType: 'application/xml; charset=UTF-8', customMetadata: existing.customMetadata});
+                } catch(error) {
+                    duplicateCode = error && error.code || '';
+                }
+                let invalidRemixCode = '';
+                try {
+                    await storageSdk.uploadString(
+                        storageSdk.ref(activeStorage, ${JSON.stringify(invalidRemixPath)}),
+                        '<Resource type="aamap" name="Default_wrong" version="1" author="Browser Pilot" category="maps"></Resource>',
+                        'raw', {
+                            contentType: 'application/xml; charset=UTF-8',
+                            customMetadata: {
+                                ownerUid: user.uid,
+                                author: 'Browser Pilot',
+                                category: 'maps',
+                                mapName: 'Default_wrong',
+                                mapVersion: '1',
+                                isRemix: 'true',
+                                remixDepth: '1',
+                                remixOriginalName: 'Default',
+                                archived: 'false',
+                                operation: 'create',
+                                editSourcePath: '',
+                                editSourceName: '',
+                                editSourceVersion: '',
+                                editSourceCategory: '',
+                                editSourceFileName: ''
+                            }
+                        }
+                    );
+                } catch(error) {
+                    invalidRemixCode = error && error.code || '';
+                }
+                return JSON.stringify({duplicateCode, invalidRemixCode});
+            })()`);
+            assert.deepStrictEqual(ruleEnforcement, {
+                duplicateCode: "storage/unauthorized",
+                invalidRemixCode: "storage/unauthorized"
+            });
+
+            const uploadedXml = await readRepositoryMap(editedUploadPath);
             assert.match(uploadedXml, /<Resource[^>]*name="Browser Upload"/);
+            assert.match(uploadedXml, /version="0\.2"/);
             assert.match(uploadedXml, /author="Browser Pilot"/);
             assert.match(uploadedXml, /category="maps"/);
             assert.match(uploadedXml, /<!DOCTYPE Resource SYSTEM "custom\/browser-map\.dtd">/);
             assert.match(uploadedXml, /<Axes number="8"\/>/);
+            const archivedXml = await readRepositoryMap(archivedUploadPath);
+            assert.match(archivedXml, /<Resource[^>]*name="Browser Upload"/);
+            assert.match(archivedXml, /version="0\.1"/);
+            const remixedXml = await readRepositoryMap(remixUploadPath);
+            assert.match(remixedXml, /<Resource[^>]*name="Default_r2"/);
+            assert.match(remixedXml, /Vectron remix provenance data:/);
         }
 
         await call("browsingContext.reload", {context, wait: "complete"});
@@ -441,6 +605,7 @@ ws.onopen = async () => {
                 editorStarted: window.vectron_started === true,
                 email: document.querySelector('.auth-session-plan [data-auth-email]').textContent,
                 mapName: document.getElementById('map_name').value,
+                mapNameLocked: document.getElementById('map_name').readOnly,
                 versionLocked: document.getElementById('map_version').readOnly,
                 remixProvenanceRestored: window.eventHandler_getExportMap().xml.includes('Original author: "Zwazi"')
             };
@@ -455,7 +620,8 @@ ws.onopen = async () => {
             unlocked: true,
             editorStarted: true,
             email: testEmail,
-            mapName: "Browser Draft",
+            mapName: "Default_r2",
+            mapNameLocked: true,
             versionLocked: true,
             remixProvenanceRestored: true,
             lockedAfterLogout: true
