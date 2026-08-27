@@ -47,11 +47,6 @@
     </head>
     <body class="noscroll auth-locked">
         <div id="auth-gate" role="dialog" aria-modal="true" aria-label="Vectron account access">
-            <div class="auth-backdrop" aria-hidden="true">
-                <span class="auth-orbit auth-orbit-one"></span>
-                <span class="auth-orbit auth-orbit-two"></span>
-                <span class="auth-horizon"></span>
-            </div>
             <main class="auth-card">
                 <header class="auth-card-header">
                     <span class="auth-brand-mark" aria-hidden="true"><span></span></span>
@@ -160,13 +155,6 @@
                     <span>Your maps stay in this browser until you export them.</span>
                 </footer>
             </main>
-        </div>
-
-        <div id="auth-account-controls" class="auth-session auth-session-plan auth-account-controls" hidden aria-label="Signed-in account and map actions">
-            <span class="auth-session-avatar" data-auth-avatar aria-hidden="true">V</span>
-            <span class="auth-session-copy"><strong data-auth-name>Vectron user</strong><small data-auth-email></small></span>
-            <button class="auth-upload-button" type="button" data-map-upload title="Upload map" aria-label="Upload map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Upload</span></button>
-            <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
         </div>
 
         <div class="info" style="display:none">
@@ -432,45 +420,53 @@
 
         </div>
         <div id="top-settings-bar">
-            <span class="tsb-field">
-                <label for="map_name" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="What should this map be called?">Name</label>
-                <input type="text" class="tsb-input" id="map_name" placeholder="Map name">
-            </span>
-            <span class="tsb-sep">|</span>
-            <span class="tsb-field">
-                <label for="map_author" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Who created this map?">Author</label>
-                <input type="text" class="tsb-input" id="map_author" placeholder="Signed-in author" readonly aria-readonly="true">
-            </span>
-            <span class="tsb-sep">|</span>
-            <span class="tsb-field">
-                <label for="map_category" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Uploads are stored in the maps category">Category</label>
-                <input type="text" class="tsb-input" id="map_category" value="maps" readonly aria-readonly="true">
-            </span>
-            <span class="tsb-sep">|</span>
-            <span class="tsb-field">
-                <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The current revision of the map. Clients and servers cache map files. Change this every time you update the map.">Revision</label>
-                <input type="text" class="tsb-input tsb-input-sm" id="map_version" placeholder="Version">
-            </span>
-            <span class="tsb-sep">|</span>
-            <span class="tsb-field">
-                <label for="map_dtd" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The DTD file this map is verified against. Don't change this unless you know what you're doing.">DTD</label>
-                <input type="text" class="tsb-input" id="map_dtd" placeholder="sty.dtd" default="sty.dtd" list="dtds">
-                <datalist id="dtds">
-                    <option value="sty.dtd"/>
-                    <option value="map-0.2.8.dtd"/>
-                    <option value="map-0.2.9.dtd"/>
-                    <option value="map-0.3.1-a.dtd"/>
-                    <option value="Anonymous/map-0.2.8.dtd"/>
-                    <option value="Loverboy/map-0.2.9_styctap_v1.5.dtd"/>
-                    <option value="aacockpit-0.1.dtd"/>
-                    <option value="wrtlprnft/map-0.2.8-0.1.dtd"/>
-                </datalist>
-            </span>
-            <span class="tsb-sep">|</span>
-            <span class="tsb-field" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Map axes control turning directions. Check the box to force axes in the map file.">
-                <label for="map_axes_forced"><input class="form-check-input" id="map_axes_forced" type="checkbox" /> Axes</label>
-                <input type="number" class="tsb-input tsb-input-sm" id="map_axes" name="map_axes" min="2" max="360" value="4" />
-            </span>
+            <div class="top-settings-fields">
+                <span class="tsb-field">
+                    <label for="map_name" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="What should this map be called?">Name</label>
+                    <input type="text" class="tsb-input" id="map_name" placeholder="Map name">
+                </span>
+                <span class="tsb-sep">|</span>
+                <span class="tsb-field">
+                    <label for="map_author" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Who created this map?">Author</label>
+                    <input type="text" class="tsb-input" id="map_author" placeholder="Signed-in author" readonly aria-readonly="true">
+                </span>
+                <span class="tsb-sep">|</span>
+                <span class="tsb-field">
+                    <label for="map_category" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Uploads are stored in the maps category">Category</label>
+                    <input type="text" class="tsb-input" id="map_category" value="maps" readonly aria-readonly="true">
+                </span>
+                <span class="tsb-sep">|</span>
+                <span class="tsb-field">
+                    <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The current revision of the map. Clients and servers cache map files. Change this every time you update the map.">Revision</label>
+                    <input type="text" class="tsb-input tsb-input-sm" id="map_version" placeholder="Version">
+                </span>
+                <span class="tsb-sep">|</span>
+                <span class="tsb-field">
+                    <label for="map_dtd" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The DTD file this map is verified against. Don't change this unless you know what you're doing.">DTD</label>
+                    <input type="text" class="tsb-input" id="map_dtd" placeholder="sty.dtd" default="sty.dtd" list="dtds">
+                    <datalist id="dtds">
+                        <option value="sty.dtd"/>
+                        <option value="map-0.2.8.dtd"/>
+                        <option value="map-0.2.9.dtd"/>
+                        <option value="map-0.3.1-a.dtd"/>
+                        <option value="Anonymous/map-0.2.8.dtd"/>
+                        <option value="Loverboy/map-0.2.9_styctap_v1.5.dtd"/>
+                        <option value="aacockpit-0.1.dtd"/>
+                        <option value="wrtlprnft/map-0.2.8-0.1.dtd"/>
+                    </datalist>
+                </span>
+                <span class="tsb-sep">|</span>
+                <span class="tsb-field" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Map axes control turning directions. Check the box to force axes in the map file.">
+                    <label for="map_axes_forced"><input class="form-check-input" id="map_axes_forced" type="checkbox" /> Axes</label>
+                    <input type="number" class="tsb-input tsb-input-sm" id="map_axes" name="map_axes" min="2" max="360" value="4" />
+                </span>
+            </div>
+            <div id="auth-account-controls" class="auth-session auth-session-plan auth-account-controls" hidden aria-label="Signed-in account and map actions">
+                <span class="auth-session-avatar" data-auth-avatar aria-hidden="true">V</span>
+                <span class="auth-session-copy"><strong data-auth-name>Vectron user</strong><small data-auth-email></small></span>
+                <button class="auth-upload-button" type="button" data-map-upload title="Upload map" aria-label="Upload map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Upload</span></button>
+                <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
+            </div>
         </div>
         <div id="canvas_container"></div>
         <!-- Wall Tool Popover Window  -->
