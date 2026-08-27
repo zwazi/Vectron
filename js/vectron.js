@@ -29,6 +29,7 @@ var vectron_width;
 var vectron_height;
 
 var vectron_screen;
+var vectron_started = false;
 
 var vectron_tools = ["select", "navigation", "wall", "zone", "spawn", "split", "join", "wallVertexMove"];
 var vectron_currentTool = "";
@@ -409,10 +410,14 @@ function vectron_connectTool(toolName) {
     return false;
 }
 
-window.onload = function() {
+function vectron_start() {
+    if(vectron_started) return;
+    vectron_started = true;
     vectron_init();
     console.log(vectron_width);
 }
+
+window.vectron_start = vectron_start;
 
 async function vectron_saveTextAsFile(xml, filename)
 {
