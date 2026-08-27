@@ -23,7 +23,9 @@ each object, prevent one account from overwriting another account's objects,
 accept only XML map files under 10 MiB, and require authentication for reads.
 Admins may edit a map in another author's directory. The editor locks that
 author and map name, bumps the version, archives the previous live revision,
-and preserves its owner UID on both the archive and replacement.
+and preserves its owner UID on both the archive and replacement. Admins also
+retain a separate Remix action, which follows the normal provenance workflow
+and uploads the result under the Admin's own author directory.
 
 The checked-in `.firebaserc` and `firebase.json` keep the email/password
 provider configuration reproducible. Deploy authentication configuration with:

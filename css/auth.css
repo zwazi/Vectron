@@ -936,6 +936,13 @@ body.auth-locked {
   white-space: nowrap;
 }
 
+.repository-map-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .repository-map-copy strong {
   color: #e9e9ed;
   font-size: 10px;
@@ -968,6 +975,19 @@ body.auth-locked {
   color: #fff;
   background: rgba(85, 244, 220, 0.1);
   outline: none;
+}
+
+.repository-remix-button[data-repository-action="edit"] {
+  border-color: rgba(154, 124, 255, 0.38);
+  color: #c8b9ff;
+  background: rgba(154, 124, 255, 0.06);
+}
+
+.repository-remix-button[data-repository-action="edit"]:hover,
+.repository-remix-button[data-repository-action="edit"]:focus-visible {
+  border-color: rgba(154, 124, 255, 0.64);
+  color: #fff;
+  background: rgba(154, 124, 255, 0.13);
 }
 
 .repository-remix-button:disabled,
