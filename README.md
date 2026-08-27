@@ -4,6 +4,28 @@ A map editor for Armagetron Advanced.
 
 Originally created by Carlo Veneziano and re-written by Tristan Whitcher.
 
+### Accounts and access
+
+Vectron uses Firebase Authentication in the `tronnerrepository` project. The
+editor does not initialize until Firebase confirms a signed-in user, and the
+workspace becomes inert again after sign-out. The account screen supports
+email/password sign-in, account creation, persistent sessions, password reset,
+and password visibility controls.
+
+The checked-in `.firebaserc` and `firebase.json` keep the email/password
+provider configuration reproducible. Deploy authentication configuration with:
+
+```sh
+firebase deploy --only auth
+```
+
+The Firebase web configuration in `js/auth.js` identifies the public browser
+client and is safe to ship. Administrator credentials and service-account keys
+must never be added to this repository. The sign-in curtain controls access to
+the editor UI, but static source files remain publicly downloadable wherever
+the site is hosted. Any future shared map storage must separately require
+`request.auth != null` in its Firebase Security Rules.
+
 
 ### Features legend:
 
@@ -67,4 +89,16 @@ map turns it off.
 
 ```
 node tests/vectron-symmetry.test.js
+node tests/vectron-auth.test.js
+```
+
+The authentication browser smoke test creates a random disposable account in
+the real Firebase project, verifies account creation, login, logout, session
+persistence, and editor locking, then deletes the account. With Vectron served
+locally and Firefox running with WebDriver BiDi enabled:
+
+```sh
+VECTRON_BIDI_URL=ws://127.0.0.1:9223/session \
+VECTRON_TEST_URL=http://127.0.0.1:8000/ \
+node tests/vectron-auth-browser-smoke.js
 ```
