@@ -281,7 +281,6 @@ function _aamap_removeObj(aamapObject) {
     if (idx >= 0) aamap_objects.splice(idx, 1);
     if (aamapObject.obj) aamapObject.obj.remove();
     if (aamapObject.glowObj) { aamapObject.glowObj.remove(); aamapObject.glowObj = null; }
-    if (aamapObject.destinationObj) { aamapObject.destinationObj.remove(); aamapObject.destinationObj = null; }
 }
 
 function aamap_add(aamapObject) {
