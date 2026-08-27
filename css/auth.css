@@ -547,6 +547,29 @@ body.auth-locked {
   font-size: 8px;
 }
 
+.auth-role-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  padding: 1px 4px;
+  border: 1px solid rgba(85, 244, 220, 0.28);
+  border-radius: 999px;
+  color: var(--auth-cyan);
+  background: rgba(85, 244, 220, 0.08);
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.auth-role-badge[data-role="admin"] {
+  border-color: rgba(154, 124, 255, 0.44);
+  color: #c8b9ff;
+  background: rgba(154, 124, 255, 0.12);
+}
+
 .auth-signout-button {
   height: 25px;
   display: inline-flex;

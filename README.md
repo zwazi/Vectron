@@ -12,13 +12,18 @@ workspace becomes inert again after sign-out. The account screen supports
 email/password sign-in, account creation, persistent sessions, password reset,
 and password visibility controls. Every account has a required author name.
 Vectron locks the map Author field to that profile name and the Category field
-to `maps`.
+to `maps`. Accounts default to the `User` level. An `Admin` level is granted
+only through Firebase custom claims (`role: "admin"` and `admin: true`) and is
+shown beside the signed-in account.
 
 The cloud-upload toolbar button stores the current `.aamap.xml` file at
 `<author name>/maps/<map file>` in Cloud Storage. Storage Rules require the
 signed-in token name to match the author directory, attach the account UID to
 each object, prevent one account from overwriting another account's objects,
 accept only XML map files under 10 MiB, and require authentication for reads.
+Admins may edit a map in another author's directory. The editor locks that
+author and map name, bumps the version, archives the previous live revision,
+and preserves its owner UID on both the archive and replacement.
 
 The checked-in `.firebaserc` and `firebase.json` keep the email/password
 provider configuration reproducible. Deploy authentication configuration with:
@@ -103,6 +108,8 @@ map turns it off.
 ```
 node tests/vectron-symmetry.test.js
 node tests/vectron-auth.test.js
+node tests/vectron-local-draft.test.js
+node tests/vectron-map-format.test.js
 ```
 
 The authentication browser smoke test creates a random disposable account in
@@ -112,6 +119,16 @@ then deletes the uploaded map and account. With Vectron served locally and
 Firefox running with WebDriver BiDi enabled:
 
 ```sh
+VECTRON_BIDI_URL=ws://127.0.0.1:9223/session \
+VECTRON_TEST_URL=http://127.0.0.1:8000/ \
+node tests/vectron-auth-browser-smoke.js
+```
+
+Supplying a Firebase-management OAuth token also exercises promotion to Admin
+and a disposable cross-author edit:
+
+```sh
+VECTRON_ADMIN_OAUTH_TOKEN=... \
 VECTRON_BIDI_URL=ws://127.0.0.1:9223/session \
 VECTRON_TEST_URL=http://127.0.0.1:8000/ \
 node tests/vectron-auth-browser-smoke.js

@@ -19,8 +19,13 @@ const editedUploadPath = "Browser Pilot/maps/Browser Upload-0.2.aamap.xml";
 const archivedUploadPath = "Browser Pilot/maps/archive/Browser Upload-0.1.aamap.xml";
 const remixUploadPath = "Browser Pilot/maps/Default_r2-1.aamap.xml";
 const invalidRemixPath = "Browser Pilot/maps/Default_wrong-1.aamap.xml";
-const cleanupPaths = [uploadPath, editedUploadPath, archivedUploadPath, remixUploadPath, invalidRemixPath];
+const adminSourcePath = "Admin Target/maps/Admin Fix-0.1.aamap.xml";
+const adminEditedPath = "Admin Target/maps/Admin Fix-0.2.aamap.xml";
+const adminArchivePath = "Admin Target/maps/archive/Admin Fix-0.1.aamap.xml";
+const cleanupPaths = [uploadPath, editedUploadPath, archivedUploadPath, remixUploadPath, invalidRemixPath,
+    adminSourcePath, adminEditedPath, adminArchivePath];
 const storageBucket = "tronnerrepository.firebasestorage.app";
+const adminOAuthToken = process.env.VECTRON_ADMIN_OAUTH_TOKEN || "";
 
 const ws = new WebSocket(bidiUrl);
 const pending = new Map();
@@ -94,6 +99,25 @@ async function readRepositoryMap(fullPath) {
     );
     if(!response.ok) throw new Error(`Could not read uploaded map (${response.status}).`);
     return response.text();
+}
+
+async function promoteTestAccountToAdmin() {
+    if(!adminOAuthToken) return false;
+    const account = await signInTestAccount();
+    if(!account) throw new Error("Could not sign in to promote the disposable account.");
+    const response = await fetch(
+        "https://identitytoolkit.googleapis.com/v1/projects/tronnerrepository/accounts:update",
+        {
+            method: "POST",
+            headers: {authorization: `Bearer ${adminOAuthToken}`, "content-type": "application/json"},
+            body: JSON.stringify({
+                localId: account.localId,
+                customAttributes: JSON.stringify({role: "admin", admin: true})
+            })
+        }
+    );
+    if(!response.ok) throw new Error(`Could not promote disposable account (${response.status}).`);
+    return true;
 }
 
 async function deleteTestData() {
@@ -219,6 +243,7 @@ ws.onopen = async () => {
                 sessionVisible: !document.querySelector('.auth-session-plan').hidden,
                 displayName: document.querySelector('.auth-session-plan [data-auth-name]').textContent,
                 email: document.querySelector('.auth-session-plan [data-auth-email]').textContent,
+                role: document.querySelector('.auth-session-plan [data-auth-role]').textContent,
                 canvasStarted: document.getElementById('canvas_container').childElementCount > 0,
                 author: document.getElementById('map_author').value,
                 authorLocked: document.getElementById('map_author').readOnly,
@@ -248,10 +273,25 @@ ws.onopen = async () => {
             if(testUpload) {
                 document.getElementById('map_name').value = 'Browser Upload';
                 document.querySelector('[data-map-upload]').click();
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    return toast && toast.textContent === 'Uploaded to Browser Pilot/maps/Browser Upload-0.1.aamap.xml';
-                }, 'Map did not upload to the locked author/maps path', 30000);
+                try {
+                    await waitFor(function() {
+                        const toast = document.getElementById('vt-toast');
+                        return toast && toast.textContent === 'Uploaded to Browser Pilot/maps/Browser Upload-0.1.aamap.xml';
+                    }, 'Map did not upload to the locked author/maps path', 30000);
+                } catch(error) {
+                    const [appSdk, authSdk] = await Promise.all([
+                        import('https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js'),
+                        import('https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js')
+                    ]);
+                    const token = await authSdk.getIdTokenResult(authSdk.getAuth(appSdk.getApp()).currentUser);
+                    throw new Error('Map did not upload: ' + JSON.stringify({
+                        toast: document.getElementById('vt-toast').textContent,
+                        uiRole: window.vectron_userRole,
+                        tokenName: token.claims.name || '',
+                        tokenRole: token.claims.role || '',
+                        tokenAdmin: token.claims.admin === true
+                    }));
+                }
                 result.uploadPath = document.getElementById('vt-toast').textContent.replace('Uploaded to ', '');
                 document.querySelector('[data-map-upload]').click();
                 await waitFor(function() {
@@ -452,6 +492,7 @@ ws.onopen = async () => {
             sessionVisible: true,
             displayName: "Browser Pilot",
             email: testEmail,
+            role: "User",
             canvasStarted: true,
             author: "Browser Pilot",
             authorLocked: true,
@@ -551,6 +592,8 @@ ws.onopen = async () => {
                             contentType: 'application/xml; charset=UTF-8',
                             customMetadata: {
                                 ownerUid: user.uid,
+                                editorUid: user.uid,
+                                editorRole: 'user',
                                 author: 'Browser Pilot',
                                 category: 'maps',
                                 mapName: 'Default_wrong',
@@ -626,6 +669,159 @@ ws.onopen = async () => {
             remixProvenanceRestored: true,
             lockedAfterLogout: true
         });
+
+        if(await promoteTestAccountToAdmin()) {
+            const adminPass = await evaluateJson(context, `(async function() {
+                const email = ${JSON.stringify(testEmail)};
+                const password = ${JSON.stringify(testPassword)};
+                function waitFor(check, message, timeout) {
+                    return new Promise(function(resolve, reject) {
+                        const started = Date.now();
+                        (function poll() {
+                            let value = false;
+                            try { value = check(); } catch(error) {}
+                            if(value) return resolve(value);
+                            if(Date.now() - started > (timeout || 30000)) return reject(new Error(message));
+                            setTimeout(poll, 80);
+                        })();
+                    });
+                }
+                document.getElementById('auth-login-tab').click();
+                document.getElementById('auth-email').value = email;
+                document.getElementById('auth-password').value = password;
+                document.getElementById('auth-form').requestSubmit();
+                await waitFor(function() {
+                    return !document.body.classList.contains('auth-locked') &&
+                        document.querySelector('[data-auth-role]').textContent === 'Admin';
+                }, 'Promoted account did not receive its Admin level');
+
+                const [appSdk, authSdk, storageSdk] = await Promise.all([
+                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js'),
+                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js'),
+                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-storage.js')
+                ]);
+                const app = appSdk.getApp();
+                const activeAuth = authSdk.getAuth(app);
+                const activeStorage = storageSdk.getStorage(app);
+                const user = activeAuth.currentUser;
+                const disposablePaths = [
+                    ${JSON.stringify(adminSourcePath)},
+                    ${JSON.stringify(adminEditedPath)},
+                    ${JSON.stringify(adminArchivePath)}
+                ];
+                for(const path of disposablePaths) {
+                    try { await storageSdk.deleteObject(storageSdk.ref(activeStorage, path)); }
+                    catch(error) { if(!error || error.code !== 'storage/object-not-found') throw error; }
+                }
+                await storageSdk.uploadString(
+                    storageSdk.ref(activeStorage, ${JSON.stringify(adminSourcePath)}),
+                    '<Resource type="aamap" name="Admin Fix" version="0.1" author="Admin Target" category="maps"><Map version="2"><World><Field><Axes number="4"/></Field></World></Map></Resource>',
+                    'raw', {
+                        contentType: 'application/xml; charset=UTF-8',
+                        customMetadata: {
+                            ownerUid: '',
+                            editorUid: user.uid,
+                            editorRole: 'admin',
+                            author: 'Admin Target',
+                            category: 'maps',
+                            mapName: 'Admin Fix',
+                            mapVersion: '0.1',
+                            isRemix: 'false',
+                            remixDepth: '0',
+                            remixOriginalName: '',
+                            archived: 'false',
+                            operation: 'create',
+                            editSourcePath: '',
+                            editSourceName: '',
+                            editSourceVersion: '',
+                            editSourceCategory: '',
+                            editSourceFileName: ''
+                        }
+                    }
+                );
+
+                document.querySelector('[data-map-repository]').click();
+                document.getElementById('map-repository-refresh').click();
+                document.getElementById('map-repository-others-tab').click();
+                await waitFor(function() {
+                    return document.querySelector('[data-repository-open=${JSON.stringify(adminSourcePath)}]');
+                }, 'Admin target map was not listed');
+                const editButton = document.querySelector('[data-repository-open=${JSON.stringify(adminSourcePath)}]');
+                const buttonLabel = editButton.textContent.trim();
+                window.confirm = function() { return true; };
+                editButton.click();
+                await waitFor(function() {
+                    const toast = document.getElementById('vt-toast');
+                    return document.getElementById('map-repository-overlay').hidden &&
+                        toast && toast.textContent === 'Editing Admin Fix by Admin Target. Version bumped to 0.2.';
+                }, "Admin could not begin editing another author's map");
+                const editing = {
+                    buttonLabel,
+                    author: document.getElementById('map_author').value,
+                    authorLocked: document.getElementById('map_author').readOnly,
+                    name: document.getElementById('map_name').value,
+                    nameLocked: document.getElementById('map_name').readOnly,
+                    version: document.getElementById('map_version').value,
+                    versionLocked: document.getElementById('map_version').readOnly,
+                    uploadLabel: document.querySelector('[data-map-upload] span').textContent
+                };
+                document.getElementById('map_settings').value = 'CYCLE_SPEED 42';
+                document.getElementById('map_settings').dispatchEvent(new Event('input', {bubbles: true}));
+                document.querySelector('[data-map-upload]').click();
+                await waitFor(function() {
+                    const toast = document.getElementById('vt-toast');
+                    return toast && toast.textContent ===
+                        'Submitted Admin Target/maps/Admin Fix-0.2.aamap.xml; archived the previous version in Admin Target/maps/archive/Admin Fix-0.1.aamap.xml.';
+                }, 'Admin edit did not archive and replace the target map');
+
+                const liveMetadata = await storageSdk.getMetadata(
+                    storageSdk.ref(activeStorage, ${JSON.stringify(adminEditedPath)})
+                );
+                const archiveMetadata = await storageSdk.getMetadata(
+                    storageSdk.ref(activeStorage, ${JSON.stringify(adminArchivePath)})
+                );
+                const targetFolder = await storageSdk.listAll(storageSdk.ref(activeStorage, 'Admin Target/maps'));
+                const sourceDeleted = !targetFolder.items.some(function(item) {
+                    return item.fullPath === ${JSON.stringify(adminSourcePath)};
+                });
+                const result = {
+                    role: document.querySelector('[data-auth-role]').textContent,
+                    editing,
+                    sourceDeleted,
+                    liveOwnerPreserved: liveMetadata.customMetadata.ownerUid === '',
+                    liveEditorRecorded: liveMetadata.customMetadata.editorUid === user.uid &&
+                        liveMetadata.customMetadata.editorRole === 'admin',
+                    archiveOwnerPreserved: archiveMetadata.customMetadata.ownerUid === ''
+                };
+                document.querySelector('.auth-session-plan [data-auth-signout]').click();
+                await waitFor(function() { return document.body.classList.contains('auth-locked'); },
+                    'Admin sign out did not lock Vectron');
+                return JSON.stringify(result);
+            })()`);
+            assert.deepStrictEqual(adminPass, {
+                role: "Admin",
+                editing: {
+                    buttonLabel: "Edit",
+                    author: "Admin Target",
+                    authorLocked: true,
+                    name: "Admin Fix",
+                    nameLocked: true,
+                    version: "0.2",
+                    versionLocked: true,
+                    uploadLabel: "Submit edit"
+                },
+                sourceDeleted: true,
+                liveOwnerPreserved: true,
+                liveEditorRecorded: true,
+                archiveOwnerPreserved: true
+            });
+            const adminEditedXml = await readRepositoryMap(adminEditedPath);
+            const adminArchivedXml = await readRepositoryMap(adminArchivePath);
+            assert.match(adminEditedXml, /<Resource[^>]*name="Admin Fix"[^>]*version="0\.2"[^>]*author="Admin Target"/);
+            assert.match(adminEditedXml, /<Setting name="CYCLE_SPEED" value="42"\s*\/>/);
+            assert.match(adminArchivedXml, /<Resource[^>]*name="Admin Fix"[^>]*version="0\.1"[^>]*author="Admin Target"/);
+            console.log("Vectron Admin cross-author edit browser smoke test passed.");
+        }
 
         console.log(testUploadEnabled
             ? "Vectron Firebase account/upload/login/logout browser smoke test passed."

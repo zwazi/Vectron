@@ -24,19 +24,31 @@ service firebase.storage {
 
     function ownsStoredMap(author) {
       return request.auth != null
-        && request.auth.token.name is string
-        && request.auth.token.name == author
-        && resource.metadata.ownerUid == request.auth.uid;
+        && (isAdmin()
+          || (request.auth.token.name is string
+            && request.auth.token.name == author
+            && resource.metadata.ownerUid == request.auth.uid));
+    }
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.admin == true;
+    }
+
+    function canWriteForAuthor(author) {
+      return isAdmin()
+        || (request.auth.token.name is string
+          && request.auth.token.name == author);
     }
 
     function validMapPayload(author, category, fileName) {
       return request.auth != null
-        && request.auth.token.name is string
-        && request.auth.token.name == author
+        && canWriteForAuthor(author)
         && fileName.matches('.*\\.aamap\\.xml')
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('application/xml.*')
-        && request.resource.metadata.ownerUid == request.auth.uid
+        && request.resource.metadata.ownerUid is string
+        && (isAdmin() || request.resource.metadata.ownerUid == request.auth.uid)
         && request.resource.metadata.author == author
         && request.resource.metadata.category == category;
     }
@@ -86,9 +98,6 @@ service firebase.storage {
           && request.resource.metadata.editSourceCategory.matches('.+')
           && request.resource.metadata.editSourceFileName is string
           && request.resource.metadata.editSourceFileName.matches('.*\\.aamap\\.xml')
-          && request.resource.metadata.editSourceFileName ==
-            request.resource.metadata.editSourceName + '-'
-            + request.resource.metadata.editSourceVersion + '.aamap.xml'
           && request.resource.metadata.editSourceFileName != fileName
           && request.resource.metadata.editSourcePath == author + '/'
             + request.resource.metadata.editSourceCategory + '/'
