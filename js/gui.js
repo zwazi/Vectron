@@ -141,7 +141,6 @@ function gui_setupFloatingWindow(opts) {
 
 function gui_init() {
     gui_writeLog("Welcome to Vectron.")
-    zoneTool_setGameMode("armagetron");
     actionHistory_init();
     controlBox_initDrag();
     mapSettings_loadCSVs();
@@ -288,10 +287,6 @@ function gui_fillInput() {
     $("#map_dtd").val(xml_dtd);
 
     $("#map_axes").val(xml_axes);
-    $("#map_game_mode").val(xml_game_mode);
-    $("#map_axis_vectors").val(xml_axis_vectors.map(function(axis) {
-        return axis.xdir + "," + axis.ydir;
-    }).join("; "));
     $("#map_settings").val(xml_settings.join("\n"));
     mapSettings_renderList();
 }

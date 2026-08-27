@@ -500,21 +500,33 @@ function selectTool_complete() {
 
         selectTool_sets = [];
 
-        selectTool_selectedObjs.forEach(function(e) {
-            e.move(-dx, -dy);
-            e.render();
+        var movePlan = (finalDx !== 0 || finalDy !== 0) ?
+            aamap_symmetryMovePlan(movedObjs, finalDx, finalDy) :
+            {entries:movedObjs.map(function(object) {
+                return {object:object, dx:0, dy:0};
+            }), created:[]};
+        movePlan.entries.forEach(function(entry) {
+            entry.object.move(entry.dx, entry.dy);
+            entry.object.render();
         });
 
         // Record move action for undo/redo
         if (finalDx !== 0 || finalDy !== 0) {
+            aamap_compactSymmetryMovePlan(movePlan);
             aamap_recordAction({
                 label: "Move object(s)",
                 undo: function() {
-                    movedObjs.forEach(function(e) { e.move(-finalDx, -finalDy); e.render(); });
+                    movePlan.entries.forEach(function(entry) {
+                        entry.object.move(-entry.dx, -entry.dy);
+                    });
+                    aamap_restoreSymmetryMovePlanBefore(movePlan);
                     vectron_render();
                 },
                 redo: function() {
-                    movedObjs.forEach(function(e) { e.move(finalDx, finalDy); e.render(); });
+                    aamap_restoreSymmetryMovePlanAfter(movePlan);
+                    movePlan.entries.forEach(function(entry) {
+                        entry.object.move(entry.dx, entry.dy);
+                    });
                     vectron_render();
                 }
             });
@@ -554,12 +566,11 @@ function selectTool_complete() {
 }
 
 function selectTool_delete() {
-    var deletedObjs = selectTool_selectedObjs.slice();
+    var deletedObjs = aamap_symmetryExpandObjectGroups(selectTool_selectedObjs);
     // Mark as deselected and remove Raphael elements directly
     deletedObjs.forEach(function(e) {
         e.isSelected = false;
-        if (e.obj) e.obj.remove();
-        if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
+        aamap_removeObjectVisuals(e);
     });
     aamap_objects = aamap_objects.diff(deletedObjs);
     selectTool_selectedObjs = [];
@@ -586,10 +597,7 @@ function selectTool_delete() {
         },
         redo: function() {
             aamap_objects = aamap_objects.diff(deletedObjs);
-            deletedObjs.forEach(function(e) {
-                if (e.obj) e.obj.remove();
-                if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
-            });
+            deletedObjs.forEach(function(e) { aamap_removeObjectVisuals(e); });
             vectron_render();
         }
     });
@@ -751,6 +759,14 @@ function selectTool_paste()
             }
         }
 
+        // Pasting is an editor placement too. Build reflected copies only
+        // after the pasted originals have moved to the cursor so symmetry is
+        // evaluated around the world origin, not around their old clipboard
+        // coordinates.
+        if(aamap_symmetryEnabled()) {
+            aamap_addSymmetryCopiesForExistingBatch(aamap_objects.slice(objsBeforePaste));
+        }
+
         // select pasted elements
         selectTool_deselectAll();
         var pastedObjs = [];
@@ -766,14 +782,11 @@ function selectTool_paste()
             label: "Paste object(s)",
             undo: function() {
                 aamap_objects = aamap_objects.diff(pastedObjs);
-                pastedObjs.forEach(function(e) {
-                    if (e.obj) e.obj.remove();
-                    if (e.glowObj) { e.glowObj.remove(); e.glowObj = null; }
-                });
+                pastedObjs.forEach(function(e) { aamap_removeObjectVisuals(e); });
                 vectron_render();
             },
             redo: function() {
-                pastedObjs.forEach(function(e) { aamap_objects.push(e); });
+                aamap_restoreObjectGroup(pastedObjs);
                 vectron_render();
             }
         });
