@@ -1,4 +1,5 @@
-<html>
+<!doctype html>
+<html lang="en" class="auth-pending">
     <head>
         <meta charset="utf-8">
         <title>Vectron</title>
@@ -8,6 +9,7 @@
         <link href="./css/bootstrap.min.css" rel="stylesheet">
         <link href="./css/bootstrap-extra.css" rel="stylesheet">
         <link href="./css/vectron.css" rel="stylesheet">
+        <link href="./css/auth.css" rel="stylesheet">
         <link id="theme" rel="stylesheet">
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer">
         <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400,300,700,600" rel="stylesheet" type="text/css">
@@ -43,7 +45,97 @@
         </script>
 
     </head>
-    <body class="noscroll">
+    <body class="noscroll auth-locked">
+        <div id="auth-gate" role="dialog" aria-modal="true" aria-label="Vectron account access">
+            <div class="auth-backdrop" aria-hidden="true">
+                <span class="auth-orbit auth-orbit-one"></span>
+                <span class="auth-orbit auth-orbit-two"></span>
+                <span class="auth-horizon"></span>
+            </div>
+            <main class="auth-card">
+                <header class="auth-card-header">
+                    <span class="auth-brand-mark" aria-hidden="true"><span></span></span>
+                    <span class="auth-brand-copy"><strong>Vectron</strong><small>Map studio</small></span>
+                </header>
+
+                <div id="auth-loading" class="auth-loading" role="status" aria-live="polite">
+                    <span class="auth-loader" aria-hidden="true"></span>
+                    <span>Restoring your secure session…</span>
+                </div>
+
+                <section id="auth-panel" hidden>
+                    <div class="auth-heading">
+                        <span class="auth-eyebrow">Secure workspace</span>
+                        <h1 id="auth-title">Welcome back</h1>
+                        <p id="auth-subtitle">Sign in to open the Vectron editor.</p>
+                    </div>
+
+                    <div class="auth-tabs" role="tablist" aria-label="Account access">
+                        <button id="auth-login-tab" class="auth-tab active" type="button" role="tab" aria-selected="true" aria-controls="auth-form">Sign in</button>
+                        <button id="auth-signup-tab" class="auth-tab" type="button" role="tab" aria-selected="false" aria-controls="auth-form">Create account</button>
+                    </div>
+
+                    <form id="auth-form" novalidate>
+                        <div id="auth-name-field" class="auth-field" hidden>
+                            <label for="auth-name">Display name <span>Optional</span></label>
+                            <div class="auth-input-wrap">
+                                <i class="fa-regular fa-user" aria-hidden="true"></i>
+                                <input id="auth-name" name="name" type="text" autocomplete="name" maxlength="60" placeholder="Track builder">
+                            </div>
+                        </div>
+
+                        <div class="auth-field">
+                            <label for="auth-email">Email</label>
+                            <div class="auth-input-wrap">
+                                <i class="fa-regular fa-envelope" aria-hidden="true"></i>
+                                <input id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required>
+                            </div>
+                        </div>
+
+                        <div class="auth-field">
+                            <label for="auth-password">Password</label>
+                            <div class="auth-input-wrap">
+                                <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                                <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="4096" placeholder="At least 6 characters" required>
+                                <button class="auth-password-toggle" type="button" data-auth-password-toggle="auth-password" aria-label="Show password" aria-pressed="false"><i class="fa-regular fa-eye" aria-hidden="true"></i></button>
+                            </div>
+                        </div>
+
+                        <div id="auth-confirm-field" class="auth-field" hidden>
+                            <label for="auth-confirm-password">Confirm password</label>
+                            <div class="auth-input-wrap">
+                                <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                                <input id="auth-confirm-password" name="confirmPassword" type="password" autocomplete="new-password" minlength="6" maxlength="4096" placeholder="Repeat your password">
+                                <button class="auth-password-toggle" type="button" data-auth-password-toggle="auth-confirm-password" aria-label="Show password confirmation" aria-pressed="false"><i class="fa-regular fa-eye" aria-hidden="true"></i></button>
+                            </div>
+                        </div>
+
+                        <div id="auth-status" class="auth-status" role="status" aria-live="polite" hidden></div>
+
+                        <button id="auth-submit" class="auth-submit" type="submit">
+                            <span class="auth-submit-label">Open Vectron</span>
+                            <span class="auth-button-loader" aria-hidden="true"></span>
+                            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                        </button>
+                    </form>
+
+                    <button id="auth-forgot-password" class="auth-text-button" type="button">Forgot your password?</button>
+                </section>
+
+                <section id="auth-fatal" class="auth-fatal" hidden role="alert">
+                    <span class="auth-fatal-icon" aria-hidden="true"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                    <h1>Couldn’t reach account services</h1>
+                    <p id="auth-fatal-message">Check your connection and try again.</p>
+                    <button id="auth-retry" class="auth-submit" type="button">Try again</button>
+                </section>
+
+                <footer class="auth-card-footer">
+                    <i class="fa-solid fa-shield" aria-hidden="true"></i>
+                    <span>Your maps stay in this browser until you export them.</span>
+                </footer>
+            </main>
+        </div>
+
         <div class="info" style="display:none">
             <span class="info-section info-cursor-section"><b>cursor</b>&nbsp;<span class="var">x:&nbsp;<span id="cursor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="cursor-y">0</span></span></span>
             <span class="info-sep">|</span>
@@ -68,6 +160,12 @@
             </span>
             <span class="info-sep">|</span>
             <span class="info-section info-anchor-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Return to origin" aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
+            <span class="info-sep auth-session-separator" hidden>|</span>
+            <span class="auth-session auth-session-plan" hidden aria-label="Signed-in account">
+                <span class="auth-session-avatar" data-auth-avatar aria-hidden="true">V</span>
+                <span class="auth-session-copy"><strong data-auth-name>Vectron user</strong><small data-auth-email></small></span>
+                <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
+            </span>
         </div>
 
         <div id="control_box">
@@ -583,6 +681,8 @@
             <ul id="action-history-list"></ul>
         </div>
         <input type="file" id="toolbar-files" name="file" style="display:none;" />
+
+        <script type="module" src="./js/auth.js"></script>
 
     </body>
 </html>
