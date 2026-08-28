@@ -7,6 +7,7 @@ import {
     bumpMapVersion,
     categoryError,
     formatTimestamp,
+    mapFileCommand,
     normalizeAuthorName,
     normalizeCategory,
     normalizeMapVersion,
@@ -103,6 +104,10 @@ const confirmPopover = document.getElementById("auth-confirm-popover");
 const confirmMessage = document.getElementById("auth-confirm-message");
 const confirmCancelButton = document.getElementById("auth-confirm-cancel");
 const confirmAcceptButton = document.getElementById("auth-confirm-accept");
+const mapFileCommandOverlay = document.getElementById("map-file-command-overlay");
+const mapFileCommandValue = document.getElementById("map-file-command-value");
+const mapFileCommandCopy = document.getElementById("map-file-command-copy");
+const mapFileCommandClose = document.getElementById("map-file-command-close");
 
 let auth = null;
 let authSdk = null;
@@ -1870,7 +1875,10 @@ async function uploadReviewedRevision(submission, author, category) {
     const correctionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
     const correctedXml = rewriteResourceIdentity(xml, {author: author.name, category: finalCategory});
     const correctedSha256 = await sha256Hex(correctedXml);
-    const storagePath = revisionStoragePath(auth.currentUser.uid, correctionRef.id);
+    const storagePath = revisionStoragePath(
+        auth.currentUser.uid, correctionRef.id,
+        submission.mapName, submission.mapVersion
+    );
     await storageSdk.uploadString(storageSdk.ref(storage, storagePath), correctedXml, "raw", {
         contentType: "application/xml; charset=UTF-8",
         customMetadata: {
@@ -2221,7 +2229,9 @@ async function editPublishedMapMetadata(mapId) {
         });
         const sha256 = await sha256Hex(correctedXml);
         const submissionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
-        const storagePath = revisionStoragePath(auth.currentUser.uid, submissionRef.id);
+        const storagePath = revisionStoragePath(
+            auth.currentUser.uid, submissionRef.id, map.mapName, mapVersion
+        );
         await storageSdk.uploadString(storageSdk.ref(storage, storagePath), correctedXml, "raw", {
             contentType: "application/xml; charset=UTF-8",
             customMetadata: {
@@ -2440,7 +2450,9 @@ async function reopenReviewHistory(submissionId) {
         });
         const sha256 = await sha256Hex(reopenedXml);
         const revisionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
-        const storagePath = revisionStoragePath(auth.currentUser.uid, revisionRef.id);
+        const storagePath = revisionStoragePath(
+            auth.currentUser.uid, revisionRef.id, mapName, mapVersion
+        );
         await storageSdk.uploadString(storageSdk.ref(storage, storagePath), reopenedXml, "raw", {
             contentType: "application/xml; charset=UTF-8",
             customMetadata: {
@@ -2664,6 +2676,37 @@ function showEditorMessage(message) {
     }
 }
 
+function showMapFileCommand(mapName, mapVersion, storagePath) {
+    if(!mapFileCommandOverlay || !mapFileCommandValue) return "";
+    const command = mapFileCommand(
+        FIREBASE_CONFIG.storageBucket,
+        storagePath,
+        mapName,
+        mapVersion
+    );
+    mapFileCommandValue.value = command;
+    mapFileCommandOverlay.hidden = false;
+    mapFileCommandValue.focus();
+    mapFileCommandValue.select();
+    return command;
+}
+
+function closeMapFileCommand() {
+    if(mapFileCommandOverlay) mapFileCommandOverlay.hidden = true;
+}
+
+async function copyMapFileCommand() {
+    if(!mapFileCommandValue || !mapFileCommandValue.value) return;
+    try {
+        await navigator.clipboard.writeText(mapFileCommandValue.value);
+    } catch(error) {
+        mapFileCommandValue.focus();
+        mapFileCommandValue.select();
+        document.execCommand("copy");
+    }
+    showEditorMessage("MAP_FILE command copied.");
+}
+
 function friendlyUploadError(error) {
     const code = error && error.code ? error.code : "";
     const messages = {
@@ -2686,7 +2729,9 @@ async function savePendingReviewDraft(
         firestore, "mapSubmissions", editState.reviewSubmissionId
     );
     const revisionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
-    const objectPath = revisionStoragePath(user.uid, revisionRef.id);
+    const objectPath = revisionStoragePath(
+        user.uid, revisionRef.id, mapName, mapVersion
+    );
     const resourcePath = activeResourcePath(author, category, mapName, mapVersion);
     const resourceRef = firestoreSdk.doc(firestore, "resourcePaths", resourceKey(resourcePath));
     const serverOrigin = editState.reviewSourceOperation === "server-review" ||
@@ -2871,6 +2916,7 @@ async function savePendingReviewDraft(
         showEditorMessage(publish
             ? `${mapName} changes were saved, approved, and published.`
             : `${mapName} review changes were saved. Return to Vectron review to approve or deny them.`);
+        showMapFileCommand(mapName, mapVersion, objectPath);
     } finally {
         uploadBusy = false;
         if(uploadButton) {
@@ -2945,7 +2991,9 @@ async function uploadCurrentMap(options = {}) {
     const mapId = editState ? editState.mapId :
         firestoreSdk.doc(firestoreSdk.collection(firestore, "maps")).id;
     const operation = editState ? "edit" : "create";
-    const objectPath = revisionStoragePath(user.uid, submissionRef.id);
+    const objectPath = revisionStoragePath(
+        user.uid, submissionRef.id, mapName, mapVersion
+    );
 
     uploadBusy = true;
     if(uploadButton) {
@@ -2987,6 +3035,7 @@ async function uploadCurrentMap(options = {}) {
             window.vectron_localDraftSaveNow();
         }
         showEditorMessage(`${mapName} was submitted for admin review. You’ll be notified when it is approved or denied.`);
+        showMapFileCommand(mapName, mapVersion, objectPath);
     } catch(error) {
         console.error("Vectron map upload failed.", error);
         showEditorMessage(friendlyUploadError(error));
@@ -3384,6 +3433,16 @@ function bindUi() {
         reviewPublishButton.addEventListener("click", event => {
             event.preventDefault();
             uploadCurrentMap({publishReview: true});
+        });
+    }
+    if(mapFileCommandClose) mapFileCommandClose.addEventListener("click", closeMapFileCommand);
+    if(mapFileCommandCopy) mapFileCommandCopy.addEventListener("click", copyMapFileCommand);
+    if(mapFileCommandOverlay) {
+        mapFileCommandOverlay.addEventListener("mousedown", event => {
+            if(event.target === mapFileCommandOverlay) closeMapFileCommand();
+        });
+        mapFileCommandOverlay.addEventListener("keydown", event => {
+            if(event.key === "Escape") closeMapFileCommand();
         });
     }
     if(repositoryButton) {

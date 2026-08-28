@@ -70,8 +70,10 @@ function gui_applyClampedPosition(win, left, top) {
 
 function gui_applyWindowDefaultSize(win, entry) {
     if (!win || !entry) return;
-    if (entry.defaultWidth) win.style.width = entry.defaultWidth + "px";
-    if (entry.defaultHeight) win.style.height = entry.defaultHeight + "px";
+    if (entry.defaultWidth === "auto") win.style.removeProperty("width");
+    else if (entry.defaultWidth) win.style.width = entry.defaultWidth + "px";
+    if (entry.defaultHeight === "auto") win.style.removeProperty("height");
+    else if (entry.defaultHeight) win.style.height = entry.defaultHeight + "px";
 }
 
 function gui_resetFloatingWindowSize(win) {
@@ -144,8 +146,8 @@ function gui_init() {
     actionHistory_init();
     controlBox_initDrag();
     mapSettings_loadCSVs();
-    gui_setupFloatingWindow({ id: "wall-tool-window", headerId: "wall-tool-header", resetButtonId: "wall-tool-reset-size", order: 1, defaultWidth: 340, defaultHeight: 420 });
-    gui_setupFloatingWindow({ id: "zone-tool-window", headerId: "zone-tool-header", resetButtonId: "zone-tool-reset-size", order: 2, defaultWidth: 300, defaultHeight: 240 });
+    gui_setupFloatingWindow({ id: "wall-tool-window", headerId: "wall-tool-header", resetButtonId: "wall-tool-reset-size", order: 1, defaultWidth: 340, defaultHeight: "auto" });
+    gui_setupFloatingWindow({ id: "zone-tool-window", headerId: "zone-tool-header", resetButtonId: "zone-tool-reset-size", order: 2, defaultWidth: 300, defaultHeight: "auto" });
     gui_setupFloatingWindow({ id: "action-history-window", headerId: "action-history-header", resetButtonId: "action-history-reset-size", order: 3, defaultWidth: 220, defaultHeight: 240 });
     gui_refreshFloatingWindows();
     window.addEventListener("resize", gui_refreshFloatingWindows);

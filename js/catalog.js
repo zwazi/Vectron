@@ -75,8 +75,20 @@ export function mapFileName(mapName, version) {
     return `${safeMapName(mapName)}-${normalizeMapVersion(version)}.aamap.xml`;
 }
 
-export function revisionStoragePath(ownerUid, submissionId) {
-    return `_revisions/${ownerUid}/${submissionId}`;
+export function revisionStoragePath(ownerUid, submissionId, mapName = "", version = "") {
+    const base = `_revisions/${ownerUid}/${submissionId}`;
+    return mapName ? `${base}/${mapFileName(mapName, version)}` : base;
+}
+
+export function firebaseStorageMediaUrl(bucket, storagePath) {
+    return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}` +
+        `/o/${encodeURIComponent(storagePath)}?alt=media`;
+}
+
+export function mapFileCommand(bucket, storagePath, mapName, version) {
+    const fileName = mapFileName(mapName, version);
+    const locator = `${fileName}(${firebaseStorageMediaUrl(bucket, storagePath)})`;
+    return `MAP_FILE ${/\s/.test(locator) ? JSON.stringify(locator) : locator}`;
 }
 
 export function activeResourcePath(authorName, category, mapName, version) {

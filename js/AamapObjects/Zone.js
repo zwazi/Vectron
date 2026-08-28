@@ -71,6 +71,7 @@ function Zone(x, y, radius, growth, type, option) {
     this.growth = growth;
 
     this.type = type;
+    this.privatePerPlayer = false;
     
     var typeDefinition = zoneTool_typeArray[this.type] || zoneTool_typeArray[undefined];
     switch(typeDefinition[0])
@@ -116,11 +117,17 @@ function Zone(x, y, radius, growth, type, option) {
         if(this.glowObj != null) this.glowObj.remove();
         if(this.detailObj != null) this.detailObj.remove();
         
+        var zoneAttributes = {
+            "stroke":zoneTool_typeArray[this.type][1],
+            "fill":zoneTool_typeArray[this.type][1],
+            "fill-opacity":".05"
+        };
+        if(this.privatePerPlayer) {
+            zoneAttributes["stroke-dasharray"] = "--";
+            zoneAttributes["stroke-width"] = 2;
+        }
         this.obj = vectron_screen.circle(aamap_realX(this.x),
-            aamap_realY(this.y),
-            this.radius*vectron_zoom).attr(
-                {"stroke": zoneTool_typeArray[this.type][1], "fill": zoneTool_typeArray[this.type][1], "fill-opacity": ".05"}
-        );
+            aamap_realY(this.y), this.radius*vectron_zoom).attr(zoneAttributes);
         this.obj.data("id", this.objectID);
 
         this.detailObj = vectron_screen.set();

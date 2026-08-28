@@ -45,6 +45,10 @@ assert.strictEqual((indexSource.match(/id="dCheckpointOrder"/g) || []).length, 1
     "Vectron exposes one authoritative checkpoint ID field");
 assert.ok(!indexSource.includes('id="zone-selected-checkpoint-id"'),
     "Selected checkpoints do not get a second conflicting ID field");
+assert.ok(indexSource.includes('id="zone-private-per-player"'),
+    "Zone placement exposes the per-player control");
+assert.ok(indexSource.includes('id="zone-selected-private"'),
+    "Selected zones expose the per-player control");
 
 // The Armaracing format must not come back with the symmetry tooling.
 ["armaracing", "xml_game_mode", "map_game_mode", "ShapeRectangle", "ShapePolygon"]
@@ -113,7 +117,9 @@ const controls = {
     "#symmetry-check-toggle": {checked:false, value:""},
     "#dRubberVal": {value:"2"},
     "#dCheckpointOrder": {value:"1"},
-    "#dCheckpointMode": {value:"2"}
+    "#dCheckpointMode": {value:"2"},
+    "#zone-private-per-player": {checked:false, value:""},
+    "#zone-selected-private": {checked:false, value:""}
 };
 
 function jquery(selector) {
@@ -174,6 +180,8 @@ function reset() {
     controls["#symmetry-custom-y-value"].value = "0";
     controls["#symmetry-custom-point-x"].value = "0";
     controls["#symmetry-custom-point-y"].value = "0";
+    controls["#zone-private-per-player"].checked = false;
+    controls["#zone-selected-private"].checked = false;
 }
 
 function wall(points, height) {
@@ -249,11 +257,14 @@ assert.deepStrictEqual(
 assert.strictEqual(clonedSpawn.guideObj, null,
     "Clones never inherit the placement guide of a spawn under construction");
 
-const clonedZone = context.aamap_symmetryClone(new Zone(6, -2, 9, 1, 5, 3), mirrorX);
+const sourcePrivateZone = new Zone(6, -2, 9, 1, 5, 3);
+sourcePrivateZone.privatePerPlayer = true;
+const clonedZone = context.aamap_symmetryClone(sourcePrivateZone, mirrorX);
 assert.deepStrictEqual(
     [clonedZone.x, clonedZone.y, clonedZone.radius, clonedZone.growth,
-        clonedZone.type, clonedZone.option],
-    [-6, -2, 9, 1, 5, 3]);
+        clonedZone.type, clonedZone.option, clonedZone.privatePerPlayer],
+    [-6, -2, 9, 1, 5, 3, true],
+    "Per-player status survives symmetry cloning");
 
 const checkpoint = new Zone(4, 8, 6, 0, 5, {checkpointId:3, legacyTime:"42.5"});
 assert.match(checkpoint.getXML(), /<Checkpoint id="3" time="42\.5"\/>/,
@@ -317,6 +328,37 @@ assert.match(specialXml, /name="RACE_CHECKPOINT_REQUIRE_HIT" value="1"/,
     "Unordered checkpoint mode survives export");
 assert.match(specialXml, /<Checkpoint id="1" time="19"\/>/);
 assert.match(specialXml, /<Teleport destX="90" destY="25" dirX="0" dirY="0" modes="abs" reloc="0"\/>/);
+
+reset();
+const globalDeath = new Zone(0, 0, 4, 0, 0, 0);
+const privateWin = new Zone(10, 0, 5, 1, 1, 0);
+privateWin.privatePerPlayer = true;
+const privateRubber = new Zone(20, 0, 6, 0, 3, 2);
+privateRubber.privatePerPlayer = true;
+context.aamap_add(globalDeath);
+context.aamap_add(wall([[0, 0], [1, 1]]));
+context.aamap_add(privateWin);
+context.aamap_add(privateRubber);
+const privateXml = context.aamap_buildXml(
+    "PrivateZones", "Tester", "maps", "1", "sty.dtd", 4,
+    ["PLAYER_PRIVATE_ZONES_V1 99", "SIZE_FACTOR 2"]
+).xml;
+assert.match(privateXml, /DOCTYPE Resource SYSTEM "sty\.dtd"/,
+    "Per-player status alone does not require a custom DTD");
+assert.strictEqual((privateXml.match(/name="PLAYER_PRIVATE_ZONES_V1"/g) || []).length, 1,
+    "Export replaces stale private-zone metadata instead of duplicating it");
+assert.match(privateXml, /name="PLAYER_PRIVATE_ZONES_V1" value="2,3"/,
+    "Only zones count toward the one-based private-zone ordinals");
+assert.strictEqual((privateXml.match(/<Zone /g) || []).length, 3,
+    "Private zones remain ordinary zone XML for stock-server fallback");
+
+context.selectTool_selectedObjs = [globalDeath];
+assert.doesNotThrow(() => context.zoneTool_syncSelectedProperties(),
+    "Selecting an ordinary zone never reads teleport-only properties");
+controls["#zone-selected-private"].checked = true;
+context.zoneTool_applySelectedProperties();
+assert.strictEqual(globalDeath.privatePerPlayer, true,
+    "The selected-zone control applies to ordinary zone types");
 
 context.xml_settings = ["SIZE_FACTOR 2", "RACE_CHECKPOINT_REQUIRE_HIT 2"];
 context.zoneTool_setCheckpointMode("1");

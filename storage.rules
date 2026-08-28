@@ -47,20 +47,37 @@ service firebase.storage {
           || request.resource.metadata.authorId == account(ownerUid).data.authorId);
     }
 
-    function canReadRevision(ownerUid, submissionId) {
+    function canReadRevision(ownerUid, submissionId, expectedPath) {
       return isAdmin()
         || (signedIn() && request.auth.uid == ownerUid)
         || (firestore.exists(
             /databases/(default)/documents/mapSubmissions/$(submissionId)
           )
-          && submission(submissionId).data.status == 'approved'
-          && submission(submissionId).data.storagePath == '_revisions/'
-            + ownerUid + '/' + submissionId);
+          && submission(submissionId).data.storagePath == expectedPath);
     }
 
+    // Retain read support for immutable revisions uploaded before filenames
+    // became part of the storage path.
     match /_revisions/{ownerUid}/{submissionId} {
-      allow get: if canReadRevision(ownerUid, submissionId);
+      allow get: if canReadRevision(
+        ownerUid,
+        submissionId,
+        '_revisions/' + ownerUid + '/' + submissionId
+      );
       allow create: if validRevisionUpload(ownerUid, submissionId);
+      allow update: if false;
+      allow delete: if isAdmin();
+      allow list: if isAdmin();
+    }
+
+    match /_revisions/{ownerUid}/{submissionId}/{fileName} {
+      allow get: if canReadRevision(
+        ownerUid,
+        submissionId,
+        '_revisions/' + ownerUid + '/' + submissionId + '/' + fileName
+      );
+      allow create: if fileName.matches('.*\\.aamap\\.xml')
+        && validRevisionUpload(ownerUid, submissionId);
       allow update: if false;
       allow delete: if isAdmin();
       allow list: if isAdmin();

@@ -29,6 +29,12 @@ vm.runInContext(read("js/xml.js"), context, {filename: "js/xml.js"});
 vm.runInContext(read("js/aamap.js"), context, {filename: "js/aamap.js"});
 context.aamap_objects = [];
 
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(context.xml_parsePlayerPrivateZoneOrdinals("1, 3;5 8 invalid 0 -2 3.5"))),
+    {1:true, 3:true, 5:true, 8:true},
+    "Private-zone metadata accepts the supported separators and rejects invalid ordinals"
+);
+
 context.xml_appendRemixSource({
     map: "Original--Arena",
     author: "Zwazi",

@@ -5,6 +5,8 @@ import {
     authorNameError,
     bumpMapVersion,
     categoryError,
+    firebaseStorageMediaUrl,
+    mapFileCommand,
     normalizeCategory,
     normalizeMapVersion,
     resourceIdentityFromXml,
@@ -19,6 +21,24 @@ assert.equal(normalizeMapVersion("bad"), "v1");
 assert.equal(bumpMapVersion("v9"), "v10");
 assert.equal(bumpMapVersion("0.1"), "0.2");
 assert.equal(revisionStoragePath("uid", "submission"), "_revisions/uid/submission");
+assert.equal(
+    revisionStoragePath("uid", "submission", "Tree Fiddy", "v5"),
+    "_revisions/uid/submission/Tree Fiddy-v5.aamap.xml"
+);
+assert.equal(
+    firebaseStorageMediaUrl("maps.example", "_revisions/uid/id/Map-v1.aamap.xml"),
+    "https://firebasestorage.googleapis.com/v0/b/maps.example/o/" +
+        "_revisions%2Fuid%2Fid%2FMap-v1.aamap.xml?alt=media"
+);
+assert.equal(
+    mapFileCommand(
+        "maps.example", "_revisions/uid/id/Tree Fiddy-v5.aamap.xml",
+        "Tree Fiddy", "v5"
+    ),
+    "MAP_FILE \"Tree Fiddy-v5.aamap.xml(" +
+        "https://firebasestorage.googleapis.com/v0/b/maps.example/o/" +
+        "_revisions%2Fuid%2Fid%2FTree%20Fiddy-v5.aamap.xml?alt=media)\""
+);
 assert.equal(activeResourcePath("Zwazi", "maps", "Tree Fiddy", "v5"),
     "Zwazi/maps/Tree Fiddy-v5.aamap.xml");
 assert.equal(authorKey("  Zwazi  "), authorKey("zwazi"));
