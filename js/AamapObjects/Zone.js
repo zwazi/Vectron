@@ -98,7 +98,9 @@ function Zone(x, y, radius, growth, type, option) {
                 destY:zone_number(teleportData.destY, this.y),
                 dirX:zone_number(teleportData.dirX, 0),
                 dirY:zone_number(teleportData.dirY, 0),
-                reloc:zone_number(teleportData.reloc, 1)
+                // Absolute destinations are exact coordinates; exit
+                // compensation only has meaning for relative destinations.
+                reloc:mode === "abs" ? 0 : zone_number(teleportData.reloc, 1)
             };
             this.option = this.zoneData;
             break;
@@ -295,7 +297,7 @@ function Zone(x, y, radius, growth, type, option) {
                 '" dirX="' + zone_round(this.zoneData.dirX) +
                 '" dirY="' + zone_round(this.zoneData.dirY) +
                 '" modes="' + this.zoneData.mode +
-                '" reloc="' + zone_round(this.zoneData.reloc) + '"/>';
+                '" reloc="' + zone_round(this.zoneData.mode === "abs" ? 0 : this.zoneData.reloc) + '"/>';
         }
         return "";
     }

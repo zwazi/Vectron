@@ -325,7 +325,7 @@ function zoneTool_complete() {
             destY:mode === "abs" ? destination.y : destination.y - zoneTool_centerMapY,
             dirX:0,
             dirY:0,
-            reloc:1
+            reloc:mode === "abs" ? 0 : 1
         };
         zoneTool_stage = "direction";
         zoneTool_setStatus("Click from the destination toward its exit direction; click the destination again to preserve incoming direction.");
@@ -377,9 +377,18 @@ function zoneTool_syncSelectedProperties() {
         $("#zone-selected-dir-x").val(zoneTool_selectedZone.zoneData.dirX);
         $("#zone-selected-dir-y").val(zoneTool_selectedZone.zoneData.dirY);
         $("#zone-selected-reloc").val(zoneTool_selectedZone.zoneData.reloc);
+        zoneTool_syncTeleportCompensation();
     }
     $("#zone-tool-window").show();
     if(typeof gui_refreshFloatingWindows === "function") gui_refreshFloatingWindows();
+}
+
+function zoneTool_syncTeleportCompensation() {
+    var absolute = String($("#zone-selected-teleport-mode").val() || "abs") === "abs";
+    $("#zone-selected-reloc").prop("disabled", absolute);
+    if(absolute) $("#zone-selected-reloc").val("0");
+    $("#zone-selected-reloc-row").attr("title", absolute ?
+        "Absolute destinations always place the cycle at the exact destination point." : "");
 }
 
 function zoneTool_applySelectedProperties() {
@@ -397,13 +406,14 @@ function zoneTool_applySelectedProperties() {
         after = {checkpointId:checkpointId, legacyTime:before.legacyTime};
         zoneTool_setCheckpointMode($("#dCheckpointMode").val());
     } else if(kind === "teleport") {
+        var teleportMode = String($("#zone-selected-teleport-mode").val() || "abs");
         after = {
-            mode:String($("#zone-selected-teleport-mode").val() || "abs"),
+            mode:teleportMode,
             destX:Number($("#zone-selected-dest-x").val()),
             destY:Number($("#zone-selected-dest-y").val()),
             dirX:Number($("#zone-selected-dir-x").val()),
             dirY:Number($("#zone-selected-dir-y").val()),
-            reloc:Number($("#zone-selected-reloc").val())
+            reloc:teleportMode === "abs" ? 0 : Number($("#zone-selected-reloc").val())
         };
         if(Object.keys(after).some(function(key) { return key !== "mode" && !isFinite(after[key]); })) {
             gui_toast("Teleport coordinates, direction, and compensation must be numbers.");

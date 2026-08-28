@@ -1351,6 +1351,10 @@ function eventHandler_init() {
         zoneTool_setCheckpointMode(this.value);
     });
 
+    $("#zone-selected-teleport-mode").on("change", function() {
+        zoneTool_syncTeleportCompensation();
+    });
+
     $("#zone-selected-apply").on("click", function(e) {
         e.preventDefault();
         zoneTool_applySelectedProperties();
