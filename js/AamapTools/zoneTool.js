@@ -110,6 +110,14 @@ function zoneTool_setCheckpointMode(value) {
         }
     }
     xml_settings.push("RACE_CHECKPOINT_REQUIRE_HIT " + mode);
+    // Export reads the map-settings textarea. Keep it synchronized with the
+    // checkpoint selector so the visible whole-map choice is authoritative.
+    if(typeof mapSettings_syncTextarea === "function") mapSettings_syncTextarea();
+    if(typeof mapSettings_renderList === "function") mapSettings_renderList();
+    if(typeof window !== "undefined" &&
+       typeof window.vectron_localDraftScheduleSave === "function") {
+        window.vectron_localDraftScheduleSave();
+    }
     return mode;
 }
 
@@ -354,12 +362,14 @@ function zoneTool_syncSelectedProperties() {
     }
     $("#zone-selected-properties").show();
     $("#zone-selected-title").text(kind === "checkpoint" ? "Selected checkpoint" : "Selected teleport");
-    $("#zone-selected-checkpoint-row").toggle(kind === "checkpoint");
     $("#zone-selected-teleport-mode-row,#zone-selected-dest-x-row,#zone-selected-dest-y-row," +
         "#zone-selected-dir-x-row,#zone-selected-dir-y-row,#zone-selected-reloc-row," +
         "#zone-selected-direction-help").toggle(kind === "teleport");
     if(kind === "checkpoint") {
-        $("#zone-selected-checkpoint-id").val(zoneTool_selectedZone.zoneData.checkpointId);
+        // The placement field is also the selected checkpoint's editor. This
+        // avoids two independent ID controls that can silently disagree.
+        $("#dCheckpointOrder").val(zoneTool_selectedZone.zoneData.checkpointId);
+        $("#zone-checkpoint-setting,#zone-checkpoint-mode-setting").show();
     } else {
         $("#zone-selected-teleport-mode").val(zoneTool_selectedZone.zoneData.mode);
         $("#zone-selected-dest-x").val(zoneTool_selectedZone.zoneData.destX);
@@ -379,7 +389,7 @@ function zoneTool_applySelectedProperties() {
     var before = zone.copyZoneData();
     var after;
     if(kind === "checkpoint") {
-        var checkpointId = Number($("#zone-selected-checkpoint-id").val());
+        var checkpointId = Number($("#dCheckpointOrder").val());
         if(!isFinite(checkpointId) || checkpointId <= 0 || Math.floor(checkpointId) !== checkpointId) {
             gui_toast("Checkpoint ID must be a positive whole number.");
             return;

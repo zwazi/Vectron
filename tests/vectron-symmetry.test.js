@@ -41,6 +41,10 @@ assert.ok(darkCssSource.includes("#symmetry-menu {"),
     "vectron-dark.css restyles the symmetry menu for the dark theme");
 assert.ok(eventSource.includes("eventHandler_updateSymmetry"),
     "eventHandler.js wires the symmetry controls");
+assert.strictEqual((indexSource.match(/id="dCheckpointOrder"/g) || []).length, 1,
+    "Vectron exposes one authoritative checkpoint ID field");
+assert.ok(!indexSource.includes('id="zone-selected-checkpoint-id"'),
+    "Selected checkpoints do not get a second conflicting ID field");
 
 // The Armaracing format must not come back with the symmetry tooling.
 ["armaracing", "xml_game_mode", "map_game_mode", "ShapeRectangle", "ShapePolygon"]
@@ -313,6 +317,14 @@ assert.match(specialXml, /name="RACE_CHECKPOINT_REQUIRE_HIT" value="1"/,
     "Unordered checkpoint mode survives export");
 assert.match(specialXml, /<Checkpoint id="1" time="19"\/>/);
 assert.match(specialXml, /<Teleport destX="90" destY="25" dirX="0" dirY="0" modes="abs" reloc="1"\/>/);
+
+context.xml_settings = ["SIZE_FACTOR 2", "RACE_CHECKPOINT_REQUIRE_HIT 2"];
+context.zoneTool_setCheckpointMode("1");
+assert.deepStrictEqual(
+    Array.from(context.xml_settings),
+    ["SIZE_FACTOR 2", "RACE_CHECKPOINT_REQUIRE_HIT 1"],
+    "Changing the whole-map mode updates the settings used by export"
+);
 
 // ------------------------------------------------------------- placement ----
 
