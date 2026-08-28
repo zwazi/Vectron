@@ -27,6 +27,10 @@ active catalog pointer; it never overwrites an existing map object. Vectron
 always rewrites uploaded map resources and submission metadata to the
 `maps` category, including admin review edits and metadata revisions. Firebase
 rules enforce the same category at both the Storage and Firestore boundaries.
+An approved user can also see their denied submissions under **Maps → My maps**,
+including the review reason. Opening **Edit and resubmit** loads the exact denied
+revision, preserves whether it was a new map or an edit, and links the new review
+to the denied submission without changing the original review record.
 Admins may:
 
 - approve registrations or deny and permanently delete pending users, with a

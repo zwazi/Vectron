@@ -121,6 +121,7 @@ let profileUser = null;
 let uploadBusy = false;
 let repositoryBusy = false;
 let repositoryMaps = [];
+let repositorySubmissions = [];
 let repositoryTab = "mine";
 let repositoryPreviousFocus = null;
 let repositoryEditState = null;
@@ -443,11 +444,13 @@ function currentRemixIdentity() {
 
 function updateUploadButtonLabel() {
     const reviewing = Boolean(repositoryEditState && repositoryEditState.reviewSubmissionId);
+    const resubmitting = Boolean(repositoryEditState && repositoryEditState.deniedSubmissionId);
     if(uploadButton) {
         const label = uploadButton.querySelector("span");
         if(label) label.textContent = reviewing ? "Save review changes" :
-            repositoryEditState ? "Submit edit" : "Upload";
+            resubmitting ? "Resubmit" : repositoryEditState ? "Submit edit" : "Upload";
         uploadButton.title = reviewing ? "Save changes to this pending review" :
+            resubmitting ? "Resubmit edited map" :
             repositoryEditState ? "Submit edited map" : "Upload map";
         uploadButton.setAttribute("aria-label", uploadButton.title);
     }
@@ -469,6 +472,9 @@ function normalizeRepositoryEditState(value) {
     const sourceOwnerUid = String(value.sourceOwnerUid || "");
     const mapId = String(value.mapId || "");
     const sourceRevisionId = String(value.sourceRevisionId || "");
+    const sourceOperation = ["create", "edit", "metadata", "size"].includes(value.sourceOperation)
+        ? value.sourceOperation : "edit";
+    const deniedSubmissionId = String(value.deniedSubmissionId || "");
     const reviewSubmissionId = String(value.reviewSubmissionId || "");
     const reviewSourceOperation = String(value.reviewSourceOperation || "");
     const reviewDecisionReason = String(value.reviewDecisionReason || "").trim().slice(0, 1000);
@@ -479,6 +485,7 @@ function normalizeRepositoryEditState(value) {
     return {
         sourcePath, sourceName, sourceVersion, sourceCategory, targetAuthor,
         targetAuthorId, sourceOwnerUid, mapId, sourceRevisionId,
+        sourceOperation, deniedSubmissionId,
         reviewSubmissionId, reviewSourceOperation, reviewDecisionReason
     };
 }
@@ -842,6 +849,7 @@ function stopAccountListeners() {
     adminUnsubscribes.forEach(unsubscribe => unsubscribe());
     adminUnsubscribes = [];
     notifications = [];
+    repositorySubmissions = [];
     adminData = {accounts: [], submissions: [], maps: [], authors: [], history: []};
     updateNotificationBadge();
     updateAdminBadge();
@@ -2979,7 +2987,11 @@ async function uploadCurrentMap(options = {}) {
     const submissionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
     const mapId = editState ? editState.mapId :
         firestoreSdk.doc(firestoreSdk.collection(firestore, "maps")).id;
-    const operation = editState ? "edit" : "create";
+    const operation = editState ? editState.sourceOperation : "create";
+    const resubmissionOf = editState ? editState.deniedSubmissionId : "";
+    const submissionReason = resubmissionOf
+        ? "Edited and resubmitted after a denied review."
+        : "";
     const objectPath = revisionStoragePath(
         user.uid, submissionRef.id, mapName, mapVersion
     );
@@ -3012,8 +3024,10 @@ async function uploadCurrentMap(options = {}) {
             mapName,
             mapVersion,
             storagePath: objectPath,
-            sourceRevisionId: editState ? editState.sourceRevisionId : "",
-            sourceMapId: editState ? editState.mapId : "",
+            sourceRevisionId: editState && operation !== "create" ? editState.sourceRevisionId : "",
+            sourceMapId: editState && operation !== "create" ? editState.mapId : "",
+            resubmissionOf,
+            submissionReason,
             sha256,
             contentBytes: new TextEncoder().encode(map.xml).byteLength,
             createdAt: firestoreSdk.serverTimestamp(),
@@ -3023,7 +3037,7 @@ async function uploadCurrentMap(options = {}) {
         if(typeof window.vectron_localDraftSaveNow === "function") {
             window.vectron_localDraftSaveNow();
         }
-        showEditorMessage(`${mapName} was submitted for admin review. You’ll be notified when it is approved or denied.`);
+        showEditorMessage(`${mapName} was ${resubmissionOf ? "resubmitted" : "submitted"} for admin review. You’ll be notified when it is approved or denied.`);
         showMapFileCommand(mapName, mapVersion, objectPath);
     } catch(error) {
         console.error("Vectron map upload failed.", error);
@@ -3058,6 +3072,47 @@ function repositoryMapDetails(snapshot) {
         activeRevisionId: data.activeRevisionId || "",
         ownerUid: data.ownerUid || ""
     };
+}
+
+function repositoryDeniedSubmissionDetails(snapshot, resubmittedIds = new Set()) {
+    const data = snapshot.data();
+    const mapName = data.mapName || "Untitled map";
+    const mapVersion = normalizeMapVersion(data.mapVersion);
+    return {
+        id: `denied:${snapshot.id}`,
+        submissionId: snapshot.id,
+        mapId: data.mapId || "",
+        fullPath: data.storagePath || "",
+        storagePath: data.storagePath || "",
+        resourcePath: data.storagePath || "",
+        authorId: data.authorId || "",
+        author: data.authorName || "Unknown",
+        category: MAP_CATEGORY,
+        mapName,
+        mapVersion,
+        name: `${mapName} · ${mapVersion}`,
+        activeRevisionId: "",
+        sourceRevisionId: data.sourceRevisionId || "",
+        operation: data.operation || "create",
+        ownerUid: data.submittedBy || "",
+        denied: true,
+        resubmitted: resubmittedIds.has(snapshot.id),
+        denialReason: data.reviewReason || "No reason was provided.",
+        deniedAt: data.reviewedAt || data.updatedAt || data.createdAt || null
+    };
+}
+
+function repositoryDeniedMaps() {
+    const resubmittedIds = new Set(
+        repositorySubmissions.map(item => String(item.data().resubmissionOf || "")).filter(Boolean)
+    );
+    return repositorySubmissions
+        .filter(item => item.data().status === "denied")
+        .map(item => repositoryDeniedSubmissionDetails(item, resubmittedIds));
+}
+
+function repositoryItems() {
+    return [...repositoryMaps, ...repositoryDeniedMaps()];
 }
 
 async function downloadRepositoryMap(fullPath) {
@@ -3130,11 +3185,12 @@ function setRepositoryTab(nextTab, focusTab = false) {
         tab.tabIndex = selected ? 0 : -1;
         if(selected && focusTab) tab.focus();
     });
-    if(repositoryMaps.length) renderRepositoryMaps();
+    if(repositoryMaps.length || repositorySubmissions.length) renderRepositoryMaps();
 }
 
 function renderRepositoryMaps() {
-    const mine = repositoryMaps.filter(repositoryMapIsMine);
+    const items = repositoryItems();
+    const mine = items.filter(repositoryMapIsMine);
     const others = repositoryMaps.filter(map => !repositoryMapIsMine(map));
     repositoryMineCount.textContent = String(mine.length);
     repositoryOthersCount.textContent = String(others.length);
@@ -3142,7 +3198,7 @@ function renderRepositoryMaps() {
     const query = repositorySearchInput.value.trim().toLocaleLowerCase();
     const visibleMaps = tabMaps.filter(map => {
         if(!query) return true;
-        return `${map.name} ${map.author} ${map.category} ${map.resourcePath}`
+        return `${map.name} ${map.author} ${map.category} ${map.resourcePath} ${map.denialReason || ""}`
             .toLocaleLowerCase()
             .includes(query);
     });
@@ -3153,7 +3209,7 @@ function renderRepositoryMaps() {
     });
 
     repositoryList.replaceChildren();
-    repositorySummary.textContent = repositoryMaps.length
+    repositorySummary.textContent = items.length
         ? `Showing ${visibleMaps.length} of ${tabMaps.length} ${repositoryTab === "mine" ? "your" : "other"} ${tabMaps.length === 1 ? "map" : "maps"}${authors.size ? ` across ${authors.size} ${authors.size === 1 ? "author" : "authors"}` : ""}.`
         : "No repository maps loaded.";
 
@@ -3161,8 +3217,8 @@ function renderRepositoryMaps() {
         const empty = document.createElement("div");
         empty.className = "repository-empty";
         if(query && tabMaps.length) empty.textContent = "No maps match that search.";
-        else if(repositoryMaps.length && repositoryTab === "mine") empty.textContent = "You haven't uploaded any maps yet.";
-        else if(repositoryMaps.length) empty.textContent = "There aren't any maps from other authors yet.";
+        else if(items.length && repositoryTab === "mine") empty.textContent = "You haven't uploaded any maps yet.";
+        else if(items.length) empty.textContent = "There aren't any maps from other authors yet.";
         else empty.textContent = "The repository does not contain any maps yet.";
         repositoryList.appendChild(empty);
         return;
@@ -3209,32 +3265,44 @@ function renderRepositoryMaps() {
             maps.forEach(map => {
                 const row = document.createElement("div");
                 row.className = "repository-map-row";
+                if(map.denied) row.classList.add("repository-map-denied");
                 const copy = document.createElement("span");
                 copy.className = "repository-map-copy";
                 const name = document.createElement("strong");
                 name.textContent = map.name;
                 const path = document.createElement("small");
-                path.textContent = map.resourcePath;
+                if(map.denied) {
+                    const badge = document.createElement("span");
+                    badge.className = `repository-map-status${map.resubmitted ? " resubmitted" : " denied"}`;
+                    badge.textContent = map.resubmitted ? "Resubmitted" : "Denied";
+                    name.append(" ", badge);
+                    path.textContent = `${formatTimestamp(map.deniedAt)} · ${map.denialReason}`;
+                    path.title = map.denialReason;
+                } else {
+                    path.textContent = map.resourcePath;
+                }
                 copy.append(name, path);
 
                 const actions = document.createElement("span");
                 actions.className = "repository-map-actions";
                 const addAction = action => {
                     const button = document.createElement("button");
-                    const editing = action === "edit";
+                    const editing = action === "edit" || action === "edit-denied";
                     button.className = "repository-remix-button";
                     button.type = "button";
                     button.dataset.repositoryOpen = map.fullPath;
                     button.dataset.repositoryAction = action;
                     button.disabled = repositoryBusy;
                     button.innerHTML = editing
-                        ? '<i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span>'
+                        ? `<i class="fa-solid fa-pen" aria-hidden="true"></i><span>${action === "edit-denied" ? "Edit and resubmit" : "Edit"}</span>`
                         : '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
                     button.setAttribute("aria-label", `${editing ? "Edit" : "Remix"} ${map.name} by ${map.author}`);
                     actions.appendChild(button);
                 };
-                if(repositoryMapCanEdit(map)) addAction("edit");
-                if(!repositoryMapIsMine(map) || currentUserIsAdmin()) addAction("remix");
+                if(repositoryMapCanEdit(map) && !map.resubmitted) {
+                    addAction(map.denied ? "edit-denied" : "edit");
+                }
+                if(!map.denied && (!repositoryMapIsMine(map) || currentUserIsAdmin())) addAction("remix");
                 row.append(copy, actions);
                 mapList.appendChild(row);
             });
@@ -3250,13 +3318,23 @@ async function refreshRepositoryMaps() {
     setRepositoryBusy(true);
     setRepositoryStatus("Loading repository maps…");
     try {
-        const snapshot = await firestoreSdk.getDocs(firestoreSdk.query(
-            firestoreSdk.collection(firestore, "maps"),
-            firestoreSdk.where("status", "==", "active")
-        ));
+        const submissionsRequest = !guestMode && auth && auth.currentUser
+            ? firestoreSdk.getDocs(firestoreSdk.query(
+                firestoreSdk.collection(firestore, "mapSubmissions"),
+                firestoreSdk.where("submittedBy", "==", auth.currentUser.uid)
+            ))
+            : Promise.resolve({docs:[]});
+        const [snapshot, submissionSnapshot] = await Promise.all([
+            firestoreSdk.getDocs(firestoreSdk.query(
+                firestoreSdk.collection(firestore, "maps"),
+                firestoreSdk.where("status", "==", "active")
+            )),
+            submissionsRequest
+        ]);
         repositoryMaps = snapshot.docs.map(repositoryMapDetails)
             .sort((a, b) => a.author.localeCompare(b.author, undefined, {sensitivity: "base"}) ||
                 a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: "base"}));
+        repositorySubmissions = submissionSnapshot.docs;
         setRepositoryStatus("");
         shouldRender = true;
     } catch(error) {
@@ -3286,8 +3364,8 @@ function openRepository() {
     repositoryOverlay.hidden = false;
     repositoryButton.setAttribute("aria-expanded", "true");
     window.setTimeout(() => repositorySearchInput.focus(), 0);
-    if(repositoryMaps.length) renderRepositoryMaps();
-    else refreshRepositoryMaps();
+    if(repositoryMaps.length || repositorySubmissions.length) renderRepositoryMaps();
+    refreshRepositoryMaps();
 }
 
 function closeRepository() {
@@ -3301,14 +3379,17 @@ function closeRepository() {
 
 async function openRepositoryMap(fullPath, requestedAction) {
     if(repositoryBusy || !repositoryCanRead()) return;
-    const map = repositoryMaps.find(candidate => candidate.fullPath === fullPath);
+    const map = repositoryItems().find(candidate => candidate.fullPath === fullPath);
     if(!map) return;
-    const editing = requestedAction === "edit" && repositoryMapCanEdit(map);
+    const editing = ["edit", "edit-denied"].includes(requestedAction) &&
+        repositoryMapCanEdit(map) && !map.resubmitted;
     const remixing = requestedAction === "remix";
     if(!editing && !remixing) return;
-    const action = editing ? "Edit" : "Remix";
+    const deniedEdit = editing && map.denied;
+    const action = deniedEdit ? "Edit and resubmit" : editing ? "Edit" : "Remix";
     if(!await confirmAction(
-        `${action} ${map.name} by ${map.author}? This replaces your current local draft.`,
+        `${action} ${map.name} by ${map.author}? This replaces your current local draft.` +
+            (deniedEdit ? ` Denial reason: ${map.denialReason}` : ""),
         {confirmLabel:action}
     )) return;
 
@@ -3347,12 +3428,19 @@ async function openRepositoryMap(fullPath, requestedAction) {
                     targetAuthorId: map.authorId,
                     sourceOwnerUid,
                     mapId: map.mapId,
-                    sourceRevisionId: map.activeRevisionId
+                    sourceRevisionId: map.denied ? map.sourceRevisionId : map.activeRevisionId,
+                    sourceOperation: map.denied ? map.operation : "edit",
+                    deniedSubmissionId: map.denied ? map.submissionId : ""
                 });
-                const editName = setCurrentMapName(document.getElementById("map_name").value);
-                nextVersion = nextAvailableMapVersion(
-                    map.author, editName, sourceVersion, true
-                );
+                if(map.denied) {
+                    setCurrentMapName(sourceName);
+                    nextVersion = sourceVersion;
+                } else {
+                    const editName = setCurrentMapName(document.getElementById("map_name").value);
+                    nextVersion = nextAvailableMapVersion(
+                        map.author, editName, sourceVersion, true
+                    );
+                }
             } else {
                 clearRepositoryEditState();
                 if(typeof window.xml_appendRemixSource !== "function") {
@@ -3384,7 +3472,9 @@ async function openRepositoryMap(fullPath, requestedAction) {
         }
         setRepositoryStatus("");
         closeRepository();
-        showEditorMessage(editing
+        showEditorMessage(deniedEdit
+            ? `Editing denied submission for ${sourceName}. Fix the review issue and upload to resubmit it.`
+            : editing
             ? `Editing ${sourceName}${map.author === sessionAuthorName(auth.currentUser) ? "" : ` by ${map.author}`}. Version bumped to ${document.getElementById("map_version").value}.`
             : `Remixing ${map.name} by ${map.author} as ${document.getElementById("map_name").value}.`);
     } catch(error) {
