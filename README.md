@@ -23,7 +23,11 @@ Approved users submit maps as immutable objects under
 `_revisions/<uid>/<submission-id>/<map-version.aamap.xml>`. The corresponding
 Firestore submission is
 `pending` until an admin validates and approves it. Publishing changes only the
-active catalog pointer; it never overwrites an existing map object. Admins may:
+active catalog pointer; it never overwrites an existing map object. Vectron
+always rewrites uploaded map resources and submission metadata to the
+`maps` category, including admin review edits and metadata revisions. Firebase
+rules enforce the same category at both the Storage and Firestore boundaries.
+Admins may:
 
 - approve registrations or deny and permanently delete pending users, with a
   recorded audit reason;
@@ -33,7 +37,7 @@ active catalog pointer; it never overwrites an existing map object. Admins may:
 - open any pending submission in the full Vectron editor and save its changes
   as an immutable review draft on the same review item, or save, approve, and
   publish the edited revision in one step;
-- correct the final author or category before approval;
+- correct the final author before approval;
 - review each pending map in a two-column card with its submitted reason,
   metadata and vertically stacked actions beside an inline map preview, in a
   desktop review panel that can be dragged by its header and resized from its
