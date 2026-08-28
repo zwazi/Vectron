@@ -64,6 +64,7 @@ function Zone(x, y, radius, growth, type, option) {
     this.isSelected = false;
     this.glowObj = null;
     this.detailObj = null;
+    this.teleportDestinationObj = null;
 
     this.x = x;
     this.y = y;
@@ -116,6 +117,7 @@ function Zone(x, y, radius, growth, type, option) {
         if(this.obj != null) this.obj.remove();
         if(this.glowObj != null) this.glowObj.remove();
         if(this.detailObj != null) this.detailObj.remove();
+        this.teleportDestinationObj = null;
         
         var zoneAttributes = {
             "stroke":zoneTool_typeArray[this.type][1],
@@ -146,10 +148,11 @@ function Zone(x, y, radius, growth, type, option) {
                 "M", fromX, fromY, "L", toX, toY
             ]).attr({"stroke":zoneTool_typeArray[this.type][1], "stroke-width":1.5,
                 "stroke-dasharray":"--", "stroke-opacity":0.8, "arrow-end":"classic-wide-long"}));
-            this.detailObj.push(vectron_screen.circle(toX, toY, 5).attr({
+            this.teleportDestinationObj = vectron_screen.circle(toX, toY, 5).attr({
                 "stroke":zoneTool_typeArray[this.type][1], "stroke-width":2,
                 "fill":zoneTool_typeArray[this.type][1], "fill-opacity":0.2
-            }));
+            });
+            this.detailObj.push(this.teleportDestinationObj);
             var dirX = Number(this.zoneData.dirX), dirY = Number(this.zoneData.dirY);
             var dirLength = Math.sqrt(dirX * dirX + dirY * dirY);
             if(dirLength > 1e-9) {
@@ -262,12 +265,39 @@ function Zone(x, y, radius, growth, type, option) {
         }
     }
 
+    this.moveEntrance = function(dx, dy) {
+        var destination = this.teleportDestination();
+        this.move(dx, dy);
+        // Selecting and dragging a teleport entrance is deliberately different
+        // from translating the whole map: its destination remains independent.
+        this.setTeleportDestination(destination.x, destination.y);
+    }
+
     this.teleportDestination = function() {
         if(!this.zoneData) return {x:this.x, y:this.y};
         if(this.zoneData.mode === "abs") {
             return {x:this.zoneData.destX, y:this.zoneData.destY};
         }
         return {x:this.x + this.zoneData.destX, y:this.y + this.zoneData.destY};
+    }
+
+    this.setTeleportDestination = function(x, y) {
+        if((zoneTool_typeArray[this.type] || [])[0] !== "teleport" || !this.zoneData) return;
+        var destinationX = zone_round(x);
+        var destinationY = zone_round(y);
+        if(this.zoneData.mode === "abs") {
+            this.zoneData.destX = destinationX;
+            this.zoneData.destY = destinationY;
+        } else {
+            this.zoneData.destX = zone_round(destinationX - this.x);
+            this.zoneData.destY = zone_round(destinationY - this.y);
+        }
+        this.option = this.zoneData;
+    }
+
+    this.moveTeleportDestination = function(dx, dy) {
+        var destination = this.teleportDestination();
+        this.setTeleportDestination(destination.x + dx, destination.y + dy);
     }
 
     this.copyZoneData = function() {

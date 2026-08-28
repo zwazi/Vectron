@@ -20,6 +20,9 @@ const darkCss = read("css/vectron-dark.css");
 const vectronSource = read("js/vectron.js");
 const eventSource = read("js/eventHandler.js");
 const aamapSource = read("js/aamap.js");
+const selectSource = read("js/AamapTools/selectTool.js");
+const editSelectedSource = read("js/AamapTools/editSelectedTool.js");
+const zoneSource = read("js/AamapObjects/Zone.js");
 const xmlSource = read("js/xml.js");
 const localDraftSource = read("js/localDraft.js");
 const functionsSource = read("functions/index.js");
@@ -74,6 +77,9 @@ assert.match(index, /id="map_dtd"[^>]*role="combobox"[^>]*aria-controls="map-dtd
 assert.strictEqual((index.match(/data-dtd-value=/g) || []).length, 8);
 assert.match(index, /id="map-dtd-options"[^>]*role="listbox"/);
 assert.match(index, /src="\.\/js\/localDraft\.js"/);
+assert.match(index, /src="\.\/js\/AamapTools\/editSelectedTool\.js"/);
+assert.match(index, /id="edit-selected-window"/);
+assert.match(index, /id="contextMenu-edit-selected"/);
 assert.match(index, /<script type="module" src="\.\/js\/auth\.js"><\/script>/);
 
 assert.match(authSource, /projectId:\s*"tronnerrepository"/);
@@ -263,8 +269,17 @@ assert.match(authCss, /\.repository-author-heading\[aria-expanded="true"\]/);
 assert.match(vectronCss, /\.tsb-combobox-menu/);
 assert.match(vectronCss, /#wall-tool-window\s*\{[^}]*height:\s*fit-content/s);
 assert.match(vectronCss, /#zone-tool-window\s*\{[^}]*height:\s*fit-content/s);
+assert.match(vectronCss, /#edit-selected-window\s*\{[^}]*height:\s*fit-content/s);
 assert.match(read("js/gui.js"), /defaultHeight:\s*"auto"/);
 assert.match(darkCss, /\.tsb-combobox-menu/);
+assert.match(darkCss, /#edit-selected-window/);
+assert.match(editSelectedSource, /function editSelected_applyWalls\(/);
+assert.match(editSelectedSource, /function editSelected_applyZones\(/);
+assert.match(editSelectedSource, /function editSelected_applySpawns\(/);
+assert.match(selectSource, /function selectTool_findTeleportDestinationAt\(/);
+assert.match(selectSource, /label:"Move teleport destination"/);
+assert.match(zoneSource, /function\(x, y\)[\s\S]*this\.setTeleportDestination/);
+assert.match(eventSource, /if\(e\.which === 3 \|\| e\.button === 2\) return;/);
 
 assert.match(storageRules, /match \/_revisions\/\{ownerUid\}\/\{submissionId\}/);
 assert.match(storageRules, /match \/_revisions\/\{ownerUid\}\/\{submissionId\}\/\{fileName\}/);

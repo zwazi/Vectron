@@ -152,10 +152,19 @@ map turns it off.
 The Zone Tool supports native Sty+ct teleport and checkpoint zones. Teleport
 placement follows the spawn workflow: choose the entrance center, entrance
 radius, destination, and destination direction. Absolute destinations place the
-cycle exactly at the selected point and move with their entrance when the zone
-is dragged. Exit compensation is only applied to map-relative and
+cycle exactly at the selected point. After selecting a teleport, its destination
+marker can be dragged separately; dragging the entrance leaves the destination
+fixed. Exit compensation is only applied to map-relative and
 cycle-relative offsets. A zero direction preserves the cycle's incoming
 direction.
+
+### Editing selections
+
+The Select Tool opens an **Edit Selected** panel for single or box selections.
+Mixed selections are grouped into independent wall, zone, and spawn sections.
+The panel can apply one wall height, zone radius/growth/type/privacy setting, or
+spawn direction across each group in one undoable action. Teleport-only zone
+selections also expose destination coordinates and exit angle.
 
 Checkpoint IDs are edited per zone, while ordered or unordered behavior is one
 setting for the entire map. Vectron writes `RACE_CHECKPOINT_REQUIRE_HIT 2` for

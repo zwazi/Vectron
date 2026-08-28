@@ -848,7 +848,8 @@ body.noscroll {
 
 /* Wall Tool and Zone Tool floating windows */
 #wall-tool-window,
-#zone-tool-window {
+#zone-tool-window,
+#edit-selected-window {
   position: fixed;
   left: 66px;
   top: 46px;
@@ -875,9 +876,15 @@ body.noscroll {
   width: 300px;
   height: fit-content;
 }
+#edit-selected-window {
+  left: 380px;
+  width: 310px;
+  height: fit-content;
+}
 
 #wall-tool-header,
-#zone-tool-header {
+#zone-tool-header,
+#edit-selected-header {
   background: rgba(220,220,220,0.98);
   padding: 5px 10px;
   cursor: move;
@@ -886,6 +893,99 @@ body.noscroll {
   border-bottom: 1px solid #bbb;
   border-radius: 5px 5px 0 0;
   color: #222;
+}
+
+#edit-selected-body {
+  padding: 10px;
+}
+
+#edit-selected-summary {
+  margin-bottom: 8px;
+  color: #555;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+#edit-selected-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.edit-selected-group {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(90px, 0.85fr);
+  gap: 6px 9px;
+  padding: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.edit-selected-group > header,
+.edit-selected-group > button,
+.edit-selected-group > small,
+.edit-selected-subgroup {
+  grid-column: 1 / -1;
+}
+
+.edit-selected-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.edit-selected-group > header span {
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(55, 95, 252, 0.14);
+  color: #375ffc;
+  text-align: center;
+  font-size: 10px;
+}
+
+.edit-selected-group > label,
+.edit-selected-subgroup > label {
+  display: contents;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.edit-selected-group input,
+.edit-selected-group select {
+  width: 100%;
+  min-width: 0;
+  min-height: 27px;
+  box-sizing: border-box;
+}
+
+.edit-selected-group .edit-selected-checkbox input {
+  width: auto;
+  min-height: 0;
+  justify-self: start;
+}
+
+.edit-selected-group > small,
+.edit-selected-subgroup > small {
+  color: #666;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.edit-selected-subgroup {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(90px, 0.85fr);
+  gap: 6px 9px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.edit-selected-subgroup > strong,
+.edit-selected-subgroup > small {
+  grid-column: 1 / -1;
 }
 
 #wall-tool-body,

@@ -526,15 +526,17 @@ body {
 	box-shadow: none;
 }
 
-/* Wall tool and Zone tool floating window dark mode */
+/* Object editing floating windows dark mode */
 #wall-tool-window,
-#zone-tool-window {
+#zone-tool-window,
+#edit-selected-window {
     background: rgba(28,28,28,0.97);
     color: #eee;
     border-color: #555;
 }
 #wall-tool-header,
-#zone-tool-header {
+#zone-tool-header,
+#edit-selected-header {
     background: rgba(50,50,50,0.95);
     border-bottom-color: #444;
     color: #eee;
@@ -557,11 +559,28 @@ body {
 }
 #wall-tool-body input[type=number],
 #zone-tool-body input[type=number],
-#zone-tool-body select {
+#zone-tool-body select,
+#edit-selected-body input[type=number],
+#edit-selected-body select {
     background: rgba(255,255,255,0.08);
     color: #eee;
     border: 1px solid #555;
     border-radius: 2px;
+}
+
+#edit-selected-summary,
+.edit-selected-group > small,
+.edit-selected-subgroup > small {
+    color: #aaa;
+}
+
+.edit-selected-group {
+    border-color: #4a4a4a;
+    background: rgba(255,255,255,0.035);
+}
+
+.edit-selected-subgroup {
+    border-top-color: rgba(255,255,255,0.16);
 }
 
 #zone-tool-body .vt-zone-properties {
