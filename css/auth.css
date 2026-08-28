@@ -1326,7 +1326,7 @@ button.repository-author-heading:disabled {
 
 .map-review-card {
   display: grid;
-  grid-template-columns: minmax(230px, 0.8fr) minmax(320px, 1.2fr);
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr);
   gap: 14px;
 }
 
@@ -1462,10 +1462,6 @@ button.repository-author-heading:disabled {
 }
 
 @media (max-width: 720px) {
-  .map-review-card {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .map-review-preview,
   .map-review-preview-svg {
     min-height: 240px;
