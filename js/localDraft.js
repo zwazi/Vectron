@@ -1,6 +1,6 @@
 /*
  * Local, per-account draft persistence for Vectron.
- * Drafts never leave this browser and are keyed by the signed-in Firebase UID.
+ * Drafts never leave this browser and are keyed by Firebase UID or guest session.
  */
 
 var vectron_localDraftStoragePrefix = "vectron.localDraft.v1.";

@@ -19,11 +19,12 @@ const editedUploadPath = "Browser Pilot/maps/Browser Upload-0.2.aamap.xml";
 const archivedUploadPath = "Browser Pilot/maps/archive/Browser Upload-0.1.aamap.xml";
 const remixUploadPath = "Browser Pilot/maps/Default_r2-1.aamap.xml";
 const invalidRemixPath = "Browser Pilot/maps/Default_wrong-1.aamap.xml";
+const guestWriteProbePath = "Browser Pilot/maps/Guest Write Probe-1.aamap.xml";
 const adminSourcePath = "Admin Target/maps/Admin Fix-0.1.aamap.xml";
 const adminEditedPath = "Admin Target/maps/Admin Fix-0.2.aamap.xml";
 const adminArchivePath = "Admin Target/maps/archive/Admin Fix-0.1.aamap.xml";
 const adminRemixPath = "Browser Pilot/maps/Admin Fix_r-0.1.aamap.xml";
-const cleanupPaths = [uploadPath, editedUploadPath, archivedUploadPath, remixUploadPath, invalidRemixPath,
+const cleanupPaths = [uploadPath, editedUploadPath, archivedUploadPath, remixUploadPath, invalidRemixPath, guestWriteProbePath,
     adminSourcePath, adminEditedPath, adminArchivePath, adminRemixPath];
 const storageBucket = "tronnerrepository.firebasestorage.app";
 const adminOAuthToken = process.env.VECTRON_ADMIN_OAUTH_TOKEN || "";
@@ -207,6 +208,74 @@ ws.onopen = async () => {
                     })()
                 }
             };
+
+            document.getElementById('auth-guest').click();
+            await waitFor(function() {
+                return window.vectron_started === true &&
+                    !document.body.classList.contains('auth-locked') &&
+                    document.querySelector('[data-auth-role]').textContent === 'Guest';
+            }, 'Guest mode did not unlock Vectron');
+            document.querySelector('[data-map-repository]').click();
+            await waitFor(function() {
+                return !document.getElementById('map-repository-overlay').hidden &&
+                    document.getElementById('map-repository-others-tab').getAttribute('aria-selected') === 'true' &&
+                    document.querySelectorAll('[data-repository-open]').length >= 275;
+            }, 'Guest could not read the public repository', 30000);
+            const guestGroupsCollapsed = Array.from(document.querySelectorAll('.repository-author-group'))
+                .every(function(group) {
+                    const heading = group.querySelector('[data-repository-author]');
+                    const maps = group.querySelector('.repository-author-maps');
+                    return heading && heading.getAttribute('aria-expanded') === 'false' && maps.hidden;
+                });
+            const guestZwaziGroup = Array.from(document.querySelectorAll('.repository-author-group'))
+                .find(function(group) {
+                    const author = group.querySelector('.repository-author-heading span:first-child');
+                    return author && author.textContent === 'Zwazi';
+                });
+            if(!guestZwaziGroup) throw new Error('Guest repository did not include Zwazi');
+            guestZwaziGroup.querySelector('[data-repository-author]').click();
+            const guestRemix = document.querySelector(
+                '[data-repository-open="Zwazi/maps/Default-v1.aamap.xml"][data-repository-action="remix"]'
+            );
+            if(!guestRemix) throw new Error('Guest repository did not offer Remix');
+            const guestEditButtons = document.querySelectorAll('[data-repository-action="edit"]').length;
+            window.confirm = function() { return true; };
+            guestRemix.click();
+            await waitFor(function() {
+                const toast = document.getElementById('vt-toast');
+                return document.getElementById('map-repository-overlay').hidden &&
+                    document.getElementById('map_name').value === 'Default_r' &&
+                    toast && toast.textContent === 'Remixing Default-v1 by Zwazi as Default_r.';
+            }, 'Guest could not remix a public map', 30000);
+            window.vectron_uploadCurrentMap();
+            await waitFor(function() {
+                const toast = document.getElementById('vt-toast');
+                return toast && toast.textContent === 'Sign in or create an account to upload maps.';
+            }, 'Guest upload guard was not applied');
+            const guestXml = window.eventHandler_getExportMap().xml;
+            result.guest = {
+                unlocked: !document.body.classList.contains('auth-locked'),
+                role: document.querySelector('[data-auth-role]').textContent,
+                author: document.getElementById('map_author').value,
+                authorLocked: document.getElementById('map_author').readOnly,
+                categoryLocked: document.getElementById('map_category').readOnly,
+                versionLocked: document.getElementById('map_version').readOnly,
+                uploadHidden: document.querySelector('[data-map-upload]').hidden,
+                mineTabHidden: document.getElementById('map-repository-mine-tab').hidden,
+                othersSelectedByDefault: document.getElementById('map-repository-others-tab')
+                    .getAttribute('aria-selected') === 'true',
+                authorsCollapsedByDefault: guestGroupsCollapsed,
+                editButtons: guestEditButtons,
+                remixName: document.getElementById('map_name').value,
+                remixProvenance: guestXml.includes('Original author: "Zwazi"'),
+                draftSavedLocally: window.vectron_localDraftSaveNow(),
+                accountAction: document.querySelector('[data-auth-signout] span').textContent
+            };
+            document.querySelector('[data-auth-signout]').click();
+            await waitFor(function() {
+                return document.body.classList.contains('auth-locked') &&
+                    !document.getElementById('auth-gate').hidden;
+            }, 'Guest Sign in action did not return to account access');
 
             document.getElementById('auth-signup-tab').click();
             document.getElementById('auth-name').value = 'Browser Pilot';
@@ -470,6 +539,16 @@ ws.onopen = async () => {
             document.getElementById('map_settings').dispatchEvent(new Event('input', {bubbles: true}));
             result.created.draftSavedLocally = window.vectron_localDraftSaveNow();
 
+            const [probeAppSdk, probeAuthSdk, probeStorageSdk] = await Promise.all([
+                import('https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js'),
+                import('https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js'),
+                import('https://www.gstatic.com/firebasejs/12.17.0/firebase-storage.js')
+            ]);
+            const probeApp = probeAppSdk.getApp();
+            const probeAuth = probeAuthSdk.getAuth(probeApp);
+            const probeStorage = probeStorageSdk.getStorage(probeApp);
+            const probeOwnerUid = probeAuth.currentUser.uid;
+
             document.querySelector('.auth-session-plan [data-auth-signout]').click();
             await waitFor(function() {
                 return document.body.classList.contains('auth-locked') &&
@@ -482,6 +561,38 @@ ws.onopen = async () => {
                     return node.hidden;
                 })
             };
+            let guestWriteCode = 'allowed';
+            try {
+                await probeStorageSdk.uploadString(
+                    probeStorageSdk.ref(probeStorage, ${JSON.stringify(guestWriteProbePath)}),
+                    '<Resource type="aamap" name="Guest Write Probe" version="1" author="Browser Pilot" category="maps"></Resource>',
+                    'raw', {
+                        contentType: 'application/xml; charset=UTF-8',
+                        customMetadata: {
+                            ownerUid: probeOwnerUid,
+                            editorUid: probeOwnerUid,
+                            editorRole: 'user',
+                            author: 'Browser Pilot',
+                            category: 'maps',
+                            mapName: 'Guest Write Probe',
+                            mapVersion: '1',
+                            isRemix: 'false',
+                            remixDepth: '0',
+                            remixOriginalName: '',
+                            archived: 'false',
+                            operation: 'create',
+                            editSourcePath: '',
+                            editSourceName: '',
+                            editSourceVersion: '',
+                            editSourceCategory: '',
+                            editSourceFileName: ''
+                        }
+                    }
+                );
+            } catch(error) {
+                guestWriteCode = error && error.code || '';
+            }
+            result.signedOut.unauthenticatedWriteCode = guestWriteCode;
 
             document.getElementById('auth-login-tab').click();
             document.getElementById('auth-email').value = email;
@@ -508,6 +619,23 @@ ws.onopen = async () => {
             canvasEmpty: true,
             loginSelected: "true",
             loginOverlayCentered: true
+        });
+        assert.deepStrictEqual(firstPass.guest, {
+            unlocked: true,
+            role: "Guest",
+            author: "Guest",
+            authorLocked: true,
+            categoryLocked: true,
+            versionLocked: true,
+            uploadHidden: true,
+            mineTabHidden: true,
+            othersSelectedByDefault: true,
+            authorsCollapsedByDefault: true,
+            editButtons: 0,
+            remixName: "Default_r",
+            remixProvenance: true,
+            draftSavedLocally: true,
+            accountAction: "Sign in"
         });
         assert.deepStrictEqual(firstPass.created, {
             gateHidden: true,
@@ -573,7 +701,8 @@ ws.onopen = async () => {
         assert.deepStrictEqual(firstPass.signedOut, {
             locked: true,
             editorInert: true,
-            sessionsHidden: true
+            sessionsHidden: true,
+            unauthenticatedWriteCode: "storage/unauthorized"
         });
         assert.deepStrictEqual(firstPass.loggedIn, {
             unlocked: true,
