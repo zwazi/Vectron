@@ -2362,8 +2362,7 @@ async function editPendingSubmission(submissionId) {
                 reviewSourceOperation: submission.operation || "edit",
                 reviewDecisionReason: decisionReason(card, false)
             });
-            const nextVersion = submission.operation === "server-review" &&
-                !submission.reviewRevisionId
+            const nextVersion = submission.operation === "server-review"
                 ? await nextAvailableReviewVersion(
                     author.name, category, sourceName, sourceVersion
                 )
@@ -2607,7 +2606,11 @@ function nextAvailableMapVersion(author, mapName, startingVersion, bumpFirst) {
 }
 
 async function nextAvailableReviewVersion(author, category, mapName, startingVersion) {
-    let version = bumpMapVersion(startingVersion);
+    // Start with the revision we opened. A fresh server review still points at
+    // the published (reserved) version and will advance once. A saved review
+    // draft already using an unreserved bumped version should keep that version
+    // when an admin reopens it instead of advancing on every edit session.
+    let version = normalizeMapVersion(startingVersion);
     for(let attempts = 0; attempts < 1000; attempts += 1) {
         const path = activeResourcePath(author, category, mapName, version);
         const reservation = await firestoreSdk.getDoc(firestoreSdk.doc(
