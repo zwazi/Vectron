@@ -1589,18 +1589,23 @@ function renderAdminHistory(submission) {
 
 function renderAdminMap(map) {
     const card = document.createElement("article");
-    card.className = "account-card";
+    card.className = "account-card map-review-card map-review-published-card";
     card.dataset.adminCard = map.id;
+    const details = document.createElement("div");
+    details.className = "map-review-details";
     const header = document.createElement("div");
     header.className = "account-card-header";
     const name = document.createElement("strong");
     name.textContent = `${map.mapName || "Untitled"} · ${map.mapVersion || ""}`;
-    const path = document.createElement("span");
-    path.className = "account-card-time";
-    path.textContent = map.resourcePath || "";
-    header.append(name, path);
+    const time = document.createElement("span");
+    time.className = "account-card-time";
+    time.textContent = formatTimestamp(map.updatedAt || map.createdAt);
+    header.append(name, time);
+    const meta = document.createElement("div");
+    meta.className = "account-card-meta";
+    meta.textContent = map.resourcePath || "No published resource path";
     const fields = document.createElement("div");
-    fields.className = "account-card-fields";
+    fields.className = "account-card-fields map-review-fields";
     const authorSelect = adminAuthorOptions(map.authorId);
     authorSelect.dataset.adminAuthor = "";
     const category = document.createElement("input");
@@ -1608,9 +1613,22 @@ function renderAdminMap(map) {
     category.dataset.adminCategory = "";
     fields.append(cardField("Author", authorSelect), cardField("Category", category));
     const actions = document.createElement("div");
-    actions.className = "account-card-actions";
+    actions.className = "account-card-actions map-review-actions";
     actions.append(actionButton("Save metadata revision", "edit-map-metadata", map.id));
-    card.append(header, fields, actions);
+    details.append(header, meta, fields, actions);
+    const preview = document.createElement("div");
+    preview.className = "map-review-preview";
+    preview.dataset.adminPreviewId = `published:${map.id}`;
+    preview.dataset.adminPreviewPath = map.storagePath || "";
+    preview.setAttribute("role", "img");
+    preview.setAttribute("aria-label", `Published map preview for ${map.mapName || "Untitled"}`);
+    preview.setAttribute("aria-busy", "true");
+    const loading = document.createElement("span");
+    loading.className = "map-review-preview-message";
+    loading.textContent = "Loading published preview…";
+    preview.appendChild(loading);
+    card.append(details, preview);
+    queueAdminSubmissionPreview(preview, map);
     return card;
 }
 

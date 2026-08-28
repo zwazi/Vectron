@@ -455,8 +455,31 @@ ws.onopen = async () => {
             .find(item => item.mapName === mapName && item.status === "active"),
         "Approved map did not become active");
 
-        const reviewHistory = await evaluate(context, `
+        const publishedLayout = await evaluate(context, `
             document.querySelector("[data-admin-review]").click();
+            document.querySelector('[data-admin-tab="maps"]').click();
+            await waitFor(function(){ return document.querySelector('[data-admin-card="${submission.mapId}"]'); },
+                "Published map was missing", 45000);
+            const card = document.querySelector('[data-admin-card="${submission.mapId}"]');
+            card.scrollIntoView({block: "center"});
+            await waitFor(function(){ return card.querySelector(".map-review-preview").getAttribute("aria-busy") === "false"; },
+                "Published map preview did not settle", 45000);
+            return {
+                columns: getComputedStyle(card).gridTemplateColumns.trim().split(/\\s+/).length,
+                actionDirection: getComputedStyle(card.querySelector(".map-review-actions")).flexDirection,
+                hasDetails: Boolean(card.querySelector(".map-review-details")),
+                hasMetadataAction: Boolean(card.querySelector('[data-admin-action="edit-map-metadata"]')),
+                previewRendered: Boolean(card.querySelector(".map-review-preview-svg")),
+                previewText: card.querySelector(".map-review-preview").textContent.trim()
+            };
+        `);
+        assert.strictEqual(publishedLayout.columns, 2);
+        assert.strictEqual(publishedLayout.actionDirection, "column");
+        assert.strictEqual(publishedLayout.hasDetails, true);
+        assert.strictEqual(publishedLayout.hasMetadataAction, true);
+        assert.strictEqual(publishedLayout.previewRendered, true, publishedLayout.previewText);
+
+        const reviewHistory = await evaluate(context, `
             document.querySelector('[data-admin-tab="history"]').click();
             await waitFor(function(){ return document.querySelector('[data-admin-card="${submission.id}"]'); },
                 "Approved review did not enter history", 45000);
