@@ -2,30 +2,85 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{author}/maps/{fileName} {
-      allow read: if request.auth != null;
-
-      allow create: if validMapUpload(author, fileName);
-
-      allow update: if validMapUpload(author, fileName)
-        && resource.metadata.ownerUid == request.auth.uid;
-
-      allow delete: if request.auth != null
-        && request.auth.token.name is string
-        && request.auth.token.name == author
-        && resource.metadata.ownerUid == request.auth.uid;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    function validMapUpload(author, fileName) {
-      return request.auth != null
-        && request.auth.token.name is string
-        && request.auth.token.name == author
-        && fileName.matches('.*\\.aamap\\.xml')
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function account(uid) {
+      return firestore.get(/databases/(default)/documents/accounts/$(uid));
+    }
+
+    function submission(submissionId) {
+      return firestore.get(
+        /databases/(default)/documents/mapSubmissions/$(submissionId)
+      );
+    }
+
+    function hasApprovedAccount() {
+      return signedIn()
+        && account(request.auth.uid).data.status == 'approved'
+        && account(request.auth.uid).data.authorId is string;
+    }
+
+    function validRevisionUpload(ownerUid, submissionId) {
+      return resource == null
+        && signedIn()
+        && request.auth.uid == ownerUid
+        && (isAdmin() || hasApprovedAccount())
+        && request.resource.size > 0
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('application/xml.*')
-        && request.resource.metadata.ownerUid == request.auth.uid
-        && request.resource.metadata.author == author
-        && request.resource.metadata.category == 'maps';
+        && request.resource.metadata.ownerUid == ownerUid
+        && request.resource.metadata.submissionId == submissionId
+        && request.resource.metadata.authorId is string
+        && request.resource.metadata.authorName is string
+        && request.resource.metadata.category is string
+        && request.resource.metadata.mapName is string
+        && request.resource.metadata.mapVersion is string
+        && request.resource.metadata.mapVersion.matches('(v|V)?[0-9]+(\\.[0-9]+)*')
+        && request.resource.metadata.sha256.matches('[0-9a-f]{64}')
+        && (isAdmin()
+          || request.resource.metadata.authorId == account(ownerUid).data.authorId);
+    }
+
+    function canReadRevision(ownerUid, submissionId) {
+      return isAdmin()
+        || (signedIn() && request.auth.uid == ownerUid)
+        || (firestore.exists(
+            /databases/(default)/documents/mapSubmissions/$(submissionId)
+          )
+          && submission(submissionId).data.status == 'approved'
+          && submission(submissionId).data.storagePath == '_revisions/'
+            + ownerUid + '/' + submissionId);
+    }
+
+    match /_revisions/{ownerUid}/{submissionId} {
+      allow get: if canReadRevision(ownerUid, submissionId);
+      allow create: if validRevisionUpload(ownerUid, submissionId);
+      allow update: if false;
+      allow delete: if isAdmin();
+      allow list: if isAdmin();
+    }
+
+    // Existing objects remain public while the one-time migration records them
+    // in Firestore. They are read-only; new revisions use /_revisions/.
+    match /{author}/{category}/{fileName} {
+      allow get: if author != '_revisions'
+        && fileName.matches('.*\\.aamap\\.xml');
+      allow create, update, delete, list: if false;
+    }
+
+    match /{author}/{category}/archive/{fileName} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

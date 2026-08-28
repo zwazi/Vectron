@@ -86,9 +86,7 @@ function eventHandler_getExportMap() {
         return setting.trim() != "";
     });
 
-    if($("#map_axes_forced")[0].checked) {
-        mapSettingsCustomCfg.push("ARENA_AXES " + mapAxes);
-    }
+    mapSettingsCustomCfg.push("ARENA_AXES " + mapAxes);
 
     map.settingsCustomCfg = mapSettingsCustomCfg.join("\n");
 
@@ -739,10 +737,154 @@ function eventHandler_previewInArmawebtron() {
     });
 }
 
+var eventHandler_dtdActiveIndex = -1;
+
+function eventHandler_dtdElements() {
+    return {
+        input: document.getElementById("map_dtd"),
+        toggle: document.getElementById("map-dtd-toggle"),
+        menu: document.getElementById("map-dtd-options")
+    };
+}
+
+function eventHandler_positionDtdMenu() {
+    var elements = eventHandler_dtdElements();
+    if(!elements.input || !elements.menu || elements.menu.hidden) return;
+    var field = elements.input.closest(".tsb-combobox");
+    var rect = (field || elements.input).getBoundingClientRect();
+    var menuWidth = Math.max(238, rect.width);
+    var left = Math.min(rect.left, Math.max(8, window.innerWidth - menuWidth - 8));
+    elements.menu.style.width = menuWidth + "px";
+    elements.menu.style.left = Math.max(8, left) + "px";
+    elements.menu.style.top = (rect.bottom + 4) + "px";
+}
+
+function eventHandler_setDtdActiveOption(index) {
+    var elements = eventHandler_dtdElements();
+    if(!elements.input || !elements.menu) return;
+    var options = Array.prototype.slice.call(elements.menu.querySelectorAll("[data-dtd-value]"));
+    if(index < 0 || !options.length) eventHandler_dtdActiveIndex = -1;
+    else eventHandler_dtdActiveIndex = (index + options.length) % options.length;
+    options.forEach(function(option, optionIndex) {
+        var active = optionIndex === eventHandler_dtdActiveIndex;
+        option.classList.toggle("active", active);
+        option.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    if(eventHandler_dtdActiveIndex >= 0) {
+        elements.input.setAttribute("aria-activedescendant", options[eventHandler_dtdActiveIndex].id);
+    } else {
+        elements.input.removeAttribute("aria-activedescendant");
+    }
+}
+
+function eventHandler_openDtdMenu() {
+    var elements = eventHandler_dtdElements();
+    if(!elements.input || !elements.toggle || !elements.menu) return;
+    elements.menu.hidden = false;
+    elements.input.setAttribute("aria-expanded", "true");
+    elements.toggle.setAttribute("aria-expanded", "true");
+    var options = Array.prototype.slice.call(elements.menu.querySelectorAll("[data-dtd-value]"));
+    var exactIndex = options.findIndex(function(option) {
+        return option.dataset.dtdValue === elements.input.value;
+    });
+    eventHandler_setDtdActiveOption(exactIndex);
+    eventHandler_positionDtdMenu();
+}
+
+function eventHandler_closeDtdMenu() {
+    var elements = eventHandler_dtdElements();
+    if(!elements.input || !elements.toggle || !elements.menu) return;
+    elements.menu.hidden = true;
+    elements.input.setAttribute("aria-expanded", "false");
+    elements.toggle.setAttribute("aria-expanded", "false");
+    eventHandler_setDtdActiveOption(-1);
+}
+
+function eventHandler_chooseDtd(value) {
+    var elements = eventHandler_dtdElements();
+    if(!elements.input) return;
+    elements.input.value = value;
+    elements.input.dispatchEvent(new Event("input", {bubbles: true}));
+    elements.input.dispatchEvent(new Event("change", {bubbles: true}));
+    eventHandler_closeDtdMenu();
+    elements.input.focus();
+    elements.input.select();
+}
+
+function eventHandler_initDtdCombobox() {
+    var elements = eventHandler_dtdElements();
+    if(!elements.input || !elements.toggle || !elements.menu) return;
+    var options = Array.prototype.slice.call(elements.menu.querySelectorAll("[data-dtd-value]"));
+    options.forEach(function(option) {
+        option.tabIndex = -1;
+        option.addEventListener("mousedown", function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        option.addEventListener("click", function() {
+            eventHandler_chooseDtd(option.dataset.dtdValue);
+        });
+    });
+
+    elements.input.addEventListener("focus", eventHandler_openDtdMenu);
+    elements.input.addEventListener("click", eventHandler_openDtdMenu);
+    elements.input.addEventListener("input", function() {
+        eventHandler_openDtdMenu();
+        eventHandler_setDtdActiveOption(-1);
+    });
+    elements.input.addEventListener("keydown", function(event) {
+        if(event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            event.stopPropagation();
+            eventHandler_openDtdMenu();
+            var nextIndex = eventHandler_dtdActiveIndex < 0
+                ? (event.key === "ArrowDown" ? 0 : options.length - 1)
+                : eventHandler_dtdActiveIndex + (event.key === "ArrowDown" ? 1 : -1);
+            eventHandler_setDtdActiveOption(nextIndex);
+        } else if(event.key === "Enter") {
+            event.preventDefault();
+            event.stopPropagation();
+            if(eventHandler_dtdActiveIndex >= 0) {
+                eventHandler_chooseDtd(options[eventHandler_dtdActiveIndex].dataset.dtdValue);
+            } else {
+                elements.input.dispatchEvent(new Event("change", {bubbles: true}));
+                eventHandler_closeDtdMenu();
+                elements.input.blur();
+            }
+        } else if(event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            eventHandler_closeDtdMenu();
+        } else if(event.key === "Tab") {
+            eventHandler_closeDtdMenu();
+        }
+    });
+    elements.toggle.addEventListener("mousedown", function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+    });
+    elements.toggle.addEventListener("click", function() {
+        if(elements.menu.hidden) {
+            elements.input.focus();
+            eventHandler_openDtdMenu();
+        } else {
+            eventHandler_closeDtdMenu();
+            elements.input.focus();
+        }
+    });
+    document.addEventListener("mousedown", function(event) {
+        if(!event.target.closest(".tsb-combobox") && !event.target.closest("#map-dtd-options")) {
+            eventHandler_closeDtdMenu();
+        }
+    });
+    window.addEventListener("resize", eventHandler_positionDtdMenu);
+}
+
 function eventHandler_init() {
 
     var $contextMenu = $("#contextMenu");
     eventHandler_initTooltips("hover");
+    eventHandler_initDtdCombobox();
 
     $(document).on("mousedown", function(e) {
         var active = document.activeElement;
@@ -946,6 +1088,11 @@ function eventHandler_init() {
     });
     $('#map_settings').on('input change', function() {
         xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
+    });
+    $('#map_name,#map_author,#map_dtd,#map_axes,#map_settings').on('input change', function() {
+        if(typeof window.vectron_localDraftScheduleSave === "function") {
+            window.vectron_localDraftScheduleSave();
+        }
     });
 
     // Handle settings changes
@@ -1392,6 +1539,7 @@ function eventHandler_init() {
         var xml = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>\n';
         xml += '<!DOCTYPE Resource SYSTEM "' + (xml_dtd || 'sty.dtd') + '">\n';
         xml += '<Resource type="aamap" name="' + (xml_name || '') + '" version="' + (xml_version || '') + '" author="' + (xml_author || '') + '" category="' + (xml_category || '') + '">\n';
+        if(typeof xml_buildRemixComments == "function") xml += xml_buildRemixComments('  ');
         xml += '  <Map version="0.2.8">\n';
         var settings = xml_settings.filter(function(s) { return s.trim(); });
         if (settings.length > 0) {
@@ -1405,10 +1553,8 @@ function eventHandler_init() {
             xml += '    </Settings>\n';
         }
         xml += '    <World>\n      <Field>\n';
-        if (document.getElementById('map_axes_forced').checked) {
-            var axes = parseInt(document.getElementById('map_axes').value) || 4;
-            xml += '        <Axes number="' + axes + '"/>\n';
-        }
+        var axes = parseInt(document.getElementById('map_axes').value) || 4;
+        xml += '        <Axes number="' + axes + '"/>\n';
         for (var i = 0; i < aamap_objects.length; i++) {
             xml += xmlEditor_indentLines(aamap_objects[i].getXML(), '        ') + '\n';
         }
@@ -2244,15 +2390,19 @@ function eventHandler_init() {
         vectron_panY = 0;
         vectron_zoom = 1;
         $("#map_name,#map_author,#map_category,#map_version,#map_dtd,#map_settings").val("");
-        $("#map_axes").val("");
-        $("#map_axes_forced").prop("checked", false);
+        $("#map_dtd").val("sty.dtd");
+        $("#map_axes").val("4");
         xml_name = "";
         xml_author = "";
         xml_category = "";
         xml_version = "";
-        xml_dtd = "";
+        xml_dtd = "sty.dtd";
         xml_axes = 4;
         xml_settings = [];
+        if(typeof xml_clearRemixHistory == "function") xml_clearRemixHistory();
+        if(typeof window.vectron_clearRepositoryEditState == "function") {
+            window.vectron_clearRepositoryEditState();
+        }
         if(typeof window.vectron_syncLockedMetadata == "function") {
             window.vectron_syncLockedMetadata();
         }

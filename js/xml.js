@@ -34,6 +34,78 @@ var xml_wallheight = 4;
 var xml_axes = 4;
 var xml_settings = [];
 var xml_latest_read_id = 0;
+var xml_remixHistory = [];
+
+function xml_normalizeRemixEntry(entry) {
+    if(!entry || typeof entry != "object") return null;
+    var path = String(entry.path || "");
+    if(!path) return null;
+    return {
+        map: String(entry.map || "Untitled map"),
+        author: String(entry.author || "Unknown"),
+        version: String(entry.version || ""),
+        path: path
+    };
+}
+
+function xml_setRemixHistory(history) {
+    xml_remixHistory = Array.isArray(history) ? history.map(xml_normalizeRemixEntry).filter(Boolean) : [];
+    return xml_remixHistory.slice();
+}
+
+function xml_clearRemixHistory() {
+    xml_remixHistory = [];
+}
+
+function xml_appendRemixSource(entry) {
+    var normalized = xml_normalizeRemixEntry(entry);
+    if(!normalized) throw new Error("A remix source path is required.");
+    xml_remixHistory.push(normalized);
+    return normalized;
+}
+
+function xml_readRemixHistory(xml) {
+    var pattern = /<!--\s*Vectron remix provenance data:\s*([A-Za-z0-9+/=]+)\s*-->/gi;
+    var encoded = "";
+    var match;
+    while((match = pattern.exec(String(xml || "")))) encoded = match[1];
+    if(!encoded) return xml_setRemixHistory([]);
+    try {
+        return xml_setRemixHistory(JSON.parse(decodeURIComponent(atob(encoded))));
+    } catch(error) {
+        gui_writeLog("Ignored invalid Vectron remix provenance.");
+        return xml_setRemixHistory([]);
+    }
+}
+
+function xml_safeRemixCommentValue(value) {
+    return String(value || "")
+        .replace(/[\r\n\t]+/g, " ")
+        .replace(/--/g, "- -")
+        .trim();
+}
+
+function xml_buildRemixComments(indent) {
+    if(!xml_remixHistory.length) return "";
+    var prefix = indent || "";
+    var lines = [prefix + "<!-- Vectron remix provenance (oldest source first) -->"];
+    xml_remixHistory.forEach(function(entry, index) {
+        var map = xml_safeRemixCommentValue(entry.map);
+        var author = xml_safeRemixCommentValue(entry.author);
+        var path = xml_safeRemixCommentValue(entry.path);
+        var version = entry.version ? "; Version: \"" + xml_safeRemixCommentValue(entry.version) + "\"" : "";
+        lines.push(prefix + (index === 0
+            ? "<!-- Original map: \"" + map + "\"; Original author: \"" + author + "\"" + version + "; Source file: \"" + path + "\" -->"
+            : "<!-- Remix source " + (index + 1) + ": Map: \"" + map + "\"; Author: \"" + author + "\"" + version + "; Source file: \"" + path + "\" -->"));
+    });
+    lines.push(prefix + "<!-- Vectron remix provenance data: " +
+        btoa(encodeURIComponent(JSON.stringify(xml_remixHistory))) + " -->");
+    return lines.join("\n") + "\n";
+}
+
+window.xml_appendRemixSource = xml_appendRemixSource;
+window.xml_buildRemixComments = xml_buildRemixComments;
+window.xml_clearRemixHistory = xml_clearRemixHistory;
 
 function xml_init() {
 
@@ -63,6 +135,7 @@ function xml_process(xml, suppressHistoryClear) {
     xml_author = resource.attr("author");
     xml_version = resource.attr("version");
     xml_category = resource.attr("category");
+    xml_readRemixHistory(xml);
 
     try{xml_dtd = $.parseXML(xml).firstChild.systemId;}
     catch(e){xml_dtd = "sty.dtd"; gui_writeLog("Could not determine dtd!");}
@@ -73,10 +146,8 @@ function xml_process(xml, suppressHistoryClear) {
     });
 
     xml_axes = 4;
-    $("#map_axes_forced")[0].checked = false;
     $(xml).find("Axes").each(function() {
         xml_axes = parseInt($(this).attr("number"));
-        $("#map_axes_forced")[0].checked = true;
     });
 
     gui_fillInput();
@@ -84,14 +155,21 @@ function xml_process(xml, suppressHistoryClear) {
     var pt = xml_process_piece(xml);
     var ptsx = pt[0], ptsy = pt[1];
 
-    var max_x = Math.max.apply(Math, ptsx);
-    var min_x = Math.min.apply(Math, ptsx);
-    var max_y = Math.max.apply(Math, ptsy);
-    var min_y = Math.min.apply(Math, ptsy);
+    if(ptsx.length && ptsy.length) {
+        var max_x = Math.max.apply(Math, ptsx);
+        var min_x = Math.min.apply(Math, ptsx);
+        var max_y = Math.max.apply(Math, ptsy);
+        var min_y = Math.min.apply(Math, ptsy);
 
-    vectron_panX = -1*(max_x + min_x)/2;
-    vectron_panY = -1*(max_y + min_y)/2;
-    vectron_zoom = (((vectron_width+vectron_height)/2))/((max_x-min_x)+(max_y-min_y));
+        vectron_panX = -1*(max_x + min_x)/2;
+        vectron_panY = -1*(max_y + min_y)/2;
+        var mapSpan = (max_x-min_x)+(max_y-min_y);
+        vectron_zoom = mapSpan > 0 ? (((vectron_width+vectron_height)/2))/mapSpan : 1;
+    } else {
+        vectron_panX = 0;
+        vectron_panY = 0;
+        vectron_zoom = 1;
+    }
     vectron_render();
     if(!suppressHistoryClear) aamap_clearHistory();
 }
@@ -210,6 +288,9 @@ function xml_handleFile(file) {
        // File-picker and drag/drop imports both arrive here. Symmetry belongs
        // to the previous editing session, not to the imported map.
        aamap_disableSymmetry();
+       if(typeof window.vectron_clearRepositoryEditState == "function") {
+           window.vectron_clearRepositoryEditState();
+       }
        xml_process(this.result);
     };
     reader.onerror = function() {
