@@ -1,60 +1,218 @@
 "use strict";
 
-// Real-browser authentication smoke test. Start Vectron and Firefox with
-// WebDriver BiDi as documented in README.md. The test creates one disposable
-// Firebase account, exercises account creation/map upload/login/logout/
-// persistence, then deletes the uploaded map and account even if an assertion
-// fails. Set VECTRON_TEST_UPLOAD=0 only when the Storage bucket is unavailable.
+// Destructive smoke test for the real Firebase project. Disposable accounts,
+// revisions, and catalog records are removed in finally. A management token is
+// mandatory so cleanup never depends on the client rules under test.
 
 const assert = require("assert");
 const crypto = require("crypto");
 
+const project = "tronnerrepository";
+const bucket = "tronnerrepository.firebasestorage.app";
 const apiKey = "AIzaSyCglVAiB3494_GQf2ESrE9y_2YWELpIfBg";
-const testEmail = `vectron-browser-${Date.now()}-${crypto.randomBytes(4).toString("hex")}@example.com`;
-const testPassword = `Vt-${crypto.randomUUID()}!`;
+const oauthToken = process.env.VECTRON_ADMIN_OAUTH_TOKEN || "";
 const bidiUrl = process.env.VECTRON_BIDI_URL || "ws://127.0.0.1:9223/session";
-const testUploadEnabled = process.env.VECTRON_TEST_UPLOAD !== "0";
-const uploadPath = "Browser Pilot/maps/Browser Upload-0.1.aamap.xml";
-const editedUploadPath = "Browser Pilot/maps/Browser Upload-0.2.aamap.xml";
-const archivedUploadPath = "Browser Pilot/maps/archive/Browser Upload-0.1.aamap.xml";
-const remixUploadPath = "Browser Pilot/maps/Default_r2-1.aamap.xml";
-const invalidRemixPath = "Browser Pilot/maps/Default_wrong-1.aamap.xml";
-const guestWriteProbePath = "Browser Pilot/maps/Guest Write Probe-1.aamap.xml";
-const adminSourcePath = "Admin Target/maps/Admin Fix-0.1.aamap.xml";
-const adminEditedPath = "Admin Target/maps/Admin Fix-0.2.aamap.xml";
-const adminArchivePath = "Admin Target/maps/archive/Admin Fix-0.1.aamap.xml";
-const adminRemixPath = "Browser Pilot/maps/Admin Fix_r-0.1.aamap.xml";
-const cleanupPaths = [uploadPath, editedUploadPath, archivedUploadPath, remixUploadPath, invalidRemixPath, guestWriteProbePath,
-    adminSourcePath, adminEditedPath, adminArchivePath, adminRemixPath];
-const storageBucket = "tronnerrepository.firebasestorage.app";
-const adminOAuthToken = process.env.VECTRON_ADMIN_OAUTH_TOKEN || "";
+const testUrl = process.env.VECTRON_TEST_URL || "http://127.0.0.1:8000/";
+const nonce = `${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
+const userName = `Browser User ${nonce}`;
+const adminName = `Browser Admin ${nonce}`;
+const mapName = `Browser Map ${nonce}`;
+const userEmail = `vectron-user-${nonce}@example.com`;
+const adminEmail = `vectron-admin-${nonce}@example.com`;
+const userPassword = `Vu-${crypto.randomUUID()}!`;
+const adminPassword = `Va-${crypto.randomUUID()}!`;
+const root = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
+
+if(!oauthToken) throw new Error("VECTRON_ADMIN_OAUTH_TOKEN is required for safe cleanup.");
+
+let user = null;
+let admin = null;
+let submission = null;
+
+const managementHeaders = json => ({
+    authorization: `Bearer ${oauthToken}`,
+    ...(json ? {"content-type": "application/json"} : {})
+});
+
+async function checkedFetch(url, options = {}) {
+    const response = await fetch(url, options);
+    if(!response.ok) {
+        const detail = await response.text();
+        throw new Error(`${options.method || "GET"} ${url} failed (${response.status}): ${detail.slice(0, 500)}`);
+    }
+    return response;
+}
+
+async function createAccount(email, password, displayName) {
+    const signup = await checkedFetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`,
+        {method: "POST", headers: {"content-type": "application/json"},
+            body: JSON.stringify({email, password, returnSecureToken: true})}
+    );
+    const account = await signup.json();
+    await checkedFetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${apiKey}`, {
+        method: "POST", headers: {"content-type": "application/json"},
+        body: JSON.stringify({idToken: account.idToken, displayName, returnSecureToken: true})
+    });
+    return account;
+}
+
+const stringValue = value => ({stringValue: String(value)});
+const timestampValue = () => ({timestampValue: new Date().toISOString()});
+const authorKey = value => `author_${Buffer.from(
+    value.normalize("NFKC").trim().toLocaleLowerCase("en-US"), "utf8"
+).toString("base64url")}`;
+const resourceKey = value => `resource_${Buffer.from(
+    value.normalize("NFKC"), "utf8"
+).toString("base64url")}`;
+
+function write(collection, id, fields) {
+    return {update: {
+        name: `projects/${project}/databases/(default)/documents/${collection}/${id}`,
+        fields
+    }};
+}
+
+async function promoteAndBootstrapAdmin(account) {
+    await checkedFetch(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:update`, {
+        method: "POST", headers: managementHeaders(true),
+        body: JSON.stringify({
+            localId: account.localId,
+            customAttributes: JSON.stringify({role: "admin", admin: true})
+        })
+    });
+    const now = timestampValue();
+    const authorId = authorKey(adminName);
+    await checkedFetch(`${root}:commit`, {
+        method: "POST", headers: managementHeaders(true),
+        body: JSON.stringify({writes: [
+            write("authors", authorId, {
+                authorId: stringValue(authorId), name: stringValue(adminName),
+                normalizedName: stringValue(adminName.toLocaleLowerCase("en-US")),
+                ownerUid: stringValue(account.localId), status: stringValue("active"),
+                createdAt: now, updatedAt: now
+            }),
+            write("accounts", account.localId, {
+                uid: stringValue(account.localId), email: stringValue(adminEmail),
+                displayName: stringValue(adminName), requestedAuthorName: stringValue(adminName),
+                authorId: stringValue(authorId), authorName: stringValue(adminName),
+                status: stringValue("approved"), denialReason: stringValue(""),
+                createdAt: now, updatedAt: now, reviewedAt: now,
+                reviewedBy: stringValue(account.localId)
+            })
+        ]})
+    });
+}
+
+function decodeDocument(document) {
+    const decoded = {id: document.name.split("/").pop()};
+    Object.entries(document.fields || {}).forEach(([key, value]) => {
+        if("stringValue" in value) decoded[key] = value.stringValue;
+        else if("integerValue" in value) decoded[key] = Number(value.integerValue);
+        else if("booleanValue" in value) decoded[key] = value.booleanValue;
+        else if("timestampValue" in value) decoded[key] = value.timestampValue;
+        else if("nullValue" in value) decoded[key] = null;
+    });
+    return decoded;
+}
+
+async function listDocuments(collectionPath) {
+    const response = await checkedFetch(`${root}/${collectionPath}?pageSize=300`, {
+        headers: managementHeaders(false)
+    });
+    return ((await response.json()).documents || []).map(decodeDocument);
+}
+
+async function waitForRemote(check, message, timeout = 30000) {
+    const started = Date.now();
+    while(Date.now() - started < timeout) {
+        const value = await check();
+        if(value) return value;
+        await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    throw new Error(message);
+}
+
+async function deleteDocument(collectionPath, id) {
+    if(!id) return;
+    const response = await fetch(`${root}/${collectionPath}/${encodeURIComponent(id)}`, {
+        method: "DELETE", headers: managementHeaders(false)
+    });
+    if(!response.ok && response.status !== 404) {
+        throw new Error(`Could not delete ${collectionPath}/${id} (${response.status}).`);
+    }
+}
+
+async function deleteStoragePrefix(prefix) {
+    let pageToken = "";
+    do {
+        const url = new URL(`https://storage.googleapis.com/storage/v1/b/${bucket}/o`);
+        url.searchParams.set("prefix", prefix);
+        url.searchParams.set("versions", "true");
+        if(pageToken) url.searchParams.set("pageToken", pageToken);
+        const response = await checkedFetch(url, {headers: managementHeaders(false)});
+        const result = await response.json();
+        for(const item of result.items || []) {
+            const target = `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodeURIComponent(item.name)}?generation=${encodeURIComponent(item.generation)}`;
+            const removed = await fetch(target, {method: "DELETE", headers: managementHeaders(false)});
+            if(!removed.ok && removed.status !== 404) throw new Error(`Could not delete ${item.name}.`);
+        }
+        pageToken = result.nextPageToken || "";
+    } while(pageToken);
+}
+
+async function cleanup() {
+    const accounts = [user, admin].filter(Boolean);
+    const uids = accounts.map(item => item.localId);
+    const [submissions, maps, audits] = await Promise.all([
+        listDocuments("mapSubmissions"), listDocuments("maps"), listDocuments("auditEvents")
+    ]);
+    const testSubmissions = submissions.filter(item => uids.includes(item.submittedBy) || item.mapName === mapName);
+    const testMaps = maps.filter(item => item.mapName === mapName);
+    const testIds = new Set([...uids, ...testSubmissions.map(item => item.id), ...testMaps.map(item => item.mapId)]);
+    const testAudits = audits.filter(item => testIds.has(item.actorUid) || testIds.has(item.targetId) || testIds.has(item.mapId));
+    for(const uid of uids) {
+        for(const item of await listDocuments(`notifications/${uid}/items`)) {
+            await deleteDocument(`notifications/${uid}/items`, item.id);
+        }
+    }
+    for(const item of testAudits) await deleteDocument("auditEvents", item.id);
+    for(const item of testSubmissions) await deleteDocument("mapSubmissions", item.id);
+    for(const item of testMaps) {
+        await deleteDocument("resourcePaths", resourceKey(item.resourcePath));
+        await deleteDocument("maps", item.id);
+    }
+    for(const account of accounts) {
+        await deleteStoragePrefix(`_revisions/${account.localId}/`);
+        await deleteDocument("accounts", account.localId);
+    }
+    await deleteDocument("authors", authorKey(userName));
+    await deleteDocument("authors", authorKey(adminName));
+    for(const account of accounts) {
+        const removed = await fetch(
+            `https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:delete`,
+            {method: "POST", headers: managementHeaders(true),
+                body: JSON.stringify({localId: account.localId})}
+        );
+        if(!removed.ok && removed.status !== 404) throw new Error(`Could not delete test account (${removed.status}).`);
+    }
+}
 
 const ws = new WebSocket(bidiUrl);
 const pending = new Map();
-let id = 0;
+let sequence = 0;
 let sessionCreated = false;
 
 function call(method, params) {
     return new Promise((resolve, reject) => {
-        const callId = ++id;
-        pending.set(callId, {resolve, reject});
-        ws.send(JSON.stringify({id: callId, method, params}));
+        const id = ++sequence;
+        pending.set(id, {resolve, reject});
+        ws.send(JSON.stringify({id, method, params}));
     });
 }
 
 ws.onmessage = event => {
     const message = JSON.parse(event.data);
-    if(process.env.VECTRON_DEBUG_NETWORK === "1" && message.type === "event" &&
-       message.method && message.method.startsWith("network.")) {
-        const requestUrl = message.params && message.params.request && message.params.request.url;
-        const responseUrl = message.params && message.params.response && message.params.response.url;
-        const url = requestUrl || responseUrl || "";
-        if(url.includes("firebasestorage.googleapis.com")) {
-            console.log("STORAGE_NETWORK", message.method,
-                message.params.response && message.params.response.status,
-                message.params.errorText || "", url);
-        }
-    }
     if(!message.id || !pending.has(message.id)) return;
     const task = pending.get(message.id);
     pending.delete(message.id);
@@ -62,94 +220,52 @@ ws.onmessage = event => {
     else task.resolve(message.result);
 };
 
-async function evaluateJson(context, expression) {
-    const evaluated = await call("script.evaluate", {
-        expression,
-        target: {context},
-        awaitPromise: true,
-        resultOwnership: "none"
+async function evaluate(context, body) {
+    const expression = `(async function(){
+        function waitFor(check, message, timeout) {
+            return new Promise(function(resolve, reject) {
+                const started = Date.now();
+                (function poll(){
+                    let value = false;
+                    try { value = check(); } catch(error) {}
+                    if(value) return resolve(value);
+                    if(Date.now() - started > (timeout || 30000)) return reject(new Error(message));
+                    setTimeout(poll, 80);
+                })();
+            });
+        }
+        ${body}
+    })().then(JSON.stringify)`;
+    const result = await call("script.evaluate", {
+        expression, target: {context}, awaitPromise: true, resultOwnership: "none"
     });
-    if(!evaluated.result || evaluated.result.type !== "string") {
-        throw new Error("Browser evaluation failed: " + JSON.stringify(evaluated));
+    if(!result.result || result.result.type !== "string") {
+        throw new Error(`Browser evaluation failed: ${JSON.stringify(result)}`);
     }
-    return JSON.parse(evaluated.result.value);
+    return JSON.parse(result.result.value);
 }
 
-async function signInTestAccount() {
-    const signIn = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: {"content-type": "application/json"},
-            body: JSON.stringify({email: testEmail, password: testPassword, returnSecureToken: true})
-        }
-    );
-    if(!signIn.ok) {
-        const response = await signIn.json();
-        if(response.error && ["EMAIL_NOT_FOUND", "INVALID_LOGIN_CREDENTIALS"].includes(response.error.message)) return null;
-        throw new Error("Could not retrieve disposable account for cleanup.");
-    }
-    return signIn.json();
+async function login(context, email, password, role) {
+    return evaluate(context, `
+        await waitFor(function(){ return !document.getElementById("auth-panel").hidden; }, "Login panel not ready");
+        document.getElementById("auth-login-tab").click();
+        document.getElementById("auth-email").value = ${JSON.stringify(email)};
+        document.getElementById("auth-password").value = ${JSON.stringify(password)};
+        document.getElementById("auth-form").requestSubmit();
+        await waitFor(function(){ return window.vectron_started === true &&
+            document.querySelector("[data-auth-role]").textContent === ${JSON.stringify(role)}; },
+            "Expected ${role} session did not start");
+        return {role: window.vectron_userRole};
+    `);
 }
 
-async function readRepositoryMap(fullPath) {
-    const account = await signInTestAccount();
-    if(!account) throw new Error("Could not sign in to verify the uploaded map.");
-    const response = await fetch(
-        `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encodeURIComponent(fullPath)}?alt=media`,
-        {headers: {authorization: `Bearer ${account.idToken}`}}
-    );
-    if(!response.ok) throw new Error(`Could not read uploaded map (${response.status}).`);
-    return response.text();
-}
-
-async function promoteTestAccountToAdmin() {
-    if(!adminOAuthToken) return false;
-    const account = await signInTestAccount();
-    if(!account) throw new Error("Could not sign in to promote the disposable account.");
-    const response = await fetch(
-        "https://identitytoolkit.googleapis.com/v1/projects/tronnerrepository/accounts:update",
-        {
-            method: "POST",
-            headers: {authorization: `Bearer ${adminOAuthToken}`, "content-type": "application/json"},
-            body: JSON.stringify({
-                localId: account.localId,
-                customAttributes: JSON.stringify({role: "admin", admin: true})
-            })
-        }
-    );
-    if(!response.ok) throw new Error(`Could not promote disposable account (${response.status}).`);
-    return true;
-}
-
-async function deleteTestData() {
-    const account = await signInTestAccount();
-    if(!account) return;
-    const tokenClaims = JSON.parse(Buffer.from(account.idToken.split(".")[1], "base64url").toString("utf8"));
-    assert.strictEqual(tokenClaims.name, "Browser Pilot");
-    if(testUploadEnabled) {
-        for(const fullPath of cleanupPaths) {
-            const removeMap = await fetch(
-                `https://firebasestorage.googleapis.com/v0/b/${storageBucket}/o/${encodeURIComponent(fullPath)}`,
-                {
-                    method: "DELETE",
-                    headers: {authorization: `Bearer ${account.idToken}`}
-                }
-            );
-            if(!removeMap.ok && removeMap.status !== 403 && removeMap.status !== 404) {
-                throw new Error(`Could not delete disposable map ${fullPath} (${removeMap.status}).`);
-            }
-        }
-    }
-    const remove = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: {"content-type": "application/json"},
-            body: JSON.stringify({idToken: account.idToken})
-        }
-    );
-    if(!remove.ok) throw new Error("Could not delete disposable Firebase account.");
+async function logout(context) {
+    return evaluate(context, `
+        document.querySelector("[data-auth-signout]").click();
+        await waitFor(function(){ return document.body.classList.contains("auth-locked") &&
+            !document.getElementById("auth-panel").hidden; }, "Sign out did not finish");
+        return true;
+    `);
 }
 
 ws.onerror = event => {
@@ -163,933 +279,125 @@ ws.onopen = async () => {
             await call("session.new", {capabilities: {}});
             sessionCreated = true;
         }
-        if(process.env.VECTRON_DEBUG_NETWORK === "1") {
-            await call("session.subscribe", {events: ["network.responseCompleted", "network.fetchError"]});
-        }
         const tree = await call("browsingContext.getTree", {});
         const context = tree.contexts[0].context;
-        await call("browsingContext.navigate", {
-            context,
-            url: process.env.VECTRON_TEST_URL || "http://127.0.0.1:8000/",
-            wait: "complete"
-        });
+        await call("browsingContext.navigate", {context, url: testUrl, wait: "complete"});
 
-        const firstPass = await evaluateJson(context, `(async function() {
-            const email = ${JSON.stringify(testEmail)};
-            const password = ${JSON.stringify(testPassword)};
-            const testUpload = ${JSON.stringify(testUploadEnabled)};
-            function waitFor(check, message, timeout) {
-                return new Promise(function(resolve, reject) {
-                    const started = Date.now();
-                    (function poll() {
-                        let value = false;
-                        try { value = check(); } catch(error) {}
-                        if(value) return resolve(value);
-                        if(Date.now() - started > (timeout || 15000)) return reject(new Error(message));
-                        setTimeout(poll, 80);
-                    })();
-                });
-            }
-            await waitFor(function() {
-                return !document.getElementById('auth-panel').hidden;
-            }, 'Sign-in panel did not become ready');
+        const guest = await evaluate(context, `
+            await waitFor(function(){ return !document.getElementById("auth-panel").hidden; }, "Auth panel not ready");
+            document.getElementById("auth-guest").click();
+            await waitFor(function(){ return window.vectron_started === true && window.vectron_userRole === "guest"; }, "Guest mode failed");
+            document.querySelector("[data-map-repository]").click();
+            await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 230; }, "Guest catalog failed", 45000);
+            const visibleMaps = document.querySelectorAll("[data-repository-open]").length;
+            const editActions = document.querySelectorAll('[data-repository-action="edit"]').length;
+            window.confirm = function(){ return true; };
+            document.querySelector('[data-repository-action="remix"]').click();
+            await waitFor(function(){ return document.getElementById("map-repository-overlay").hidden; }, "Guest map download failed", 45000);
+            return {visibleMaps, editActions, uploadHidden: document.querySelector("[data-map-upload]").hidden,
+                toast: document.getElementById("vt-toast").textContent};
+        `);
+        assert.ok(guest.visibleMaps >= 230);
+        assert.strictEqual(guest.editActions, 0);
+        assert.strictEqual(guest.uploadHidden, true);
+        assert.match(guest.toast, /Remixing/);
+        await logout(context);
 
-            const result = {
-                initial: {
-                    locked: document.body.classList.contains('auth-locked'),
-                    gateVisible: !document.getElementById('auth-gate').hidden,
-                    editorStopped: window.vectron_started === false,
-                    canvasEmpty: document.getElementById('canvas_container').childElementCount === 0,
-                    loginSelected: document.getElementById('auth-login-tab').getAttribute('aria-selected'),
-                    loginOverlayCentered: (function() {
-                        const rect = document.querySelector('.auth-card').getBoundingClientRect();
-                        return Math.abs(rect.left + rect.width / 2 - window.innerWidth / 2) <= 2 &&
-                            Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2) <= 2;
-                    })()
-                }
-            };
-
-            document.getElementById('auth-guest').click();
-            await waitFor(function() {
-                return window.vectron_started === true &&
-                    !document.body.classList.contains('auth-locked') &&
-                    document.querySelector('[data-auth-role]').textContent === 'Guest';
-            }, 'Guest mode did not unlock Vectron');
-            document.querySelector('[data-map-repository]').click();
-            await waitFor(function() {
-                return !document.getElementById('map-repository-overlay').hidden &&
-                    document.getElementById('map-repository-others-tab').getAttribute('aria-selected') === 'true' &&
-                    document.querySelectorAll('[data-repository-open]').length >= 275;
-            }, 'Guest could not read the public repository', 30000);
-            const guestGroupsCollapsed = Array.from(document.querySelectorAll('.repository-author-group'))
-                .every(function(group) {
-                    const heading = group.querySelector('[data-repository-author]');
-                    const maps = group.querySelector('.repository-author-maps');
-                    return heading && heading.getAttribute('aria-expanded') === 'false' && maps.hidden;
-                });
-            const guestZwaziGroup = Array.from(document.querySelectorAll('.repository-author-group'))
-                .find(function(group) {
-                    const author = group.querySelector('.repository-author-heading span:first-child');
-                    return author && author.textContent === 'Zwazi';
-                });
-            if(!guestZwaziGroup) throw new Error('Guest repository did not include Zwazi');
-            guestZwaziGroup.querySelector('[data-repository-author]').click();
-            const guestRemix = document.querySelector(
-                '[data-repository-open="Zwazi/maps/Default-v1.aamap.xml"][data-repository-action="remix"]'
-            );
-            if(!guestRemix) throw new Error('Guest repository did not offer Remix');
-            const guestEditButtons = document.querySelectorAll('[data-repository-action="edit"]').length;
-            window.confirm = function() { return true; };
-            guestRemix.click();
-            await waitFor(function() {
-                const toast = document.getElementById('vt-toast');
-                return document.getElementById('map-repository-overlay').hidden &&
-                    document.getElementById('map_name').value === 'Default_r' &&
-                    toast && toast.textContent === 'Remixing Default-v1 by Zwazi as Default_r.';
-            }, 'Guest could not remix a public map', 30000);
-            window.vectron_uploadCurrentMap();
-            await waitFor(function() {
-                const toast = document.getElementById('vt-toast');
-                return toast && toast.textContent === 'Sign in or create an account to upload maps.';
-            }, 'Guest upload guard was not applied');
-            const guestXml = window.eventHandler_getExportMap().xml;
-            result.guest = {
-                unlocked: !document.body.classList.contains('auth-locked'),
-                role: document.querySelector('[data-auth-role]').textContent,
-                author: document.getElementById('map_author').value,
-                authorLocked: document.getElementById('map_author').readOnly,
-                categoryLocked: document.getElementById('map_category').readOnly,
-                versionLocked: document.getElementById('map_version').readOnly,
-                uploadHidden: document.querySelector('[data-map-upload]').hidden,
-                mineTabHidden: document.getElementById('map-repository-mine-tab').hidden,
-                othersSelectedByDefault: document.getElementById('map-repository-others-tab')
-                    .getAttribute('aria-selected') === 'true',
-                authorsCollapsedByDefault: guestGroupsCollapsed,
-                editButtons: guestEditButtons,
-                remixName: document.getElementById('map_name').value,
-                remixProvenance: guestXml.includes('Original author: "Zwazi"'),
-                draftSavedLocally: window.vectron_localDraftSaveNow(),
-                accountAction: document.querySelector('[data-auth-signout] span').textContent
-            };
-            document.querySelector('[data-auth-signout]').click();
-            await waitFor(function() {
-                return document.body.classList.contains('auth-locked') &&
-                    !document.getElementById('auth-gate').hidden;
-            }, 'Guest Sign in action did not return to account access');
-
-            document.getElementById('auth-signup-tab').click();
-            document.getElementById('auth-name').value = 'Browser Pilot';
-            document.getElementById('auth-email').value = email;
-            document.getElementById('auth-password').value = password;
-            document.getElementById('auth-confirm-password').value = password;
-            document.getElementById('auth-form').requestSubmit();
-            await waitFor(function() {
-                return window.vectron_started === true &&
-                    !document.body.classList.contains('auth-locked') &&
-                    document.querySelector('.auth-session-plan [data-auth-name]').textContent === 'Browser Pilot' &&
-                    document.getElementById('map_version').value === '0.1';
-            }, 'Account creation did not unlock Vectron');
-            const dtdInput = document.getElementById('map_dtd');
-            dtdInput.click();
-            await waitFor(function() {
-                return !document.getElementById('map-dtd-options').hidden;
-            }, 'DTD dropdown did not open');
-            const dtdOptionCount = document.querySelectorAll('#map-dtd-options [data-dtd-value]').length;
-            document.querySelector('[data-dtd-value="map-0.2.9.dtd"]').click();
-            const dtdKnownOptionSelected = dtdInput.value === 'map-0.2.9.dtd';
-            dtdInput.value = 'custom/browser-map.dtd';
-            dtdInput.dispatchEvent(new Event('input', {bubbles: true}));
-            const dtdMenu = document.getElementById('map-dtd-options');
-            const dtdMenuRect = dtdMenu.getBoundingClientRect();
-            const dtdAllOptionsRemainVisible = !dtdMenu.hidden &&
-                Array.from(dtdMenu.querySelectorAll('[data-dtd-value]')).every(function(option) {
-                    const rect = option.getBoundingClientRect();
-                    return rect.width > 0 && rect.height > 0 &&
-                        rect.top >= dtdMenuRect.top && rect.bottom <= dtdMenuRect.bottom;
-                });
-            dtdInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
-            result.created = {
-                gateHidden: document.getElementById('auth-gate').hidden,
-                sessionVisible: !document.querySelector('.auth-session-plan').hidden,
-                displayName: document.querySelector('.auth-session-plan [data-auth-name]').textContent,
-                email: document.querySelector('.auth-session-plan [data-auth-email]').textContent,
-                role: document.querySelector('.auth-session-plan [data-auth-role]').textContent,
-                canvasStarted: document.getElementById('canvas_container').childElementCount > 0,
-                author: document.getElementById('map_author').value,
-                authorLocked: document.getElementById('map_author').readOnly,
-                category: document.getElementById('map_category').value,
-                categoryLocked: document.getElementById('map_category').readOnly,
-                version: document.getElementById('map_version').value,
-                versionLocked: document.getElementById('map_version').readOnly,
-                axesCheckboxGone: !document.getElementById('map_axes_forced'),
-                exportAlwaysHasAxes: window.eventHandler_getExportMap().xml.includes('<Axes number="8"/>'),
-                typedDtd: document.getElementById('map_dtd').value,
-                dtdOptionCount: dtdOptionCount,
-                dtdKnownOptionSelected: dtdKnownOptionSelected,
-                dtdAllOptionsRemainVisible: dtdAllOptionsRemainVisible,
-                accountDockTopRight: (function() {
-                    const dock = document.getElementById('auth-account-controls');
-                    const toolbar = document.getElementById('top-settings-bar');
-                    const rect = dock.getBoundingClientRect();
-                    const toolbarRect = toolbar.getBoundingClientRect();
-                    return dock.parentElement === toolbar &&
-                        toolbarRect.right - rect.right <= 12 &&
-                        rect.top >= toolbarRect.top &&
-                        rect.bottom <= toolbarRect.bottom &&
-                        dock.contains(document.querySelector('[data-map-upload]'));
-                })()
-            };
-
-            if(testUpload) {
-                document.getElementById('map_name').value = 'Browser Upload';
-                document.querySelector('[data-map-upload]').click();
-                try {
-                    await waitFor(function() {
-                        const toast = document.getElementById('vt-toast');
-                        return toast && toast.textContent === 'Uploaded to Browser Pilot/maps/Browser Upload-0.1.aamap.xml';
-                    }, 'Map did not upload to the locked author/maps path', 30000);
-                } catch(error) {
-                    const [appSdk, authSdk] = await Promise.all([
-                        import('https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js'),
-                        import('https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js')
-                    ]);
-                    const token = await authSdk.getIdTokenResult(authSdk.getAuth(appSdk.getApp()).currentUser);
-                    throw new Error('Map did not upload: ' + JSON.stringify({
-                        toast: document.getElementById('vt-toast').textContent,
-                        uiRole: window.vectron_userRole,
-                        tokenName: token.claims.name || '',
-                        tokenRole: token.claims.role || '',
-                        tokenAdmin: token.claims.admin === true
-                    }));
-                }
-                result.uploadPath = document.getElementById('vt-toast').textContent.replace('Uploaded to ', '');
-                document.querySelector('[data-map-upload]').click();
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    return toast && toast.textContent ===
-                        'That map name and version already exist. Choose a different version.';
-                }, 'A duplicate repository identity was not rejected', 30000);
-                result.duplicateUploadRejected = true;
-            }
-
-            document.querySelector('[data-map-repository]').click();
-            if(testUpload) {
-                await waitFor(function() {
-                    return !document.getElementById('map-repository-overlay').hidden &&
-                        document.querySelector('[data-repository-open="Browser Pilot/maps/Browser Upload-0.1.aamap.xml"]');
-                }, "The user's repository maps did not become available", 30000);
-            }
-            const mineTabSelectedByDefault = document.getElementById('map-repository-mine-tab').getAttribute('aria-selected') === 'true';
-            const ownMapCount = document.querySelectorAll('[data-repository-open]').length;
-            const ownTabOnlyShowsCurrentUser = Array.from(document.querySelectorAll('.repository-author-heading span:first-child'))
-                .every(function(node) { return node.textContent === 'Browser Pilot'; });
-            const ownEditButton = document.querySelector('[data-repository-open="Browser Pilot/maps/Browser Upload-0.1.aamap.xml"]');
-            const ownButtonSaysEdit = !testUpload || ownEditButton.textContent.trim() === 'Edit';
-            if(testUpload) {
-                window.confirm = function() { return true; };
-                ownEditButton.click();
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    return document.getElementById('map-repository-overlay').hidden &&
-                        document.getElementById('map_version').value === '0.2' &&
-                        toast && toast.textContent === 'Editing Browser Upload. Version bumped to 0.2.';
-                }, 'Owned map did not open for editing with a bumped version', 30000);
-                result.edit = {
-                    name: document.getElementById('map_name').value,
-                    nameLocked: document.getElementById('map_name').readOnly,
-                    version: document.getElementById('map_version').value,
-                    versionLocked: document.getElementById('map_version').readOnly,
-                    uploadLabel: document.querySelector('[data-map-upload] span').textContent
-                };
-                document.getElementById('map_settings').value = 'CYCLE_SPEED 30';
-                document.getElementById('map_settings').dispatchEvent(new Event('input', {bubbles: true}));
-                document.querySelector('[data-map-upload]').click();
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    return toast && toast.textContent ===
-                        'Submitted Browser Pilot/maps/Browser Upload-0.2.aamap.xml; archived the previous version in Browser Pilot/maps/archive/Browser Upload-0.1.aamap.xml.';
-                }, 'Edited map was not submitted and archived', 30000);
-                result.edit.submittedPath = 'Browser Pilot/maps/Browser Upload-0.2.aamap.xml';
-                result.edit.uploadLabelAfterSubmit = document.querySelector('[data-map-upload] span').textContent;
-
-                document.querySelector('[data-map-repository]').click();
-                await waitFor(function() {
-                    return document.querySelector('[data-repository-open="Browser Pilot/maps/Browser Upload-0.2.aamap.xml"]');
-                }, 'The edited live revision did not replace its source', 30000);
-                result.edit.archiveHiddenFromLiveMaps =
-                    !document.querySelector('[data-repository-open*="/archive/"]') &&
-                    !document.querySelector('[data-repository-open="Browser Pilot/maps/Browser Upload-0.1.aamap.xml"]');
-            }
-            document.getElementById('map-repository-others-tab').click();
-            await waitFor(function() {
-                return document.getElementById('map-repository-others-tab').getAttribute('aria-selected') === 'true' &&
-                    document.querySelectorAll('[data-repository-open]').length >= 275;
-            }, "Other authors' repository maps did not become available", 30000);
-            const repositoryAuthors = Array.from(document.querySelectorAll('.repository-author-heading span:first-child'))
-                .map(function(node) { return node.textContent; });
-            const otherAuthorsCollapsedByDefault = Array.from(document.querySelectorAll('.repository-author-group'))
-                .every(function(group) {
-                    const heading = group.querySelector('[data-repository-author]');
-                    const maps = group.querySelector('.repository-author-maps');
-                    return heading && heading.getAttribute('aria-expanded') === 'false' && maps.hidden;
-                });
-            const zwaziGroup = Array.from(document.querySelectorAll('.repository-author-group'))
-                .find(function(group) {
-                    const author = group.querySelector('.repository-author-heading span:first-child');
-                    return author && author.textContent === 'Zwazi';
-                });
-            if(!zwaziGroup) throw new Error('Expected Zwazi author group was not listed');
-            zwaziGroup.querySelector('[data-repository-author]').click();
-            await waitFor(function() {
-                return Array.from(document.querySelectorAll('.repository-author-group')).some(function(group) {
-                    const author = group.querySelector('.repository-author-heading span:first-child');
-                    return author && author.textContent === 'Zwazi' &&
-                        !group.querySelector('.repository-author-maps').hidden;
-                });
-            }, 'The Zwazi author group did not expand');
-            const repositoryRemix = document.querySelector('[data-repository-open="Zwazi/maps/Default-v1.aamap.xml"]');
-            if(!repositoryRemix) throw new Error('Expected cross-user repository map was not listed');
-            const otherButtonSaysRemix = repositoryRemix.textContent.trim() === 'Remix';
-            const repositoryCount = document.querySelectorAll('[data-repository-open]').length;
-            const repositoryLayoutFits = (function() {
-                const dialogRect = document.querySelector('.repository-dialog').getBoundingClientRect();
-                const listRect = document.getElementById('map-repository-list').getBoundingClientRect();
-                return listRect.height > 100 && listRect.top >= dialogRect.top && listRect.bottom <= dialogRect.bottom;
-            })();
-            window.confirm = function() { return true; };
-            repositoryRemix.click();
-            try {
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    const repositoryStatus = document.getElementById('map-repository-status');
-                    return (document.getElementById('map-repository-overlay').hidden &&
-                        document.getElementById('map_name').value === 'Default_r' &&
-                        toast && toast.textContent === 'Remixing Default-v1 by Zwazi as Default_r.') ||
-                        (!repositoryStatus.hidden && repositoryStatus.classList.contains('error'));
-                }, 'Cross-user repository map did not begin remixing', 30000);
-            } catch(error) {
-                const repositoryStatus = document.getElementById('map-repository-status');
-                const toast = document.getElementById('vt-toast');
-                throw new Error('Cross-user repository map did not begin remixing: ' + JSON.stringify({
-                    overlayHidden: document.getElementById('map-repository-overlay').hidden,
-                    buttonDisabled: repositoryRemix.disabled,
-                    mapName: document.getElementById('map_name').value,
-                    status: repositoryStatus.textContent,
-                    statusClass: repositoryStatus.className,
-                    toast: toast && toast.textContent,
-                    errorDetail: repositoryStatus.dataset.errorDetail
-                }));
-            }
-            const repositoryError = document.getElementById('map-repository-status');
-            if(!repositoryError.hidden && repositoryError.classList.contains('error')) {
-                throw new Error('Cross-user repository remix failed: ' + repositoryError.textContent +
-                    ' (' + (repositoryError.dataset.errorDetail || 'no detail') + ')');
-            }
-            const remixXml = window.eventHandler_getExportMap().xml;
-            const firstRemixName = document.getElementById('map_name').value;
-            const firstRemixNameLocked = document.getElementById('map_name').readOnly;
-            window.xml_appendRemixSource({
-                map: firstRemixName,
-                author: 'Browser Pilot',
-                version: document.getElementById('map_version').value,
-                path: 'Browser Pilot/maps/' + firstRemixName + '-' +
-                    document.getElementById('map_version').value + '.aamap.xml'
+        const pendingUser = await evaluate(context, `
+            document.getElementById("auth-signup-tab").click();
+            document.getElementById("auth-name").value = ${JSON.stringify(userName)};
+            document.getElementById("auth-email").value = ${JSON.stringify(userEmail)};
+            document.getElementById("auth-password").value = ${JSON.stringify(userPassword)};
+            document.getElementById("auth-confirm-password").value = ${JSON.stringify(userPassword)};
+            document.getElementById("auth-form").requestSubmit();
+            await waitFor(function(){ return window.vectron_userRole === "pending"; }, "Pending session failed");
+            document.querySelector("[data-map-repository]").click();
+            document.getElementById("map-repository-others-tab").click();
+            await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 230; }, "Pending catalog failed", 45000);
+            return {role: window.vectron_userRole, uploadDisabled: document.querySelector("[data-map-upload]").disabled,
+                editActions: document.querySelectorAll('[data-repository-action="edit"]').length};
+        `);
+        assert.deepStrictEqual(pendingUser, {role: "pending", uploadDisabled: true, editActions: 0});
+        user = await waitForRemote(async () => {
+            const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
+                method: "POST", headers: {"content-type": "application/json"},
+                body: JSON.stringify({email: userEmail, password: userPassword, returnSecureToken: true})
             });
-            window.vectron_syncLockedMetadata();
-            const chainedRemixXml = window.eventHandler_getExportMap().xml;
-            result.repository = {
-                mapCount: repositoryCount,
-                mineTabSelectedByDefault: mineTabSelectedByDefault,
-                ownMapCount: ownMapCount,
-                ownTabOnlyShowsCurrentUser: ownTabOnlyShowsCurrentUser,
-                ownButtonSaysEdit: ownButtonSaysEdit,
-                otherTabExcludesCurrentUser: !repositoryAuthors.includes('Browser Pilot'),
-                otherAuthorsCollapsedByDefault: otherAuthorsCollapsedByDefault,
-                otherButtonSaysRemix: otherButtonSaysRemix,
-                panelLayoutFits: repositoryLayoutFits,
-                hasZwazi: repositoryAuthors.includes('Zwazi'),
-                hasAnimuson: repositoryAuthors.includes('Animuson'),
-                loadedMap: firstRemixName,
-                remixNameLocked: firstRemixNameLocked,
-                chainedRemixName: document.getElementById('map_name').value,
-                chainedRemixNameLocked: document.getElementById('map_name').readOnly,
-                remixProvenance: remixXml.includes('Original map: "Default"') &&
-                    remixXml.includes('Original author: "Zwazi"') &&
-                    remixXml.includes('Source file: "Zwazi/maps/Default-v1.aamap.xml"') &&
-                    remixXml.includes('Vectron remix provenance data:'),
-                chainedRemixProvenance: chainedRemixXml.includes('Remix source 2: Map: "Default_r"') &&
-                    chainedRemixXml.includes('Original author: "Zwazi"'),
-                remixedMapHasAxes: remixXml.includes('<Axes number="'),
-                authorStillLocked: document.getElementById('map_author').value === 'Browser Pilot' &&
-                    document.getElementById('map_author').readOnly,
-                categoryStillLocked: document.getElementById('map_category').value === 'maps' &&
-                    document.getElementById('map_category').readOnly
-            };
+            return response.ok ? response.json() : null;
+        }, "Pending test account not found");
+        await logout(context);
 
-            if(testUpload) {
-                document.querySelector('[data-map-upload]').click();
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    return toast && toast.textContent === 'Uploaded to Browser Pilot/maps/Default_r2-1.aamap.xml';
-                }, 'Canonical chained remix was rejected by repository rules', 30000);
-                result.remixUploadPath = 'Browser Pilot/maps/Default_r2-1.aamap.xml';
-            }
+        admin = await createAccount(adminEmail, adminPassword, adminName);
+        await promoteAndBootstrapAdmin(admin);
+        await login(context, adminEmail, adminPassword, "Admin");
+        const registration = await evaluate(context, `
+            await waitFor(function(){ return !document.querySelector("[data-admin-review]").hidden; }, "Admin tools missing");
+            document.querySelector("[data-admin-review]").click();
+            await waitFor(function(){ return document.querySelector('[data-admin-card="${user.localId}"]'); }, "Registration queue missing user", 45000);
+            const card = document.querySelector('[data-admin-card="${user.localId}"]');
+            card.querySelector("[data-admin-author]").value = "__requested__";
+            card.querySelector("[data-admin-author-name]").value = ${JSON.stringify(userName)};
+            window.confirm = function(){ return true; };
+            card.querySelector('[data-admin-action="approve-account"]').click();
+            await waitFor(function(){ return !document.querySelector('[data-admin-card="${user.localId}"]'); }, "Registration approval failed", 45000);
+            return document.getElementById("admin-status").textContent;
+        `);
+        assert.match(registration, /approved/i);
+        await waitForRemote(async () => (await listDocuments("accounts"))
+            .find(item => item.id === user.localId && item.status === "approved"),
+        "Account did not become approved");
 
-            document.getElementById('map_settings').value += String.fromCharCode(10) + 'CYCLE_ACCEL 10';
-            document.getElementById('map_settings').dispatchEvent(new Event('input', {bubbles: true}));
-            result.created.draftSavedLocally = window.vectron_localDraftSaveNow();
+        await logout(context);
+        await login(context, userEmail, userPassword, "User");
+        const upload = await evaluate(context, `
+            await waitFor(function(){ return !document.querySelector("[data-map-upload]").disabled; }, "Submission button stayed disabled");
+            document.getElementById("map_name").value = ${JSON.stringify(mapName)};
+            document.querySelector("[data-map-upload]").click();
+            await waitFor(function(){ return /submitted for admin review/i.test(document.getElementById("vt-toast").textContent); }, "Map submission failed", 45000);
+            return {toast: document.getElementById("vt-toast").textContent,
+                notificationCount: Number(document.querySelector("[data-notification-count]").textContent || 0)};
+        `);
+        assert.match(upload.toast, /submitted for admin review/i);
+        assert.ok(upload.notificationCount >= 1);
+        submission = await waitForRemote(async () => (await listDocuments("mapSubmissions"))
+            .find(item => item.submittedBy === user.localId && item.mapName === mapName && item.status === "pending"),
+        "Pending submission not found");
 
-            const [probeAppSdk, probeAuthSdk, probeStorageSdk] = await Promise.all([
-                import('https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js'),
-                import('https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js'),
-                import('https://www.gstatic.com/firebasejs/12.17.0/firebase-storage.js')
-            ]);
-            const probeApp = probeAppSdk.getApp();
-            const probeAuth = probeAuthSdk.getAuth(probeApp);
-            const probeStorage = probeStorageSdk.getStorage(probeApp);
-            const probeOwnerUid = probeAuth.currentUser.uid;
+        await logout(context);
+        await login(context, adminEmail, adminPassword, "Admin");
+        const publication = await evaluate(context, `
+            document.querySelector("[data-admin-review]").click();
+            document.querySelector('[data-admin-tab="submissions"]').click();
+            await waitFor(function(){ return document.querySelector('[data-admin-card="${submission.id}"]'); }, "Submission queue missing map", 45000);
+            const card = document.querySelector('[data-admin-card="${submission.id}"]');
+            window.confirm = function(){ return true; };
+            card.querySelector('[data-admin-action="approve-submission"]').click();
+            await waitFor(function(){ return !document.querySelector('[data-admin-card="${submission.id}"]'); }, "Publication failed", 60000);
+            return document.getElementById("admin-status").textContent;
+        `);
+        assert.match(publication, /published/i);
+        await waitForRemote(async () => (await listDocuments("maps"))
+            .find(item => item.mapName === mapName && item.status === "active"),
+        "Approved map did not become active");
 
-            document.querySelector('.auth-session-plan [data-auth-signout]').click();
-            await waitFor(function() {
-                return document.body.classList.contains('auth-locked') &&
-                    !document.getElementById('auth-gate').hidden;
-            }, 'Sign out did not lock Vectron');
-            result.signedOut = {
-                locked: document.body.classList.contains('auth-locked'),
-                editorInert: document.getElementById('canvas_container').inert,
-                sessionsHidden: Array.from(document.querySelectorAll('.auth-session')).every(function(node) {
-                    return node.hidden;
-                })
-            };
-            let guestWriteCode = 'allowed';
-            try {
-                await probeStorageSdk.uploadString(
-                    probeStorageSdk.ref(probeStorage, ${JSON.stringify(guestWriteProbePath)}),
-                    '<Resource type="aamap" name="Guest Write Probe" version="1" author="Browser Pilot" category="maps"></Resource>',
-                    'raw', {
-                        contentType: 'application/xml; charset=UTF-8',
-                        customMetadata: {
-                            ownerUid: probeOwnerUid,
-                            editorUid: probeOwnerUid,
-                            editorRole: 'user',
-                            author: 'Browser Pilot',
-                            category: 'maps',
-                            mapName: 'Guest Write Probe',
-                            mapVersion: '1',
-                            isRemix: 'false',
-                            remixDepth: '0',
-                            remixOriginalName: '',
-                            archived: 'false',
-                            operation: 'create',
-                            editSourcePath: '',
-                            editSourceName: '',
-                            editSourceVersion: '',
-                            editSourceCategory: '',
-                            editSourceFileName: ''
-                        }
-                    }
-                );
-            } catch(error) {
-                guestWriteCode = error && error.code || '';
-            }
-            result.signedOut.unauthenticatedWriteCode = guestWriteCode;
-
-            document.getElementById('auth-login-tab').click();
-            document.getElementById('auth-email').value = email;
-            document.getElementById('auth-password').value = password;
-            document.getElementById('auth-form').requestSubmit();
-            await waitFor(function() {
-                return !document.body.classList.contains('auth-locked') &&
-                    document.getElementById('map_name').value === 'Default_r2';
-            }, 'Sign in did not restore the local draft');
-            result.loggedIn = {
-                unlocked: !document.body.classList.contains('auth-locked'),
-                gateHidden: document.getElementById('auth-gate').hidden,
-                mapName: document.getElementById('map_name').value,
-                mapNameLocked: document.getElementById('map_name').readOnly,
-                versionLocked: document.getElementById('map_version').readOnly,
-                remixProvenanceRestored: window.eventHandler_getExportMap().xml.includes('Original author: "Zwazi"')
-            };
-            return JSON.stringify(result);
-        })()`);
-        assert.deepStrictEqual(firstPass.initial, {
-            locked: true,
-            gateVisible: true,
-            editorStopped: true,
-            canvasEmpty: true,
-            loginSelected: "true",
-            loginOverlayCentered: true
-        });
-        assert.deepStrictEqual(firstPass.guest, {
-            unlocked: true,
-            role: "Guest",
-            author: "Guest",
-            authorLocked: true,
-            categoryLocked: true,
-            versionLocked: true,
-            uploadHidden: true,
-            mineTabHidden: true,
-            othersSelectedByDefault: true,
-            authorsCollapsedByDefault: true,
-            editButtons: 0,
-            remixName: "Default_r",
-            remixProvenance: true,
-            draftSavedLocally: true,
-            accountAction: "Sign in"
-        });
-        assert.deepStrictEqual(firstPass.created, {
-            gateHidden: true,
-            sessionVisible: true,
-            displayName: "Browser Pilot",
-            email: testEmail,
-            role: "User",
-            canvasStarted: true,
-            author: "Browser Pilot",
-            authorLocked: true,
-            category: "maps",
-            categoryLocked: true,
-            version: "0.1",
-            versionLocked: true,
-            axesCheckboxGone: true,
-            exportAlwaysHasAxes: true,
-            typedDtd: "custom/browser-map.dtd",
-            dtdOptionCount: 8,
-            dtdKnownOptionSelected: true,
-            dtdAllOptionsRemainVisible: true,
-            draftSavedLocally: true,
-            accountDockTopRight: true
-        });
-        if(testUploadEnabled) {
-            assert.strictEqual(firstPass.uploadPath, uploadPath);
-            assert.strictEqual(firstPass.remixUploadPath, remixUploadPath);
-            assert.strictEqual(firstPass.duplicateUploadRejected, true);
-            assert.deepStrictEqual(firstPass.edit, {
-                name: "Browser Upload",
-                nameLocked: true,
-                version: "0.2",
-                versionLocked: true,
-                uploadLabel: "Submit edit",
-                submittedPath: editedUploadPath,
-                uploadLabelAfterSubmit: "Upload",
-                archiveHiddenFromLiveMaps: true
-            });
-        }
-        const {mapCount, ...repositoryState} = firstPass.repository;
-        assert.ok(mapCount >= 275);
-        assert.strictEqual(firstPass.repository.ownMapCount, testUploadEnabled ? 1 : 0);
-        assert.deepStrictEqual(repositoryState, {
-            mineTabSelectedByDefault: true,
-            ownMapCount: testUploadEnabled ? 1 : 0,
-            ownTabOnlyShowsCurrentUser: true,
-            ownButtonSaysEdit: true,
-            otherTabExcludesCurrentUser: true,
-            otherAuthorsCollapsedByDefault: true,
-            otherButtonSaysRemix: true,
-            panelLayoutFits: true,
-            hasZwazi: true,
-            hasAnimuson: true,
-            loadedMap: "Default_r",
-            remixNameLocked: true,
-            chainedRemixName: "Default_r2",
-            chainedRemixNameLocked: true,
-            remixProvenance: true,
-            chainedRemixProvenance: true,
-            remixedMapHasAxes: true,
-            authorStillLocked: true,
-            categoryStillLocked: true
-        });
-        assert.deepStrictEqual(firstPass.signedOut, {
-            locked: true,
-            editorInert: true,
-            sessionsHidden: true,
-            unauthenticatedWriteCode: "storage/unauthorized"
-        });
-        assert.deepStrictEqual(firstPass.loggedIn, {
-            unlocked: true,
-            gateHidden: true,
-            mapName: "Default_r2",
-            mapNameLocked: true,
-            versionLocked: true,
-            remixProvenanceRestored: true
-        });
-
-        if(testUploadEnabled) {
-            const ruleEnforcement = await evaluateJson(context, `(async function() {
-                const [appSdk, authSdk, storageSdk] = await Promise.all([
-                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js'),
-                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js'),
-                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-storage.js')
-                ]);
-                const app = appSdk.getApp();
-                const activeAuth = authSdk.getAuth(app);
-                const activeStorage = storageSdk.getStorage(app);
-                const user = activeAuth.currentUser;
-                if(!user) throw new Error('Rule check requires the active disposable account.');
-                const existingRef = storageSdk.ref(activeStorage, ${JSON.stringify(editedUploadPath)});
-                const existing = await storageSdk.getMetadata(existingRef);
-                let duplicateCode = '';
-                try {
-                    await storageSdk.uploadString(existingRef,
-                        '<Resource type="aamap" name="Browser Upload" version="0.2" author="Browser Pilot" category="maps"></Resource>',
-                        'raw', {contentType: 'application/xml; charset=UTF-8', customMetadata: existing.customMetadata});
-                } catch(error) {
-                    duplicateCode = error && error.code || '';
-                }
-                let invalidRemixCode = '';
-                try {
-                    await storageSdk.uploadString(
-                        storageSdk.ref(activeStorage, ${JSON.stringify(invalidRemixPath)}),
-                        '<Resource type="aamap" name="Default_wrong" version="1" author="Browser Pilot" category="maps"></Resource>',
-                        'raw', {
-                            contentType: 'application/xml; charset=UTF-8',
-                            customMetadata: {
-                                ownerUid: user.uid,
-                                editorUid: user.uid,
-                                editorRole: 'user',
-                                author: 'Browser Pilot',
-                                category: 'maps',
-                                mapName: 'Default_wrong',
-                                mapVersion: '1',
-                                isRemix: 'true',
-                                remixDepth: '1',
-                                remixOriginalName: 'Default',
-                                archived: 'false',
-                                operation: 'create',
-                                editSourcePath: '',
-                                editSourceName: '',
-                                editSourceVersion: '',
-                                editSourceCategory: '',
-                                editSourceFileName: ''
-                            }
-                        }
-                    );
-                } catch(error) {
-                    invalidRemixCode = error && error.code || '';
-                }
-                return JSON.stringify({duplicateCode, invalidRemixCode});
-            })()`);
-            assert.deepStrictEqual(ruleEnforcement, {
-                duplicateCode: "storage/unauthorized",
-                invalidRemixCode: "storage/unauthorized"
-            });
-
-            const uploadedXml = await readRepositoryMap(editedUploadPath);
-            assert.match(uploadedXml, /<Resource[^>]*name="Browser Upload"/);
-            assert.match(uploadedXml, /version="0\.2"/);
-            assert.match(uploadedXml, /author="Browser Pilot"/);
-            assert.match(uploadedXml, /category="maps"/);
-            assert.match(uploadedXml, /<!DOCTYPE Resource SYSTEM "custom\/browser-map\.dtd">/);
-            assert.match(uploadedXml, /<Axes number="8"\/>/);
-            const archivedXml = await readRepositoryMap(archivedUploadPath);
-            assert.match(archivedXml, /<Resource[^>]*name="Browser Upload"/);
-            assert.match(archivedXml, /version="0\.1"/);
-            const remixedXml = await readRepositoryMap(remixUploadPath);
-            assert.match(remixedXml, /<Resource[^>]*name="Default_r2"/);
-            assert.match(remixedXml, /Vectron remix provenance data:/);
-        }
-
-        await call("browsingContext.reload", {context, wait: "complete"});
-        const persisted = await evaluateJson(context, `(async function() {
-            const started = Date.now();
-            while(Date.now() - started < 15000) {
-                if(window.vectron_started === true && !document.body.classList.contains('auth-locked')) break;
-                await new Promise(function(resolve) { setTimeout(resolve, 80); });
-            }
-            const result = {
-                unlocked: !document.body.classList.contains('auth-locked'),
-                editorStarted: window.vectron_started === true,
-                email: document.querySelector('.auth-session-plan [data-auth-email]').textContent,
-                mapName: document.getElementById('map_name').value,
-                mapNameLocked: document.getElementById('map_name').readOnly,
-                versionLocked: document.getElementById('map_version').readOnly,
-                remixProvenanceRestored: window.eventHandler_getExportMap().xml.includes('Original author: "Zwazi"')
-            };
-            document.querySelector('.auth-session-plan [data-auth-signout]').click();
-            while(Date.now() - started < 20000 && !document.body.classList.contains('auth-locked')) {
-                await new Promise(function(resolve) { setTimeout(resolve, 80); });
-            }
-            result.lockedAfterLogout = document.body.classList.contains('auth-locked');
-            return JSON.stringify(result);
-        })()`);
-        assert.deepStrictEqual(persisted, {
-            unlocked: true,
-            editorStarted: true,
-            email: testEmail,
-            mapName: "Default_r2",
-            mapNameLocked: true,
-            versionLocked: true,
-            remixProvenanceRestored: true,
-            lockedAfterLogout: true
-        });
-
-        if(await promoteTestAccountToAdmin()) {
-            const adminPass = await evaluateJson(context, `(async function() {
-                const email = ${JSON.stringify(testEmail)};
-                const password = ${JSON.stringify(testPassword)};
-                function waitFor(check, message, timeout) {
-                    return new Promise(function(resolve, reject) {
-                        const started = Date.now();
-                        (function poll() {
-                            let value = false;
-                            try { value = check(); } catch(error) {}
-                            if(value) return resolve(value);
-                            if(Date.now() - started > (timeout || 30000)) return reject(new Error(message));
-                            setTimeout(poll, 80);
-                        })();
-                    });
-                }
-                document.getElementById('auth-login-tab').click();
-                document.getElementById('auth-email').value = email;
-                document.getElementById('auth-password').value = password;
-                document.getElementById('auth-form').requestSubmit();
-                await waitFor(function() {
-                    return !document.body.classList.contains('auth-locked') &&
-                        document.querySelector('[data-auth-role]').textContent === 'Admin';
-                }, 'Promoted account did not receive its Admin level');
-
-                const [appSdk, authSdk, storageSdk] = await Promise.all([
-                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js'),
-                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-auth.js'),
-                    import('https://www.gstatic.com/firebasejs/12.17.0/firebase-storage.js')
-                ]);
-                const app = appSdk.getApp();
-                const activeAuth = authSdk.getAuth(app);
-                const activeStorage = storageSdk.getStorage(app);
-                const user = activeAuth.currentUser;
-                const disposablePaths = [
-                    ${JSON.stringify(adminSourcePath)},
-                    ${JSON.stringify(adminEditedPath)},
-                    ${JSON.stringify(adminArchivePath)},
-                    ${JSON.stringify(adminRemixPath)}
-                ];
-                for(const path of disposablePaths) {
-                    try { await storageSdk.deleteObject(storageSdk.ref(activeStorage, path)); }
-                    catch(error) { if(!error || error.code !== 'storage/object-not-found') throw error; }
-                }
-                await storageSdk.uploadString(
-                    storageSdk.ref(activeStorage, ${JSON.stringify(adminSourcePath)}),
-                    '<Resource type="aamap" name="Admin Fix" version="0.1" author="Admin Target" category="maps"><Map version="2"><World><Field><Axes number="4"/></Field></World></Map></Resource>',
-                    'raw', {
-                        contentType: 'application/xml; charset=UTF-8',
-                        customMetadata: {
-                            ownerUid: '',
-                            editorUid: user.uid,
-                            editorRole: 'admin',
-                            author: 'Admin Target',
-                            category: 'maps',
-                            mapName: 'Admin Fix',
-                            mapVersion: '0.1',
-                            isRemix: 'false',
-                            remixDepth: '0',
-                            remixOriginalName: '',
-                            archived: 'false',
-                            operation: 'create',
-                            editSourcePath: '',
-                            editSourceName: '',
-                            editSourceVersion: '',
-                            editSourceCategory: '',
-                            editSourceFileName: ''
-                        }
-                    }
-                );
-
-                document.querySelector('[data-map-repository]').click();
-                document.getElementById('map-repository-refresh').click();
-                document.getElementById('map-repository-others-tab').click();
-                await waitFor(function() {
-                    return Array.from(document.querySelectorAll('[data-repository-author]')).some(function(button) {
-                        return button.dataset.repositoryAuthor === 'Admin Target' && !button.disabled;
-                    });
-                }, 'Admin target map was not listed');
-                const adminAuthorsCollapsedByDefault = Array.from(
-                    document.querySelectorAll('.repository-author-group')
-                ).every(function(group) {
-                    return group.querySelector('[data-repository-author]').getAttribute('aria-expanded') === 'false' &&
-                        group.querySelector('.repository-author-maps').hidden;
-                });
-                Array.from(document.querySelectorAll('[data-repository-author]'))
-                    .find(function(button) { return button.dataset.repositoryAuthor === 'Admin Target'; })
-                    .click();
-                await waitFor(function() {
-                    const button = document.querySelector(
-                        '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
-                    );
-                    return button && !button.closest('.repository-author-maps').hidden;
-                }, 'Admin target author did not expand');
-                let editButton = document.querySelector(
-                    '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
-                );
-                const remixButton = document.querySelector(
-                    '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="remix"]'
-                );
-                const availableActions = [editButton.textContent.trim(), remixButton.textContent.trim()];
-                window.confirm = function() { return true; };
-                remixButton.click();
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    return document.getElementById('map-repository-overlay').hidden &&
-                        toast && toast.textContent ===
-                            'Remixing Admin Fix-0.1 by Admin Target as Admin Fix_r.';
-                }, "Admin could not choose Remix for another author's map");
-                const remixing = {
-                    author: document.getElementById('map_author').value,
-                    authorLocked: document.getElementById('map_author').readOnly,
-                    name: document.getElementById('map_name').value,
-                    nameLocked: document.getElementById('map_name').readOnly,
-                    version: document.getElementById('map_version').value,
-                    uploadLabel: document.querySelector('[data-map-upload] span').textContent
-                };
-                document.querySelector('[data-map-upload]').click();
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    return toast && toast.textContent ===
-                        'Uploaded to Browser Pilot/maps/Admin Fix_r-0.1.aamap.xml';
-                }, 'Admin remix did not upload to the Admin author directory');
-
-                document.querySelector('[data-map-repository]').click();
-                document.getElementById('map-repository-others-tab').click();
-                await waitFor(function() {
-                    return Array.from(document.querySelectorAll('[data-repository-author]')).some(function(button) {
-                        return button.dataset.repositoryAuthor === 'Admin Target' && !button.disabled &&
-                            button.getAttribute('aria-expanded') === 'false';
-                    });
-                }, 'Admin target map was not available after remixing');
-                Array.from(document.querySelectorAll('[data-repository-author]'))
-                    .find(function(button) { return button.dataset.repositoryAuthor === 'Admin Target'; })
-                    .click();
-                await waitFor(function() {
-                    const button = document.querySelector(
-                        '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
-                    );
-                    return button && !button.closest('.repository-author-maps').hidden;
-                }, 'Admin target author did not re-expand');
-                editButton = document.querySelector(
-                    '[data-repository-open=${JSON.stringify(adminSourcePath)}][data-repository-action="edit"]'
-                );
-                const buttonLabel = editButton.textContent.trim();
-                editButton.click();
-                try {
-                    await waitFor(function() {
-                        const toast = document.getElementById('vt-toast');
-                        return document.getElementById('map-repository-overlay').hidden &&
-                            toast && toast.textContent === 'Editing Admin Fix by Admin Target. Version bumped to 0.2.';
-                    }, "Admin could not begin editing another author's map");
-                } catch(error) {
-                    const status = document.getElementById('map-repository-status');
-                    throw new Error('Admin edit did not open: ' + JSON.stringify({
-                        overlayHidden: document.getElementById('map-repository-overlay').hidden,
-                        toast: document.getElementById('vt-toast').textContent,
-                        status: status.textContent,
-                        statusClass: status.className,
-                        detail: status.dataset.errorDetail || '',
-                        author: document.getElementById('map_author').value,
-                        name: document.getElementById('map_name').value,
-                        version: document.getElementById('map_version').value
-                    }));
-                }
-                const editing = {
-                    buttonLabel,
-                    author: document.getElementById('map_author').value,
-                    authorLocked: document.getElementById('map_author').readOnly,
-                    name: document.getElementById('map_name').value,
-                    nameLocked: document.getElementById('map_name').readOnly,
-                    version: document.getElementById('map_version').value,
-                    versionLocked: document.getElementById('map_version').readOnly,
-                    uploadLabel: document.querySelector('[data-map-upload] span').textContent
-                };
-                document.getElementById('map_settings').value = 'CYCLE_SPEED 42';
-                document.getElementById('map_settings').dispatchEvent(new Event('input', {bubbles: true}));
-                document.querySelector('[data-map-upload]').click();
-                await waitFor(function() {
-                    const toast = document.getElementById('vt-toast');
-                    return toast && toast.textContent ===
-                        'Submitted Admin Target/maps/Admin Fix-0.2.aamap.xml; archived the previous version in Admin Target/maps/archive/Admin Fix-0.1.aamap.xml.';
-                }, 'Admin edit did not archive and replace the target map');
-
-                const liveMetadata = await storageSdk.getMetadata(
-                    storageSdk.ref(activeStorage, ${JSON.stringify(adminEditedPath)})
-                );
-                const archiveMetadata = await storageSdk.getMetadata(
-                    storageSdk.ref(activeStorage, ${JSON.stringify(adminArchivePath)})
-                );
-                const targetFolder = await storageSdk.listAll(storageSdk.ref(activeStorage, 'Admin Target/maps'));
-                const sourceDeleted = !targetFolder.items.some(function(item) {
-                    return item.fullPath === ${JSON.stringify(adminSourcePath)};
-                });
-                const result = {
-                    role: document.querySelector('[data-auth-role]').textContent,
-                    adminAuthorsCollapsedByDefault,
-                    availableActions,
-                    remixing,
-                    editing,
-                    sourceDeleted,
-                    liveOwnerPreserved: liveMetadata.customMetadata.ownerUid === '',
-                    liveEditorRecorded: liveMetadata.customMetadata.editorUid === user.uid &&
-                        liveMetadata.customMetadata.editorRole === 'admin',
-                    archiveOwnerPreserved: archiveMetadata.customMetadata.ownerUid === ''
-                };
-                document.querySelector('.auth-session-plan [data-auth-signout]').click();
-                await waitFor(function() { return document.body.classList.contains('auth-locked'); },
-                    'Admin sign out did not lock Vectron');
-                return JSON.stringify(result);
-            })()`);
-            assert.deepStrictEqual(adminPass, {
-                role: "Admin",
-                adminAuthorsCollapsedByDefault: true,
-                availableActions: ["Edit", "Remix"],
-                remixing: {
-                    author: "Browser Pilot",
-                    authorLocked: true,
-                    name: "Admin Fix_r",
-                    nameLocked: true,
-                    version: "0.1",
-                    uploadLabel: "Upload"
-                },
-                editing: {
-                    buttonLabel: "Edit",
-                    author: "Admin Target",
-                    authorLocked: true,
-                    name: "Admin Fix",
-                    nameLocked: true,
-                    version: "0.2",
-                    versionLocked: true,
-                    uploadLabel: "Submit edit"
-                },
-                sourceDeleted: true,
-                liveOwnerPreserved: true,
-                liveEditorRecorded: true,
-                archiveOwnerPreserved: true
-            });
-            const adminEditedXml = await readRepositoryMap(adminEditedPath);
-            const adminArchivedXml = await readRepositoryMap(adminArchivePath);
-            const adminRemixedXml = await readRepositoryMap(adminRemixPath);
-            assert.match(adminEditedXml, /<Resource[^>]*name="Admin Fix"[^>]*version="0\.2"[^>]*author="Admin Target"/);
-            assert.match(adminEditedXml, /<Setting name="CYCLE_SPEED" value="42"\s*\/>/);
-            assert.match(adminArchivedXml, /<Resource[^>]*name="Admin Fix"[^>]*version="0\.1"[^>]*author="Admin Target"/);
-            assert.match(adminRemixedXml, /<Resource[^>]*name="Admin Fix_r"[^>]*version="0\.1"[^>]*author="Browser Pilot"/);
-            assert.match(adminRemixedXml, /Original author: "Admin Target"/);
-            assert.match(adminRemixedXml, /Source file: "Admin Target\/maps\/Admin Fix-0\.1\.aamap\.xml"/);
-            console.log("Vectron Admin cross-author edit browser smoke test passed.");
-        }
-
-        console.log(testUploadEnabled
-            ? "Vectron Firebase account/upload/login/logout browser smoke test passed."
-            : "Vectron Firebase account/login/logout browser smoke test passed (upload skipped)."
-        );
+        await logout(context);
+        await login(context, userEmail, userPassword, "User");
+        const notices = await evaluate(context, `
+            await waitFor(function(){ return Number(document.querySelector("[data-notification-count]").textContent || 0) >= 2; }, "Approval notice missing", 45000);
+            document.querySelector("[data-notifications]").click();
+            await waitFor(function(){ return document.querySelectorAll("#notification-list .account-card").length >= 2; }, "Notices did not render");
+            return Array.from(document.querySelectorAll("#notification-list .account-card strong"), function(node){ return node.textContent; });
+        `);
+        assert.ok(notices.some(title => /approved/i.test(title)));
+        console.log(JSON.stringify({guestMaps: guest.visibleMaps, pendingReadOnly: true,
+            registrationApproved: true, submissionApproved: true, notifications: notices.length}, null, 2));
     } catch(error) {
-        console.error(error.stack || error);
+        console.error(error.stack || error.message || error);
         process.exitCode = 1;
     } finally {
-        try {
-            await deleteTestData();
-            console.log("Disposable Firebase browser-test map/account deleted (if created).");
-        } catch(cleanupError) {
-            console.error(cleanupError.stack || cleanupError);
-            process.exitCode = 1;
-        }
-        if(sessionCreated) {
-            try { await call("session.end", {}); } catch(error) {}
-        }
+        try { await cleanup(); }
+        catch(error) { console.error("Cleanup failed:", error.stack || error); process.exitCode = 1; }
+        try { if(sessionCreated) await call("session.end", {}); } catch(error) {}
         ws.close();
     }
 };

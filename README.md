@@ -6,49 +6,65 @@ Originally created by Carlo Veneziano and re-written by Tristan Whitcher.
 
 ### Accounts and access
 
-Vectron uses Firebase Authentication in the `tronnerrepository` project. The
-account screen supports email/password sign-in, account creation, persistent
-sessions, password reset, and password visibility controls. It also offers a
-Guest workspace for local editing and browsing/remixing every public repository
-map without signing in. Guest drafts are saved locally under a separate browser
-profile, the Upload control is unavailable, and Firebase Storage rejects every
-unauthenticated create, replace, archive, and delete request. Every account has
-a required author name.
-Vectron locks the map Author field to that profile name and the Category field
-to `maps`. Accounts default to the `User` level. An `Admin` level is granted
-only through Firebase custom claims (`role: "admin"` and `admin: true`) and is
-shown beside the signed-in account.
+Vectron uses Firebase Authentication, Cloud Firestore, and Cloud Storage in the
+`tronnerrepository` project. The account screen supports email/password access,
+persistent sessions, password reset, and a separate local Guest workspace.
 
-The cloud-upload toolbar button stores the current `.aamap.xml` file at
-`<author name>/maps/<map file>` in Cloud Storage. Storage Rules require the
-signed-in token name to match the author directory, attach the account UID to
-each object, prevent one account from overwriting another account's objects,
-accept only XML map files under 10 MiB, and permit public list/download access
-only for `.aamap.xml` repository objects.
-Admins may edit a map in another author's directory. The editor locks that
-author and map name, bumps the version, archives the previous live revision,
-and preserves its owner UID on both the archive and replacement. Admins also
-retain a separate Remix action, which follows the normal provenance workflow
-and uploads the result under the Admin's own author directory.
+New registrations enter a `pending` state. Pending users and guests can browse,
+download, and remix every active catalog map, and their work is saved locally.
+They cannot upload a revision, create a submission, edit catalog metadata, or
+perform any other repository write. An admin must approve the registration and
+link it to an existing author (or create the requested author) before map
+submission is enabled. Denial requires a reason. Approval and denial decisions
+appear in the user's in-app notifications.
 
-The checked-in `.firebaserc` and `firebase.json` keep the email/password
-provider configuration reproducible. Deploy authentication configuration with:
+Approved users submit maps as immutable objects under
+`_revisions/<uid>/<submission-id>`. The corresponding Firestore submission is
+`pending` until an admin validates and approves it. Publishing changes only the
+active catalog pointer; it never overwrites an existing map object. Admins may:
+
+- approve or deny registrations and submissions, with a recorded reason;
+- link an account to an existing author;
+- correct the final author or category before approval;
+- publish author/category corrections for an existing map as a new immutable
+  revision; and
+- view the pending-registration and pending-submission counts in Vectron.
+
+Every decision creates an immutable audit event. Resource-path reservation
+documents prevent two maps or revisions from publishing to the same logical
+path, and SHA-256 values bind catalog records to their Storage bytes. The public
+`maps` collection exposes active catalog metadata only; account, notification,
+submission, audit, and author-link data remain private under the checked-in
+rules. Administrator access is granted only through the Firebase `admin` custom
+claim, never through a display name.
+
+The checked-in `.firebaserc` and `firebase.json` keep the Firebase configuration
+reproducible. Deploy the catalog rules together with the compatible Vectron
+client:
 
 ```sh
 firebase deploy --only auth
-firebase deploy --only storage
+firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
-
-Cloud Storage for Firebase requires the project to use the Blaze plan. Create
-the default `tronnerrepository.firebasestorage.app` bucket in a Google Cloud
-Storage Always Free region before deploying `storage.rules`.
 
 The Firebase web configuration in `js/auth.js` identifies the public browser
 client and is safe to ship. Administrator credentials and service-account keys
-must never be added to this repository. The sign-in curtain offers the
-read-only Guest workspace alongside account access. Map writes are protected
-independently by the checked-in Cloud Storage Security Rules, so hiding Guest
-upload controls is not the security boundary.
+must never be added to this repository. Firestore and Storage Rules enforce the
+access boundary independently of the hidden or disabled browser controls.
+
+### Catalog migration
+
+`scripts/migrate-firebase-catalog.mjs` builds the effective catalog from a Git
+checkout, the live override directory, and the exclusion-key JSON export. It
+validates each map, uploads checksum-addressed immutable revisions, and writes
+the matching authors, submissions, active map pointers, path reservations, and
+catalog settings. It is dry-run by default and idempotent when `--apply` is
+used. The migration leaves `catalogSettings/current.ready` false so the game
+server cannot cut over before an independently verified shadow sync.
+
+The game server uses a separate least-privilege service account for catalog
+reads and server-approved `/size` or status changes. That credential belongs on
+the server only and must not be committed here.
 
 
 ### Features legend:
@@ -116,22 +132,21 @@ node tests/vectron-symmetry.test.js
 node tests/vectron-auth.test.js
 node tests/vectron-local-draft.test.js
 node tests/vectron-map-format.test.js
+node tests/vectron-catalog.test.mjs
 ```
 
-The authentication browser smoke test creates a random disposable account in
-the real Firebase project, verifies account creation, locked map metadata,
-upload path/content, login, logout, session persistence, and editor locking,
-then deletes the uploaded map and account. With Vectron served locally and
-Firefox running with WebDriver BiDi enabled:
+The authentication browser smoke test exercises the real Firebase project and
+must only be run with its cleanup-capable management token. It creates
+disposable accounts and data, verifies Guest and pending read-only access,
+registration review, author linking, notifications, immutable submission
+review, and the catalog browser, then removes the disposable test state. With
+Vectron served locally and Firefox running with WebDriver BiDi enabled:
 
 ```sh
 VECTRON_BIDI_URL=ws://127.0.0.1:9223/session \
 VECTRON_TEST_URL=http://127.0.0.1:8000/ \
 node tests/vectron-auth-browser-smoke.js
 ```
-
-Supplying a Firebase-management OAuth token also exercises promotion to Admin
-and a disposable cross-author edit:
 
 ```sh
 VECTRON_ADMIN_OAUTH_TOKEN=... \

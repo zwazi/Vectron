@@ -2,115 +2,85 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      // Repository browsing and map downloads are public. All mutations are
-      // still governed by the authenticated create/delete matches below.
-      allow list: if true;
-      allow get: if resource.name.matches('.*\\.aamap\\.xml');
-    }
-
-    match /{author}/{category}/archive/{fileName} {
-      allow create: if category == 'maps'
-        && validArchiveUpload(author, category, fileName);
-      allow delete: if ownsStoredMap(author);
-    }
-
-    match /{author}/{category}/{fileName} {
-      // Live revisions are immutable. Edits create a bumped version at a new
-      // path, archive the source, then remove that source from the live list.
-      allow create: if category == 'maps'
-        && validLiveUpload(author, category, fileName);
-      allow delete: if ownsStoredMap(author);
-    }
-
-    function ownsStoredMap(author) {
-      return request.auth != null
-        && (isAdmin()
-          || (request.auth.token.name is string
-            && request.auth.token.name == author
-            && resource.metadata.ownerUid == request.auth.uid));
+    function signedIn() {
+      return request.auth != null;
     }
 
     function isAdmin() {
-      return request.auth != null
-        && request.auth.token.admin == true;
+      return signedIn() && request.auth.token.admin == true;
     }
 
-    function canWriteForAuthor(author) {
-      return isAdmin()
-        || (request.auth.token.name is string
-          && request.auth.token.name == author);
+    function account(uid) {
+      return firestore.get(/databases/(default)/documents/accounts/$(uid));
     }
 
-    function validMapPayload(author, category, fileName) {
-      return request.auth != null
-        && canWriteForAuthor(author)
-        && fileName.matches('.*\\.aamap\\.xml')
+    function submission(submissionId) {
+      return firestore.get(
+        /databases/(default)/documents/mapSubmissions/$(submissionId)
+      );
+    }
+
+    function hasApprovedAccount() {
+      return signedIn()
+        && account(request.auth.uid).data.status == 'approved'
+        && account(request.auth.uid).data.authorId is string;
+    }
+
+    function validRevisionUpload(ownerUid, submissionId) {
+      return resource == null
+        && signedIn()
+        && request.auth.uid == ownerUid
+        && (isAdmin() || hasApprovedAccount())
+        && request.resource.size > 0
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('application/xml.*')
-        && request.resource.metadata.ownerUid is string
-        && (isAdmin() || request.resource.metadata.ownerUid == request.auth.uid)
-        && request.resource.metadata.author == author
-        && request.resource.metadata.category == category;
-    }
-
-    function validLiveUpload(author, category, fileName) {
-      return resource == null
-        && validMapPayload(author, category, fileName)
-        && request.resource.metadata.archived == 'false'
+        && request.resource.metadata.ownerUid == ownerUid
+        && request.resource.metadata.submissionId == submissionId
+        && request.resource.metadata.authorId is string
+        && request.resource.metadata.authorName is string
+        && request.resource.metadata.category is string
         && request.resource.metadata.mapName is string
         && request.resource.metadata.mapVersion is string
-        && request.resource.metadata.mapVersion.matches('[0-9]+(\\.[0-9]+)*')
-        && fileName == request.resource.metadata.mapName + '-'
-          + request.resource.metadata.mapVersion + '.aamap.xml'
-        && validRemixIdentity()
-        && validLiveOperation(author, fileName);
+        && request.resource.metadata.mapVersion.matches('(v|V)?[0-9]+(\\.[0-9]+)*')
+        && request.resource.metadata.sha256.matches('[0-9a-f]{64}')
+        && (isAdmin()
+          || request.resource.metadata.authorId == account(ownerUid).data.authorId);
     }
 
-    function validRemixIdentity() {
-      return (request.resource.metadata.isRemix == 'false'
-          && request.resource.metadata.remixDepth == '0'
-          && request.resource.metadata.remixOriginalName == '')
-        || (request.resource.metadata.isRemix == 'true'
-          && request.resource.metadata.remixOriginalName is string
-          && request.resource.metadata.remixOriginalName.matches('.+')
-          && ((request.resource.metadata.remixDepth == '1'
-              && request.resource.metadata.mapName ==
-                request.resource.metadata.remixOriginalName + '_r')
-            || (request.resource.metadata.remixDepth.matches('([2-9]|[1-9][0-9]+)')
-              && request.resource.metadata.mapName ==
-                request.resource.metadata.remixOriginalName + '_r'
-                + request.resource.metadata.remixDepth)));
+    function canReadRevision(ownerUid, submissionId) {
+      return isAdmin()
+        || (signedIn() && request.auth.uid == ownerUid)
+        || (firestore.exists(
+            /databases/(default)/documents/mapSubmissions/$(submissionId)
+          )
+          && submission(submissionId).data.status == 'approved'
+          && submission(submissionId).data.storagePath == '_revisions/'
+            + ownerUid + '/' + submissionId);
     }
 
-    function validLiveOperation(author, fileName) {
-      return (request.resource.metadata.operation == 'create'
-          && request.resource.metadata.editSourcePath == ''
-          && request.resource.metadata.editSourceName == ''
-          && request.resource.metadata.editSourceVersion == ''
-          && request.resource.metadata.editSourceCategory == ''
-          && request.resource.metadata.editSourceFileName == '')
-        || (request.resource.metadata.operation == 'edit'
-          && request.resource.metadata.editSourceName == request.resource.metadata.mapName
-          && request.resource.metadata.editSourceVersion is string
-          && request.resource.metadata.editSourceVersion.matches('[0-9]+(\\.[0-9]+)*')
-          && request.resource.metadata.editSourceVersion != request.resource.metadata.mapVersion
-          && request.resource.metadata.editSourceCategory is string
-          && request.resource.metadata.editSourceCategory.matches('.+')
-          && request.resource.metadata.editSourceFileName is string
-          && request.resource.metadata.editSourceFileName.matches('.*\\.aamap\\.xml')
-          && request.resource.metadata.editSourceFileName != fileName
-          && request.resource.metadata.editSourcePath == author + '/'
-            + request.resource.metadata.editSourceCategory + '/'
-            + request.resource.metadata.editSourceFileName);
+    match /_revisions/{ownerUid}/{submissionId} {
+      allow get: if canReadRevision(ownerUid, submissionId);
+      allow create: if validRevisionUpload(ownerUid, submissionId);
+      allow update: if false;
+      allow delete: if isAdmin();
+      allow list: if isAdmin();
     }
 
-    function validArchiveUpload(author, category, fileName) {
-      return resource == null
-        && validMapPayload(author, category, fileName)
-        && request.resource.metadata.archived == 'true'
-        && request.resource.metadata.operation == 'archive'
-        && request.resource.metadata.archivedFrom == author + '/' + category + '/' + fileName;
+    // Existing objects remain public while the one-time migration records them
+    // in Firestore. They are read-only; new revisions use /_revisions/.
+    match /{author}/{category}/{fileName} {
+      allow get: if author != '_revisions'
+        && fileName.matches('.*\\.aamap\\.xml');
+      allow create, update, delete, list: if false;
+    }
+
+    match /{author}/{category}/archive/{fileName} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

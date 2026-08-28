@@ -464,6 +464,8 @@
             <div id="auth-account-controls" class="auth-session auth-session-plan auth-account-controls" hidden aria-label="Signed-in account and map actions">
                 <span class="auth-session-avatar" data-auth-avatar aria-hidden="true">V</span>
                 <span class="auth-session-copy"><strong data-auth-name>Vectron user</strong><small><span data-auth-email></span><span class="auth-role-badge" data-auth-role>User</span></small></span>
+                <button class="auth-notification-button" type="button" data-notifications aria-expanded="false" aria-controls="notification-overlay" title="Notifications" aria-label="Notifications"><i class="fa-solid fa-bell" aria-hidden="true"></i><span class="auth-action-label">Notifications</span><span class="auth-count-badge" data-notification-count hidden>0</span></button>
+                <button class="auth-admin-button" type="button" data-admin-review hidden aria-expanded="false" aria-controls="admin-overlay" title="Review registrations and maps" aria-label="Review registrations and maps"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span class="auth-action-label">Review</span><span class="auth-count-badge" data-admin-count hidden>0</span></button>
                 <button class="auth-repository-button" type="button" data-map-repository aria-expanded="false" aria-controls="map-repository-overlay" title="Browse repository maps" aria-label="Browse repository maps"><i class="fa-solid fa-map" aria-hidden="true"></i><span>Maps</span></button>
                 <button class="auth-upload-button" type="button" data-map-upload title="Upload map" aria-label="Upload map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Upload</span></button>
                 <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
@@ -727,6 +729,49 @@
                 <div id="map-repository-summary" class="repository-summary" aria-live="polite">Open the repository to remix maps.</div>
                 <div id="map-repository-status" class="repository-status" role="status" aria-live="polite" hidden></div>
                 <div id="map-repository-list" class="repository-list" aria-label="Repository maps"></div>
+            </section>
+        </div>
+        <div id="notification-overlay" class="repository-overlay" hidden>
+            <section class="repository-dialog account-dialog" role="dialog" aria-modal="true" aria-labelledby="notification-title">
+                <header class="repository-header">
+                    <div class="repository-title-wrap">
+                        <span class="repository-title-icon" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
+                        <span><strong id="notification-title">Notifications</strong><small>Registration and map review updates</small></span>
+                    </div>
+                    <button id="notification-close" class="repository-icon-button" type="button" aria-label="Close notifications" title="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                </header>
+                <div class="repository-tools account-tools">
+                    <span id="notification-summary" class="repository-summary" aria-live="polite">No notifications loaded.</span>
+                    <button id="notification-mark-read" class="repository-refresh-button" type="button"><i class="fa-solid fa-check-double" aria-hidden="true"></i><span>Mark all read</span></button>
+                </div>
+                <div id="notification-status" class="repository-status" role="status" aria-live="polite" hidden></div>
+                <div id="notification-list" class="repository-list account-list" aria-label="Notifications"></div>
+            </section>
+        </div>
+        <div id="admin-overlay" class="repository-overlay" hidden>
+            <section class="repository-dialog admin-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+                <header class="repository-header">
+                    <div class="repository-title-wrap">
+                        <span class="repository-title-icon" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
+                        <span><strong id="admin-title">Vectron review</strong><small>Approve accounts, review submissions, and maintain map metadata</small></span>
+                    </div>
+                    <button id="admin-close" class="repository-icon-button" type="button" aria-label="Close admin review" title="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                </header>
+                <div class="repository-tools">
+                    <label class="repository-search" for="admin-search">
+                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                        <input id="admin-search" type="search" autocomplete="off" placeholder="Search the current queue">
+                    </label>
+                    <button id="admin-refresh" class="repository-refresh-button" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Refresh</span></button>
+                </div>
+                <div class="repository-tabs" role="tablist" aria-label="Admin review section">
+                    <button class="repository-tab active" type="button" role="tab" aria-selected="true" data-admin-tab="accounts">Registrations <span data-admin-account-count>0</span></button>
+                    <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="submissions">Map reviews <span data-admin-submission-count>0</span></button>
+                    <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="maps">Published maps <span data-admin-map-count>0</span></button>
+                </div>
+                <div id="admin-summary" class="repository-summary" aria-live="polite">Open a queue to begin reviewing.</div>
+                <div id="admin-status" class="repository-status" role="status" aria-live="polite" hidden></div>
+                <div id="admin-list" class="repository-list account-list" aria-label="Admin review items"></div>
             </section>
         </div>
         <div id="map-dtd-options" class="tsb-combobox-menu" role="listbox" aria-label="Known DTD files" hidden>
