@@ -253,6 +253,8 @@ async function login(context, email, password, role) {
         document.getElementById("auth-password").value = ${JSON.stringify(password)};
         document.getElementById("auth-form").requestSubmit();
         await waitFor(function(){ return window.vectron_started === true &&
+            document.getElementById("auth-gate").hidden &&
+            document.querySelector("[data-auth-email]").textContent === ${JSON.stringify(email)} &&
             document.querySelector("[data-auth-role]").textContent === ${JSON.stringify(role)}; },
             "Expected ${role} session did not start");
         return {role: window.vectron_userRole};
@@ -310,7 +312,9 @@ ws.onopen = async () => {
             document.getElementById("auth-password").value = ${JSON.stringify(userPassword)};
             document.getElementById("auth-confirm-password").value = ${JSON.stringify(userPassword)};
             document.getElementById("auth-form").requestSubmit();
-            await waitFor(function(){ return window.vectron_userRole === "pending"; }, "Pending session failed");
+            await waitFor(function(){ return window.vectron_userRole === "pending" &&
+                document.getElementById("auth-gate").hidden &&
+                document.querySelector("[data-auth-email]").textContent === ${JSON.stringify(userEmail)}; }, "Pending session failed");
             document.querySelector("[data-map-repository]").click();
             document.getElementById("map-repository-others-tab").click();
             await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 230; }, "Pending catalog failed", 45000);
@@ -352,12 +356,16 @@ ws.onopen = async () => {
         const upload = await evaluate(context, `
             await waitFor(function(){ return !document.querySelector("[data-map-upload]").disabled; }, "Submission button stayed disabled");
             document.getElementById("map_name").value = ${JSON.stringify(mapName)};
-            document.querySelector("[data-map-upload]").click();
-            await waitFor(function(){ return /submitted for admin review/i.test(document.getElementById("vt-toast").textContent); }, "Map submission failed", 45000);
+            let uploadError = "";
+            try { await window.vectron_uploadCurrentMap(); }
+            catch(error) { uploadError = error && (error.stack || error.message) || String(error); }
             return {toast: document.getElementById("vt-toast").textContent,
-                notificationCount: Number(document.querySelector("[data-notification-count]").textContent || 0)};
+                notificationCount: Number(document.querySelector("[data-notification-count]").textContent || 0),
+                role: window.vectron_userRole,
+                uploadDisabled: document.querySelector("[data-map-upload]").disabled,
+                uploadError};
         `);
-        assert.match(upload.toast, /submitted for admin review/i);
+        assert.match(upload.toast, /submitted for admin review/i, JSON.stringify(upload));
         assert.ok(upload.notificationCount >= 1);
         submission = await waitForRemote(async () => (await listDocuments("mapSubmissions"))
             .find(item => item.submittedBy === user.localId && item.mapName === mapName && item.status === "pending"),
