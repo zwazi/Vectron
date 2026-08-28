@@ -1221,6 +1221,51 @@ button.repository-author-heading:disabled {
   resize: both;
 }
 
+.admin-dialog.positioned {
+  position: fixed;
+  margin: 0;
+}
+
+.admin-dialog .repository-header {
+  cursor: move;
+  user-select: none;
+}
+
+.admin-dialog .repository-header button,
+.admin-dialog .repository-header input {
+  cursor: pointer;
+}
+
+.auth-confirm-popover {
+  position: fixed;
+  z-index: 19000;
+  width: min(340px, calc(100vw - 24px));
+  padding: 13px;
+  border: 1px solid rgba(85, 244, 220, 0.28);
+  border-radius: 10px;
+  color: #e9eaee;
+  background: linear-gradient(155deg, rgba(51, 51, 51, 0.995), rgba(29, 29, 31, 0.995));
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.62), inset 0 1px rgba(255, 255, 255, 0.07);
+  font-family: "Open Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.auth-confirm-message {
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.auth-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.auth-confirm-actions .account-card-button.danger {
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
 .account-card {
   margin-bottom: 10px;
   padding: 12px;
@@ -1458,6 +1503,46 @@ button.repository-author-heading:disabled {
 .map-preview-zone-fortress {
   fill: rgba(85, 244, 220, 0.15);
   stroke: #55f4dc;
+}
+
+.map-preview-zone-checkpoint {
+  fill: rgba(190, 127, 255, 0.14);
+  stroke: #c58cff;
+}
+
+.map-preview-zone-teleport {
+  fill: rgba(0, 217, 232, 0.13);
+  stroke: #00d9e8;
+}
+
+.map-preview-checkpoint-label {
+  fill: #e2c8ff;
+  font-size: 9px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #19191c;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-preview-teleport-link,
+.map-preview-teleport-direction {
+  stroke: #00d9e8;
+  stroke-width: 1.35;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-preview-teleport-direction {
+  stroke-width: 2;
+  stroke-dasharray: none;
+}
+
+.map-preview-teleport-destination {
+  fill: rgba(0, 217, 232, 0.26);
+  stroke: #50f4ff;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
 }
 
 .map-preview-spawn {

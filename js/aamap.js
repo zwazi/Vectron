@@ -35,7 +35,7 @@ var aamap_symmetryCheckObjects = [];
 
 function aamap_objectVisuals(aamapObject) {
     var visuals = [];
-    ["obj", "glowObj", "guideObj"].forEach(function(name) {
+    ["obj", "glowObj", "guideObj", "detailObj"].forEach(function(name) {
         if(aamapObject && aamapObject[name] && visuals.indexOf(aamapObject[name]) < 0) {
             visuals.push(aamapObject[name]);
         }
@@ -186,8 +186,29 @@ function aamap_symmetryClone(aamapObject, transform) {
         copy.guideObj = null;
     } else if(typeof Zone !== "undefined" && aamapObject instanceof Zone) {
         var reflectedCenter = aamap_symmetryPoint(aamapObject, transform);
+        var zoneData = typeof aamapObject.copyZoneData === "function" ?
+            aamapObject.copyZoneData() : aamapObject.option;
+        var zoneKind = (zoneTool_typeArray[aamapObject.type] || [])[0];
+        if(zoneKind === "teleport") {
+            if(zoneData.mode === "abs") {
+                var reflectedDestination = aamap_symmetryPoint({
+                    x:zoneData.destX, y:zoneData.destY
+                }, transform);
+                zoneData.destX = reflectedDestination.x;
+                zoneData.destY = reflectedDestination.y;
+            } else if(zoneData.mode === "rel") {
+                zoneData.destX = Number(zoneData.destX) * transform.x;
+                zoneData.destY = Number(zoneData.destY) * transform.y;
+            } else if(zoneData.mode === "cycle") {
+                // A reflection reverses the handedness of the cycle-local
+                // forward/sideways basis; a point rotation does not.
+                zoneData.destY = Number(zoneData.destY) * transform.x * transform.y;
+            }
+            zoneData.dirX = Number(zoneData.dirX) * transform.x;
+            zoneData.dirY = Number(zoneData.dirY) * transform.y;
+        }
         copy = new Zone(reflectedCenter.x, reflectedCenter.y, aamapObject.radius,
-            aamapObject.growth, aamapObject.type, aamapObject.option);
+            aamapObject.growth, aamapObject.type, zoneData);
     }
     return copy;
 }
@@ -683,6 +704,37 @@ function aamap_init() {
 
 function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
     var fileName = name + "-" + version + ".aamap.xml";
+
+    function isSpecialZone(object) {
+        if(typeof Zone === "undefined" || !(object instanceof Zone)) return false;
+        var kind = (zoneTool_typeArray[object.type] || [])[0];
+        return kind === "teleport" || kind === "checkpoint";
+    }
+
+    function isCheckpointZone(object) {
+        return typeof Zone !== "undefined" && object instanceof Zone &&
+            (zoneTool_typeArray[object.type] || [])[0] === "checkpoint";
+    }
+
+    var hasSpecialZones = aamap_objects.some(isSpecialZone);
+    var hasCheckpoints = aamap_objects.some(isCheckpointZone);
+    var knownIncompatibleDtd = /^(sty\.dtd|map-0\.2\.(8|9)(?:_beta3)?\.dtd|map-0\.3\.1-a\.dtd|Anonymous\/map-0\.2\.8\.dtd)$/i;
+    if(hasSpecialZones && knownIncompatibleDtd.test(String(dtd || ""))) {
+        dtd = "map-0.2.9_styctap_v1.5.dtd";
+    }
+    settings = (settings || []).slice();
+    var checkpointSetting = "RACE_CHECKPOINT_REQUIRE_HIT";
+    var checkpointMode = "2";
+    settings = settings.filter(function(setting) {
+        var text = String(setting || "").trim();
+        if(text.toUpperCase().indexOf(checkpointSetting + " ") === 0) {
+            var value = text.slice(text.indexOf(" ") + 1).trim();
+            if(value === "1" || value === "2") checkpointMode = value;
+            return false;
+        }
+        return true;
+    });
+    if(hasCheckpoints) settings.push(checkpointSetting + " " + checkpointMode);
 
     function indentLines(str, prefix) {
         return str.split('\n').map(function(line) { return prefix + line; }).join('\n');

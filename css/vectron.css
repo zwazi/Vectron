@@ -873,7 +873,7 @@ body.noscroll {
 }
 #zone-tool-window {
   width: 300px;
-  height: 240px;
+  height: 500px;
 }
 
 #wall-tool-header,
@@ -1125,6 +1125,58 @@ button.vt-tool-grid-row,
 #wall-tool-body .vt-setting-row input[type="number"],
 #zone-tool-body .vt-setting-row input[type="number"] {
   width: 78px;
+}
+
+#zone-tool-body .vt-setting-row select {
+  width: 128px;
+  min-height: 26px;
+}
+
+.vt-zone-status {
+  max-width: 145px;
+  justify-content: flex-start;
+  color: #555;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.vt-zone-properties {
+  grid-column: 2 / 4;
+  display: grid;
+  grid-template-columns: minmax(105px, 1fr) minmax(86px, 0.8fr);
+  gap: 6px 8px;
+  margin-top: 8px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(0, 0, 0, 0.16);
+}
+
+.vt-zone-properties > strong,
+.vt-zone-properties > small,
+.vt-zone-properties > button {
+  grid-column: 1 / -1;
+}
+
+.vt-zone-properties label {
+  display: contents;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.vt-zone-properties label input,
+.vt-zone-properties label select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.vt-zone-properties small {
+  color: #666;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.zone-type-teleport img {
+  filter: hue-rotate(130deg) saturate(2.2);
 }
 
 #dWallHeight {

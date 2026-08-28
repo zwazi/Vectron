@@ -530,7 +530,8 @@
                     <button class="btn btn-xs zone-type-btn zone-type-target vt-tool-grid-row" data-type="2" aria-label="Target zone" data-tooltip-title="Target Zone" data-tooltip-desc="Place a target zone for objective-style maps."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/TargetZone.png" alt=""></span><span class="vt-tool-name">Target Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
                     <button class="btn btn-xs zone-type-btn zone-type-rubber vt-tool-grid-row" data-type="3" aria-label="Rubber zone" data-tooltip-title="Rubber Zone" data-tooltip-desc="Place a rubber zone with configurable rubber behavior."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/RubberZone.png" alt=""></span><span class="vt-tool-name">Rubber Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
                     <button class="btn btn-xs zone-type-btn zone-type-fortress vt-tool-grid-row" data-type="4" aria-label="Fortress zone" data-tooltip-title="Fortress Zone" data-tooltip-desc="Place a fortress zone for conquest-style gameplay."><span class="vt-tool-icon"><img src="./images/ObjectTools/Zones/FortressZone.png" alt=""></span><span class="vt-tool-name">Fortress Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
-                    <button class="btn btn-xs zone-type-btn zone-type-checkpoint vt-tool-grid-row" data-type="5" aria-label="Checkpoint zone" data-tooltip-title="Checkpoint Zone" data-tooltip-desc="Place an ordered checkpoint zone for race maps."><span class="vt-tool-icon"><img src="./images/ObjectTools/ZoneBase.png" alt=""></span><span class="vt-tool-name">Checkpoint Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                    <button class="btn btn-xs zone-type-btn zone-type-checkpoint vt-tool-grid-row" data-type="5" aria-label="Checkpoint zone" data-tooltip-title="Checkpoint Zone" data-tooltip-desc="Place a checkpoint, then choose ordered or unordered behavior for the whole map."><span class="vt-tool-icon"><img src="./images/ObjectTools/ZoneBase.png" alt=""></span><span class="vt-tool-name">Checkpoint Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
+                    <button class="btn btn-xs zone-type-btn zone-type-teleport vt-tool-grid-row" data-type="6" aria-label="Teleport zone" data-tooltip-title="Teleport Zone" data-tooltip-desc="Place an entrance, size it, then set its destination and exit direction."><span class="vt-tool-icon"><img src="./images/ObjectTools/ZoneBase.png" alt=""></span><span class="vt-tool-name">Teleport Zone</span><span class="vt-tool-input"><span class="vt-tool-choice-dot"></span></span></button>
                 </div>
                 <div id="zone-tool-settings" class="vt-tool-grid">
                     <div id="zone-rubber-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;">
@@ -540,8 +541,18 @@
                     </div>
                     <div id="zone-checkpoint-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-sort-by-order" aria-hidden="true"></span></span>
-                        <label class="vt-tool-name" for="dCheckpointOrder">Order</label>
+                        <label class="vt-tool-name" for="dCheckpointOrder">Checkpoint ID</label>
                         <span class="vt-tool-input"><input type="number" id="dCheckpointOrder" name="dCheckpointOrder" value="1" step="1" min="1" required /></span>
+                    </div>
+                    <div id="zone-checkpoint-mode-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-list" aria-hidden="true"></span></span>
+                        <label class="vt-tool-name" for="dCheckpointMode">Whole map</label>
+                        <span class="vt-tool-input"><select id="dCheckpointMode" name="dCheckpointMode"><option value="2" selected>Ordered</option><option value="1">Unordered</option></select></span>
+                    </div>
+                    <div id="zone-teleport-setting" class="vt-tool-grid-row vt-setting-row" style="display:none;">
+                        <span class="vt-tool-icon"><span class="glyphicon glyphicon-transfer" aria-hidden="true"></span></span>
+                        <label class="vt-tool-name" for="dTeleportMode">Destination</label>
+                        <span class="vt-tool-input"><select id="dTeleportMode" name="dTeleportMode"><option value="abs" selected>Absolute point</option><option value="rel">Map-relative offset</option><option value="cycle">Cycle-relative offset</option></select></span>
                     </div>
                     <div id="zone-quick-placement" class="vt-tool-grid-row vt-setting-row">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-screenshot" aria-hidden="true"></span></span>
@@ -552,6 +563,23 @@
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-record" aria-hidden="true"></span></span>
                         <label class="vt-tool-name" for="zone-quick-size">Size Radius</label>
                         <span class="vt-tool-input"><input type="number" id="zone-quick-size" value="32" min="1" step="1" /></span>
+                    </div>
+                    <div id="zone-tool-status-row" class="vt-tool-grid-row vt-setting-row">
+                        <span class="vt-tool-icon"></span>
+                        <span class="vt-tool-name">Placement</span>
+                        <span id="zone-tool-status" class="vt-tool-input vt-zone-status">Click a zone center.</span>
+                    </div>
+                    <div id="zone-selected-properties" class="vt-zone-properties" style="display:none;">
+                        <strong id="zone-selected-title">Selected zone</strong>
+                        <label id="zone-selected-checkpoint-row">Checkpoint ID <input id="zone-selected-checkpoint-id" type="number" min="1" step="1" /></label>
+                        <label id="zone-selected-teleport-mode-row">Destination mode <select id="zone-selected-teleport-mode"><option value="abs">Absolute point</option><option value="rel">Map-relative offset</option><option value="cycle">Cycle-relative offset</option></select></label>
+                        <label id="zone-selected-dest-x-row">Destination X <input id="zone-selected-dest-x" type="number" step="any" /></label>
+                        <label id="zone-selected-dest-y-row">Destination Y <input id="zone-selected-dest-y" type="number" step="any" /></label>
+                        <label id="zone-selected-dir-x-row">Direction X <input id="zone-selected-dir-x" type="number" step="any" /></label>
+                        <label id="zone-selected-dir-y-row">Direction Y <input id="zone-selected-dir-y" type="number" step="any" /></label>
+                        <label id="zone-selected-reloc-row">Exit compensation <input id="zone-selected-reloc" type="number" step="any" /></label>
+                        <small id="zone-selected-direction-help">Direction 0, 0 preserves the incoming direction.</small>
+                        <button id="zone-selected-apply" type="button" class="btn btn-sm btn-primary">Apply zone changes</button>
                     </div>
                 </div>
             </div>
@@ -776,13 +804,20 @@
                 <div id="admin-list" class="repository-list account-list" aria-label="Admin review items"></div>
             </section>
         </div>
+        <div id="auth-confirm-popover" class="auth-confirm-popover" role="dialog" aria-modal="false" aria-labelledby="auth-confirm-message" hidden>
+            <div id="auth-confirm-message" class="auth-confirm-message"></div>
+            <div class="auth-confirm-actions">
+                <button id="auth-confirm-cancel" type="button" class="account-card-button">Cancel</button>
+                <button id="auth-confirm-accept" type="button" class="account-card-button">Confirm</button>
+            </div>
+        </div>
         <div id="map-dtd-options" class="tsb-combobox-menu" role="listbox" aria-label="Known DTD files" hidden>
             <button id="map-dtd-option-0" type="button" role="option" data-dtd-value="sty.dtd">sty.dtd</button>
             <button id="map-dtd-option-1" type="button" role="option" data-dtd-value="map-0.2.8.dtd">map-0.2.8.dtd</button>
             <button id="map-dtd-option-2" type="button" role="option" data-dtd-value="map-0.2.9.dtd">map-0.2.9.dtd</button>
             <button id="map-dtd-option-3" type="button" role="option" data-dtd-value="map-0.3.1-a.dtd">map-0.3.1-a.dtd</button>
             <button id="map-dtd-option-4" type="button" role="option" data-dtd-value="Anonymous/map-0.2.8.dtd">Anonymous/map-0.2.8.dtd</button>
-            <button id="map-dtd-option-5" type="button" role="option" data-dtd-value="Loverboy/map-0.2.9_styctap_v1.5.dtd">Loverboy/map-0.2.9_styctap_v1.5.dtd</button>
+            <button id="map-dtd-option-5" type="button" role="option" data-dtd-value="map-0.2.9_styctap_v1.5.dtd">map-0.2.9_styctap_v1.5.dtd</button>
             <button id="map-dtd-option-6" type="button" role="option" data-dtd-value="aacockpit-0.1.dtd">aacockpit-0.1.dtd</button>
             <button id="map-dtd-option-7" type="button" role="option" data-dtd-value="wrtlprnft/map-0.2.8-0.1.dtd">wrtlprnft/map-0.2.8-0.1.dtd</button>
         </div>

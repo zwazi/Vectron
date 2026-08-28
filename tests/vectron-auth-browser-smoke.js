@@ -257,6 +257,14 @@ async function evaluate(context, body) {
                 })();
             });
         }
+        async function clickConfirmed(control, message) {
+            control.click();
+            const popover = await waitFor(function(){
+                const candidate = document.getElementById("auth-confirm-popover");
+                return candidate && !candidate.hidden && candidate;
+            }, message || "Confirmation popover did not open");
+            popover.querySelector("#auth-confirm-accept").click();
+        }
         ${body}
     })().then(JSON.stringify)`;
     const result = await call("script.evaluate", {
@@ -287,6 +295,13 @@ async function login(context, email, password, role) {
 async function logout(context) {
     return evaluate(context, `
         document.querySelector("[data-auth-signout]").click();
+        await waitFor(function(){
+            return document.body.classList.contains("auth-locked") ||
+                !document.getElementById("auth-confirm-popover").hidden;
+        }, "Sign out neither proceeded nor requested confirmation");
+        if(!document.getElementById("auth-confirm-popover").hidden) {
+            document.getElementById("auth-confirm-accept").click();
+        }
         await waitFor(function(){ return document.body.classList.contains("auth-locked") &&
             !document.getElementById("auth-panel").hidden; }, "Sign out did not finish");
         return true;
@@ -316,8 +331,8 @@ ws.onopen = async () => {
             await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 150; }, "Guest catalog failed", 45000);
             const visibleMaps = document.querySelectorAll("[data-repository-open]").length;
             const editActions = document.querySelectorAll('[data-repository-action="edit"]').length;
-            window.confirm = function(){ return true; };
-            document.querySelector('[data-repository-action="remix"]').click();
+            await clickConfirmed(document.querySelector('[data-repository-action="remix"]'),
+                "Guest remix confirmation did not open");
             await waitFor(function(){ return document.getElementById("map-repository-overlay").hidden; }, "Guest map download failed", 45000);
             return {visibleMaps, editActions, uploadHidden: document.querySelector("[data-map-upload]").hidden,
                 toast: document.getElementById("vt-toast").textContent};
@@ -364,8 +379,8 @@ ws.onopen = async () => {
             const card = document.querySelector('[data-admin-card="${user.localId}"]');
             card.querySelector("[data-admin-author]").value = "__requested__";
             card.querySelector("[data-admin-author-name]").value = ${JSON.stringify(userName)};
-            window.confirm = function(){ return true; };
-            card.querySelector('[data-admin-action="approve-account"]').click();
+            await clickConfirmed(card.querySelector('[data-admin-action="approve-account"]'),
+                "Registration approval confirmation did not open");
             await waitFor(function(){ return !document.querySelector('[data-admin-card="${user.localId}"]'); }, "Registration approval failed", 45000);
             return document.getElementById("admin-status").textContent;
         `);
@@ -414,14 +429,14 @@ ws.onopen = async () => {
                 previewRendered: Boolean(card.querySelector(".map-review-preview-svg")),
                 previewText: card.querySelector(".map-review-preview").textContent.trim()
             };
-            window.confirm = function(){ return true; };
             card.querySelector("[data-admin-reason]").value = "Edited and published in one step";
-            card.querySelector('[data-admin-action="edit-submission"]').click();
+            await clickConfirmed(card.querySelector('[data-admin-action="edit-submission"]'),
+                "Review edit confirmation did not open");
             await waitFor(function(){ return document.getElementById("admin-overlay").hidden &&
                 !document.querySelector("[data-map-review-publish]").hidden; },
                 "Pending review did not open for editing", 45000);
             const publishButton = document.querySelector("[data-map-review-publish]");
-            publishButton.click();
+            await clickConfirmed(publishButton, "Review publish confirmation did not open");
             await waitFor(function(){ return publishButton.classList.contains("auth-uploading"); },
                 "One-step publication did not start", 15000);
             await waitFor(function(){ return !publishButton.classList.contains("auth-uploading"); },
@@ -452,8 +467,8 @@ ws.onopen = async () => {
                 decision: card.querySelectorAll(".map-review-submission-reason span")[1].textContent,
                 hasReopen: Boolean(card.querySelector('[data-admin-action="reopen-history"]'))
             };
-            window.confirm = function(){ return true; };
-            card.querySelector('[data-admin-action="reopen-history"]').click();
+            await clickConfirmed(card.querySelector('[data-admin-action="reopen-history"]'),
+                "Review history confirmation did not open");
             await waitFor(function(){ return document.getElementById("admin-overlay").hidden &&
                 !document.querySelector("[data-map-review-publish]").hidden; },
                 "Historical review did not reopen", 60000);
@@ -499,8 +514,8 @@ ws.onopen = async () => {
                 "Disposable map review was missing", 45000);
             const card = document.querySelector('[data-admin-card="${deletedSubmission.id}"]');
             card.querySelector("[data-admin-reason]").value = "Disposable browser map deletion test";
-            window.confirm = function(){ return true; };
-            card.querySelector('[data-admin-action="delete-submission-map"]').click();
+            await clickConfirmed(card.querySelector('[data-admin-action="delete-submission-map"]'),
+                "Map deletion confirmation did not open");
             await waitFor(function(){ return /permanently deleted/i.test(document.getElementById("admin-status").textContent); },
                 "Map deletion did not complete", 45000);
             return document.getElementById("admin-status").textContent;
@@ -549,8 +564,8 @@ ws.onopen = async () => {
                 "Pending denial account was missing", 45000);
             const card = document.querySelector('[data-admin-card="${deniedUser.localId}"]');
             card.querySelector("[data-admin-reason]").value = "Disposable browser deletion test";
-            window.confirm = function(){ return true; };
-            card.querySelector('[data-admin-action="deny-account"]').click();
+            await clickConfirmed(card.querySelector('[data-admin-action="deny-account"]'),
+                "Registration deletion confirmation did not open");
             await waitFor(function(){ return /permanently deleted/i.test(document.getElementById("admin-status").textContent); },
                 "Registration deletion did not complete", 45000);
             return document.getElementById("admin-status").textContent;

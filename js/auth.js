@@ -98,6 +98,11 @@ const adminAccountCount = document.querySelector("[data-admin-account-count]");
 const adminSubmissionCount = document.querySelector("[data-admin-submission-count]");
 const adminMapCount = document.querySelector("[data-admin-map-count]");
 const adminHistoryCount = document.querySelector("[data-admin-history-count]");
+const adminDialog = adminOverlay && adminOverlay.querySelector(".admin-dialog");
+const confirmPopover = document.getElementById("auth-confirm-popover");
+const confirmMessage = document.getElementById("auth-confirm-message");
+const confirmCancelButton = document.getElementById("auth-confirm-cancel");
+const confirmAcceptButton = document.getElementById("auth-confirm-accept");
 
 let auth = null;
 let authSdk = null;
@@ -132,6 +137,81 @@ let overlayPreviousFocus = null;
 let adminPreviewObserver = null;
 const adminPreviewCache = new Map();
 const adminPreviewTargets = new WeakMap();
+let confirmResolver = null;
+let confirmAnchor = null;
+let adminDragging = null;
+
+function positionConfirmationPopover() {
+    if(!confirmPopover || confirmPopover.hidden) return;
+    const margin = 12;
+    const anchor = confirmAnchor && confirmAnchor.getBoundingClientRect ? confirmAnchor : null;
+    const anchorRect = anchor ? anchor.getBoundingClientRect() : null;
+    const popoverRect = confirmPopover.getBoundingClientRect();
+    let left = anchorRect ? anchorRect.right - popoverRect.width :
+        (window.innerWidth - popoverRect.width) / 2;
+    let top = anchorRect ? anchorRect.bottom + 8 :
+        (window.innerHeight - popoverRect.height) / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - popoverRect.width - margin));
+    if(top + popoverRect.height > window.innerHeight - margin && anchorRect) {
+        top = anchorRect.top - popoverRect.height - 8;
+    }
+    top = Math.max(margin, Math.min(top, window.innerHeight - popoverRect.height - margin));
+    confirmPopover.style.left = `${Math.round(left)}px`;
+    confirmPopover.style.top = `${Math.round(top)}px`;
+}
+
+function settleConfirmation(result) {
+    if(!confirmPopover || confirmPopover.hidden) return;
+    const resolver = confirmResolver;
+    const anchor = confirmAnchor;
+    confirmResolver = null;
+    confirmAnchor = null;
+    confirmPopover.hidden = true;
+    confirmPopover.classList.remove("danger");
+    confirmAcceptButton.classList.remove("danger");
+    if(anchor && typeof anchor.focus === "function") anchor.focus();
+    if(resolver) resolver(Boolean(result));
+}
+
+function confirmAction(message, options = {}) {
+    if(!confirmPopover) return Promise.resolve(false);
+    if(confirmResolver) settleConfirmation(false);
+    confirmMessage.textContent = String(message || "Continue?");
+    confirmAcceptButton.textContent = options.confirmLabel || "Confirm";
+    confirmAcceptButton.classList.toggle("danger", options.danger === true);
+    confirmAnchor = options.anchor || (
+        document.activeElement && document.activeElement !== document.body ?
+            document.activeElement : null
+    );
+    confirmPopover.hidden = false;
+    positionConfirmationPopover();
+    window.requestAnimationFrame(positionConfirmationPopover);
+    window.setTimeout(() => confirmAcceptButton.focus(), 0);
+    return new Promise(resolve => { confirmResolver = resolve; });
+}
+
+function clampAdminDialog() {
+    if(!adminDialog || !adminDialog.classList.contains("positioned")) return;
+    const margin = 12;
+    const rect = adminDialog.getBoundingClientRect();
+    const left = Math.max(margin, Math.min(rect.left, window.innerWidth - Math.min(rect.width, 120) - margin));
+    const top = Math.max(margin, Math.min(rect.top, window.innerHeight - Math.min(rect.height, 80) - margin));
+    adminDialog.style.left = `${Math.round(left)}px`;
+    adminDialog.style.top = `${Math.round(top)}px`;
+}
+
+function anchorAdminDialog() {
+    if(!adminDialog || adminOverlay.hidden) return;
+    if(!adminDialog.classList.contains("positioned")) {
+        const rect = adminDialog.getBoundingClientRect();
+        adminDialog.style.left = `${Math.round(rect.left)}px`;
+        adminDialog.style.top = `${Math.round(rect.top)}px`;
+        adminDialog.style.width = `${Math.round(rect.width)}px`;
+        adminDialog.style.height = `${Math.round(rect.height)}px`;
+        adminDialog.classList.add("positioned");
+    }
+    clampAdminDialog();
+}
 
 function setEditorInert(locked) {
     Array.from(document.body.children).forEach(element => {
@@ -731,7 +811,10 @@ async function handleSignOut() {
         return;
     }
     if(!auth || !authSdk) return;
-    if(hasUnsavedWork() && !window.confirm("Sign out of Vectron? Your in-progress map is saved locally and will be restored when you return.")) {
+    if(hasUnsavedWork() && !await confirmAction(
+        "Sign out of Vectron? Your in-progress map is saved locally and will be restored when you return.",
+        {confirmLabel:"Sign out"}
+    )) {
         return;
     }
 
@@ -744,7 +827,7 @@ async function handleSignOut() {
     try {
         await authSdk.signOut(auth);
     } catch(error) {
-        window.alert(friendlyAuthError(error));
+        showEditorMessage(friendlyAuthError(error));
     } finally {
         buttons.forEach(button => { button.disabled = false; });
     }
@@ -1161,8 +1244,40 @@ function buildAdminMapPreview(xml, submission) {
             parent = parent.parentElement;
         }
         const effect = parent && parent.getAttribute("effect") || "zone";
+        const children = Array.from(shape.children || []);
+        const checkpoint = children.find(child =>
+            String(child.localName || child.tagName || "").toLocaleLowerCase("en-US") === "checkpoint"
+        );
+        const teleport = children.find(child =>
+            String(child.localName || child.tagName || "").toLocaleLowerCase("en-US") === "teleport"
+        );
+        let teleportData = null;
+        if(teleport) {
+            const destX = previewCoordinate(teleport, "destX");
+            const destY = previewCoordinate(teleport, "destY");
+            const dirX = previewCoordinate(teleport, "dirX");
+            const dirY = previewCoordinate(teleport, "dirY");
+            const mode = String(teleport.getAttribute("modes") || "abs").toLocaleLowerCase("en-US");
+            if(destX !== null && destY !== null) {
+                const destination = mode === "abs"
+                    ? {x: destX, y: destY}
+                    : {x: center.x + destX, y: center.y + destY};
+                teleportData = {
+                    destination,
+                    direction:{x: dirX || 0, y: dirY || 0},
+                    mode
+                };
+                include(destination);
+            }
+        }
         include(center, radius);
-        circles.push({center, radius, effect});
+        circles.push({
+            center,
+            radius,
+            effect,
+            checkpointId:checkpoint ? checkpoint.getAttribute("id") : "",
+            teleport:teleportData
+        });
     });
     previewElements(parsed, ["Spawn"]).slice(0, 2000).forEach(spawn => {
         const point = previewPoint(spawn);
@@ -1201,13 +1316,47 @@ function buildAdminMapPreview(xml, submission) {
         const normalized = String(effect || "zone").toLocaleLowerCase("en-US").replace(/[^a-z0-9_-]/g, "");
         return `map-preview-zone map-preview-zone-${normalized || "zone"}`;
     };
+    const markerSize = Math.max(1.5, span / 65);
+    circles.filter(zone => zone.teleport).forEach(zone => {
+        const destination = zone.teleport.destination;
+        svg.appendChild(previewSvgElement("line", {
+            class:"map-preview-teleport-link",
+            x1:zone.center.x, y1:-zone.center.y,
+            x2:destination.x, y2:-destination.y
+        }));
+        svg.appendChild(previewSvgElement("circle", {
+            class:"map-preview-teleport-destination",
+            cx:destination.x, cy:-destination.y, r:markerSize * 0.72
+        }));
+        const direction = zone.teleport.direction;
+        const directionLength = Math.hypot(direction.x, direction.y);
+        if(directionLength > 1e-9) {
+            svg.appendChild(previewSvgElement("line", {
+                class:"map-preview-teleport-direction",
+                x1:destination.x,
+                y1:-destination.y,
+                x2:destination.x + direction.x / directionLength * markerSize * 3,
+                y2:-(destination.y + direction.y / directionLength * markerSize * 3)
+            }));
+        }
+    });
     circles.forEach(zone => svg.appendChild(previewSvgElement("circle", {
         class: effectClass(zone.effect), cx: zone.center.x, cy: -zone.center.y, r: zone.radius
     })));
+    circles.filter(zone => zone.checkpointId).forEach(zone => {
+        const label = previewSvgElement("text", {
+            class:"map-preview-checkpoint-label",
+            x:zone.center.x,
+            y:-zone.center.y,
+            "text-anchor":"middle",
+            "dominant-baseline":"central"
+        });
+        label.textContent = `CP ${zone.checkpointId}`;
+        svg.appendChild(label);
+    });
     walls.forEach(points => svg.appendChild(previewSvgElement("path", {
         class: "map-preview-wall", d: pathData(points)
     })));
-    const markerSize = Math.max(1.5, span / 65);
     spawns.forEach(spawn => {
         svg.appendChild(previewSvgElement("circle", {
             class: "map-preview-spawn", cx: spawn.point.x, cy: -spawn.point.y, r: markerSize * 0.58
@@ -1510,6 +1659,7 @@ function openAdmin() {
     if(!currentUserIsAdmin()) return;
     overlayPreviousFocus = document.activeElement;
     adminOverlay.hidden = false;
+    anchorAdminDialog();
     adminButton.setAttribute("aria-expanded", "true");
     adminSearchInput.value = "";
     setAdminTab(adminTab);
@@ -1518,6 +1668,7 @@ function openAdmin() {
 
 function closeAdmin() {
     if(adminOverlay.hidden) return;
+    if(confirmResolver) settleConfirmation(false);
     adminOverlay.hidden = true;
     adminButton.setAttribute("aria-expanded", "false");
     if(overlayPreviousFocus && typeof overlayPreviousFocus.focus === "function") {
@@ -1568,9 +1719,10 @@ async function denyRegistration(accountId) {
     if(!account || !card) return;
     const reason = decisionReason(card, true);
     const reviewer = auth.currentUser;
-    if(!window.confirm(
+    if(!await confirmAction(
         `Deny and permanently delete ${account.requestedAuthorName || account.email}? ` +
-        "Their Firebase login and Vectron registration will be removed."
+        "Their Firebase login and Vectron registration will be removed.",
+        {confirmLabel:"Deny and delete", danger:true}
     )) return;
     setAdminBusy(true);
     setAdminStatus("Denying registration and deleting user…");
@@ -1606,7 +1758,10 @@ async function reviewAccount(accountId) {
     const reason = decisionReason(card, false);
     const author = selectedAuthor(card, account.requestedAuthorName);
     const reviewer = auth.currentUser;
-    if(!window.confirm(`Approve registration for ${account.requestedAuthorName || account.email}?`)) return;
+    if(!await confirmAction(
+        `Approve registration for ${account.requestedAuthorName || account.email}?`,
+        {confirmLabel:"Approve and link"}
+    )) return;
     setAdminBusy(true);
     setAdminStatus("Approving registration…");
     try {
@@ -1751,7 +1906,10 @@ async function reviewSubmission(submissionId, approved) {
         if(categoryIssue) throw new Error(categoryIssue);
         category = normalizeCategory(categoryInput.value);
     }
-    if(!window.confirm(`${approved ? "Approve and publish" : "Deny"} ${submission.mapName}?`)) return;
+    if(!await confirmAction(
+        `${approved ? "Approve and publish" : "Deny"} ${submission.mapName}?`,
+        {confirmLabel:approved ? "Approve and publish" : "Deny", danger:!approved}
+    )) return;
     setAdminBusy(true);
     setAdminStatus(`${approved ? "Validating and publishing" : "Denying"} map submission…`);
     try {
@@ -1920,9 +2078,10 @@ async function deleteReviewedMap(submissionId) {
     const card = adminCard(submissionId);
     if(!submission || !card) return;
     const reason = decisionReason(card, true);
-    if(!window.confirm(
+    if(!await confirmAction(
         `Permanently deny and delete ${submission.mapName}? This removes the map, ` +
-        "its review history, reserved paths, and stored revisions. This cannot be undone."
+        "its review history, reserved paths, and stored revisions. This cannot be undone.",
+        {confirmLabel:"Deny and delete map", danger:true}
     )) return;
     setAdminBusy(true);
     setAdminStatus("Denying review and permanently deleting map…");
@@ -2028,7 +2187,10 @@ async function editPublishedMapMetadata(mapId) {
     if(author.id === map.authorId && category === map.category) {
         throw new Error("Change the author or category before saving a metadata revision.");
     }
-    if(!window.confirm(`Publish an admin metadata revision for ${map.mapName}?`)) return;
+    if(!await confirmAction(
+        `Publish an admin metadata revision for ${map.mapName}?`,
+        {confirmLabel:"Publish revision"}
+    )) return;
     setAdminBusy(true);
     setAdminStatus("Creating immutable metadata revision…");
     try {
@@ -2141,8 +2303,9 @@ async function editPendingSubmission(submissionId) {
     const categoryIssue = categoryError(categoryInput && categoryInput.value);
     if(categoryIssue) throw new Error(categoryIssue);
     const category = normalizeCategory(categoryInput.value);
-    if(!window.confirm(
-        `Edit ${submission.mapName} inside Vectron? This replaces your current local draft.`
+    if(!await confirmAction(
+        `Edit ${submission.mapName} inside Vectron? This replaces your current local draft.`,
+        {confirmLabel:"Open in Vectron"}
     )) return;
 
     setAdminBusy(true);
@@ -2212,9 +2375,10 @@ async function editPendingSubmission(submissionId) {
 async function reopenReviewHistory(submissionId) {
     const history = adminData.history.find(item => item.id === submissionId);
     if(!history) return;
-    if(!window.confirm(
+    if(!await confirmAction(
         `Reopen the ${history.status} review for ${history.mapName}? ` +
-        "This creates a new pending review and replaces your current local draft."
+        "This creates a new pending review and replaces your current local draft.",
+        {confirmLabel:"Reopen and edit"}
     )) return;
 
     setAdminBusy(true);
@@ -2473,7 +2637,10 @@ async function sha256Hex(value) {
 
 function showEditorMessage(message) {
     if(typeof window.gui_toast === "function") window.gui_toast(message);
-    else window.alert(message);
+    else {
+        console.info(message);
+        if(status) setStatus(message);
+    }
 }
 
 function friendlyUploadError(error) {
@@ -2727,8 +2894,9 @@ async function uploadCurrentMap(options = {}) {
         showEditorMessage("Open a pending review before using save, approve, and publish.");
         return;
     }
-    if(publishReview && !window.confirm(
-        "Save these changes, approve this review, and publish the map now?"
+    if(publishReview && !await confirmAction(
+        "Save these changes, approve this review, and publish the map now?",
+        {confirmLabel:"Save, approve, and publish"}
     )) return;
     const author = uploadAuthorFor(user, editState);
     const authorId = editState ? editState.targetAuthorId : currentAccount.authorId;
@@ -3080,7 +3248,10 @@ async function openRepositoryMap(fullPath, requestedAction) {
     const remixing = requestedAction === "remix";
     if(!editing && !remixing) return;
     const action = editing ? "Edit" : "Remix";
-    if(!window.confirm(`${action} ${map.name} by ${map.author}? This replaces your current local draft.`)) return;
+    if(!await confirmAction(
+        `${action} ${map.name} by ${map.author}? This replaces your current local draft.`,
+        {confirmLabel:action}
+    )) return;
 
     setRepositoryBusy(true);
     setRepositoryStatus(`Preparing ${map.name} to ${action.toLocaleLowerCase()}…`);
@@ -3264,6 +3435,55 @@ function bindUi() {
             if(event.key === "Escape") closeAdmin();
         });
     }
+    if(confirmCancelButton) confirmCancelButton.addEventListener("click", () => settleConfirmation(false));
+    if(confirmAcceptButton) confirmAcceptButton.addEventListener("click", () => settleConfirmation(true));
+    document.addEventListener("mousedown", event => {
+        if(confirmPopover && !confirmPopover.hidden &&
+           !confirmPopover.contains(event.target) &&
+           !(confirmAnchor && confirmAnchor.contains && confirmAnchor.contains(event.target))) {
+            settleConfirmation(false);
+        }
+    });
+    document.addEventListener("keydown", event => {
+        if(event.key === "Escape" && confirmPopover && !confirmPopover.hidden) {
+            event.preventDefault();
+            event.stopPropagation();
+            settleConfirmation(false);
+        }
+    }, true);
+    if(adminDialog) {
+        const header = adminDialog.querySelector(".repository-header");
+        header.addEventListener("mousedown", event => {
+            if(event.button !== 0 || event.target.closest("button,input,select,textarea,a")) return;
+            anchorAdminDialog();
+            const rect = adminDialog.getBoundingClientRect();
+            adminDragging = {
+                offsetX:event.clientX - rect.left,
+                offsetY:event.clientY - rect.top
+            };
+            event.preventDefault();
+        });
+        document.addEventListener("mousemove", event => {
+            if(!adminDragging) return;
+            const rect = adminDialog.getBoundingClientRect();
+            const margin = 12;
+            const left = Math.max(margin, Math.min(
+                event.clientX - adminDragging.offsetX,
+                window.innerWidth - Math.min(rect.width, 120) - margin
+            ));
+            const top = Math.max(margin, Math.min(
+                event.clientY - adminDragging.offsetY,
+                window.innerHeight - Math.min(rect.height, 80) - margin
+            ));
+            adminDialog.style.left = `${Math.round(left)}px`;
+            adminDialog.style.top = `${Math.round(top)}px`;
+        });
+        document.addEventListener("mouseup", () => { adminDragging = null; });
+    }
+    window.addEventListener("resize", () => {
+        positionConfirmationPopover();
+        clampAdminDialog();
+    });
     document.querySelectorAll("[data-auth-signout]").forEach(button => {
         button.addEventListener("click", handleSignOut);
     });
