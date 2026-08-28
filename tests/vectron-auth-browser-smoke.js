@@ -378,6 +378,7 @@ ws.onopen = async () => {
             document.querySelector('[data-admin-tab="submissions"]').click();
             await waitFor(function(){ return document.querySelector('[data-admin-card="${submission.id}"]'); }, "Submission queue missing map", 45000);
             const card = document.querySelector('[data-admin-card="${submission.id}"]');
+            card.scrollIntoView({block: "center"});
             await waitFor(function(){ return card.querySelector(".map-review-preview-svg"); }, "Submission preview did not render", 45000);
             const cardStyle = getComputedStyle(card);
             const actionStyle = getComputedStyle(card.querySelector(".map-review-actions"));
