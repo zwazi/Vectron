@@ -1183,6 +1183,53 @@ function cardField(labelText, control) {
     return label;
 }
 
+function adminIdentityInput(value, field, maximumLength) {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = String(value || "");
+    input.maxLength = maximumLength;
+    input.dataset[field] = "";
+    return input;
+}
+
+function adminMapIdentity(card, fallback = {}) {
+    const authorInput = card && card.querySelector("[data-admin-map-author]");
+    const nameInput = card && card.querySelector("[data-admin-map-name]");
+    const versionInput = card && card.querySelector("[data-admin-map-version]");
+    const authorName = normalizeAuthorName(
+        authorInput && authorInput.value || fallback.authorName
+    );
+    const authorError = authorNameError(authorName);
+    if(authorError) throw new Error(authorError);
+
+    const rawName = String(nameInput && nameInput.value || fallback.mapName || "").trim();
+    const mapName = safeMapName(rawName);
+    if(!rawName || mapName !== rawName) {
+        throw new Error("Use a map name containing only letters, numbers, spaces, periods, hyphens, or underscores.");
+    }
+
+    const rawVersion = String(
+        versionInput && versionInput.value || fallback.mapVersion || ""
+    ).trim();
+    const mapVersion = normalizeMapVersion(rawVersion);
+    if(!/^(v)?\d+(?:\.\d+)*$/i.test(rawVersion) || mapVersion !== rawVersion) {
+        throw new Error("Use a numeric map version such as 1, v2, or 2.1.");
+    }
+
+    const existingAuthor = adminData.authors.find(author =>
+        normalizeAuthorName(author.name).toLocaleLowerCase("en-US") ===
+        authorName.toLocaleLowerCase("en-US")
+    );
+    return {
+        author: existingAuthor
+            ? {id: existingAuthor.id, name: authorName, create: false}
+            : {id: authorKey(authorName), name: authorName, create: true},
+        category: MAP_CATEGORY,
+        mapName,
+        mapVersion
+    };
+}
+
 function actionButton(label, action, id, danger = false) {
     const button = document.createElement("button");
     button.className = `account-card-button${danger ? " danger" : ""}`;
@@ -1504,8 +1551,9 @@ function renderAdminSubmission(submission) {
     submittedReason.append(reasonLabel, reasonCopy);
     const fields = document.createElement("div");
     fields.className = "account-card-fields map-review-fields";
-    const authorSelect = adminAuthorOptions(submission.authorId);
-    authorSelect.dataset.adminAuthor = "";
+    const authorInput = adminIdentityInput(submission.authorName, "adminMapAuthor", 60);
+    const mapNameInput = adminIdentityInput(submission.mapName, "adminMapName", 100);
+    const mapVersionInput = adminIdentityInput(submission.mapVersion, "adminMapVersion", 64);
     const category = document.createElement("input");
     category.value = MAP_CATEGORY;
     category.readOnly = true;
@@ -1516,7 +1564,9 @@ function renderAdminSubmission(submission) {
     reason.placeholder = "Required when denying; optional approval note";
     reason.dataset.adminReason = "";
     fields.append(
-        cardField("Final author", authorSelect),
+        cardField("Final author", authorInput),
+        cardField("Final map name", mapNameInput),
+        cardField("Final version", mapVersionInput),
         cardField("Final category", category),
         cardField("Decision reason", reason)
     );
@@ -1618,14 +1668,20 @@ function renderAdminMap(map) {
     meta.textContent = map.resourcePath || "No published resource path";
     const fields = document.createElement("div");
     fields.className = "account-card-fields map-review-fields";
-    const authorSelect = adminAuthorOptions(map.authorId);
-    authorSelect.dataset.adminAuthor = "";
+    const authorInput = adminIdentityInput(map.authorName, "adminMapAuthor", 60);
+    const mapNameInput = adminIdentityInput(map.mapName, "adminMapName", 100);
+    const mapVersionInput = adminIdentityInput(map.mapVersion, "adminMapVersion", 64);
     const category = document.createElement("input");
     category.value = MAP_CATEGORY;
     category.readOnly = true;
     category.title = "Vectron uploads always use the maps category.";
     category.dataset.adminCategory = "";
-    fields.append(cardField("Author", authorSelect), cardField("Category", category));
+    fields.append(
+        cardField("Author", authorInput),
+        cardField("Map name", mapNameInput),
+        cardField("Version", mapVersionInput),
+        cardField("Category", category)
+    );
     const actions = document.createElement("div");
     actions.className = "account-card-actions map-review-actions";
     actions.append(actionButton("Save metadata revision", "edit-map-metadata", map.id));
@@ -1855,23 +1911,26 @@ async function reviewAccount(accountId) {
     }
 }
 
-async function uploadReviewedRevision(submission, author) {
+async function uploadReviewedRevision(submission, target) {
     const xml = await downloadRepositoryMap(submission.storagePath);
     const originalSha256 = await sha256Hex(xml);
     if(submission.sha256 && submission.sha256 !== originalSha256) {
         throw new Error("The submitted blob checksum does not match its review record.");
     }
-    const identity = resourceIdentityFromXml(xml);
-    if(!identity || !identity.name || !identity.version) {
+    const sourceIdentity = resourceIdentityFromXml(xml);
+    if(!sourceIdentity || !sourceIdentity.name || !sourceIdentity.version) {
         throw new Error("The submitted file does not contain a valid Resource identity.");
     }
-    if(identity.name !== submission.mapName || identity.version !== submission.mapVersion) {
+    if(sourceIdentity.name !== submission.mapName ||
+       sourceIdentity.version !== submission.mapVersion) {
         throw new Error("The submitted XML name/version does not match its review record.");
     }
-    const finalCategory = MAP_CATEGORY;
+    const author = target.author;
+    const finalCategory = target.category;
     const corrected = author.id !== submission.authorId || author.name !== submission.authorName ||
-        finalCategory !== submission.category || identity.author !== author.name ||
-        identity.category !== finalCategory;
+        finalCategory !== submission.category || sourceIdentity.author !== author.name ||
+        sourceIdentity.category !== finalCategory || target.mapName !== submission.mapName ||
+        target.mapVersion !== submission.mapVersion;
     const sourceRevisionId = submission.reviewRevisionId ||
         (submission.operation === "server-review" ? submission.sourceRevisionId : submission.id);
     if(!corrected) return {
@@ -1882,11 +1941,16 @@ async function uploadReviewedRevision(submission, author) {
     };
 
     const correctionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
-    const correctedXml = rewriteResourceIdentity(xml, {author: author.name, category: finalCategory});
+    const correctedXml = rewriteResourceIdentity(xml, {
+        author: author.name,
+        category: finalCategory,
+        name: target.mapName,
+        version: target.mapVersion
+    });
     const correctedSha256 = await sha256Hex(correctedXml);
     const storagePath = revisionStoragePath(
         auth.currentUser.uid, correctionRef.id,
-        submission.mapName, submission.mapVersion
+        target.mapName, target.mapVersion
     );
     await storageSdk.uploadString(storageSdk.ref(storage, storagePath), correctedXml, "raw", {
         contentType: "application/xml; charset=UTF-8",
@@ -1896,8 +1960,8 @@ async function uploadReviewedRevision(submission, author) {
             authorId: author.id,
             authorName: author.name,
             category: finalCategory,
-            mapName: submission.mapName,
-            mapVersion: submission.mapVersion,
+            mapName: target.mapName,
+            mapVersion: target.mapVersion,
             operation: "metadata",
             sha256: correctedSha256
         }
@@ -1914,6 +1978,8 @@ async function uploadReviewedRevision(submission, author) {
             authorId: author.id,
             authorName: author.name,
             category: finalCategory,
+            mapName: target.mapName,
+            mapVersion: target.mapVersion,
             storagePath,
             sourceRevisionId,
             sourceMapId: submission.mapId,
@@ -1932,13 +1998,36 @@ async function reviewSubmission(submissionId, approved) {
     const card = adminCard(submissionId);
     if(!submission || !card) return;
     const reason = decisionReason(card, !approved);
-    let author = null;
-    let category = MAP_CATEGORY;
+    let finalIdentity = null;
     if(approved) {
-        author = selectedAuthor(card);
+        finalIdentity = adminMapIdentity(card, submission);
+        const serverOrigin = submission.operation === "server-review" ||
+            String(submission.submittedBy || "").startsWith("server:");
+        const activeMap = adminData.maps.find(map => map.id === submission.mapId);
+        const reusablePublishedPath = serverOrigin && activeMap &&
+            activeMap.activeRevisionId === submission.sourceRevisionId
+            ? activeMap.resourcePath : "";
+        const availableVersion = await nextAvailableAdminVersion(
+            finalIdentity.author.name,
+            finalIdentity.category,
+            finalIdentity.mapName,
+            finalIdentity.mapVersion,
+            submission.id,
+            reusablePublishedPath
+        );
+        if(availableVersion !== finalIdentity.mapVersion) {
+            finalIdentity.mapVersion = availableVersion;
+            const versionInput = card.querySelector("[data-admin-map-version]");
+            if(versionInput) versionInput.value = availableVersion;
+            setAdminStatus(
+                `${submission.mapName} had a version conflict; approval will publish version ${availableVersion}.`
+            );
+        }
     }
     if(!await confirmAction(
-        `${approved ? "Approve and publish" : "Deny"} ${submission.mapName}?`,
+        approved
+            ? `Approve and publish ${finalIdentity.mapName} ${finalIdentity.mapVersion}?`
+            : `Deny ${submission.mapName}?`,
         {confirmLabel:approved ? "Approve and publish" : "Deny", danger:!approved}
     )) return;
     setAdminBusy(true);
@@ -1953,7 +2042,7 @@ async function reviewSubmission(submissionId, approved) {
             firestore, "mapSubmissions", submission.reviewRevisionId
         ) : null;
         const auditRef = adminAuditRef();
-        const reviewed = approved ? await uploadReviewedRevision(submission, author) : null;
+        const reviewed = approved ? await uploadReviewedRevision(submission, finalIdentity) : null;
         const finalSubmission = approved ? reviewed.submission : null;
         const mapRef = approved ? firestoreSdk.doc(firestore, "maps", submission.mapId) : null;
         const resourcePath = approved ? activeResourcePath(
@@ -1969,32 +2058,41 @@ async function reviewSubmission(submissionId, approved) {
         const pendingResourceRef = firestoreSdk.doc(
             firestore, "pendingResourcePaths", pendingResourceId
         );
+        const finalPendingResourceId = approved ? resourceKey(resourcePath) : pendingResourceId;
+        const finalPendingResourceRef = approved ? firestoreSdk.doc(
+            firestore, "pendingResourcePaths", finalPendingResourceId
+        ) : pendingResourceRef;
         await firestoreSdk.runTransaction(firestore, async transaction => {
             const originalSnapshot = await transaction.get(originalRef);
             if(!originalSnapshot.exists() || originalSnapshot.data().status !== "pending") {
                 throw new Error("This submission has already been reviewed or removed.");
             }
-            const pendingResourceSnapshot = await transaction.get(pendingResourceRef);
+            const [pendingResourceSnapshot, finalPendingResourceSnapshot] = await Promise.all([
+                transaction.get(pendingResourceRef),
+                finalPendingResourceId === pendingResourceId
+                    ? Promise.resolve(null)
+                    : transaction.get(finalPendingResourceRef)
+            ]);
             let previousMap = null;
             let preserveResourceReservation = false;
             let draftSnapshot = null;
+            let authorSnapshot = null;
             if(approved) {
-                const [mapSnapshot, resourceSnapshot, loadedDraft] = await Promise.all([
+                const authorRef = firestoreSdk.doc(
+                    firestore, "authors", finalSubmission.authorId
+                );
+                const [mapSnapshot, resourceSnapshot, loadedDraft, loadedAuthor] = await Promise.all([
                     transaction.get(mapRef),
                     transaction.get(resourceRef),
-                    draftRef ? transaction.get(draftRef) : Promise.resolve(null)
+                    draftRef ? transaction.get(draftRef) : Promise.resolve(null),
+                    transaction.get(authorRef)
                 ]);
                 draftSnapshot = loadedDraft;
+                authorSnapshot = loadedAuthor;
                 previousMap = mapSnapshot.exists() ? mapSnapshot.data() : null;
-                if(submission.operation === "create" && previousMap) {
-                    throw new Error("This new-map submission points at an existing map.");
-                }
-                if(submission.operation !== "create") {
-                    if(!previousMap) throw new Error("The map being edited no longer exists.");
-                    if(previousMap.activeRevisionId !== submission.sourceRevisionId) {
-                        throw new Error("The map changed after this submission. Review a fresh edit instead.");
-                    }
-                }
+                // An admin approval is authoritative. A pending create may have
+                // become an edit while it waited in the queue, and an older edit
+                // may intentionally replace the currently active revision.
                 preserveResourceReservation = Boolean(
                     serverOrigin && resourceSnapshot.exists() &&
                     reviewed.revisionId === submission.sourceRevisionId &&
@@ -2003,6 +2101,12 @@ async function reviewSubmission(submissionId, approved) {
                 );
                 if(resourceSnapshot.exists() && !preserveResourceReservation) {
                     throw new Error("That author, category, map name, and version are already reserved.");
+                }
+                const finalPendingCollision = finalPendingResourceId === pendingResourceId
+                    ? pendingResourceSnapshot : finalPendingResourceSnapshot;
+                if(finalPendingCollision && finalPendingCollision.exists() &&
+                   finalPendingCollision.data().submissionId !== submissionId) {
+                    throw new Error("That author, map name, and version became pending elsewhere. Try approval again.");
                 }
                 if(draftRef && (!draftSnapshot || !draftSnapshot.exists() ||
                    draftSnapshot.data().status !== "review-draft")) {
@@ -2015,6 +2119,8 @@ async function reviewSubmission(submissionId, approved) {
                 transaction.set(reviewed.correctionRef, {
                     ...reviewed.submission,
                     submissionId: reviewed.revisionId,
+                    sourceRevisionId: previousMap && previousMap.activeRevisionId || "",
+                    sourceMapId: submission.mapId,
                     contentBytes: reviewed.contentBytes,
                     createdAt: firestoreSdk.serverTimestamp(),
                     updatedAt: firestoreSdk.serverTimestamp(),
@@ -2046,6 +2152,20 @@ async function reviewSubmission(submissionId, approved) {
                 transaction.delete(pendingResourceRef);
             }
             if(approved) {
+                const authorRef = firestoreSdk.doc(
+                    firestore, "authors", finalSubmission.authorId
+                );
+                if(!authorSnapshot.exists()) {
+                    transaction.set(authorRef, {
+                        authorId: finalSubmission.authorId,
+                        name: finalSubmission.authorName,
+                        normalizedName: finalSubmission.authorName.toLocaleLowerCase("en-US"),
+                        ownerUid: "",
+                        status: "active",
+                        createdAt: firestoreSdk.serverTimestamp(),
+                        updatedAt: firestoreSdk.serverTimestamp()
+                    });
+                }
                 const mapData = {
                     mapId: submission.mapId,
                     status: "active",
@@ -2083,7 +2203,7 @@ async function reviewSubmission(submissionId, approved) {
                     type: approved ? "map-approved" : "map-denied",
                     title: approved ? `${submission.mapName} was approved` : `${submission.mapName} was denied`,
                     body: approved
-                        ? `${submission.mapName} is approved and will enter the server catalog.${reason ? ` Note: ${reason}` : ""}`
+                        ? `${finalSubmission.mapName} ${finalSubmission.mapVersion} is approved and will enter the server catalog.${reason ? ` Note: ${reason}` : ""}`
                         : `${submission.mapName} was denied. Reason: ${reason}`,
                     reason,
                     mapId: submission.mapId,
@@ -2100,8 +2220,16 @@ async function reviewSubmission(submissionId, approved) {
                 targetId: submissionId,
                 mapId: submission.mapId,
                 reason,
-                before: {status: "pending", authorId: submission.authorId, category: submission.category},
-                after: approved ? {status: "approved", authorId: author.id, category} : {status: "denied"},
+                before: {
+                    status: "pending", authorId: submission.authorId,
+                    authorName: submission.authorName, category: submission.category,
+                    mapName: submission.mapName, mapVersion: submission.mapVersion
+                },
+                after: approved ? {
+                    status: "approved", authorId: finalSubmission.authorId,
+                    authorName: finalSubmission.authorName, category: finalSubmission.category,
+                    mapName: finalSubmission.mapName, mapVersion: finalSubmission.mapVersion
+                } : {status: "denied"},
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
@@ -2221,10 +2349,25 @@ async function editPublishedMapMetadata(mapId) {
     const map = adminData.maps.find(item => item.id === mapId);
     const card = adminCard(mapId);
     if(!map || !card) return;
-    const author = selectedAuthor(card);
-    const category = MAP_CATEGORY;
-    if(author.id === map.authorId && category === map.category) {
-        throw new Error("Change the author before saving a metadata revision.");
+    const identity = adminMapIdentity(card, map);
+    if(identity.author.id === map.authorId && identity.author.name === map.authorName &&
+       identity.category === map.category && identity.mapName === map.mapName &&
+       identity.mapVersion === map.mapVersion) {
+        throw new Error("Change the author, map name, or version before saving a metadata revision.");
+    }
+    const requestedVersion = identity.mapVersion;
+    identity.mapVersion = await nextAvailableAdminVersion(
+        identity.author.name,
+        identity.category,
+        identity.mapName,
+        identity.mapVersion
+    );
+    if(identity.mapVersion !== requestedVersion) {
+        const versionInput = card.querySelector("[data-admin-map-version]");
+        if(versionInput) versionInput.value = identity.mapVersion;
+        setAdminStatus(
+            `${identity.mapName} ${requestedVersion} is reserved; this revision will use ${identity.mapVersion}.`
+        );
     }
     if(!await confirmAction(
         `Publish an admin metadata revision for ${map.mapName}?`,
@@ -2234,45 +2377,60 @@ async function editPublishedMapMetadata(mapId) {
     setAdminStatus("Creating immutable metadata revision…");
     try {
         const xml = await downloadRepositoryMap(map.storagePath);
-        const mapVersion = bumpMapVersion(map.mapVersion);
         const correctedXml = rewriteResourceIdentity(xml, {
-            author: author.name,
-            category,
-            version: mapVersion
+            author: identity.author.name,
+            category: identity.category,
+            name: identity.mapName,
+            version: identity.mapVersion
         });
         const sha256 = await sha256Hex(correctedXml);
         const submissionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
         const storagePath = revisionStoragePath(
-            auth.currentUser.uid, submissionRef.id, map.mapName, mapVersion
+            auth.currentUser.uid, submissionRef.id, identity.mapName, identity.mapVersion
         );
         await storageSdk.uploadString(storageSdk.ref(storage, storagePath), correctedXml, "raw", {
             contentType: "application/xml; charset=UTF-8",
             customMetadata: {
                 ownerUid: auth.currentUser.uid,
                 submissionId: submissionRef.id,
-                authorId: author.id,
-                authorName: author.name,
-                category,
-                mapName: map.mapName,
-                mapVersion,
+                authorId: identity.author.id,
+                authorName: identity.author.name,
+                category: identity.category,
+                mapName: identity.mapName,
+                mapVersion: identity.mapVersion,
                 operation: "metadata",
                 sha256
             }
         });
         const auditRef = adminAuditRef();
         const mapRef = firestoreSdk.doc(firestore, "maps", mapId);
-        const resourcePath = activeResourcePath(author.name, category, map.mapName, mapVersion);
+        const resourcePath = activeResourcePath(
+            identity.author.name, identity.category, identity.mapName, identity.mapVersion
+        );
         const resourceRef = firestoreSdk.doc(firestore, "resourcePaths", resourceKey(resourcePath));
         await firestoreSdk.runTransaction(firestore, async transaction => {
-            const [mapSnapshot, resourceSnapshot] = await Promise.all([
+            const authorRef = firestoreSdk.doc(firestore, "authors", identity.author.id);
+            const [mapSnapshot, resourceSnapshot, authorSnapshot] = await Promise.all([
                 transaction.get(mapRef),
-                transaction.get(resourceRef)
+                transaction.get(resourceRef),
+                transaction.get(authorRef)
             ]);
             if(!mapSnapshot.exists() || mapSnapshot.data().activeRevisionId !== map.activeRevisionId) {
                 throw new Error("This map changed before the correction could be published. Refresh and try again.");
             }
             if(resourceSnapshot.exists()) {
                 throw new Error("The corrected resource path is already reserved.");
+            }
+            if(!authorSnapshot.exists()) {
+                transaction.set(authorRef, {
+                    authorId: identity.author.id,
+                    name: identity.author.name,
+                    normalizedName: identity.author.name.toLocaleLowerCase("en-US"),
+                    ownerUid: "",
+                    status: "active",
+                    createdAt: firestoreSdk.serverTimestamp(),
+                    updatedAt: firestoreSdk.serverTimestamp()
+                });
             }
             transaction.set(submissionRef, {
                 submissionId: submissionRef.id,
@@ -2281,11 +2439,11 @@ async function editPublishedMapMetadata(mapId) {
                 status: "approved",
                 submittedBy: auth.currentUser.uid,
                 submittedByName: displayNameForUser(auth.currentUser),
-                authorId: author.id,
-                authorName: author.name,
-                category,
-                mapName: map.mapName,
-                mapVersion,
+                authorId: identity.author.id,
+                authorName: identity.author.name,
+                category: identity.category,
+                mapName: identity.mapName,
+                mapVersion: identity.mapVersion,
                 storagePath,
                 sourceRevisionId: map.activeRevisionId,
                 sourceMapId: mapId,
@@ -2298,10 +2456,11 @@ async function editPublishedMapMetadata(mapId) {
                 reviewReason: "Admin metadata correction"
             });
             transaction.update(mapRef, {
-                authorId: author.id,
-                authorName: author.name,
-                category,
-                mapVersion,
+                authorId: identity.author.id,
+                authorName: identity.author.name,
+                category: identity.category,
+                mapName: identity.mapName,
+                mapVersion: identity.mapVersion,
                 activeRevisionId: submissionRef.id,
                 storagePath,
                 resourcePath,
@@ -2324,12 +2483,19 @@ async function editPublishedMapMetadata(mapId) {
                 action: "map.metadata",
                 targetType: "map",
                 targetId: mapId,
-                before: {authorId: map.authorId, authorName: map.authorName, category: map.category, mapVersion: map.mapVersion},
-                after: {authorId: author.id, authorName: author.name, category, mapVersion},
+                before: {
+                    authorId: map.authorId, authorName: map.authorName,
+                    category: map.category, mapName: map.mapName, mapVersion: map.mapVersion
+                },
+                after: {
+                    authorId: identity.author.id, authorName: identity.author.name,
+                    category: identity.category, mapName: identity.mapName,
+                    mapVersion: identity.mapVersion
+                },
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
-        setAdminStatus("Map author/category correction published as a new revision.");
+        setAdminStatus("Map identity correction published as a new revision.");
     } finally {
         setAdminBusy(false);
     }
@@ -2339,8 +2505,14 @@ async function editPendingSubmission(submissionId) {
     const submission = adminData.submissions.find(item => item.id === submissionId);
     const card = adminCard(submissionId);
     if(!submission || !card) return;
-    const author = selectedAuthor(card);
-    const category = MAP_CATEGORY;
+    const identity = adminMapIdentity(card, submission);
+    identity.mapVersion = await nextAvailableAdminVersion(
+        identity.author.name,
+        identity.category,
+        identity.mapName,
+        identity.mapVersion,
+        submission.id
+    );
     if(!await confirmAction(
         `Edit ${submission.mapName} inside Vectron? This replaces your current local draft.`,
         {confirmLabel:"Open in Vectron"}
@@ -2356,8 +2528,12 @@ async function editPendingSubmission(submissionId) {
            resource.getAttribute("type") !== "aamap") {
             throw new Error("The pending revision is not an Armagetron map resource.");
         }
-        const sourceName = safeMapName(resource.getAttribute("name") || submission.mapName);
-        const sourceVersion = normalizeMapVersion(resource.getAttribute("version"));
+        const editedXml = rewriteResourceIdentity(xml, {
+            author: identity.author.name,
+            category: identity.category,
+            name: identity.mapName,
+            version: identity.mapVersion
+        });
         if(typeof window.vectron_localDraftSaveNow === "function") {
             window.vectron_localDraftSaveNow();
         }
@@ -2367,14 +2543,14 @@ async function editPendingSubmission(submissionId) {
             } else {
                 window.aamap_objects = [];
             }
-            window.xml_process(xml);
+            window.xml_process(editedXml);
             setRepositoryEditState({
                 sourcePath: submission.storagePath,
-                sourceName,
-                sourceVersion,
-                sourceCategory: category,
-                targetAuthor: author.name,
-                targetAuthorId: author.id,
+                sourceName: identity.mapName,
+                sourceVersion: identity.mapVersion,
+                sourceCategory: identity.category,
+                targetAuthor: identity.author.name,
+                targetAuthorId: identity.author.id,
                 sourceOwnerUid: submission.submittedBy || "",
                 mapId: submission.mapId,
                 sourceRevisionId: submission.sourceRevisionId || "",
@@ -2382,13 +2558,8 @@ async function editPendingSubmission(submissionId) {
                 reviewSourceOperation: submission.operation || "edit",
                 reviewDecisionReason: decisionReason(card, false)
             });
-            const nextVersion = submission.operation === "server-review"
-                ? await nextAvailableReviewVersion(
-                    author.name, category, sourceName, sourceVersion
-                )
-                : sourceVersion;
-            setCurrentMapName(sourceName);
-            setCurrentMapVersion(nextVersion);
+            setCurrentMapName(identity.mapName);
+            setCurrentMapVersion(identity.mapVersion);
             syncMapMetadata(auth.currentUser);
             if(typeof window.vectron_localDraftSaveNow === "function") {
                 window.vectron_localDraftSaveNow();
@@ -2402,7 +2573,8 @@ async function editPendingSubmission(submissionId) {
         setAdminStatus("");
         closeAdmin();
         showEditorMessage(
-            `Editing pending review for ${sourceName}. Save a draft, or save, approve, and publish in one step when ready.`
+            `Editing pending review for ${identity.mapName} ${identity.mapVersion}. ` +
+            "Save a draft, or save, approve, and publish in one step when ready."
         );
     } finally {
         setAdminBusy(false);
@@ -2644,6 +2816,38 @@ async function nextAvailableReviewVersion(author, category, mapName, startingVer
     throw new Error("Could not find an available map version for this review.");
 }
 
+async function nextAvailableAdminVersion(
+    author, category, mapName, startingVersion, ignoredSubmissionId = "",
+    reusablePublishedPath = ""
+) {
+    let version = normalizeMapVersion(startingVersion);
+    for(let attempts = 0; attempts < 1000; attempts += 1) {
+        const path = activeResourcePath(author, category, mapName, version);
+        const id = resourceKey(path);
+        const [published, pending] = await Promise.all([
+            firestoreSdk.getDoc(firestoreSdk.doc(firestore, "resourcePaths", id)),
+            firestoreSdk.getDoc(firestoreSdk.doc(firestore, "pendingResourcePaths", id))
+        ]);
+        const legacyPending = adminData.submissions.some(item =>
+            item.id !== ignoredSubmissionId && item.status === "pending" &&
+            activeResourcePath(
+                item.authorName, item.category || MAP_CATEGORY,
+                item.mapName, item.mapVersion
+            ) === path
+        );
+        const pendingBelongsToIgnoredSubmission = pending.exists() &&
+            pending.data().submissionId === ignoredSubmissionId;
+        const publishedCanBeReused = published.exists() && path === reusablePublishedPath;
+        if((!published.exists() || publishedCanBeReused) &&
+           (!pending.exists() || pendingBelongsToIgnoredSubmission) &&
+           !legacyPending) {
+            return version;
+        }
+        version = bumpMapVersion(version);
+    }
+    throw new Error("Could not find an available map version after 1,000 attempts.");
+}
+
 function uploadAuthorFor(user, editState = null) {
     const signedInAuthor = sessionAuthorName(user);
     if(editState && (editState.targetAuthor === signedInAuthor || currentUserIsAdmin())) {
@@ -2730,38 +2934,31 @@ function friendlyUploadError(error) {
     return messages[code] || "The map could not be uploaded. Please try again.";
 }
 
-async function assertMapVersionAvailable(user, author, category, mapName, mapVersion) {
-    const resourcePath = activeResourcePath(author, category, mapName, mapVersion);
-    const resourceId = resourceKey(resourcePath);
-    const [published, pending, ownSubmissions] = await Promise.all([
-        firestoreSdk.getDoc(firestoreSdk.doc(firestore, "resourcePaths", resourceId)),
-        firestoreSdk.getDoc(firestoreSdk.doc(firestore, "pendingResourcePaths", resourceId)),
-        firestoreSdk.getDocs(firestoreSdk.query(
-            firestoreSdk.collection(firestore, "mapSubmissions"),
-            firestoreSdk.where("submittedBy", "==", user.uid)
-        ))
-    ]);
-    if(published.exists()) {
-        throw Object.assign(
-            new Error(`${mapName} ${mapVersion} is already published. Choose a new version.`),
-            {code:"submission/rejected"}
-        );
+async function nextAvailableSubmissionVersion(user, author, category, mapName, startingVersion) {
+    const ownSubmissions = await firestoreSdk.getDocs(firestoreSdk.query(
+        firestoreSdk.collection(firestore, "mapSubmissions"),
+        firestoreSdk.where("submittedBy", "==", user.uid)
+    ));
+    let version = normalizeMapVersion(startingVersion);
+    for(let attempts = 0; attempts < 1000; attempts += 1) {
+        const path = activeResourcePath(author, category, mapName, version);
+        const resourceId = resourceKey(path);
+        const [published, pending] = await Promise.all([
+            firestoreSdk.getDoc(firestoreSdk.doc(firestore, "resourcePaths", resourceId)),
+            firestoreSdk.getDoc(firestoreSdk.doc(firestore, "pendingResourcePaths", resourceId))
+        ]);
+        const legacyPending = ownSubmissions.docs.some(item => {
+            const data = item.data();
+            return data.status === "pending" &&
+                activeResourcePath(
+                    data.authorName, data.category || MAP_CATEGORY,
+                    data.mapName, data.mapVersion
+                ) === path;
+        });
+        if(!published.exists() && !pending.exists() && !legacyPending) return version;
+        version = bumpMapVersion(version);
     }
-    const legacyPending = ownSubmissions.docs.some(item => {
-        const data = item.data();
-        return data.status === "pending" && data.authorName === author &&
-            data.category === category && data.mapName === mapName &&
-            normalizeMapVersion(data.mapVersion) === mapVersion;
-    });
-    if(pending.exists() || legacyPending) {
-        throw Object.assign(
-            new Error(
-                `${mapName} ${mapVersion} is already pending review. ` +
-                "Edit that submission or choose a new version."
-            ),
-            {code:"submission/rejected"}
-        );
-    }
+    throw new Error("Could not find an available map version after 1,000 attempts.");
 }
 
 async function createMapSubmission(user, submission) {
@@ -2848,26 +3045,46 @@ async function savePendingReviewDraft(
             const priorDraftRef = original.reviewRevisionId ? firestoreSdk.doc(
                 firestore, "mapSubmissions", original.reviewRevisionId
             ) : null;
-            const [mapSnapshot, priorDraftSnapshot, resourceSnapshot] = await Promise.all([
+            const originalPendingResourceId = original.pendingResourceId || resourceKey(
+                activeResourcePath(
+                    original.authorName, MAP_CATEGORY, original.mapName, original.mapVersion
+                )
+            );
+            const finalPendingResourceId = resourceKey(resourcePath);
+            const originalPendingRef = firestoreSdk.doc(
+                firestore, "pendingResourcePaths", originalPendingResourceId
+            );
+            const finalPendingRef = firestoreSdk.doc(
+                firestore, "pendingResourcePaths", finalPendingResourceId
+            );
+            const authorRef = firestoreSdk.doc(firestore, "authors", authorId);
+            const [
+                mapSnapshot, priorDraftSnapshot, resourceSnapshot,
+                originalPendingSnapshot, finalPendingSnapshot, authorSnapshot
+            ] = await Promise.all([
                 transaction.get(mapRef),
                 priorDraftRef ? transaction.get(priorDraftRef) : Promise.resolve(null),
-                publish ? transaction.get(resourceRef) : Promise.resolve(null)
+                transaction.get(resourceRef),
+                transaction.get(originalPendingRef),
+                finalPendingResourceId !== originalPendingResourceId
+                    ? transaction.get(finalPendingRef) : Promise.resolve(null),
+                publish ? transaction.get(authorRef) : Promise.resolve(null)
             ]);
             const previousMap = mapSnapshot.exists() ? mapSnapshot.data() : null;
-            if(original.operation === "create" && previousMap) {
-                throw new Error("This new-map review now points at an existing map.");
-            }
-            if(original.operation !== "create") {
-                if(!previousMap || previousMap.activeRevisionId !== original.sourceRevisionId) {
-                    throw new Error("The published map changed while this review was open.");
-                }
-            }
+            // Admin review edits are authoritative even if the map was
+            // published or changed while this submission waited in the queue.
             if(priorDraftRef && (!priorDraftSnapshot || !priorDraftSnapshot.exists() ||
                priorDraftSnapshot.data().status !== "review-draft")) {
                 throw new Error("The previous review draft is no longer editable.");
             }
-            if(publish && resourceSnapshot && resourceSnapshot.exists()) {
+            if(resourceSnapshot && resourceSnapshot.exists()) {
                 throw new Error("That author, category, map name, and version are already reserved.");
+            }
+            const finalPendingCollision = finalPendingResourceId === originalPendingResourceId
+                ? originalPendingSnapshot : finalPendingSnapshot;
+            if(finalPendingCollision && finalPendingCollision.exists() &&
+               finalPendingCollision.data().submissionId !== editState.reviewSubmissionId) {
+                throw new Error("That author, map name, and version became pending elsewhere. Try again.");
             }
             transaction.set(revisionRef, {
                 submissionId: revisionRef.id,
@@ -2882,7 +3099,7 @@ async function savePendingReviewDraft(
                 mapName,
                 mapVersion,
                 storagePath: objectPath,
-                sourceRevisionId: original.sourceRevisionId || "",
+                sourceRevisionId: previousMap && previousMap.activeRevisionId || "",
                 sourceMapId: editState.mapId,
                 sourceSubmissionId: editState.reviewSubmissionId,
                 sha256,
@@ -2906,6 +3123,8 @@ async function savePendingReviewDraft(
                 reviewEditedAt: firestoreSdk.serverTimestamp(),
                 reviewEditedBy: user.uid,
                 status: publish ? "approved" : "pending",
+                pendingResourceId: publish ? "" : finalPendingResourceId,
+                resourcePath,
                 finalRevisionId: publish ? revisionRef.id : "",
                 reviewedAt: publish ? firestoreSdk.serverTimestamp() : null,
                 reviewedBy: publish ? user.uid : "",
@@ -2918,7 +3137,41 @@ async function savePendingReviewDraft(
                     updatedAt: firestoreSdk.serverTimestamp()
                 });
             }
+            if(originalPendingSnapshot.exists() &&
+               originalPendingSnapshot.data().submissionId === editState.reviewSubmissionId &&
+               (publish || originalPendingResourceId !== finalPendingResourceId)) {
+                transaction.delete(originalPendingRef);
+            }
+            if(!publish) {
+                transaction.set(finalPendingRef, {
+                    pendingResourceId: finalPendingResourceId,
+                    resourcePath,
+                    submissionId: editState.reviewSubmissionId,
+                    mapId: editState.mapId,
+                    authorId,
+                    authorName: author,
+                    category,
+                    mapName,
+                    mapVersion,
+                    submittedBy: original.submittedBy || user.uid,
+                    createdAt: finalPendingCollision && finalPendingCollision.exists()
+                        ? finalPendingCollision.data().createdAt
+                        : firestoreSdk.serverTimestamp(),
+                    updatedAt: firestoreSdk.serverTimestamp()
+                });
+            }
             if(publish) {
+                if(!authorSnapshot.exists()) {
+                    transaction.set(authorRef, {
+                        authorId,
+                        name: author,
+                        normalizedName: author.toLocaleLowerCase("en-US"),
+                        ownerUid: "",
+                        status: "active",
+                        createdAt: firestoreSdk.serverTimestamp(),
+                        updatedAt: firestoreSdk.serverTimestamp()
+                    });
+                }
                 const mapData = {
                     mapId: editState.mapId,
                     status: "active",
@@ -3040,7 +3293,30 @@ async function uploadCurrentMap(options = {}) {
     const authorId = editState ? editState.targetAuthorId : currentAccount.authorId;
     const category = MAP_CATEGORY;
     const mapName = setCurrentMapName(document.getElementById("map_name").value);
-    const mapVersion = setCurrentMapVersion(document.getElementById("map_version").value);
+    let mapVersion = setCurrentMapVersion(document.getElementById("map_version").value);
+    const requestedVersion = mapVersion;
+    try {
+        let availableVersion = mapVersion;
+        if(editState && editState.reviewSubmissionId) {
+            availableVersion = await nextAvailableAdminVersion(
+                author, category, mapName, mapVersion, editState.reviewSubmissionId
+            );
+        } else if(!editState || !editState.reviewSubmissionId) {
+            availableVersion = await nextAvailableSubmissionVersion(
+                user, author, category, mapName, mapVersion
+            );
+        }
+        if(availableVersion !== mapVersion) {
+            mapVersion = setCurrentMapVersion(availableVersion);
+            showEditorMessage(
+                `${mapName} ${requestedVersion} ` +
+                `was already in use. Vectron advanced this submission to ${mapVersion}.`
+            );
+        }
+    } catch(error) {
+        showEditorMessage(error && error.message ? error.message : friendlyUploadError(error));
+        return;
+    }
     syncMapMetadata(user);
     const map = window.eventHandler_getExportMap();
     const sha256 = await sha256Hex(map.xml);
@@ -3064,14 +3340,6 @@ async function uploadCurrentMap(options = {}) {
     const submissionReason = resubmissionOf
         ? "Edited and resubmitted after a denied review."
         : "";
-    try {
-        await assertMapVersionAvailable(
-            user, author, category, mapName, mapVersion
-        );
-    } catch(error) {
-        showEditorMessage(friendlyUploadError(error));
-        return;
-    }
     const objectPath = revisionStoragePath(
         user.uid, submissionRef.id, mapName, mapVersion
     );

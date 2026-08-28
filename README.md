@@ -35,8 +35,9 @@ Submission creation is handled by a trusted Cloud Function that atomically
 reserves the normalized author/name/version resource path. Published versions,
 pending versions, concurrent uploads, stale browser clients, and independent
 uploads that duplicate a pending resubmission are rejected before they can
-create another review item. The browser performs the same check first to avoid
-an unnecessary immutable upload when a conflict is already known.
+create another review item at the same path. The browser advances the numeric
+version until it finds a free path before uploading, while the trusted endpoint
+remains the authoritative concurrency guard.
 Admins may:
 
 - approve registrations or deny and permanently delete pending users, with a
@@ -47,15 +48,16 @@ Admins may:
 - open any pending submission in the full Vectron editor and save its changes
   as an immutable review draft on the same review item, or save, approve, and
   publish the edited revision in one step;
-- correct the final author before approval;
+- freely correct the final author, map name, and version before approval, with
+  occupied versions automatically advanced until the resource path is free;
 - review each pending map in a two-column card with its submitted reason,
   metadata and vertically stacked actions beside an inline map preview, in a
   desktop review panel that can be dragged by its header and resized from its
   bottom-right corner;
 - browse completed review history and reopen any retained revision as a new,
   auditable pending review without rewriting the earlier decision;
-- publish author/category corrections for an existing map as a new immutable
-  revision; and
+- publish author, name, or version corrections for an existing map as a new
+  immutable revision; and
 - view the pending-registration and pending-submission counts in Vectron.
 
 The racing server can also submit an active map for review. A server-origin
