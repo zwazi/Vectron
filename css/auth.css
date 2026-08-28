@@ -663,6 +663,13 @@ body.auth-locked {
   background: rgba(255, 255, 255, 0.07);
 }
 
+.auth-role-badge[data-role="pending"],
+.auth-role-badge[data-role="denied"] {
+  border-color: rgba(255, 190, 92, 0.4);
+  color: #ffd18a;
+  background: rgba(255, 168, 52, 0.09);
+}
+
 .auth-signout-button {
   height: 25px;
   display: inline-flex;
@@ -678,7 +685,9 @@ body.auth-locked {
 }
 
 .auth-upload-button,
-.auth-repository-button {
+.auth-repository-button,
+.auth-notification-button,
+.auth-admin-button {
   height: 25px;
   display: inline-flex;
   align-items: center;
@@ -698,6 +707,37 @@ body.auth-locked {
   background: rgba(154, 124, 255, 0.055);
 }
 
+.auth-notification-button,
+.auth-admin-button {
+  position: relative;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #d7d9df;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.auth-admin-button {
+  border-color: rgba(154, 124, 255, 0.38);
+  color: #c8baff;
+}
+
+.auth-count-badge {
+  min-width: 14px;
+  height: 14px;
+  display: inline-grid;
+  place-items: center;
+  margin-left: -2px;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: #171717;
+  background: var(--auth-cyan);
+  font-size: 7px;
+  font-weight: 900;
+}
+
+.auth-count-badge[hidden] {
+  display: none;
+}
+
 .auth-upload-button:hover,
 .auth-upload-button:focus-visible {
   border-color: rgba(85, 244, 220, 0.55);
@@ -708,7 +748,13 @@ body.auth-locked {
 
 .auth-repository-button:hover,
 .auth-repository-button:focus-visible,
-.auth-repository-button[aria-expanded="true"] {
+.auth-repository-button[aria-expanded="true"],
+.auth-notification-button:hover,
+.auth-notification-button:focus-visible,
+.auth-notification-button[aria-expanded="true"],
+.auth-admin-button:hover,
+.auth-admin-button:focus-visible,
+.auth-admin-button[aria-expanded="true"] {
   border-color: rgba(154, 124, 255, 0.55);
   color: #fff;
   background: rgba(154, 124, 255, 0.12);
@@ -1137,6 +1183,147 @@ button.repository-author-heading:disabled {
   text-align: center;
 }
 
+.account-dialog {
+  width: min(650px, 100%);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.account-dialog .repository-tools {
+  justify-content: space-between;
+}
+
+.account-dialog .repository-summary {
+  grid-row: auto;
+  padding: 0;
+}
+
+.account-dialog .repository-status {
+  grid-row: 3;
+}
+
+.account-dialog .repository-list {
+  grid-row: 4;
+}
+
+.admin-dialog {
+  width: min(980px, 100%);
+}
+
+.account-card {
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 9px;
+  color: #dddfe5;
+  background: rgba(24, 24, 24, 0.58);
+}
+
+.account-card.unread {
+  border-color: rgba(85, 244, 220, 0.3);
+  background: rgba(85, 244, 220, 0.045);
+}
+
+.account-card-header,
+.account-card-actions,
+.account-card-fields {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-card-header {
+  justify-content: space-between;
+}
+
+.account-card-header strong {
+  color: #fff;
+  font-size: 11px;
+}
+
+.account-card-time,
+.account-card-copy,
+.account-card-meta {
+  color: #92959e;
+  font-size: 9px;
+}
+
+.account-card-copy {
+  margin: 8px 0;
+  color: #c7c9d0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.account-card-fields {
+  align-items: end;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.account-card-field {
+  min-width: 150px;
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  gap: 5px;
+  color: #a6a9b1;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.account-card-field input,
+.account-card-field select,
+.account-card-field textarea {
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  color: #f4f5f8;
+  background: #1e1e1e;
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+}
+
+.account-card-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.account-card-button {
+  min-height: 29px;
+  padding: 0 10px;
+  border: 1px solid rgba(85, 244, 220, 0.34);
+  border-radius: 6px;
+  color: var(--auth-cyan);
+  background: rgba(85, 244, 220, 0.05);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.account-card-button.danger {
+  border-color: rgba(255, 107, 107, 0.35);
+  color: #ffb1b1;
+  background: rgba(165, 48, 48, 0.08);
+}
+
+.account-card-button:hover,
+.account-card-button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+  outline: none;
+}
+
+.account-card-button:disabled,
+.account-card-field input:disabled,
+.account-card-field select:disabled,
+.account-card-field textarea:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
 @keyframes auth-spin {
   to { transform: rotate(360deg); }
 }
@@ -1235,13 +1422,16 @@ button.repository-author-heading:disabled {
 
   .auth-session-plan .auth-signout-button span,
   .auth-session-plan .auth-upload-button span,
-  .auth-session-plan .auth-repository-button span {
+  .auth-session-plan .auth-repository-button span,
+  .auth-session-plan .auth-action-label {
     display: none;
   }
 
   .auth-session-plan .auth-signout-button,
   .auth-session-plan .auth-upload-button,
-  .auth-session-plan .auth-repository-button {
+  .auth-session-plan .auth-repository-button,
+  .auth-session-plan .auth-notification-button,
+  .auth-session-plan .auth-admin-button {
     width: 27px;
     padding: 0;
     justify-content: center;

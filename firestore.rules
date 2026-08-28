@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function account(uid) {
+      return get(/databases/$(database)/documents/accounts/$(uid));
+    }
+
+    function hasApprovedAccount() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/accounts/$(request.auth.uid))
+        && account(request.auth.uid).data.status == 'approved'
+        && account(request.auth.uid).data.authorId is string
+        && account(request.auth.uid).data.authorName is string;
+    }
+
+    match /accounts/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+
+      allow create: if isAdmin() || (signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'requestedAuthorName', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName is string
+        && request.resource.data.requestedAuthorName is string
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time);
+
+      allow update, delete: if isAdmin();
+    }
+
+    match /authors/{authorId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /maps/{mapId} {
+      allow read: if resource.data.status == 'active' || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /resourcePaths/{resourceId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /mapSubmissions/{submissionId} {
+      allow read: if isAdmin() || (signedIn()
+        && resource.data.submittedBy == request.auth.uid);
+
+      allow create: if isAdmin() || (hasApprovedAccount()
+        && request.resource.data.keys().hasOnly([
+          'submissionId', 'mapId', 'operation', 'status', 'submittedBy',
+          'submittedByName', 'authorId', 'authorName', 'category', 'mapName',
+          'mapVersion', 'storagePath', 'sourceRevisionId', 'sourceMapId',
+          'sha256', 'contentBytes', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.submissionId == submissionId
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.operation in ['create', 'edit', 'metadata', 'size']
+        && request.resource.data.mapId is string
+        && request.resource.data.authorId is string
+        && request.resource.data.authorName is string
+        && request.resource.data.category is string
+        && request.resource.data.mapName is string
+        && request.resource.data.mapVersion is string
+        && request.resource.data.sha256.matches('[0-9a-f]{64}')
+        && request.resource.data.storagePath == '_revisions/' + request.auth.uid
+          + '/' + submissionId
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.authorId == account(request.auth.uid).data.authorId
+        && request.resource.data.authorName == account(request.auth.uid).data.authorName);
+
+      allow update, delete: if isAdmin();
+    }
+
+    match /notifications/{uid}/items/{notificationId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if isAdmin()
+        && request.resource.data.recipientUid == uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+        && request.resource.data.readAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    match /auditEvents/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /catalogSettings/{settingId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}
