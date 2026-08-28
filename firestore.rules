@@ -10,40 +10,6 @@ service cloud.firestore {
       return signedIn() && request.auth.token.admin == true;
     }
 
-    function account(uid) {
-      return get(/databases/$(database)/documents/accounts/$(uid));
-    }
-
-    function submission(submissionId) {
-      return get(/databases/$(database)/documents/mapSubmissions/$(submissionId));
-    }
-
-    function hasApprovedAccount() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/accounts/$(request.auth.uid))
-        && account(request.auth.uid).data.status == 'approved'
-        && account(request.auth.uid).data.authorId is string
-        && account(request.auth.uid).data.authorName is string;
-    }
-
-    function validSubmissionReason(data) {
-      return !data.keys().hasAny(['submissionReason'])
-        || (data.submissionReason is string && data.submissionReason.size() <= 1000);
-    }
-
-    function validResubmission(data) {
-      return !data.keys().hasAny(['resubmissionOf'])
-        || (data.resubmissionOf is string
-          && (data.resubmissionOf == ''
-            || (exists(/databases/$(database)/documents/mapSubmissions/$(data.resubmissionOf))
-              && submission(data.resubmissionOf).data.status == 'denied'
-              && submission(data.resubmissionOf).data.submittedBy == request.auth.uid
-              && submission(data.resubmissionOf).data.mapId == data.mapId
-              && submission(data.resubmissionOf).data.operation == data.operation
-              && submission(data.resubmissionOf).data.authorId == data.authorId
-              && submission(data.resubmissionOf).data.sourceRevisionId == data.sourceRevisionId)));
-    }
-
     match /accounts/{uid} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
 
@@ -75,43 +41,23 @@ service cloud.firestore {
     }
 
     match /resourcePaths/{resourceId} {
-      allow read, create, update, delete: if isAdmin();
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /pendingResourcePaths/{resourceId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
     }
 
     match /mapSubmissions/{submissionId} {
       allow read: if isAdmin() || (signedIn()
         && resource.data.submittedBy == request.auth.uid);
 
-      allow create: if request.resource.data.category == 'maps'
-        && (isAdmin() || (hasApprovedAccount()
-        && request.resource.data.keys().hasOnly([
-          'submissionId', 'mapId', 'operation', 'status', 'submittedBy',
-          'submittedByName', 'authorId', 'authorName', 'category', 'mapName',
-          'mapVersion', 'storagePath', 'sourceRevisionId', 'sourceMapId',
-          'resubmissionOf', 'submissionReason', 'sha256', 'contentBytes',
-          'createdAt', 'updatedAt'
-        ])
-        && request.resource.data.submissionId == submissionId
-        && request.resource.data.submittedBy == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.operation in ['create', 'edit', 'metadata', 'size']
-        && request.resource.data.mapId is string
-        && request.resource.data.authorId is string
-        && request.resource.data.authorName is string
-        && request.resource.data.mapName is string
-        && request.resource.data.mapVersion is string
-        && validSubmissionReason(request.resource.data)
-        && validResubmission(request.resource.data)
-        && request.resource.data.sha256.matches('[0-9a-f]{64}')
-        && (request.resource.data.storagePath == '_revisions/' + request.auth.uid
-          + '/' + submissionId
-          || request.resource.data.storagePath.matches('_revisions/'
-            + request.auth.uid + '/' + submissionId
-            + '/[^/]+\\.aamap\\.xml'))
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time
-        && request.resource.data.authorId == account(request.auth.uid).data.authorId
-        && request.resource.data.authorName == account(request.auth.uid).data.authorName));
+      // User submissions are validated and version-reserved atomically by the
+      // createMapSubmission Cloud Function. Admin SDK writes bypass rules;
+      // browser clients cannot skip the authoritative duplicate-version check.
+      allow create: if isAdmin();
 
       allow update, delete: if isAdmin();
     }

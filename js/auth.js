@@ -31,6 +31,7 @@ const FIREBASE_AUTH_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VER
 const FIREBASE_STORAGE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-storage.js`;
 const FIREBASE_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`;
 const REGISTRATION_DENIAL_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/denyRegistration";
+const MAP_SUBMISSION_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/createMapSubmission";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 const gate = document.getElementById("auth-gate");
@@ -1962,11 +1963,18 @@ async function reviewSubmission(submissionId, approved) {
         const resourceRef = approved ? firestoreSdk.doc(
             firestore, "resourcePaths", resourceKey(resourcePath)
         ) : null;
+        const pendingResourceId = submission.pendingResourceId || resourceKey(activeResourcePath(
+            submission.authorName, MAP_CATEGORY, submission.mapName, submission.mapVersion
+        ));
+        const pendingResourceRef = firestoreSdk.doc(
+            firestore, "pendingResourcePaths", pendingResourceId
+        );
         await firestoreSdk.runTransaction(firestore, async transaction => {
             const originalSnapshot = await transaction.get(originalRef);
             if(!originalSnapshot.exists() || originalSnapshot.data().status !== "pending") {
                 throw new Error("This submission has already been reviewed or removed.");
             }
+            const pendingResourceSnapshot = await transaction.get(pendingResourceRef);
             let previousMap = null;
             let preserveResourceReservation = false;
             let draftSnapshot = null;
@@ -2033,6 +2041,10 @@ async function reviewSubmission(submissionId, approved) {
                 reviewReason: reason,
                 updatedAt: firestoreSdk.serverTimestamp()
             });
+            if(pendingResourceSnapshot.exists() &&
+               pendingResourceSnapshot.data().submissionId === submissionId) {
+                transaction.delete(pendingResourceRef);
+            }
             if(approved) {
                 const mapData = {
                     mapId: submission.mapId,
@@ -2707,6 +2719,7 @@ async function copyMapFileCommand() {
 
 function friendlyUploadError(error) {
     const code = error && error.code ? error.code : "";
+    if(code === "submission/rejected" && error.message) return error.message;
     const messages = {
         "storage/already-exists": "That map name and version already exist. Choose a different version.",
         "storage/unauthorized": "Your account is not approved or linked to this author.",
@@ -2715,6 +2728,65 @@ function friendlyUploadError(error) {
         "storage/unknown": "The map could not be uploaded. Please try again."
     };
     return messages[code] || "The map could not be uploaded. Please try again.";
+}
+
+async function assertMapVersionAvailable(user, author, category, mapName, mapVersion) {
+    const resourcePath = activeResourcePath(author, category, mapName, mapVersion);
+    const resourceId = resourceKey(resourcePath);
+    const [published, pending, ownSubmissions] = await Promise.all([
+        firestoreSdk.getDoc(firestoreSdk.doc(firestore, "resourcePaths", resourceId)),
+        firestoreSdk.getDoc(firestoreSdk.doc(firestore, "pendingResourcePaths", resourceId)),
+        firestoreSdk.getDocs(firestoreSdk.query(
+            firestoreSdk.collection(firestore, "mapSubmissions"),
+            firestoreSdk.where("submittedBy", "==", user.uid)
+        ))
+    ]);
+    if(published.exists()) {
+        throw Object.assign(
+            new Error(`${mapName} ${mapVersion} is already published. Choose a new version.`),
+            {code:"submission/rejected"}
+        );
+    }
+    const legacyPending = ownSubmissions.docs.some(item => {
+        const data = item.data();
+        return data.status === "pending" && data.authorName === author &&
+            data.category === category && data.mapName === mapName &&
+            normalizeMapVersion(data.mapVersion) === mapVersion;
+    });
+    if(pending.exists() || legacyPending) {
+        throw Object.assign(
+            new Error(
+                `${mapName} ${mapVersion} is already pending review. ` +
+                "Edit that submission or choose a new version."
+            ),
+            {code:"submission/rejected"}
+        );
+    }
+}
+
+async function createMapSubmission(user, submission) {
+    const idToken = await authSdk.getIdToken(user, true);
+    const response = await fetch(MAP_SUBMISSION_URL, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${idToken}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(submission)
+    });
+    let result = {};
+    try {
+        result = await response.json();
+    } catch(error) {
+        result = {};
+    }
+    if(!response.ok) {
+        throw Object.assign(
+            new Error(result.error || `Map submission failed (${response.status}).`),
+            {code:"submission/rejected"}
+        );
+    }
+    return result;
 }
 
 async function savePendingReviewDraft(
@@ -2992,9 +3064,18 @@ async function uploadCurrentMap(options = {}) {
     const submissionReason = resubmissionOf
         ? "Edited and resubmitted after a denied review."
         : "";
+    try {
+        await assertMapVersionAvailable(
+            user, author, category, mapName, mapVersion
+        );
+    } catch(error) {
+        showEditorMessage(friendlyUploadError(error));
+        return;
+    }
     const objectPath = revisionStoragePath(
         user.uid, submissionRef.id, mapName, mapVersion
     );
+    const contentBytes = new TextEncoder().encode(map.xml).byteLength;
 
     uploadBusy = true;
     if(uploadButton) {
@@ -3011,13 +3092,10 @@ async function uploadCurrentMap(options = {}) {
                 user, submissionRef.id, authorId, author, category, mapName, mapVersion, operation, sha256
             )
         });
-        await firestoreSdk.setDoc(submissionRef, {
+        await createMapSubmission(user, {
             submissionId: submissionRef.id,
             mapId,
             operation,
-            status: "pending",
-            submittedBy: user.uid,
-            submittedByName: sessionAuthorName(user),
             authorId,
             authorName: author,
             category,
@@ -3029,9 +3107,7 @@ async function uploadCurrentMap(options = {}) {
             resubmissionOf,
             submissionReason,
             sha256,
-            contentBytes: new TextEncoder().encode(map.xml).byteLength,
-            createdAt: firestoreSdk.serverTimestamp(),
-            updatedAt: firestoreSdk.serverTimestamp()
+            contentBytes
         });
         if(editState) clearRepositoryEditState();
         if(typeof window.vectron_localDraftSaveNow === "function") {
