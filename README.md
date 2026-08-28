@@ -31,6 +31,12 @@ An approved user can also see their denied submissions under **Maps → My maps*
 including the review reason. Opening **Edit and resubmit** loads the exact denied
 revision, preserves whether it was a new map or an edit, and links the new review
 to the denied submission without changing the original review record.
+Submission creation is handled by a trusted Cloud Function that atomically
+reserves the normalized author/name/version resource path. Published versions,
+pending versions, concurrent uploads, stale browser clients, and independent
+uploads that duplicate a pending resubmission are rejected before they can
+create another review item. The browser performs the same check first to avoid
+an unnecessary immutable upload when a conflict is already known.
 Admins may:
 
 - approve registrations or deny and permanently delete pending users, with a
