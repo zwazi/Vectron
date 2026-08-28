@@ -209,6 +209,7 @@ function aamap_symmetryClone(aamapObject, transform) {
         }
         copy = new Zone(reflectedCenter.x, reflectedCenter.y, aamapObject.radius,
             aamapObject.growth, aamapObject.type, zoneData);
+        copy.privatePerPlayer = !!aamapObject.privatePerPlayer;
     }
     return copy;
 }
@@ -718,15 +719,28 @@ function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
 
     var hasSpecialZones = aamap_objects.some(isSpecialZone);
     var hasCheckpoints = aamap_objects.some(isCheckpointZone);
+    var privateZoneOrdinals = [];
+    var serializedZoneOrdinal = 0;
+    aamap_objects.forEach(function(object) {
+        if(typeof Zone !== "undefined" && object instanceof Zone) {
+            serializedZoneOrdinal++;
+            if(object.privatePerPlayer) privateZoneOrdinals.push(serializedZoneOrdinal);
+        }
+    });
     var knownIncompatibleDtd = /^(sty\.dtd|map-0\.2\.(8|9)(?:_beta3)?\.dtd|map-0\.3\.1-a\.dtd|Anonymous\/map-0\.2\.8\.dtd)$/i;
     if(hasSpecialZones && knownIncompatibleDtd.test(String(dtd || ""))) {
         dtd = "map-0.2.9_styctap_v1.5.dtd";
     }
     settings = (settings || []).slice();
     var checkpointSetting = "RACE_CHECKPOINT_REQUIRE_HIT";
+    var privateZoneSetting = "PLAYER_PRIVATE_ZONES_V1";
     var checkpointMode = "2";
     settings = settings.filter(function(setting) {
         var text = String(setting || "").trim();
+        if(text.toUpperCase().indexOf(privateZoneSetting + " ") === 0 ||
+            text.toUpperCase() === privateZoneSetting) {
+            return false;
+        }
         if(text.toUpperCase().indexOf(checkpointSetting + " ") === 0) {
             var value = text.slice(text.indexOf(" ") + 1).trim();
             if(value === "1" || value === "2") checkpointMode = value;
@@ -735,6 +749,9 @@ function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
         return true;
     });
     if(hasCheckpoints) settings.push(checkpointSetting + " " + checkpointMode);
+    if(privateZoneOrdinals.length) {
+        settings.push(privateZoneSetting + " " + privateZoneOrdinals.join(","));
+    }
 
     function indentLines(str, prefix) {
         return str.split('\n').map(function(line) { return prefix + line; }).join('\n');

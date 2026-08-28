@@ -20,7 +20,8 @@ appear in the user's in-app notifications, except registration denial, which
 permanently deletes both the pending registration and its Firebase login.
 
 Approved users submit maps as immutable objects under
-`_revisions/<uid>/<submission-id>`. The corresponding Firestore submission is
+`_revisions/<uid>/<submission-id>/<map-version.aamap.xml>`. The corresponding
+Firestore submission is
 `pending` until an admin validates and approves it. Publishing changes only the
 active catalog pointer; it never overwrites an existing map object. Admins may:
 
@@ -48,6 +49,18 @@ review keeps that map inactive until approval, does not create a synthetic user
 notification, and returns the exact approved source or admin-edited draft to
 the server catalog. Denial leaves it inactive for follow-up or explicit
 cancellation from the server.
+
+After a successful upload, Vectron displays a copyable `MAP_FILE` command in
+the form `MAP_FILE map-version.aamap.xml(full-revision-URL)`. The immutable
+revision becomes publicly readable only after its matching submission record
+exists, allowing the author to run the exact uploaded bytes on another
+Armagetron server. Revision writes, replacement, deletion, and listing remain
+restricted by Firebase rules.
+
+The review dialog defaults to its 620-pixel content-safe minimum width and the
+maximum height that fits the viewport. Wall and Zone tool windows follow their
+visible content height automatically until manually resized; using their reset
+buttons restores content-driven sizing.
 
 Every decision creates an immutable audit event. Resource-path reservation
 documents prevent two maps or revisions from publishing to the same logical
@@ -133,6 +146,24 @@ setting for the entire map. Vectron writes `RACE_CHECKPOINT_REQUIRE_HIT 2` for
 ordered maps or `1` for unordered maps and selects the compatible
 `map-0.2.9_styctap_v1.5.dtd`. The legacy checkpoint `time` attribute is hidden
 because it is not used, but importing and exporting a map preserves its value.
+
+### Player-private zones
+
+Every Zone Tool type can be marked **Player-private**, including death, win,
+target, rubber, fortress, checkpoint, and teleport zones. Vectron draws these
+zones with a dashed outline and preserves the flag through selection edits,
+symmetry, import, and export.
+
+The exported map keeps each one as an ordinary `<Zone>` and adds one reserved
+map setting, `PLAYER_PRIVATE_ZONES_V1`, containing the one-based ordinals of
+the private zones. A compatible Tronner server replaces each marked global
+zone with an independent copy for each network client: only that client sees
+its copy, and only cycles owned by that client interact with it. An unmodified
+Sty server ignores the unknown setting and runs the ordinary zones globally,
+so the same map remains playable as a stock-server fallback.
+
+Privacy is enforced per network connection. Multiple local players sharing one
+client also share that client's private-zone view.
 
 ---
 

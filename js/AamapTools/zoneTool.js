@@ -241,6 +241,7 @@ function zoneTool_hasDuplicate(x, y, radius) {
 
 function zoneTool_addCompletedZone(zone) {
     if(zoneTool_hasDuplicate(zone.x, zone.y, zone.radius)) return false;
+    zone.privatePerPlayer = $("#zone-private-per-player").is(":checked");
     if(zone.type === 5) {
         zoneTool_setCheckpointMode($("#dCheckpointMode").val());
         zoneTool_ensureSpecialDtd();
@@ -356,12 +357,13 @@ function zoneTool_syncSelectedProperties() {
     zoneTool_selectedZone = zones.length === 1 ? zones[0] : null;
     var kind = zoneTool_selectedZone ?
         (zoneTool_typeArray[zoneTool_selectedZone.type] || [])[0] : "";
-    if(kind !== "checkpoint" && kind !== "teleport") {
+    if(!zoneTool_selectedZone) {
         $("#zone-selected-properties").hide();
         return;
     }
     $("#zone-selected-properties").show();
-    $("#zone-selected-title").text(kind === "checkpoint" ? "Selected checkpoint" : "Selected teleport");
+    $("#zone-selected-title").text("Selected " + kind + " zone");
+    $("#zone-selected-private").prop("checked", !!zoneTool_selectedZone.privatePerPlayer);
     $("#zone-selected-teleport-mode-row,#zone-selected-dest-x-row,#zone-selected-dest-y-row," +
         "#zone-selected-dir-x-row,#zone-selected-dir-y-row,#zone-selected-reloc-row," +
         "#zone-selected-direction-help").toggle(kind === "teleport");
@@ -370,7 +372,7 @@ function zoneTool_syncSelectedProperties() {
         // avoids two independent ID controls that can silently disagree.
         $("#dCheckpointOrder").val(zoneTool_selectedZone.zoneData.checkpointId);
         $("#zone-checkpoint-setting,#zone-checkpoint-mode-setting").show();
-    } else {
+    } else if(kind === "teleport") {
         $("#zone-selected-teleport-mode").val(zoneTool_selectedZone.zoneData.mode);
         $("#zone-selected-dest-x").val(zoneTool_selectedZone.zoneData.destX);
         $("#zone-selected-dest-y").val(zoneTool_selectedZone.zoneData.destY);
@@ -396,7 +398,9 @@ function zoneTool_applySelectedProperties() {
     if(!zone || aamap_objects.indexOf(zone) < 0) return;
     var kind = (zoneTool_typeArray[zone.type] || [])[0];
     var before = zone.copyZoneData();
-    var after;
+    var beforePrivate = !!zone.privatePerPlayer;
+    var after = before;
+    var afterPrivate = $("#zone-selected-private").is(":checked");
     if(kind === "checkpoint") {
         var checkpointId = Number($("#dCheckpointOrder").val());
         if(!isFinite(checkpointId) || checkpointId <= 0 || Math.floor(checkpointId) !== checkpointId) {
@@ -419,17 +423,20 @@ function zoneTool_applySelectedProperties() {
             gui_toast("Teleport coordinates, direction, and compensation must be numbers.");
             return;
         }
-    } else return;
-    function apply(data) {
-        zone.zoneData = zone_copyData(data);
-        zone.option = kind === "checkpoint" ? zone.zoneData.checkpointId : zone.zoneData;
     }
-    apply(after);
-    zoneTool_ensureSpecialDtd();
+    function apply(data, privatePerPlayer) {
+        if(kind === "checkpoint" || kind === "teleport") {
+            zone.zoneData = zone_copyData(data);
+            zone.option = kind === "checkpoint" ? zone.zoneData.checkpointId : zone.zoneData;
+        }
+        zone.privatePerPlayer = !!privatePerPlayer;
+    }
+    apply(after, afterPrivate);
+    if(kind === "checkpoint" || kind === "teleport") zoneTool_ensureSpecialDtd();
     aamap_recordAction({
         label:"Edit " + kind + " zone",
-        undo:function() { apply(before); vectron_render(); zoneTool_syncSelectedProperties(); },
-        redo:function() { apply(after); vectron_render(); zoneTool_syncSelectedProperties(); }
+        undo:function() { apply(before, beforePrivate); vectron_render(); zoneTool_syncSelectedProperties(); },
+        redo:function() { apply(after, afterPrivate); vectron_render(); zoneTool_syncSelectedProperties(); }
     });
     vectron_render();
     zoneTool_syncSelectedProperties();

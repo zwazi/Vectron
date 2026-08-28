@@ -1212,13 +1212,46 @@ button.repository-author-heading:disabled {
 }
 
 .admin-dialog {
-  width: min(1180px, 100%);
-  height: min(720px, 100%);
+  width: min(620px, 100%);
+  height: calc(100vh - 48px);
   min-width: min(620px, 100%);
   min-height: 420px;
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 48px);
   resize: both;
+}
+
+.map-file-command-dialog {
+  width: min(720px, calc(100vw - 32px));
+  height: auto;
+  align-self: center;
+}
+
+.map-file-command-content {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.map-file-command-content label {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+#map-file-command-value {
+  width: 100%;
+  min-height: 92px;
+  padding: 10px;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.map-file-command-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .admin-dialog.positioned {
@@ -1685,6 +1718,10 @@ button.repository-author-heading:disabled {
   .repository-dialog {
     height: 100%;
     border-radius: 10px;
+  }
+
+  .map-file-command-dialog {
+    height: auto;
   }
 
   .admin-dialog {

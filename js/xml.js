@@ -35,6 +35,18 @@ var xml_axes = 4;
 var xml_settings = [];
 var xml_latest_read_id = 0;
 var xml_remixHistory = [];
+var xml_playerPrivateZoneSetting = "PLAYER_PRIVATE_ZONES_V1";
+
+function xml_parsePlayerPrivateZoneOrdinals(value) {
+    var ordinals = {};
+    String(value || "").split(/[\s,;]+/).forEach(function(part) {
+        var ordinal = Number(part);
+        if(isFinite(ordinal) && ordinal > 0 && Math.floor(ordinal) === ordinal) {
+            ordinals[ordinal] = true;
+        }
+    });
+    return ordinals;
+}
 
 function xml_normalizeRemixEntry(entry) {
     if(!entry || typeof entry != "object") return null;
@@ -141,8 +153,17 @@ function xml_process(xml, suppressHistoryClear) {
     catch(e){xml_dtd = "sty.dtd"; gui_writeLog("Could not determine dtd!");}
 
     xml_settings.splice(0);
+    var privateZoneOrdinals = {};
     $(xml).find("Setting").each(function() {
-        xml_settings.push($(this).attr("name")+" "+$(this).attr("value"));
+        var name = String($(this).attr("name") || "");
+        var value = String($(this).attr("value") || "");
+        if(name.toUpperCase() === xml_playerPrivateZoneSetting) {
+            Object.keys(xml_parsePlayerPrivateZoneOrdinals(value)).forEach(function(ordinal) {
+                privateZoneOrdinals[ordinal] = true;
+            });
+        } else {
+            xml_settings.push(name+" "+value);
+        }
     });
 
     xml_axes = 4;
@@ -152,7 +173,7 @@ function xml_process(xml, suppressHistoryClear) {
 
     gui_fillInput();
 
-    var pt = xml_process_piece(xml);
+    var pt = xml_process_piece(xml, privateZoneOrdinals);
     var ptsx = pt[0], ptsy = pt[1];
 
     var checkpointZones = aamap_objects.filter(function(object) {
@@ -206,11 +227,13 @@ function xml_process(xml, suppressHistoryClear) {
     if(!suppressHistoryClear) aamap_clearHistory();
 }
 
-function xml_process_piece(xml)
+function xml_process_piece(xml, privateZoneOrdinals)
 {
     var x,y;
     var ptsx = [];
     var ptsy = [];
+    var zoneOrdinal = 0;
+    privateZoneOrdinals = privateZoneOrdinals || {};
 
     $(xml).find("*").each(function(){switch(this.tagName.toLowerCase())
     {
@@ -239,6 +262,7 @@ function xml_process_piece(xml)
     } break;
     
     case "zone": {
+        zoneOrdinal++;
         var zone = $(this);
         var effect = zone.attr("effect");
         var radius = zone.find("ShapeCircle").attr("radius");
@@ -289,9 +313,12 @@ function xml_process_piece(xml)
         y = zone.find("Point").attr("y");
         ptsx.push(parseFloat(x));
         ptsy.push(parseFloat(y));
-        aamap_add(
-            new Zone(parseFloat(x), parseFloat(y), parseFloat(radius), parseFloat(growth)||0, zoneTool_whatType[effect], option)
+        var importedZone = new Zone(
+            parseFloat(x), parseFloat(y), parseFloat(radius),
+            parseFloat(growth)||0, zoneTool_whatType[effect], option
         );
+        importedZone.privatePerPlayer = !!privateZoneOrdinals[zoneOrdinal];
+        aamap_add(importedZone);
     } break;
     
     case "wall": {
