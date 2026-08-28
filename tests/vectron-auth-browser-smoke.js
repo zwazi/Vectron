@@ -402,28 +402,72 @@ ws.onopen = async () => {
             await waitFor(function(){ return document.querySelector('[data-admin-card="${submission.id}"]'); }, "Submission queue missing map", 45000);
             const card = document.querySelector('[data-admin-card="${submission.id}"]');
             card.scrollIntoView({block: "center"});
-            await waitFor(function(){ return card.querySelector(".map-review-preview-svg"); }, "Submission preview did not render", 45000);
+            await waitFor(function(){ return card.querySelector(".map-review-preview").getAttribute("aria-busy") === "false"; },
+                "Submission preview did not settle", 45000);
             const cardStyle = getComputedStyle(card);
             const actionStyle = getComputedStyle(card.querySelector(".map-review-actions"));
             const layout = {
                 columns: cardStyle.gridTemplateColumns.trim().split(/\\s+/).length,
                 actionDirection: actionStyle.flexDirection,
                 hasDelete: Boolean(card.querySelector('[data-admin-action="delete-submission-map"]')),
-                submittedReason: card.querySelector(".map-review-submission-reason span").textContent
+                submittedReason: card.querySelector(".map-review-submission-reason span").textContent,
+                previewRendered: Boolean(card.querySelector(".map-review-preview-svg")),
+                previewText: card.querySelector(".map-review-preview").textContent.trim()
             };
             window.confirm = function(){ return true; };
-            card.querySelector('[data-admin-action="approve-submission"]').click();
-            await waitFor(function(){ return !document.querySelector('[data-admin-card="${submission.id}"]'); }, "Publication failed", 60000);
-            return {status: document.getElementById("admin-status").textContent, layout};
+            card.querySelector("[data-admin-reason]").value = "Edited and published in one step";
+            card.querySelector('[data-admin-action="edit-submission"]').click();
+            await waitFor(function(){ return document.getElementById("admin-overlay").hidden &&
+                !document.querySelector("[data-map-review-publish]").hidden; },
+                "Pending review did not open for editing", 45000);
+            const publishButton = document.querySelector("[data-map-review-publish]");
+            publishButton.click();
+            await waitFor(function(){ return publishButton.classList.contains("auth-uploading"); },
+                "One-step publication did not start", 15000);
+            await waitFor(function(){ return !publishButton.classList.contains("auth-uploading"); },
+                "One-step publication did not settle", 60000);
+            return {status: document.getElementById("vt-toast").textContent, layout,
+                publishButtonHidden: document.querySelector("[data-map-review-publish]").hidden};
         `);
         assert.match(publication.status, /published/i);
+        assert.strictEqual(publication.publishButtonHidden, true);
         assert.strictEqual(publication.layout.columns, 2);
         assert.strictEqual(publication.layout.actionDirection, "column");
         assert.strictEqual(publication.layout.hasDelete, true);
         assert.match(publication.layout.submittedReason, /No reason was provided/i);
+        assert.strictEqual(publication.layout.previewRendered, true, publication.layout.previewText);
         await waitForRemote(async () => (await listDocuments("maps"))
             .find(item => item.mapName === mapName && item.status === "active"),
         "Approved map did not become active");
+
+        const reviewHistory = await evaluate(context, `
+            document.querySelector("[data-admin-review]").click();
+            document.querySelector('[data-admin-tab="history"]').click();
+            await waitFor(function(){ return document.querySelector('[data-admin-card="${submission.id}"]'); },
+                "Approved review did not enter history", 45000);
+            const dialog = document.querySelector(".admin-dialog");
+            const card = document.querySelector('[data-admin-card="${submission.id}"]');
+            const result = {
+                resize: getComputedStyle(dialog).resize,
+                decision: card.querySelectorAll(".map-review-submission-reason span")[1].textContent,
+                hasReopen: Boolean(card.querySelector('[data-admin-action="reopen-history"]'))
+            };
+            window.confirm = function(){ return true; };
+            card.querySelector('[data-admin-action="reopen-history"]').click();
+            await waitFor(function(){ return document.getElementById("admin-overlay").hidden &&
+                !document.querySelector("[data-map-review-publish]").hidden; },
+                "Historical review did not reopen", 60000);
+            result.reopened = true;
+            window.vectron_clearRepositoryEditState();
+            return result;
+        `);
+        assert.deepStrictEqual(reviewHistory, {
+            resize: "both", decision: "Edited and published in one step",
+            hasReopen: true, reopened: true
+        });
+        await waitForRemote(async () => (await listDocuments("mapSubmissions"))
+            .find(item => item.historySourceSubmissionId === submission.id && item.status === "pending"),
+        "Historical review did not create a new pending revision");
 
         await logout(context);
         await login(context, userEmail, userPassword, "User");

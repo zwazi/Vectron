@@ -707,6 +707,12 @@ body.auth-locked {
   background: rgba(154, 124, 255, 0.055);
 }
 
+.auth-review-publish-button {
+  border-color: rgba(154, 124, 255, 0.48);
+  color: #d5caff;
+  background: rgba(154, 124, 255, 0.1);
+}
+
 .auth-notification-button,
 .auth-admin-button {
   position: relative;
@@ -1207,6 +1213,12 @@ button.repository-author-heading:disabled {
 
 .admin-dialog {
   width: min(1180px, 100%);
+  height: min(720px, 100%);
+  min-width: min(620px, 100%);
+  min-height: 420px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  resize: both;
 }
 
 .account-card {
@@ -1588,6 +1600,14 @@ button.repository-author-heading:disabled {
   .repository-dialog {
     height: 100%;
     border-radius: 10px;
+  }
+
+  .admin-dialog {
+    min-width: 0;
+    min-height: 0;
+    max-width: 100%;
+    max-height: 100%;
+    resize: none;
   }
 
   .repository-tools,

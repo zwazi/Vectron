@@ -468,6 +468,7 @@
                 <button class="auth-admin-button" type="button" data-admin-review hidden aria-expanded="false" aria-controls="admin-overlay" title="Review registrations and maps" aria-label="Review registrations and maps"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span class="auth-action-label">Review</span><span class="auth-count-badge" data-admin-count hidden>0</span></button>
                 <button class="auth-repository-button" type="button" data-map-repository aria-expanded="false" aria-controls="map-repository-overlay" title="Browse repository maps" aria-label="Browse repository maps"><i class="fa-solid fa-map" aria-hidden="true"></i><span>Maps</span></button>
                 <button class="auth-upload-button" type="button" data-map-upload title="Upload map" aria-label="Upload map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Upload</span></button>
+                <button class="auth-upload-button auth-review-publish-button" type="button" data-map-review-publish hidden title="Save changes, approve, and publish" aria-label="Save changes, approve, and publish"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Save changes, Approve, and Publish</span></button>
                 <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
             </div>
         </div>
@@ -767,6 +768,7 @@
                 <div class="repository-tabs" role="tablist" aria-label="Admin review section">
                     <button class="repository-tab active" type="button" role="tab" aria-selected="true" data-admin-tab="accounts">Registrations <span data-admin-account-count>0</span></button>
                     <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="submissions">Map reviews <span data-admin-submission-count>0</span></button>
+                    <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="history">Review history <span data-admin-history-count>0</span></button>
                     <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="maps">Published maps <span data-admin-map-count>0</span></button>
                 </div>
                 <div id="admin-summary" class="repository-summary" aria-live="polite">Open a queue to begin reviewing.</div>
