@@ -1461,7 +1461,7 @@ button.repository-author-heading:disabled {
   vector-effect: non-scaling-stroke;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .map-review-card {
     grid-template-columns: minmax(0, 1fr);
   }
