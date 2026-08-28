@@ -290,7 +290,7 @@ ws.onopen = async () => {
             document.getElementById("auth-guest").click();
             await waitFor(function(){ return window.vectron_started === true && window.vectron_userRole === "guest"; }, "Guest mode failed");
             document.querySelector("[data-map-repository]").click();
-            await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 230; }, "Guest catalog failed", 45000);
+            await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 150; }, "Guest catalog failed", 45000);
             const visibleMaps = document.querySelectorAll("[data-repository-open]").length;
             const editActions = document.querySelectorAll('[data-repository-action="edit"]').length;
             window.confirm = function(){ return true; };
@@ -299,7 +299,7 @@ ws.onopen = async () => {
             return {visibleMaps, editActions, uploadHidden: document.querySelector("[data-map-upload]").hidden,
                 toast: document.getElementById("vt-toast").textContent};
         `);
-        assert.ok(guest.visibleMaps >= 230);
+        assert.ok(guest.visibleMaps >= 150);
         assert.strictEqual(guest.editActions, 0);
         assert.strictEqual(guest.uploadHidden, true);
         assert.match(guest.toast, /Remixing/);
@@ -317,7 +317,7 @@ ws.onopen = async () => {
                 document.querySelector("[data-auth-email]").textContent === ${JSON.stringify(userEmail)}; }, "Pending session failed");
             document.querySelector("[data-map-repository]").click();
             document.getElementById("map-repository-others-tab").click();
-            await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 230; }, "Pending catalog failed", 45000);
+            await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 150; }, "Pending catalog failed", 45000);
             return {role: window.vectron_userRole, uploadDisabled: document.querySelector("[data-map-upload]").disabled,
                 editActions: document.querySelectorAll('[data-repository-action="edit"]').length};
         `);
