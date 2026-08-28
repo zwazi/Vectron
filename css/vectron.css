@@ -1403,6 +1403,75 @@ button.vt-tool-grid-row,
   box-shadow: 0 0 4px rgba(102,175,233,0.4);
 }
 
+.tsb-combobox {
+  width: 128px;
+  min-width: 0;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.tsb-combobox .tsb-input {
+  width: calc(100% - 24px);
+  min-width: 0;
+  border-radius: 3px 0 0 3px;
+}
+
+.tsb-combobox-toggle {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #bbb;
+  border-left: 0;
+  border-radius: 0 3px 3px 0;
+  color: #555;
+  background: #e8e8e8;
+  font-size: 9px;
+}
+
+.tsb-combobox-toggle:hover,
+.tsb-combobox-toggle:focus-visible,
+.tsb-combobox-toggle[aria-expanded="true"] {
+  color: #222;
+  background: #ddd;
+  outline: none;
+}
+
+.tsb-combobox-menu {
+  position: fixed;
+  z-index: 19000;
+  min-width: 238px;
+  padding: 5px;
+  border: 1px solid #b8b8b8;
+  border-radius: 5px;
+  background: #f8f8f8;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.tsb-combobox-menu button {
+  width: 100%;
+  min-height: 27px;
+  display: block;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 3px;
+  color: #333;
+  background: transparent;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tsb-combobox-menu button:hover,
+.tsb-combobox-menu button.active,
+.tsb-combobox-menu button[aria-selected="true"] {
+  color: #111;
+  background: #e2e2e2;
+  outline: none;
+}
+
 .tsb-sep {
   opacity: 0.35;
   padding: 0 6px;
@@ -1417,13 +1486,6 @@ button.vt-tool-grid-row,
   font-size: 16px;
   position: relative;
   top: 3px;
-}
-
-/* Axes field in top bar: inline checkbox alignment */
-.tsb-field .form-check-input {
-  margin: 0 2px 0 0;
-  vertical-align: middle;
-  position: static;
 }
 
 .grid-cfg-header {

@@ -44,6 +44,8 @@ var vectron_panX = 0;
 var vectron_panY = 0;
 
 var vectron_objectID = 0;
+var vectron_initialMapRequest = null;
+var vectron_initialMapLoadId = 0;
 
 function vectron_assetUrl(path) {
     var scripts = document.getElementsByTagName("script");
@@ -82,19 +84,54 @@ function vectron_init() {
 
     xml_init();
 
-    $.ajax({
-        url: vectron_assetUrl('js/startup.aamap.xml'),
-        dataType: 'text',
-        success: function(data) {
-            xml_process(data);
-        },
-        error: function(xhr, status, err) {
-            gui_writeLog("Could not load startup map. (" + (xhr.status || status) + ")");
-        }
-    });
+    vectron_loadInitialMap();
 
     vectron_connectTool("select");
 }
+
+function vectron_resetForInitialMap() {
+    aamap_objects.forEach(function(object) {
+        if(typeof aamap_removeObjectVisuals === "function") aamap_removeObjectVisuals(object);
+    });
+    aamap_objects = [];
+    if(typeof aamap_disableSymmetry === "function") aamap_disableSymmetry();
+    if(typeof xml_clearRemixHistory === "function") xml_clearRemixHistory();
+    if(typeof window.vectron_clearRepositoryEditState === "function") {
+        window.vectron_clearRepositoryEditState();
+    }
+    vectron_panX = 0;
+    vectron_panY = 0;
+    vectron_zoom = 1;
+    if(typeof aamap_clearHistory === "function") aamap_clearHistory();
+}
+
+function vectron_loadInitialMap() {
+    var thisLoadId = ++vectron_initialMapLoadId;
+    if(vectron_initialMapRequest && typeof vectron_initialMapRequest.abort === "function") {
+        vectron_initialMapRequest.abort();
+    }
+    vectron_initialMapRequest = null;
+
+    if(typeof window.vectron_localDraftRestore === "function" &&
+       window.vectron_localDraftRestore()) return;
+
+    vectron_resetForInitialMap();
+    vectron_initialMapRequest = $.ajax({
+        url: vectron_assetUrl('js/startup.aamap.xml'),
+        dataType: 'text',
+        success: function(data) {
+            if(thisLoadId !== vectron_initialMapLoadId) return;
+            xml_process(data);
+        },
+        error: function(xhr, status, err) {
+            if(status === "abort" || thisLoadId !== vectron_initialMapLoadId) return;
+            gui_writeLog("Could not load startup map. (" + (xhr.status || status) + ")");
+        }
+    });
+}
+
+window.vectron_resetForInitialMap = vectron_resetForInitialMap;
+window.vectron_loadInitialMap = vectron_loadInitialMap;
 
 /**
  * Renders Vectron
@@ -115,6 +152,9 @@ function vectron_render() {
     aamap_render();
 
     vectron_write_info();
+    if(typeof window.vectron_localDraftScheduleSave === "function") {
+        window.vectron_localDraftScheduleSave();
+    }
 }
 
 function vectron_format_coord(val) {
