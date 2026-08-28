@@ -108,7 +108,8 @@ const controls = {
     "#symmetry-custom-point-y": {value:"0"},
     "#symmetry-check-toggle": {checked:false, value:""},
     "#dRubberVal": {value:"2"},
-    "#dCheckpointOrder": {value:"1"}
+    "#dCheckpointOrder": {value:"1"},
+    "#dCheckpointMode": {value:"2"}
 };
 
 function jquery(selector) {
@@ -249,6 +250,69 @@ assert.deepStrictEqual(
     [clonedZone.x, clonedZone.y, clonedZone.radius, clonedZone.growth,
         clonedZone.type, clonedZone.option],
     [-6, -2, 9, 1, 5, 3]);
+
+const checkpoint = new Zone(4, 8, 6, 0, 5, {checkpointId:3, legacyTime:"42.5"});
+assert.match(checkpoint.getXML(), /<Checkpoint id="3" time="42\.5"\/>/,
+    "Checkpoint time is silently preserved for imported legacy maps");
+
+const absoluteTeleport = new Zone(5, 6, 7, 0, 6, {
+    mode:"abs", destX:40, destY:-20, dirX:0, dirY:1, reloc:1.25
+});
+assert.match(absoluteTeleport.getXML(),
+    /<Teleport destX="40" destY="-20" dirX="0" dirY="1" modes="abs" reloc="1\.25"\/>/,
+    "Teleport exports every native destination field");
+absoluteTeleport.move(2, 3);
+assert.deepStrictEqual(
+    [absoluteTeleport.x, absoluteTeleport.y,
+        absoluteTeleport.zoneData.destX, absoluteTeleport.zoneData.destY],
+    [7, 9, 42, -17],
+    "Moving an absolute teleport also moves its destination");
+
+const relativeTeleport = new Zone(5, 6, 7, 0, 6, {
+    mode:"rel", destX:10, destY:-4, dirX:1, dirY:0, reloc:1
+});
+relativeTeleport.move(2, 3);
+assert.deepStrictEqual(
+    [relativeTeleport.x, relativeTeleport.y,
+        relativeTeleport.zoneData.destX, relativeTeleport.zoneData.destY],
+    [7, 9, 10, -4],
+    "Moving a relative teleport leaves its destination offset unchanged");
+
+const mirroredTeleport = context.aamap_symmetryClone(new Zone(6, 2, 4, 0, 6, {
+    mode:"abs", destX:30, destY:8, dirX:1, dirY:0, reloc:1
+}), mirrorX);
+assert.deepStrictEqual(
+    [mirroredTeleport.x, mirroredTeleport.y,
+        mirroredTeleport.zoneData.destX, mirroredTeleport.zoneData.destY,
+        mirroredTeleport.zoneData.dirX, mirroredTeleport.zoneData.dirY],
+    [-6, 2, -30, 8, -1, 0],
+    "Teleport destination and exit direction follow map symmetry");
+
+const mirroredCycleTeleport = context.aamap_symmetryClone(new Zone(6, 2, 4, 0, 6, {
+    mode:"cycle", destX:30, destY:8, dirX:0, dirY:0, reloc:1
+}), mirrorX);
+assert.deepStrictEqual(
+    [mirroredCycleTeleport.zoneData.destX, mirroredCycleTeleport.zoneData.destY],
+    [30, -8],
+    "Mirroring reverses only the lateral component of a cycle-relative jump");
+
+reset();
+context.aamap_add(new Zone(4, 8, 6, 0, 5, {checkpointId:1, legacyTime:"19"}));
+context.aamap_add(new Zone(10, 12, 5, 0, 6, {
+    mode:"abs", destX:90, destY:25, dirX:0, dirY:0, reloc:1
+}));
+const specialXml = context.aamap_buildXml(
+    "SpecialZones", "Tester", "maps", "1", "sty.dtd", 4,
+    ["RACE_CHECKPOINT_REQUIRE_HIT 1", "SIZE_FACTOR 2"]
+).xml;
+assert.match(specialXml, /DOCTYPE Resource SYSTEM "map-0\.2\.9_styctap_v1\.5\.dtd"/,
+    "Special zones select the compatible DTD at export");
+assert.strictEqual((specialXml.match(/name="RACE_CHECKPOINT_REQUIRE_HIT"/g) || []).length, 1,
+    "Checkpoint mode is emitted exactly once");
+assert.match(specialXml, /name="RACE_CHECKPOINT_REQUIRE_HIT" value="1"/,
+    "Unordered checkpoint mode survives export");
+assert.match(specialXml, /<Checkpoint id="1" time="19"\/>/);
+assert.match(specialXml, /<Teleport destX="90" destY="25" dirX="0" dirY="0" modes="abs" reloc="1"\/>/);
 
 // ------------------------------------------------------------- placement ----
 

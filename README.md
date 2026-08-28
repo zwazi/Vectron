@@ -35,7 +35,8 @@ active catalog pointer; it never overwrites an existing map object. Admins may:
 - correct the final author or category before approval;
 - review each pending map in a two-column card with its submitted reason,
   metadata and vertically stacked actions beside an inline map preview, in a
-  desktop review panel that can be resized from its bottom-right corner;
+  desktop review panel that can be dragged by its header and resized from its
+  bottom-right corner;
 - browse completed review history and reopen any retained revision as a new,
   auditable pending review without rewriting the earlier decision;
 - publish author/category corrections for an existing map as a new immutable
@@ -116,6 +117,21 @@ existing map breaks symmetry. Nothing is added to the map in this mode.
 
 Symmetry is an editor aid, not map data. It is not exported, and importing a
 map turns it off.
+
+### Teleports and checkpoints
+
+The Zone Tool supports native Sty+ct teleport and checkpoint zones. Teleport
+placement follows the spawn workflow: choose the entrance center, entrance
+radius, destination, and destination direction. Absolute destinations move
+with their entrance when the zone is dragged; map-relative and cycle-relative
+offsets retain their native coordinate semantics. A zero direction preserves
+the cycle's incoming direction.
+
+Checkpoint IDs are edited per zone, while ordered or unordered behavior is one
+setting for the entire map. Vectron writes `RACE_CHECKPOINT_REQUIRE_HIT 2` for
+ordered maps or `1` for unordered maps and selects the compatible
+`map-0.2.9_styctap_v1.5.dtd`. The legacy checkpoint `time` attribute is hidden
+because it is not used, but importing and exporting a map preserves its value.
 
 ---
 

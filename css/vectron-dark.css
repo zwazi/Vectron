@@ -556,11 +556,21 @@ body {
     color: #eee;
 }
 #wall-tool-body input[type=number],
-#zone-tool-body input[type=number] {
+#zone-tool-body input[type=number],
+#zone-tool-body select {
     background: rgba(255,255,255,0.08);
     color: #eee;
     border: 1px solid #555;
     border-radius: 2px;
+}
+
+#zone-tool-body .vt-zone-properties {
+    border-top-color: rgba(255,255,255,0.16);
+}
+
+#zone-tool-body .vt-zone-properties small,
+#zone-tool-body .vt-zone-status {
+    color: #aaa;
 }
 
 #wall-tool-body .wall-tool-mode-btn,

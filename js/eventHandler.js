@@ -1329,7 +1329,7 @@ function eventHandler_init() {
     $(document).on("click", ".zone-type-btn", function(e) {
         e.stopPropagation();
         var type = parseInt($(this).data("type"));
-        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress", "Checkpoint"];
+        var typeNames = ["Death", "Win", "Target", "Rubber", "Fortress", "Checkpoint", "Teleport"];
         vectron_connectTool("zone");
         zoneTool_type = type;
         zoneTool_guide();
@@ -1345,6 +1345,15 @@ function eventHandler_init() {
         } else {
             $("#zone-quick-size-row").hide();
         }
+    });
+
+    $("#dCheckpointMode").on("change", function() {
+        zoneTool_setCheckpointMode(this.value);
+    });
+
+    $("#zone-selected-apply").on("click", function(e) {
+        e.preventDefault();
+        zoneTool_applySelectedProperties();
     });
 
     // Finish wall button
@@ -1615,6 +1624,9 @@ function eventHandler_init() {
 
     // Called whenever the selection changes while the XML editor is open
     window.xmlEditor_onSelectionChange = function() {
+        if(typeof zoneTool_syncSelectedProperties === "function") {
+            zoneTool_syncSelectedProperties();
+        }
         if (!$('#xml-editor-overlay').hasClass('visible')) return;
         var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
         if (xmlEditor_mode === 'selected') {
@@ -2211,7 +2223,7 @@ function eventHandler_init() {
 
         if(vectron_currentTool == "zone") {
             zoneTool_type += 1;
-            if(zoneTool_type > 5) {
+            if(zoneTool_type > 6) {
                 zoneTool_type = 0;
             }
            gui_writeLog('Zone Tool Toggled: '
@@ -2248,10 +2260,8 @@ function eventHandler_init() {
     Mousetrap.bind('escape', function(e) {
         // Priority: cancel active tool / switch to select → deselect
         // NOTE: Escape does NOT close the settings menu or the XML editor.
-        if(vectron_currentTool == "zone" && zoneTool_placingSize) {
-            zoneTool_placingSize = false;
-            vectron_toolActive = false;
-            if(zoneTool_guideObj != null) { zoneTool_guideObj.remove(); zoneTool_guideObj = null; }
+        if(vectron_currentTool == "zone" && vectron_toolActive) {
+            zoneTool_resetPlacement();
             zoneTool_guide();
             return false;
         }

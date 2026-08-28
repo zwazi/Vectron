@@ -155,6 +155,38 @@ function xml_process(xml, suppressHistoryClear) {
     var pt = xml_process_piece(xml);
     var ptsx = pt[0], ptsy = pt[1];
 
+    var checkpointZones = aamap_objects.filter(function(object) {
+        return object instanceof Zone &&
+            (zoneTool_typeArray[object.type] || [])[0] === "checkpoint";
+    });
+    var specialZones = aamap_objects.filter(function(object) {
+        if(!(object instanceof Zone)) return false;
+        var kind = (zoneTool_typeArray[object.type] || [])[0];
+        return kind === "checkpoint" || kind === "teleport";
+    });
+    if(checkpointZones.length) {
+        var checkpointSettingIndex = -1;
+        var checkpointMode = "2";
+        xml_settings.forEach(function(setting, index) {
+            var text = String(setting || "").trim();
+            if(text.toUpperCase().indexOf("RACE_CHECKPOINT_REQUIRE_HIT ") === 0) {
+                checkpointSettingIndex = index;
+                var value = text.slice(text.indexOf(" ") + 1).trim();
+                if(value === "1" || value === "2") checkpointMode = value;
+            }
+        });
+        if(checkpointSettingIndex < 0) {
+            xml_settings.push("RACE_CHECKPOINT_REQUIRE_HIT 2");
+            gui_writeLog("Checkpoint mode was missing; this map now defaults to ordered checkpoints.");
+        }
+        $("#dCheckpointMode").val(checkpointMode);
+    }
+    if(specialZones.length && /^(sty\.dtd|map-0\.2\.(8|9)(?:_beta3)?\.dtd|map-0\.3\.1-a\.dtd|Anonymous\/map-0\.2\.8\.dtd)$/i.test(String(xml_dtd || ""))) {
+        xml_dtd = "map-0.2.9_styctap_v1.5.dtd";
+        $("#map_dtd").val(xml_dtd);
+        gui_writeLog("Switched this map to the teleport/checkpoint-compatible DTD.");
+    }
+
     if(ptsx.length && ptsy.length) {
         var max_x = Math.max.apply(Math, ptsx);
         var min_x = Math.min.apply(Math, ptsx);
@@ -218,9 +250,35 @@ function xml_process_piece(xml)
                 option = zone.attr("rubberVal");
                 break;
             case "checkpoint":
-                option = Number(zone.find("Checkpoint").attr("id"));
-                if(!isFinite(option) || option <= 0 || Math.floor(option) !== option) {
+                var checkpointElement = zone.find("Checkpoint").first();
+                var checkpointId = Number(checkpointElement.attr("id"));
+                if(!isFinite(checkpointId) || checkpointId <= 0 || Math.floor(checkpointId) !== checkpointId) {
                     gui_writeLog("Skipped checkpoint zone with invalid order.");
+                    return;
+                }
+                option = {
+                    checkpointId:checkpointId,
+                    legacyTime:checkpointElement.attr("time") === undefined ? "0" : checkpointElement.attr("time")
+                };
+                break;
+            case "teleport":
+                var teleportElement = zone.find("Teleport").first();
+                if(!teleportElement.length) {
+                    gui_writeLog("Skipped teleport zone without a Teleport destination.");
+                    return;
+                }
+                option = {
+                    destX:Number(teleportElement.attr("destX") || 0),
+                    destY:Number(teleportElement.attr("destY") || 0),
+                    dirX:Number(teleportElement.attr("dirX") || 0),
+                    dirY:Number(teleportElement.attr("dirY") || 0),
+                    mode:String(teleportElement.attr("modes") || "abs").toLowerCase(),
+                    reloc:Number(teleportElement.attr("reloc") === undefined ? 1 : teleportElement.attr("reloc"))
+                };
+                if(!isFinite(option.destX) || !isFinite(option.destY) ||
+                    !isFinite(option.dirX) || !isFinite(option.dirY) ||
+                    !isFinite(option.reloc) || ["abs", "rel", "cycle"].indexOf(option.mode) < 0) {
+                    gui_writeLog("Skipped teleport zone with invalid destination data.");
                     return;
                 }
                 break;
