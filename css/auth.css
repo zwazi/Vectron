@@ -1132,6 +1132,30 @@ button.repository-author-heading:disabled {
   font-weight: 650;
 }
 
+.repository-map-denied {
+  background: rgba(165, 48, 48, 0.055);
+}
+
+.repository-map-status {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 999px;
+  color: #ffb1b1;
+  background: rgba(165, 48, 48, 0.12);
+  font-size: 7px;
+  font-weight: 750;
+  vertical-align: 1px;
+}
+
+.repository-map-status.resubmitted {
+  border-color: rgba(85, 244, 220, 0.27);
+  color: var(--auth-cyan);
+  background: rgba(85, 244, 220, 0.08);
+}
+
 .repository-map-copy small {
   margin-top: 4px;
   color: #858892;
