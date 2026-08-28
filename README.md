@@ -30,10 +30,14 @@ active catalog pointer; it never overwrites an existing map object. Admins may:
   its catalog records, reserved paths, and stored revisions;
 - link an account to an existing author;
 - open any pending submission in the full Vectron editor and save its changes
-  as an immutable review draft on the same review item;
+  as an immutable review draft on the same review item, or save, approve, and
+  publish the edited revision in one step;
 - correct the final author or category before approval;
 - review each pending map in a two-column card with its submitted reason,
-  metadata and vertically stacked actions beside an inline map preview;
+  metadata and vertically stacked actions beside an inline map preview, in a
+  desktop review panel that can be resized from its bottom-right corner;
+- browse completed review history and reopen any retained revision as a new,
+  auditable pending review without rewriting the earlier decision;
 - publish author/category corrections for an existing map as a new immutable
   revision; and
 - view the pending-registration and pending-submission counts in Vectron.
