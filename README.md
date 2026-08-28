@@ -25,10 +25,18 @@ active catalog pointer; it never overwrites an existing map object. Admins may:
 
 - approve or deny registrations and submissions, with a recorded reason;
 - link an account to an existing author;
+- open any pending submission in the full Vectron editor and save its changes
+  as an immutable review draft on the same review item;
 - correct the final author or category before approval;
 - publish author/category corrections for an existing map as a new immutable
   revision; and
 - view the pending-registration and pending-submission counts in Vectron.
+
+The racing server can also submit an active map for review. A server-origin
+review keeps that map inactive until approval, does not create a synthetic user
+notification, and returns the exact approved source or admin-edited draft to
+the server catalog. Denial leaves it inactive for follow-up or explicit
+cancellation from the server.
 
 Every decision creates an immutable audit event. Resource-path reservation
 documents prevent two maps or revisions from publishing to the same logical
