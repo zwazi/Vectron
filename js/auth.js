@@ -5,11 +5,9 @@ import {
     authorKey,
     authorNameError,
     bumpMapVersion,
-    categoryError,
     formatTimestamp,
     mapFileCommand,
     normalizeAuthorName,
-    normalizeCategory,
     normalizeMapVersion,
     resourceIdentityFromXml,
     resourceKey,
@@ -517,9 +515,7 @@ function syncMapMetadata(user = auth && auth.currentUser) {
         (repositoryEditState && repositoryEditState.sourceName || "");
 
     window.xml_author = author;
-    const category = repositoryEditState && currentUserIsAdmin()
-        ? repositoryEditState.sourceCategory
-        : MAP_CATEGORY;
+    const category = MAP_CATEGORY;
     window.xml_category = category;
     window.vectron_mapAuthor = author;
     window.vectron_mapCategory = category;
@@ -1502,7 +1498,9 @@ function renderAdminSubmission(submission) {
     const authorSelect = adminAuthorOptions(submission.authorId);
     authorSelect.dataset.adminAuthor = "";
     const category = document.createElement("input");
-    category.value = submission.category || MAP_CATEGORY;
+    category.value = MAP_CATEGORY;
+    category.readOnly = true;
+    category.title = "Vectron uploads always use the maps category.";
     category.dataset.adminCategory = "";
     const reason = document.createElement("textarea");
     reason.rows = 2;
@@ -1614,7 +1612,9 @@ function renderAdminMap(map) {
     const authorSelect = adminAuthorOptions(map.authorId);
     authorSelect.dataset.adminAuthor = "";
     const category = document.createElement("input");
-    category.value = map.category || MAP_CATEGORY;
+    category.value = MAP_CATEGORY;
+    category.readOnly = true;
+    category.title = "Vectron uploads always use the maps category.";
     category.dataset.adminCategory = "";
     fields.append(cardField("Author", authorSelect), cardField("Category", category));
     const actions = document.createElement("div");
@@ -1846,7 +1846,7 @@ async function reviewAccount(accountId) {
     }
 }
 
-async function uploadReviewedRevision(submission, author, category) {
+async function uploadReviewedRevision(submission, author) {
     const xml = await downloadRepositoryMap(submission.storagePath);
     const originalSha256 = await sha256Hex(xml);
     if(submission.sha256 && submission.sha256 !== originalSha256) {
@@ -1859,7 +1859,7 @@ async function uploadReviewedRevision(submission, author, category) {
     if(identity.name !== submission.mapName || identity.version !== submission.mapVersion) {
         throw new Error("The submitted XML name/version does not match its review record.");
     }
-    const finalCategory = normalizeCategory(category);
+    const finalCategory = MAP_CATEGORY;
     const corrected = author.id !== submission.authorId || author.name !== submission.authorName ||
         finalCategory !== submission.category || identity.author !== author.name ||
         identity.category !== finalCategory;
@@ -1924,13 +1924,9 @@ async function reviewSubmission(submissionId, approved) {
     if(!submission || !card) return;
     const reason = decisionReason(card, !approved);
     let author = null;
-    let category = submission.category;
+    let category = MAP_CATEGORY;
     if(approved) {
         author = selectedAuthor(card);
-        const categoryInput = card.querySelector("[data-admin-category]");
-        const categoryIssue = categoryError(categoryInput && categoryInput.value);
-        if(categoryIssue) throw new Error(categoryIssue);
-        category = normalizeCategory(categoryInput.value);
     }
     if(!await confirmAction(
         `${approved ? "Approve and publish" : "Deny"} ${submission.mapName}?`,
@@ -1948,7 +1944,7 @@ async function reviewSubmission(submissionId, approved) {
             firestore, "mapSubmissions", submission.reviewRevisionId
         ) : null;
         const auditRef = adminAuditRef();
-        const reviewed = approved ? await uploadReviewedRevision(submission, author, category) : null;
+        const reviewed = approved ? await uploadReviewedRevision(submission, author) : null;
         const finalSubmission = approved ? reviewed.submission : null;
         const mapRef = approved ? firestoreSdk.doc(firestore, "maps", submission.mapId) : null;
         const resourcePath = approved ? activeResourcePath(
@@ -2206,12 +2202,9 @@ async function editPublishedMapMetadata(mapId) {
     const card = adminCard(mapId);
     if(!map || !card) return;
     const author = selectedAuthor(card);
-    const categoryInput = card.querySelector("[data-admin-category]");
-    const categoryIssue = categoryError(categoryInput && categoryInput.value);
-    if(categoryIssue) throw new Error(categoryIssue);
-    const category = normalizeCategory(categoryInput.value);
+    const category = MAP_CATEGORY;
     if(author.id === map.authorId && category === map.category) {
-        throw new Error("Change the author or category before saving a metadata revision.");
+        throw new Error("Change the author before saving a metadata revision.");
     }
     if(!await confirmAction(
         `Publish an admin metadata revision for ${map.mapName}?`,
@@ -2327,10 +2320,7 @@ async function editPendingSubmission(submissionId) {
     const card = adminCard(submissionId);
     if(!submission || !card) return;
     const author = selectedAuthor(card);
-    const categoryInput = card.querySelector("[data-admin-category]");
-    const categoryIssue = categoryError(categoryInput && categoryInput.value);
-    if(categoryIssue) throw new Error(categoryIssue);
-    const category = normalizeCategory(categoryInput.value);
+    const category = MAP_CATEGORY;
     if(!await confirmAction(
         `Edit ${submission.mapName} inside Vectron? This replaces your current local draft.`,
         {confirmLabel:"Open in Vectron"}
@@ -2432,7 +2422,7 @@ async function reopenReviewHistory(submissionId) {
         const sourceRevisionId = initialMap ? initialMap.activeRevisionId : "";
         const author = normalizeAuthorName(history.authorName || resource.getAttribute("author"));
         const authorId = String(history.authorId || authorKey(author));
-        const category = normalizeCategory(history.category || resource.getAttribute("category"));
+        const category = MAP_CATEGORY;
         const mapName = safeMapName(history.mapName || resource.getAttribute("name"));
         const startingVersion = normalizeMapVersion(
             initialMap && initialMap.mapVersion || history.mapVersion || resource.getAttribute("version")
@@ -2725,6 +2715,7 @@ async function savePendingReviewDraft(
     if(!currentUserIsAdmin() || !editState.reviewSubmissionId) {
         throw new Error("Only an admin can save changes to a pending review.");
     }
+    category = MAP_CATEGORY;
     const originalRef = firestoreSdk.doc(
         firestore, "mapSubmissions", editState.reviewSubmissionId
     );
@@ -2967,9 +2958,7 @@ async function uploadCurrentMap(options = {}) {
     )) return;
     const author = uploadAuthorFor(user, editState);
     const authorId = editState ? editState.targetAuthorId : currentAccount.authorId;
-    const category = editState && currentUserIsAdmin()
-        ? normalizeCategory(document.getElementById("map_category").value)
-        : MAP_CATEGORY;
+    const category = MAP_CATEGORY;
     const mapName = setCurrentMapName(document.getElementById("map_name").value);
     const mapVersion = setCurrentMapVersion(document.getElementById("map_version").value);
     syncMapMetadata(user);

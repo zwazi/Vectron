@@ -60,7 +60,8 @@ service cloud.firestore {
       allow read: if isAdmin() || (signedIn()
         && resource.data.submittedBy == request.auth.uid);
 
-      allow create: if isAdmin() || (hasApprovedAccount()
+      allow create: if request.resource.data.category == 'maps'
+        && (isAdmin() || (hasApprovedAccount()
         && request.resource.data.keys().hasOnly([
           'submissionId', 'mapId', 'operation', 'status', 'submittedBy',
           'submittedByName', 'authorId', 'authorName', 'category', 'mapName',
@@ -74,16 +75,18 @@ service cloud.firestore {
         && request.resource.data.mapId is string
         && request.resource.data.authorId is string
         && request.resource.data.authorName is string
-        && request.resource.data.category is string
         && request.resource.data.mapName is string
         && request.resource.data.mapVersion is string
         && request.resource.data.sha256.matches('[0-9a-f]{64}')
-        && request.resource.data.storagePath == '_revisions/' + request.auth.uid
+        && (request.resource.data.storagePath == '_revisions/' + request.auth.uid
           + '/' + submissionId
+          || request.resource.data.storagePath.matches('_revisions/'
+            + request.auth.uid + '/' + submissionId
+            + '/[^/]+\\.aamap\\.xml'))
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && request.resource.data.authorId == account(request.auth.uid).data.authorId
-        && request.resource.data.authorName == account(request.auth.uid).data.authorName);
+        && request.resource.data.authorName == account(request.auth.uid).data.authorName));
 
       allow update, delete: if isAdmin();
     }
