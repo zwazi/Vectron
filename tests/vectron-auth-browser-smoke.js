@@ -378,12 +378,25 @@ ws.onopen = async () => {
             document.querySelector('[data-admin-tab="submissions"]').click();
             await waitFor(function(){ return document.querySelector('[data-admin-card="${submission.id}"]'); }, "Submission queue missing map", 45000);
             const card = document.querySelector('[data-admin-card="${submission.id}"]');
+            await waitFor(function(){ return card.querySelector(".map-review-preview-svg"); }, "Submission preview did not render", 45000);
+            const cardStyle = getComputedStyle(card);
+            const actionStyle = getComputedStyle(card.querySelector(".map-review-actions"));
+            const layout = {
+                columns: cardStyle.gridTemplateColumns.trim().split(/\s+/).length,
+                actionDirection: actionStyle.flexDirection,
+                hasDelete: Boolean(card.querySelector('[data-admin-action="delete-submission-map"]')),
+                submittedReason: card.querySelector(".map-review-submission-reason span").textContent
+            };
             window.confirm = function(){ return true; };
             card.querySelector('[data-admin-action="approve-submission"]').click();
             await waitFor(function(){ return !document.querySelector('[data-admin-card="${submission.id}"]'); }, "Publication failed", 60000);
-            return document.getElementById("admin-status").textContent;
+            return {status: document.getElementById("admin-status").textContent, layout};
         `);
-        assert.match(publication, /published/i);
+        assert.match(publication.status, /published/i);
+        assert.strictEqual(publication.layout.columns, 2);
+        assert.strictEqual(publication.layout.actionDirection, "column");
+        assert.strictEqual(publication.layout.hasDelete, true);
+        assert.match(publication.layout.submittedReason, /No reason was provided/i);
         await waitForRemote(async () => (await listDocuments("maps"))
             .find(item => item.mapName === mapName && item.status === "active"),
         "Approved map did not become active");

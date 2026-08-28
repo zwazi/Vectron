@@ -16,18 +16,24 @@ They cannot upload a revision, create a submission, edit catalog metadata, or
 perform any other repository write. An admin must approve the registration and
 link it to an existing author (or create the requested author) before map
 submission is enabled. Denial requires a reason. Approval and denial decisions
-appear in the user's in-app notifications.
+appear in the user's in-app notifications, except registration denial, which
+permanently deletes both the pending registration and its Firebase login.
 
 Approved users submit maps as immutable objects under
 `_revisions/<uid>/<submission-id>`. The corresponding Firestore submission is
 `pending` until an admin validates and approves it. Publishing changes only the
 active catalog pointer; it never overwrites an existing map object. Admins may:
 
-- approve or deny registrations and submissions, with a recorded reason;
+- approve registrations or deny and permanently delete pending users, with a
+  recorded audit reason;
+- approve or deny submissions, or deny and permanently delete a reviewed map,
+  its catalog records, reserved paths, and stored revisions;
 - link an account to an existing author;
 - open any pending submission in the full Vectron editor and save its changes
   as an immutable review draft on the same review item;
 - correct the final author or category before approval;
+- review each pending map in a two-column card with its submitted reason,
+  metadata and vertically stacked actions beside an inline map preview;
 - publish author/category corrections for an existing map as a new immutable
   revision; and
 - view the pending-registration and pending-submission counts in Vectron.
