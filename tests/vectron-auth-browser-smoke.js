@@ -18,6 +18,7 @@ const userName = `Browser User ${nonce}`;
 const adminName = `Browser Admin ${nonce}`;
 const deniedUserName = `Browser Denied ${nonce}`;
 const mapName = `Browser Map ${nonce}`;
+const deletedMapName = `Browser Deleted Map ${nonce}`;
 const userEmail = `vectron-user-${nonce}@example.com`;
 const adminEmail = `vectron-admin-${nonce}@example.com`;
 const deniedUserEmail = `vectron-denied-${nonce}@example.com`;
@@ -32,6 +33,7 @@ let user = null;
 let admin = null;
 let deniedUser = null;
 let submission = null;
+let deletedSubmission = null;
 
 const managementHeaders = json => ({
     authorization: `Bearer ${oauthToken}`,
@@ -179,8 +181,11 @@ async function cleanup() {
     const [submissions, maps, audits] = await Promise.all([
         listDocuments("mapSubmissions"), listDocuments("maps"), listDocuments("auditEvents")
     ]);
-    const testSubmissions = submissions.filter(item => uids.includes(item.submittedBy) || item.mapName === mapName);
-    const testMaps = maps.filter(item => item.mapName === mapName);
+    const disposableMapNames = new Set([mapName, deletedMapName]);
+    const testSubmissions = submissions.filter(item =>
+        uids.includes(item.submittedBy) || disposableMapNames.has(item.mapName)
+    );
+    const testMaps = maps.filter(item => disposableMapNames.has(item.mapName));
     const testIds = new Set([...uids, ...testSubmissions.map(item => item.id), ...testMaps.map(item => item.mapId)]);
     const testAudits = audits.filter(item => testIds.has(item.actorUid) || testIds.has(item.targetId) || testIds.has(item.mapId));
     for(const uid of uids) {
@@ -430,6 +435,47 @@ ws.onopen = async () => {
         `);
         assert.ok(notices.some(title => /approved/i.test(title)));
 
+        const deletionUpload = await evaluate(context, `
+            document.getElementById("map_name").value = ${JSON.stringify(deletedMapName)};
+            let uploadError = "";
+            try { await window.vectron_uploadCurrentMap(); }
+            catch(error) { uploadError = error && (error.stack || error.message) || String(error); }
+            return {toast: document.getElementById("vt-toast").textContent, uploadError};
+        `);
+        assert.match(deletionUpload.toast, /submitted for admin review/i, JSON.stringify(deletionUpload));
+        deletedSubmission = await waitForRemote(async () => (await listDocuments("mapSubmissions"))
+            .find(item => item.submittedBy === user.localId && item.mapName === deletedMapName && item.status === "pending"),
+        "Disposable deletion submission not found");
+        await logout(context);
+        await login(context, adminEmail, adminPassword, "Admin");
+        const mapDeletion = await evaluate(context, `
+            document.querySelector("[data-admin-review]").click();
+            document.querySelector('[data-admin-tab="submissions"]').click();
+            await waitFor(function(){ return document.querySelector('[data-admin-card="${deletedSubmission.id}"]'); },
+                "Disposable map review was missing", 45000);
+            const card = document.querySelector('[data-admin-card="${deletedSubmission.id}"]');
+            card.querySelector("[data-admin-reason]").value = "Disposable browser map deletion test";
+            window.confirm = function(){ return true; };
+            card.querySelector('[data-admin-action="delete-submission-map"]').click();
+            await waitFor(function(){ return /permanently deleted/i.test(document.getElementById("admin-status").textContent); },
+                "Map deletion did not complete", 45000);
+            return document.getElementById("admin-status").textContent;
+        `);
+        assert.match(mapDeletion, /permanently deleted/i);
+        assert.strictEqual(
+            (await listDocuments("mapSubmissions")).some(item => item.mapName === deletedMapName),
+            false,
+            "Deleted map submission still exists"
+        );
+        assert.strictEqual(
+            (await listDocuments("maps")).some(item => item.mapName === deletedMapName),
+            false,
+            "Deleted map still exists in the catalog"
+        );
+        const deletedObjectUrl = `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodeURIComponent(deletedSubmission.storagePath)}`;
+        const deletedObject = await fetch(deletedObjectUrl, {headers: managementHeaders(false)});
+        assert.strictEqual(deletedObject.status, 404, "Deleted map revision still exists in Storage");
+
         await logout(context);
         await evaluate(context, `
             document.getElementById("auth-signup-tab").click();
@@ -476,7 +522,8 @@ ws.onopen = async () => {
         assert.strictEqual(deletedLogin.ok, false, "Denied Firebase login still exists");
         console.log(JSON.stringify({guestMaps: guest.visibleMaps, pendingReadOnly: true,
             registrationApproved: true, registrationDeleted: true,
-            submissionApproved: true, notifications: notices.length}, null, 2));
+            submissionApproved: true, submissionDeleted: true,
+            notifications: notices.length}, null, 2));
     } catch(error) {
         console.error(error.stack || error.message || error);
         process.exitCode = 1;
