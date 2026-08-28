@@ -263,8 +263,8 @@ const absoluteTeleport = new Zone(5, 6, 7, 0, 6, {
     mode:"abs", destX:40, destY:-20, dirX:0, dirY:1, reloc:1.25
 });
 assert.match(absoluteTeleport.getXML(),
-    /<Teleport destX="40" destY="-20" dirX="0" dirY="1" modes="abs" reloc="1\.25"\/>/,
-    "Teleport exports every native destination field");
+    /<Teleport destX="40" destY="-20" dirX="0" dirY="1" modes="abs" reloc="0"\/>/,
+    "Absolute teleports discard entry-dependent exit compensation");
 absoluteTeleport.move(2, 3);
 assert.deepStrictEqual(
     [absoluteTeleport.x, absoluteTeleport.y,
@@ -316,7 +316,7 @@ assert.strictEqual((specialXml.match(/name="RACE_CHECKPOINT_REQUIRE_HIT"/g) || [
 assert.match(specialXml, /name="RACE_CHECKPOINT_REQUIRE_HIT" value="1"/,
     "Unordered checkpoint mode survives export");
 assert.match(specialXml, /<Checkpoint id="1" time="19"\/>/);
-assert.match(specialXml, /<Teleport destX="90" destY="25" dirX="0" dirY="0" modes="abs" reloc="1"\/>/);
+assert.match(specialXml, /<Teleport destX="90" destY="25" dirX="0" dirY="0" modes="abs" reloc="0"\/>/);
 
 context.xml_settings = ["SIZE_FACTOR 2", "RACE_CHECKPOINT_REQUIRE_HIT 2"];
 context.zoneTool_setCheckpointMode("1");

@@ -122,10 +122,11 @@ map turns it off.
 
 The Zone Tool supports native Sty+ct teleport and checkpoint zones. Teleport
 placement follows the spawn workflow: choose the entrance center, entrance
-radius, destination, and destination direction. Absolute destinations move
-with their entrance when the zone is dragged; map-relative and cycle-relative
-offsets retain their native coordinate semantics. A zero direction preserves
-the cycle's incoming direction.
+radius, destination, and destination direction. Absolute destinations place the
+cycle exactly at the selected point and move with their entrance when the zone
+is dragged. Exit compensation is only applied to map-relative and
+cycle-relative offsets. A zero direction preserves the cycle's incoming
+direction.
 
 Checkpoint IDs are edited per zone, while ordered or unordered behavior is one
 setting for the entire map. Vectron writes `RACE_CHECKPOINT_REQUIRE_HIT 2` for
