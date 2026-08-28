@@ -3,9 +3,10 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      allow list: if request.auth != null;
-      allow get: if request.auth != null
-        && resource.name.matches('.*\\.aamap\\.xml');
+      // Repository browsing and map downloads are public. All mutations are
+      // still governed by the authenticated create/delete matches below.
+      allow list: if true;
+      allow get: if resource.name.matches('.*\\.aamap\\.xml');
     }
 
     match /{author}/{category}/archive/{fileName} {

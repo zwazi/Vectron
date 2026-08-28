@@ -33,6 +33,7 @@ const status = document.getElementById("auth-status");
 const submitButton = document.getElementById("auth-submit");
 const submitLabel = submitButton.querySelector(".auth-submit-label");
 const forgotButton = document.getElementById("auth-forgot-password");
+const guestButton = document.getElementById("auth-guest");
 const retryButton = document.getElementById("auth-retry");
 const profilePanel = document.getElementById("auth-profile");
 const profileForm = document.getElementById("auth-profile-form");
@@ -50,6 +51,7 @@ const repositorySummary = document.getElementById("map-repository-summary");
 const repositoryStatus = document.getElementById("map-repository-status");
 const repositoryList = document.getElementById("map-repository-list");
 const repositoryTabs = Array.from(document.querySelectorAll("[data-repository-tab]"));
+const repositoryMineTab = document.getElementById("map-repository-mine-tab");
 const repositoryMineCount = document.getElementById("map-repository-mine-count");
 const repositoryOthersCount = document.getElementById("map-repository-others-count");
 
@@ -70,6 +72,7 @@ let repositoryPreviousFocus = null;
 let repositoryEditState = null;
 let currentUserRole = "user";
 let repositoryExpandedAuthors = new Set();
+let guestMode = false;
 
 function setEditorInert(locked) {
     Array.from(document.body.children).forEach(element => {
@@ -104,6 +107,7 @@ function setBusy(nextBusy) {
     submitButton.disabled = nextBusy;
     submitButton.classList.toggle("busy", nextBusy);
     forgotButton.disabled = nextBusy;
+    guestButton.disabled = nextBusy;
     loginTab.disabled = nextBusy;
     signupTab.disabled = nextBusy;
     form.setAttribute("aria-busy", String(nextBusy));
@@ -172,7 +176,9 @@ function initialsForName(name) {
 }
 
 function normalizeUserRole(value) {
-    return String(value || "").toLocaleLowerCase() === "admin" ? "admin" : "user";
+    const role = String(value || "").toLocaleLowerCase();
+    if(role === "admin" || role === "guest") return role;
+    return "user";
 }
 
 function currentUserIsAdmin() {
@@ -184,7 +190,9 @@ function setCurrentUserRole(value) {
     window.vectron_userRole = currentUserRole;
     document.documentElement.dataset.userRole = currentUserRole;
     document.querySelectorAll("[data-auth-role]").forEach(element => {
-        element.textContent = currentUserRole === "admin" ? "Admin" : "User";
+        element.textContent = currentUserRole === "admin"
+            ? "Admin"
+            : currentUserRole === "guest" ? "Guest" : "User";
         element.dataset.role = currentUserRole;
     });
     return currentUserRole;
@@ -207,7 +215,49 @@ function syncSessionControls(user) {
     document.querySelectorAll("[data-auth-avatar]").forEach(element => {
         element.textContent = initialsForName(displayName);
     });
+    if(uploadButton) {
+        uploadButton.hidden = false;
+        uploadButton.disabled = false;
+    }
+    if(repositoryMineTab) repositoryMineTab.hidden = false;
+    document.querySelectorAll("[data-auth-signout]").forEach(button => {
+        const label = button.querySelector("span");
+        const icon = button.querySelector("i");
+        if(label) label.textContent = "Sign out";
+        if(icon) icon.className = "fa-solid fa-arrow-right-from-bracket";
+        button.title = "Sign out";
+        button.setAttribute("aria-label", "Sign out");
+    });
     setCurrentUserRole(currentUserRole);
+    document.querySelectorAll(".auth-session, .auth-session-separator").forEach(element => {
+        element.hidden = false;
+    });
+}
+
+function syncGuestSessionControls() {
+    document.querySelectorAll("[data-auth-name]").forEach(element => {
+        element.textContent = "Guest";
+    });
+    document.querySelectorAll("[data-auth-email]").forEach(element => {
+        element.textContent = "Local editing";
+    });
+    document.querySelectorAll("[data-auth-avatar]").forEach(element => {
+        element.textContent = "G";
+    });
+    if(uploadButton) {
+        uploadButton.hidden = true;
+        uploadButton.disabled = true;
+    }
+    if(repositoryMineTab) repositoryMineTab.hidden = true;
+    document.querySelectorAll("[data-auth-signout]").forEach(button => {
+        const label = button.querySelector("span");
+        const icon = button.querySelector("i");
+        if(label) label.textContent = "Sign in";
+        if(icon) icon.className = "fa-solid fa-arrow-right-to-bracket";
+        button.title = "Sign in or create an account";
+        button.setAttribute("aria-label", "Sign in or create an account");
+    });
+    setCurrentUserRole("guest");
     document.querySelectorAll(".auth-session, .auth-session-separator").forEach(element => {
         element.hidden = false;
     });
@@ -269,8 +319,9 @@ function getRepositoryEditState() {
 }
 
 function syncMapMetadata(user = auth && auth.currentUser) {
-    if(!user || authorNameError(user.displayName)) return;
-    const signedInAuthor = user.displayName.trim();
+    const guest = guestMode && !user;
+    if(!guest && (!user || authorNameError(user.displayName))) return;
+    const signedInAuthor = guest ? "Guest" : user.displayName.trim();
     const author = repositoryEditState &&
         (repositoryEditState.targetAuthor === signedInAuthor || currentUserIsAdmin())
         ? repositoryEditState.targetAuthor
@@ -308,7 +359,9 @@ function syncMapMetadata(user = auth && auth.currentUser) {
         authorInput.value = author;
         authorInput.readOnly = true;
         authorInput.setAttribute("aria-readonly", "true");
-        authorInput.title = author === signedInAuthor
+        authorInput.title = guest
+            ? "Guest work stays local; sign in to use your permanent author name and upload"
+            : author === signedInAuthor
             ? "Locked to your Vectron author name"
             : "Locked to the map author's repository directory for this admin edit";
     }
@@ -354,13 +407,11 @@ function queueEditorStart() {
     else window.addEventListener("load", start, {once: true});
 }
 
-function unlockEditor(user) {
+function unlockWorkspace(draftOwner) {
     const editorAlreadyStarted = window.vectron_started === true;
     const userChanged = typeof window.vectron_localDraftSetUser === "function"
-        ? window.vectron_localDraftSetUser(user.uid)
+        ? window.vectron_localDraftSetUser(draftOwner)
         : false;
-    syncSessionControls(user);
-    syncMapMetadata(user);
     setEditorInert(false);
     document.documentElement.classList.remove("auth-pending");
     document.body.classList.remove("auth-locked");
@@ -374,11 +425,37 @@ function unlockEditor(user) {
     queueEditorStart();
 }
 
+function unlockEditor(user) {
+    guestMode = false;
+    syncSessionControls(user);
+    syncMapMetadata(user);
+    unlockWorkspace(user.uid);
+}
+
+function enterGuestMode() {
+    if(busy || auth && auth.currentUser) return;
+    guestMode = true;
+    clearRepositoryEditState();
+    syncGuestSessionControls();
+    syncMapMetadata(null);
+    unlockWorkspace("guest");
+}
+
+function exitGuestMode() {
+    if(!guestMode) return;
+    if(typeof window.vectron_localDraftSaveNow === "function") {
+        window.vectron_localDraftSaveNow();
+    }
+    guestMode = false;
+    lockEditor();
+}
+
 function lockEditor() {
     if(repositoryOverlay && !repositoryOverlay.hidden) closeRepository();
     if(typeof window.vectron_localDraftSetUser === "function") {
         window.vectron_localDraftSetUser("");
     }
+    guestMode = false;
     setCurrentUserRole("user");
     hideSessionControls();
     setEditorInert(true);
@@ -543,6 +620,10 @@ function hasUnsavedWork() {
 }
 
 async function handleSignOut() {
+    if(guestMode) {
+        exitGuestMode();
+        return;
+    }
     if(!auth || !authSdk) return;
     if(hasUnsavedWork() && !window.confirm("Sign out of Vectron? Your in-progress map is saved locally and will be restored when you return.")) {
         return;
@@ -723,6 +804,10 @@ async function archiveEditedSource(user, editState) {
 
 async function uploadCurrentMap() {
     if(uploadBusy) return;
+    if(guestMode) {
+        showEditorMessage("Sign in or create an account to upload maps.");
+        return;
+    }
     const user = auth && auth.currentUser;
     if(!user || authorNameError(user.displayName)) {
         showEditorMessage("Set your Vectron author name before uploading.");
@@ -843,14 +928,16 @@ async function listRepositoryReferences(folderReference) {
 }
 
 async function downloadRepositoryMap(fullPath) {
-    const idToken = await authSdk.getIdToken(auth.currentUser);
     const objectUrl = new URL(
         `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_CONFIG.storageBucket)}/o/${encodeURIComponent(fullPath)}`
     );
     objectUrl.searchParams.set("alt", "media");
-    const response = await fetch(objectUrl, {
-        headers: {Authorization: `Firebase ${idToken}`}
-    });
+    const headers = {};
+    if(auth && auth.currentUser) {
+        const idToken = await authSdk.getIdToken(auth.currentUser);
+        headers.Authorization = `Firebase ${idToken}`;
+    }
+    const response = await fetch(objectUrl, {headers});
     if(!response.ok) {
         const error = new Error(`Repository download failed (${response.status}).`);
         if(response.status === 401 || response.status === 403) error.code = "storage/unauthorized";
@@ -897,8 +984,12 @@ function repositoryMapCanEdit(map) {
         (repositoryMapIsMine(map) || currentUserIsAdmin()));
 }
 
+function repositoryCanRead() {
+    return Boolean(storage && storageSdk && (guestMode || auth && auth.currentUser));
+}
+
 function setRepositoryTab(nextTab, focusTab = false) {
-    repositoryTab = nextTab === "others" ? "others" : "mine";
+    repositoryTab = guestMode || nextTab === "others" ? "others" : "mine";
     repositoryTabs.forEach(tab => {
         const selected = tab.dataset.repositoryTab === repositoryTab;
         tab.classList.toggle("active", selected);
@@ -1021,7 +1112,7 @@ function renderRepositoryMaps() {
 }
 
 async function refreshRepositoryMaps() {
-    if(repositoryBusy || !storage || !storageSdk || !auth || !auth.currentUser) return;
+    if(repositoryBusy || !repositoryCanRead()) return;
     let shouldRender = false;
     setRepositoryBusy(true);
     setRepositoryStatus("Loading repository maps…");
@@ -1051,13 +1142,13 @@ async function refreshRepositoryMaps() {
 }
 
 function openRepository() {
-    if(!auth || !auth.currentUser || !storage || !storageSdk) {
+    if(!repositoryCanRead()) {
         showEditorMessage("The map repository is not ready yet.");
         return;
     }
     repositorySearchInput.value = "";
     repositoryExpandedAuthors.clear();
-    setRepositoryTab("mine");
+    setRepositoryTab(guestMode ? "others" : "mine");
     repositoryPreviousFocus = document.activeElement;
     repositoryOverlay.hidden = false;
     repositoryButton.setAttribute("aria-expanded", "true");
@@ -1076,7 +1167,7 @@ function closeRepository() {
 }
 
 async function openRepositoryMap(fullPath, requestedAction) {
-    if(repositoryBusy || !auth || !auth.currentUser) return;
+    if(repositoryBusy || !repositoryCanRead()) return;
     const map = repositoryMaps.find(candidate => candidate.fullPath === fullPath);
     if(!map) return;
     const editing = requestedAction === "edit" && repositoryMapCanEdit(map);
@@ -1136,14 +1227,15 @@ async function openRepositoryMap(fullPath, requestedAction) {
                     version: resource.getAttribute("version") || "",
                     path: map.fullPath
                 });
-                syncMapMetadata(auth.currentUser);
+                syncMapMetadata(auth && auth.currentUser);
                 const remixName = document.getElementById("map_name").value;
+                const remixAuthor = guestMode ? "Guest" : auth.currentUser.displayName.trim();
                 nextVersion = nextAvailableMapVersion(
-                    auth.currentUser.displayName.trim(), remixName, sourceVersion, false
+                    remixAuthor, remixName, sourceVersion, false
                 );
             }
             setCurrentMapVersion(nextVersion);
-            syncMapMetadata(auth.currentUser);
+            syncMapMetadata(auth && auth.currentUser);
             if(typeof window.vectron_localDraftSaveNow === "function") {
                 window.vectron_localDraftSaveNow();
             }
@@ -1179,6 +1271,7 @@ function bindUi() {
     signupTab.addEventListener("click", () => setMode("signup"));
     form.addEventListener("submit", handleSubmit);
     forgotButton.addEventListener("click", handlePasswordReset);
+    guestButton.addEventListener("click", enterGuestMode);
     retryButton.addEventListener("click", () => window.location.reload());
     profileForm.addEventListener("submit", handleProfileSubmit);
     profileSignout.addEventListener("click", () => authSdk && authSdk.signOut(auth));
@@ -1278,7 +1371,7 @@ async function initializeAuthentication() {
         auth.useDeviceLanguage();
         authSdk.onAuthStateChanged(auth, user => {
             if(!user) {
-                lockEditor();
+                if(!guestMode) lockEditor();
                 return;
             }
             if(authorNameError(user.displayName)) {
@@ -1289,11 +1382,11 @@ async function initializeAuthentication() {
                 .then(() => unlockEditor(user))
                 .catch(error => showFatal(friendlyAuthError(error)));
         }, error => {
-            showFatal(friendlyAuthError(error));
+            if(!guestMode) showFatal(friendlyAuthError(error));
         });
     } catch(error) {
         console.error("Vectron authentication failed to initialize.", error);
-        showFatal("Account services are unavailable. Check your connection, then try again.");
+        if(!guestMode) showFatal("Account services are unavailable. Check your connection, then try again.");
     }
 }
 

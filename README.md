@@ -7,10 +7,13 @@ Originally created by Carlo Veneziano and re-written by Tristan Whitcher.
 ### Accounts and access
 
 Vectron uses Firebase Authentication in the `tronnerrepository` project. The
-editor does not initialize until Firebase confirms a signed-in user, and the
-workspace becomes inert again after sign-out. The account screen supports
-email/password sign-in, account creation, persistent sessions, password reset,
-and password visibility controls. Every account has a required author name.
+account screen supports email/password sign-in, account creation, persistent
+sessions, password reset, and password visibility controls. It also offers a
+Guest workspace for local editing and browsing/remixing every public repository
+map without signing in. Guest drafts are saved locally under a separate browser
+profile, the Upload control is unavailable, and Firebase Storage rejects every
+unauthenticated create, replace, archive, and delete request. Every account has
+a required author name.
 Vectron locks the map Author field to that profile name and the Category field
 to `maps`. Accounts default to the `User` level. An `Admin` level is granted
 only through Firebase custom claims (`role: "admin"` and `admin: true`) and is
@@ -20,7 +23,8 @@ The cloud-upload toolbar button stores the current `.aamap.xml` file at
 `<author name>/maps/<map file>` in Cloud Storage. Storage Rules require the
 signed-in token name to match the author directory, attach the account UID to
 each object, prevent one account from overwriting another account's objects,
-accept only XML map files under 10 MiB, and require authentication for reads.
+accept only XML map files under 10 MiB, and permit public list/download access
+only for `.aamap.xml` repository objects.
 Admins may edit a map in another author's directory. The editor locks that
 author and map name, bumps the version, archives the previous live revision,
 and preserves its owner UID on both the archive and replacement. Admins also
@@ -41,10 +45,10 @@ Storage Always Free region before deploying `storage.rules`.
 
 The Firebase web configuration in `js/auth.js` identifies the public browser
 client and is safe to ship. Administrator credentials and service-account keys
-must never be added to this repository. The sign-in curtain controls access to
-the editor UI, but static source files remain publicly downloadable wherever
-the site is hosted. Map objects are protected independently by the checked-in
-Cloud Storage Security Rules.
+must never be added to this repository. The sign-in curtain offers the
+read-only Guest workspace alongside account access. Map writes are protected
+independently by the checked-in Cloud Storage Security Rules, so hiding Guest
+upload controls is not the security boundary.
 
 
 ### Features legend:

@@ -117,6 +117,12 @@
                     </form>
 
                     <button id="auth-forgot-password" class="auth-text-button" type="button">Forgot your password?</button>
+                    <div class="auth-guest-divider" aria-hidden="true"><span>or</span></div>
+                    <button id="auth-guest" class="auth-guest-button" type="button">
+                        <span class="auth-guest-icon" aria-hidden="true"><i class="fa-regular fa-compass"></i></span>
+                        <span class="auth-guest-copy"><strong>Continue as guest</strong><small>Edit locally and remix public maps</small></span>
+                        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                    </button>
                 </section>
 
                 <section id="auth-profile" hidden>
@@ -429,7 +435,7 @@
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
                     <label for="map_author" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Who created this map?">Author</label>
-                    <input type="text" class="tsb-input" id="map_author" placeholder="Signed-in author" readonly aria-readonly="true">
+                    <input type="text" class="tsb-input" id="map_author" placeholder="Map author" readonly aria-readonly="true">
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">

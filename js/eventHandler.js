@@ -1089,7 +1089,7 @@ function eventHandler_init() {
     $('#map_settings').on('input change', function() {
         xml_settings = this.value.split('\n').filter(function(s) { return s.trim(); });
     });
-    $('#map_name,#map_dtd,#map_axes,#map_settings').on('input change', function() {
+    $('#map_name,#map_author,#map_dtd,#map_axes,#map_settings').on('input change', function() {
         if(typeof window.vectron_localDraftScheduleSave === "function") {
             window.vectron_localDraftScheduleSave();
         }
