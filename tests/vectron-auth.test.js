@@ -22,6 +22,7 @@ const eventSource = read("js/eventHandler.js");
 const aamapSource = read("js/aamap.js");
 const xmlSource = read("js/xml.js");
 const localDraftSource = read("js/localDraft.js");
+const functionsSource = read("functions/index.js");
 
 assert.deepStrictEqual(firebase.auth.providers, {emailPassword: true});
 assert.deepStrictEqual(firebase.storage, {rules: "storage.rules"});
@@ -29,6 +30,7 @@ assert.deepStrictEqual(firebase.firestore, {
     rules: "firestore.rules",
     indexes: "firestore.indexes.json"
 });
+assert.deepStrictEqual(firebase.functions, {source: "functions", codebase: "default"});
 assert.deepStrictEqual(firestoreIndexes, {indexes: [], fieldOverrides: []});
 assert.strictEqual(firebaseRc.projects.default, "tronnerrepository");
 
@@ -129,7 +131,15 @@ assert.match(authSource, /status: "approved"/);
 assert.match(authSource, /status: approved \? "approved" : "denied"/);
 assert.match(authSource, /function startAdminListeners\(/);
 assert.match(authSource, /function reviewAccount\(/);
+assert.match(authSource, /function denyRegistration\(/);
+assert.match(authSource, /Deny and delete user/);
+assert.match(authSource, /REGISTRATION_DENIAL_URL/);
 assert.match(authSource, /function reviewSubmission\(/);
+assert.match(authSource, /function deleteReviewedMap\(/);
+assert.match(authSource, /Deny and delete map/);
+assert.match(authSource, /submission\.submissionReason/);
+assert.match(authSource, /function buildAdminMapPreview\(/);
+assert.match(authSource, /IntersectionObserver/);
 assert.match(authSource, /function editPendingSubmission\(/);
 assert.match(authSource, /function savePendingReviewDraft\(/);
 assert.match(authSource, /actionButton\("Edit map in Vectron", "edit-submission"/);
@@ -173,6 +183,9 @@ assert.match(authCss, /\.auth-role-badge\[data-role="admin"\]/);
 assert.match(authCss, /\.auth-role-badge\[data-role="guest"\]/);
 assert.match(authCss, /\.auth-role-badge\[data-role="pending"\]/);
 assert.match(authCss, /\.account-card/);
+assert.match(authCss, /\.map-review-card\s*\{[^}]*grid-template-columns:/s);
+assert.match(authCss, /\.map-review-actions\s*\{[^}]*flex-direction:\s*column/s);
+assert.match(authCss, /\.map-review-preview/);
 assert.match(authCss, /\.auth-guest-button/);
 assert.doesNotMatch(authCss, /#(?:3b94de|1c70bb|68d6e8|398dcc|1c5f96)/i);
 assert.doesNotMatch(index, /auth-backdrop|auth-orbit|auth-horizon/);
@@ -211,5 +224,11 @@ assert.match(firestoreRules, /match \/notifications\/\{uid\}\/items\/\{notificat
 assert.match(firestoreRules, /affectedKeys\(\)\.hasOnly\(\['readAt'\]\)/);
 assert.match(firestoreRules, /match \/auditEvents\/\{eventId\}/);
 assert.doesNotMatch(firestoreRules, /allow write: if true/);
+
+assert.match(functionsSource, /exports\.denyRegistration = onRequest/);
+assert.match(functionsSource, /verifyIdToken\(match\[1\], true\)/);
+assert.match(functionsSource, /token\.admin !== true/);
+assert.match(functionsSource, /adminAuth\.deleteUser\(accountId\)/);
+assert.match(functionsSource, /action: "account\.deny-delete"/);
 
 console.log("Vectron authentication configuration tests passed.");

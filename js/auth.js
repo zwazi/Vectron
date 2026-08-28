@@ -31,6 +31,8 @@ const FIREBASE_APP_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERS
 const FIREBASE_AUTH_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`;
 const FIREBASE_STORAGE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-storage.js`;
 const FIREBASE_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`;
+const REGISTRATION_DENIAL_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/denyRegistration";
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 const gate = document.getElementById("auth-gate");
 const loading = document.getElementById("auth-loading");
@@ -125,6 +127,8 @@ let adminData = {accounts: [], submissions: [], maps: [], authors: []};
 let adminTab = "accounts";
 let adminBusy = false;
 let overlayPreviousFocus = null;
+let adminPreviewObserver = null;
+const adminPreviewCache = new Map();
 
 function setEditorInert(locked) {
     Array.from(document.body.children).forEach(element => {
@@ -240,7 +244,7 @@ function sessionAuthorName(user = auth && auth.currentUser) {
 
 function accountRole() {
     if(currentUserAdminClaim) return "admin";
-    if(currentAccount && currentAccount.status === "pending") return "pending";
+    if(currentAccount && ["pending", "deleting"].includes(currentAccount.status)) return "pending";
     if(currentAccount && currentAccount.status === "denied") return "denied";
     return "user";
 }
@@ -809,7 +813,7 @@ async function loadAccountSession(user) {
     currentUserAdminClaim = isAdminClaim;
     await ensureAccountRecord(user, isAdminClaim);
     setCurrentUserRole(isAdminClaim ? "admin" :
-        currentAccount.status === "pending" ? "pending" :
+        ["pending", "deleting"].includes(currentAccount.status) ? "pending" :
         currentAccount.status === "denied" ? "denied" : "user");
     startNotificationListener(user.uid);
     if(isAdminClaim) startAdminListeners();
@@ -1046,6 +1050,185 @@ function actionButton(label, action, id, danger = false) {
     return button;
 }
 
+function previewElements(root, names) {
+    const wanted = new Set(names.map(name => name.toLocaleLowerCase("en-US")));
+    return Array.from(root.getElementsByTagName("*")).filter(node =>
+        wanted.has(String(node.localName || node.tagName || "").toLocaleLowerCase("en-US"))
+    );
+}
+
+function previewCoordinate(node, name) {
+    const value = Number.parseFloat(node.getAttribute(name));
+    return Number.isFinite(value) && Math.abs(value) <= 1e9 ? value : null;
+}
+
+function previewPoint(node) {
+    const x = previewCoordinate(node, "x");
+    const y = previewCoordinate(node, "y");
+    return x === null || y === null ? null : {x, y};
+}
+
+function previewDirectPoints(node) {
+    return Array.from(node.children || [])
+        .filter(child => String(child.localName || child.tagName || "").toLocaleLowerCase("en-US") === "point")
+        .map(previewPoint)
+        .filter(Boolean);
+}
+
+function previewSvgElement(name, attributes = {}) {
+    const element = document.createElementNS(SVG_NAMESPACE, name);
+    Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+    return element;
+}
+
+function buildAdminMapPreview(xml, submission) {
+    const parsed = new DOMParser().parseFromString(xml, "application/xml");
+    if(parsed.querySelector("parsererror")) throw new Error("The map XML could not be parsed.");
+
+    const walls = [];
+    const circles = [];
+    const spawns = [];
+    const bounds = {minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity};
+    const include = (point, radius = 0) => {
+        bounds.minX = Math.min(bounds.minX, point.x - radius);
+        bounds.maxX = Math.max(bounds.maxX, point.x + radius);
+        bounds.minY = Math.min(bounds.minY, point.y - radius);
+        bounds.maxY = Math.max(bounds.maxY, point.y + radius);
+    };
+
+    previewElements(parsed, ["Wall", "ObstacleWall"]).slice(0, 4000).forEach(wall => {
+        const points = previewDirectPoints(wall).slice(0, 20000);
+        if(points.length < 2) return;
+        points.forEach(point => include(point));
+        walls.push(points);
+    });
+    previewElements(parsed, ["ShapeCircle"]).slice(0, 2000).forEach(shape => {
+        const center = previewDirectPoints(shape)[0];
+        const radius = Math.abs(previewCoordinate(shape, "radius") || 0);
+        if(!center || !radius) return;
+        let parent = shape.parentElement;
+        while(parent && String(parent.localName || "").toLocaleLowerCase("en-US") !== "zone") {
+            parent = parent.parentElement;
+        }
+        const effect = parent && parent.getAttribute("effect") || "zone";
+        include(center, radius);
+        circles.push({center, radius, effect});
+    });
+    previewElements(parsed, ["Spawn"]).slice(0, 2000).forEach(spawn => {
+        const point = previewPoint(spawn);
+        if(!point) return;
+        const xdir = previewCoordinate(spawn, "xdir");
+        const ydir = previewCoordinate(spawn, "ydir");
+        const angle = previewCoordinate(spawn, "angle");
+        const direction = xdir !== null && ydir !== null
+            ? {x: xdir, y: ydir}
+            : angle !== null
+                ? {x: Math.cos(angle * Math.PI / 180), y: Math.sin(angle * Math.PI / 180)}
+                : {x: 1, y: 0};
+        include(point);
+        spawns.push({point, direction});
+    });
+    if(!Number.isFinite(bounds.minX)) throw new Error("No previewable walls, zones, or spawns were found.");
+
+    const spanX = Math.max(1, bounds.maxX - bounds.minX);
+    const spanY = Math.max(1, bounds.maxY - bounds.minY);
+    const span = Math.max(spanX, spanY);
+    const padding = Math.max(3, span * 0.055);
+    const svg = previewSvgElement("svg", {
+        class: "map-review-preview-svg",
+        viewBox: `${bounds.minX - padding} ${-(bounds.maxY + padding)} ${spanX + padding * 2} ${spanY + padding * 2}`,
+        preserveAspectRatio: "xMidYMid meet",
+        focusable: "false",
+        "aria-hidden": "true"
+    });
+    const title = previewSvgElement("title");
+    title.textContent = `${submission.mapName || "Untitled"} map preview`;
+    svg.appendChild(title);
+    const pathData = points => points.map((point, index) =>
+        `${index ? "L" : "M"}${point.x} ${-point.y}`
+    ).join(" ");
+    const effectClass = effect => {
+        const normalized = String(effect || "zone").toLocaleLowerCase("en-US").replace(/[^a-z0-9_-]/g, "");
+        return `map-preview-zone map-preview-zone-${normalized || "zone"}`;
+    };
+    circles.forEach(zone => svg.appendChild(previewSvgElement("circle", {
+        class: effectClass(zone.effect), cx: zone.center.x, cy: -zone.center.y, r: zone.radius
+    })));
+    walls.forEach(points => svg.appendChild(previewSvgElement("path", {
+        class: "map-preview-wall", d: pathData(points)
+    })));
+    const markerSize = Math.max(1.5, span / 65);
+    spawns.forEach(spawn => {
+        svg.appendChild(previewSvgElement("circle", {
+            class: "map-preview-spawn", cx: spawn.point.x, cy: -spawn.point.y, r: markerSize * 0.58
+        }));
+        svg.appendChild(previewSvgElement("line", {
+            class: "map-preview-spawn-direction",
+            x1: spawn.point.x,
+            y1: -spawn.point.y,
+            x2: spawn.point.x + spawn.direction.x * markerSize * 2.5,
+            y2: -(spawn.point.y + spawn.direction.y * markerSize * 2.5)
+        }));
+    });
+    return svg;
+}
+
+async function loadAdminSubmissionPreview(preview, submission) {
+    const path = String(submission.storagePath || "");
+    if(!path) {
+        preview.replaceChildren();
+        preview.textContent = "No map revision is attached to this review.";
+        preview.classList.add("error");
+        preview.setAttribute("aria-busy", "false");
+        return;
+    }
+    try {
+        const cacheKey = `${path}|${submission.sha256 || ""}`;
+        if(!adminPreviewCache.has(cacheKey)) {
+            adminPreviewCache.set(cacheKey, downloadRepositoryMap(path));
+        }
+        const xml = await adminPreviewCache.get(cacheKey);
+        if(!preview.isConnected || preview.dataset.adminPreviewPath !== path) return;
+        preview.replaceChildren(buildAdminMapPreview(xml, submission));
+        preview.classList.remove("error");
+    } catch(error) {
+        console.error("Vectron review preview failed.", error);
+        if(!preview.isConnected || preview.dataset.adminPreviewPath !== path) return;
+        const message = document.createElement("span");
+        message.className = "map-review-preview-message";
+        message.textContent = error && error.message ? error.message : "Map preview unavailable.";
+        preview.replaceChildren(message);
+        preview.classList.add("error");
+    } finally {
+        if(preview.isConnected && preview.dataset.adminPreviewPath === path) {
+            preview.setAttribute("aria-busy", "false");
+        }
+    }
+}
+
+function queueAdminSubmissionPreview(preview, submission) {
+    const load = () => loadAdminSubmissionPreview(preview, submission);
+    if(typeof IntersectionObserver !== "function") {
+        window.setTimeout(load, 0);
+        return;
+    }
+    if(!adminPreviewObserver) {
+        adminPreviewObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if(!entry.isIntersecting) return;
+                adminPreviewObserver.unobserve(entry.target);
+                const item = adminData.submissions.find(candidate =>
+                    candidate.id === entry.target.dataset.adminPreviewId
+                );
+                if(item) loadAdminSubmissionPreview(entry.target, item);
+            });
+        }, {root: adminList, rootMargin: "240px 0px"});
+    }
+    window.setTimeout(() => {
+        if(preview.isConnected) adminPreviewObserver.observe(preview);
+    }, 0);
+}
+
 function renderAdminAccount(account) {
     const card = document.createElement("article");
     card.className = "account-card";
@@ -1070,7 +1253,7 @@ function renderAdminAccount(account) {
     newName.dataset.adminAuthorName = "";
     const reason = document.createElement("textarea");
     reason.rows = 2;
-    reason.placeholder = "Required when denying";
+    reason.placeholder = "Required when denying and deleting";
     reason.dataset.adminReason = "";
     fields.append(
         cardField("Link to author", authorSelect),
@@ -1080,7 +1263,7 @@ function renderAdminAccount(account) {
     const actions = document.createElement("div");
     actions.className = "account-card-actions";
     actions.append(
-        actionButton("Deny registration", "deny-account", account.id, true),
+        actionButton("Deny and delete user", "deny-account", account.id, true),
         actionButton("Approve and link", "approve-account", account.id)
     );
     card.append(header, meta, fields, actions);
@@ -1089,8 +1272,10 @@ function renderAdminAccount(account) {
 
 function renderAdminSubmission(submission) {
     const card = document.createElement("article");
-    card.className = "account-card";
+    card.className = "account-card map-review-card";
     card.dataset.adminCard = submission.id;
+    const details = document.createElement("div");
+    details.className = "map-review-details";
     const header = document.createElement("div");
     header.className = "account-card-header";
     const name = document.createElement("strong");
@@ -1102,8 +1287,15 @@ function renderAdminSubmission(submission) {
     const meta = document.createElement("div");
     meta.className = "account-card-meta";
     meta.textContent = `${submission.operation || "create"} by ${submission.submittedByName || submission.submittedBy} · ${submission.authorName}/${submission.category}`;
+    const submittedReason = document.createElement("div");
+    submittedReason.className = "map-review-submission-reason";
+    const reasonLabel = document.createElement("strong");
+    reasonLabel.textContent = "Submitted for review because";
+    const reasonCopy = document.createElement("span");
+    reasonCopy.textContent = submission.submissionReason || "No reason was provided.";
+    submittedReason.append(reasonLabel, reasonCopy);
     const fields = document.createElement("div");
-    fields.className = "account-card-fields";
+    fields.className = "account-card-fields map-review-fields";
     const authorSelect = adminAuthorOptions(submission.authorId);
     authorSelect.dataset.adminAuthor = "";
     const category = document.createElement("input");
@@ -1119,13 +1311,27 @@ function renderAdminSubmission(submission) {
         cardField("Decision reason", reason)
     );
     const actions = document.createElement("div");
-    actions.className = "account-card-actions";
+    actions.className = "account-card-actions map-review-actions";
     actions.append(
         actionButton("Edit map in Vectron", "edit-submission", submission.id),
         actionButton("Deny submission", "deny-submission", submission.id, true),
+        actionButton("Deny and delete map", "delete-submission-map", submission.id, true),
         actionButton("Approve and publish", "approve-submission", submission.id)
     );
-    card.append(header, meta, fields, actions);
+    details.append(header, meta, submittedReason, fields, actions);
+    const preview = document.createElement("div");
+    preview.className = "map-review-preview";
+    preview.dataset.adminPreviewId = submission.id;
+    preview.dataset.adminPreviewPath = submission.storagePath || "";
+    preview.setAttribute("role", "img");
+    preview.setAttribute("aria-label", `Map preview for ${submission.mapName || "Untitled"}`);
+    preview.setAttribute("aria-busy", "true");
+    const loading = document.createElement("span");
+    loading.className = "map-review-preview-message";
+    loading.textContent = "Loading map preview…";
+    preview.appendChild(loading);
+    card.append(details, preview);
+    queueAdminSubmissionPreview(preview, submission);
     return card;
 }
 
@@ -1160,6 +1366,10 @@ function renderAdminList() {
     const items = adminData[adminTab] || [];
     const query = adminSearchInput.value.trim().toLocaleLowerCase();
     const visible = items.filter(item => !query || JSON.stringify(item).toLocaleLowerCase().includes(query));
+    if(adminPreviewObserver) {
+        adminPreviewObserver.disconnect();
+        adminPreviewObserver = null;
+    }
     adminList.replaceChildren();
     adminSummary.textContent = `${visible.length} of ${items.length} ${adminTab === "accounts" ? "pending registrations" : adminTab === "submissions" ? "pending map submissions" : "published maps"}.`;
     if(!visible.length) {
@@ -1243,16 +1453,53 @@ function adminAuditRef() {
     return firestoreSdk.doc(firestoreSdk.collection(firestore, "auditEvents"));
 }
 
-async function reviewAccount(accountId, approved) {
+async function denyRegistration(accountId) {
     const account = adminData.accounts.find(item => item.id === accountId);
     const card = adminCard(accountId);
     if(!account || !card) return;
-    const reason = decisionReason(card, !approved);
-    const author = approved ? selectedAuthor(card, account.requestedAuthorName) : null;
+    const reason = decisionReason(card, true);
     const reviewer = auth.currentUser;
-    if(!window.confirm(`${approved ? "Approve" : "Deny"} registration for ${account.requestedAuthorName || account.email}?`)) return;
+    if(!window.confirm(
+        `Deny and permanently delete ${account.requestedAuthorName || account.email}? ` +
+        "Their Firebase login and Vectron registration will be removed."
+    )) return;
     setAdminBusy(true);
-    setAdminStatus(`${approved ? "Approving" : "Denying"} registration…`);
+    setAdminStatus("Denying registration and deleting user…");
+    try {
+        const idToken = await authSdk.getIdToken(reviewer, true);
+        const response = await fetch(REGISTRATION_DENIAL_URL, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${idToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({accountId, reason})
+        });
+        let result = {};
+        try {
+            result = await response.json();
+        } catch(error) {
+            result = {};
+        }
+        if(!response.ok) {
+            throw new Error(result.error || `User deletion failed (${response.status}).`);
+        }
+        setAdminStatus("Registration denied and user permanently deleted.");
+    } finally {
+        setAdminBusy(false);
+    }
+}
+
+async function reviewAccount(accountId) {
+    const account = adminData.accounts.find(item => item.id === accountId);
+    const card = adminCard(accountId);
+    if(!account || !card) return;
+    const reason = decisionReason(card, false);
+    const author = selectedAuthor(card, account.requestedAuthorName);
+    const reviewer = auth.currentUser;
+    if(!window.confirm(`Approve registration for ${account.requestedAuthorName || account.email}?`)) return;
+    setAdminBusy(true);
+    setAdminStatus("Approving registration…");
     try {
         const accountRef = firestoreSdk.doc(firestore, "accounts", accountId);
         const notificationRef = adminNotificationRef(accountId);
@@ -1262,39 +1509,35 @@ async function reviewAccount(accountId, approved) {
             if(!accountSnapshot.exists() || accountSnapshot.data().status !== "pending") {
                 throw new Error("This registration has already been reviewed or removed.");
             }
-            if(approved) {
-                const authorRef = firestoreSdk.doc(firestore, "authors", author.id);
-                const authorSnapshot = await transaction.get(authorRef);
-                if(authorSnapshot.exists() && authorSnapshot.data().ownerUid &&
-                   authorSnapshot.data().ownerUid !== accountId) {
-                    throw new Error(`${author.name} is already linked to another account.`);
-                }
-                transaction.set(authorRef, {
-                    authorId: author.id,
-                    name: author.name,
-                    normalizedName: author.name.toLocaleLowerCase("en-US"),
-                    ownerUid: accountId,
-                    status: "active",
-                    createdAt: authorSnapshot.exists() ? authorSnapshot.data().createdAt : firestoreSdk.serverTimestamp(),
-                    updatedAt: firestoreSdk.serverTimestamp()
-                }, {merge: true});
+            const authorRef = firestoreSdk.doc(firestore, "authors", author.id);
+            const authorSnapshot = await transaction.get(authorRef);
+            if(authorSnapshot.exists() && authorSnapshot.data().ownerUid &&
+               authorSnapshot.data().ownerUid !== accountId) {
+                throw new Error(`${author.name} is already linked to another account.`);
             }
+            transaction.set(authorRef, {
+                authorId: author.id,
+                name: author.name,
+                normalizedName: author.name.toLocaleLowerCase("en-US"),
+                ownerUid: accountId,
+                status: "active",
+                createdAt: authorSnapshot.exists() ? authorSnapshot.data().createdAt : firestoreSdk.serverTimestamp(),
+                updatedAt: firestoreSdk.serverTimestamp()
+            }, {merge: true});
             transaction.update(accountRef, {
-                status: approved ? "approved" : "denied",
-                authorId: approved ? author.id : firestoreSdk.deleteField(),
-                authorName: approved ? author.name : firestoreSdk.deleteField(),
-                denialReason: approved ? "" : reason,
+                status: "approved",
+                authorId: author.id,
+                authorName: author.name,
+                denialReason: "",
                 reviewedAt: firestoreSdk.serverTimestamp(),
                 reviewedBy: reviewer.uid,
                 updatedAt: firestoreSdk.serverTimestamp()
             });
             transaction.set(notificationRef, {
                 recipientUid: accountId,
-                type: approved ? "registration-approved" : "registration-denied",
-                title: approved ? "Vectron registration approved" : "Vectron registration denied",
-                body: approved
-                    ? `Your account is approved and linked to the ${author.name} author.`
-                    : `Your registration was denied. Reason: ${reason}`,
+                type: "registration-approved",
+                title: "Vectron registration approved",
+                body: `Your account is approved and linked to the ${author.name} author.`,
                 reason,
                 createdAt: firestoreSdk.serverTimestamp(),
                 readAt: null
@@ -1302,15 +1545,15 @@ async function reviewAccount(accountId, approved) {
             transaction.set(auditRef, {
                 actorUid: reviewer.uid,
                 actorName: displayNameForUser(reviewer),
-                action: approved ? "account.approve" : "account.deny",
+                action: "account.approve",
                 targetType: "account",
                 targetId: accountId,
                 reason,
-                after: approved ? {status: "approved", authorId: author.id, authorName: author.name} : {status: "denied"},
+                after: {status: "approved", authorId: author.id, authorName: author.name},
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
-        setAdminStatus(approved ? "Registration approved and author linked." : "Registration denied and user notified.");
+        setAdminStatus("Registration approved and author linked.");
     } finally {
         setAdminBusy(false);
     }
@@ -1563,6 +1806,107 @@ async function reviewSubmission(submissionId, approved) {
     }
 }
 
+async function deleteReviewedMap(submissionId) {
+    const submission = adminData.submissions.find(item => item.id === submissionId);
+    const card = adminCard(submissionId);
+    if(!submission || !card) return;
+    const reason = decisionReason(card, true);
+    if(!window.confirm(
+        `Permanently deny and delete ${submission.mapName}? This removes the map, ` +
+        "its review history, reserved paths, and stored revisions. This cannot be undone."
+    )) return;
+    setAdminBusy(true);
+    setAdminStatus("Denying review and permanently deleting map…");
+    try {
+        const reviewer = auth.currentUser;
+        const serverOrigin = submission.operation === "server-review" ||
+            String(submission.submittedBy || "").startsWith("server:");
+        const originalRef = firestoreSdk.doc(firestore, "mapSubmissions", submissionId);
+        const mapRef = firestoreSdk.doc(firestore, "maps", submission.mapId);
+        const submissionsQuery = firestoreSdk.query(
+            firestoreSdk.collection(firestore, "mapSubmissions"),
+            firestoreSdk.where("mapId", "==", submission.mapId)
+        );
+        const resourcesQuery = firestoreSdk.query(
+            firestoreSdk.collection(firestore, "resourcePaths"),
+            firestoreSdk.where("mapId", "==", submission.mapId)
+        );
+        const [submissionSnapshots, resourceSnapshots, mapSnapshot] = await Promise.all([
+            firestoreSdk.getDocs(submissionsQuery),
+            firestoreSdk.getDocs(resourcesQuery),
+            firestoreSdk.getDoc(mapRef)
+        ]);
+        const submissionRefs = submissionSnapshots.docs.map(item => item.ref);
+        if(!submissionRefs.some(reference => reference.path === originalRef.path)) {
+            submissionRefs.push(originalRef);
+        }
+        const storagePaths = new Set(
+            submissionSnapshots.docs.map(item => String(item.data().storagePath || "")).filter(Boolean)
+        );
+        if(mapSnapshot.exists() && mapSnapshot.data().storagePath) {
+            storagePaths.add(String(mapSnapshot.data().storagePath));
+        }
+        const notificationRef = serverOrigin ? null : adminNotificationRef(submission.submittedBy);
+        const auditRef = adminAuditRef();
+        await firestoreSdk.runTransaction(firestore, async transaction => {
+            const [latestSubmission, latestMap] = await Promise.all([
+                transaction.get(originalRef),
+                transaction.get(mapRef)
+            ]);
+            if(!latestSubmission.exists() || latestSubmission.data().status !== "pending") {
+                throw new Error("This submission has already been reviewed or removed.");
+            }
+            submissionRefs.forEach(reference => transaction.delete(reference));
+            resourceSnapshots.docs.forEach(item => transaction.delete(item.ref));
+            if(latestMap.exists()) transaction.delete(mapRef);
+            if(notificationRef) {
+                transaction.set(notificationRef, {
+                    recipientUid: submission.submittedBy,
+                    type: "map-deleted",
+                    title: `${submission.mapName} was denied and deleted`,
+                    body: `${submission.mapName} was denied and permanently deleted. Reason: ${reason}`,
+                    reason,
+                    mapId: submission.mapId,
+                    submissionId,
+                    createdAt: firestoreSdk.serverTimestamp(),
+                    readAt: null
+                });
+            }
+            transaction.set(auditRef, {
+                actorUid: reviewer.uid,
+                actorName: displayNameForUser(reviewer),
+                action: "map.deny-delete",
+                targetType: "map",
+                targetId: submission.mapId,
+                mapId: submission.mapId,
+                reason,
+                before: {
+                    status: latestMap.exists() ? latestMap.data().status : "unpublished",
+                    reviewStatus: "pending",
+                    submissionCount: submissionRefs.length,
+                    resourcePathCount: resourceSnapshots.size
+                },
+                after: {status: "deleted"},
+                createdAt: firestoreSdk.serverTimestamp()
+            });
+        });
+        const storagePathList = Array.from(storagePaths);
+        const removals = await Promise.allSettled(storagePathList.map(storagePath =>
+            storageSdk.deleteObject(storageSdk.ref(storage, storagePath))
+        ));
+        const failedRemovals = removals.filter(result =>
+            result.status === "rejected" &&
+            result.reason && result.reason.code !== "storage/object-not-found"
+        );
+        setAdminStatus(failedRemovals.length
+            ? `Map deleted from the catalog; ${failedRemovals.length} orphaned storage object(s) require cleanup.`
+            : "Map review denied and map permanently deleted.",
+        failedRemovals.length ? "error" : "");
+    } finally {
+        setAdminBusy(false);
+    }
+}
+
 async function editPublishedMapMetadata(mapId) {
     const map = adminData.maps.find(item => item.id === mapId);
     const card = adminCard(mapId);
@@ -1759,10 +2103,11 @@ async function handleAdminAction(action, id) {
     if(adminBusy || !currentUserIsAdmin()) return;
     setAdminStatus("");
     try {
-        if(action === "approve-account") await reviewAccount(id, true);
-        else if(action === "deny-account") await reviewAccount(id, false);
+        if(action === "approve-account") await reviewAccount(id);
+        else if(action === "deny-account") await denyRegistration(id);
         else if(action === "approve-submission") await reviewSubmission(id, true);
         else if(action === "deny-submission") await reviewSubmission(id, false);
+        else if(action === "delete-submission-map") await deleteReviewedMap(id);
         else if(action === "edit-submission") await editPendingSubmission(id);
         else if(action === "edit-map-metadata") await editPublishedMapMetadata(id);
     } catch(error) {

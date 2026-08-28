@@ -1206,7 +1206,7 @@ button.repository-author-heading:disabled {
 }
 
 .admin-dialog {
-  width: min(980px, 100%);
+  width: min(1180px, 100%);
 }
 
 .account-card {
@@ -1322,6 +1322,154 @@ button.repository-author-heading:disabled {
 .account-card-field textarea:disabled {
   cursor: wait;
   opacity: 0.5;
+}
+
+.map-review-card {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.8fr) minmax(320px, 1.2fr);
+  gap: 14px;
+}
+
+.map-review-details {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-review-details .account-card-header {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-review-submission-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px 9px;
+  border-left: 2px solid rgba(154, 124, 255, 0.5);
+  color: #c9cbd2;
+  background: rgba(154, 124, 255, 0.055);
+  font-size: 9px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.map-review-submission-reason strong {
+  color: #a996ff;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.map-review-fields,
+.map-review-actions {
+  align-items: stretch;
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.map-review-fields .account-card-field {
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.map-review-actions {
+  justify-content: flex-start;
+}
+
+.map-review-actions .account-card-button {
+  width: 100%;
+  min-height: 32px;
+}
+
+.map-review-preview {
+  position: relative;
+  min-width: 0;
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(85, 244, 220, 0.18);
+  border-radius: 8px;
+  color: #92959e;
+  background-color: #101113;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 22px 22px;
+  font-size: 9px;
+  text-align: center;
+}
+
+.map-review-preview.error {
+  border-color: rgba(255, 107, 107, 0.25);
+  color: #ffb1b1;
+}
+
+.map-review-preview-message {
+  max-width: 300px;
+  padding: 20px;
+  line-height: 1.5;
+}
+
+.map-review-preview-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+}
+
+.map-preview-wall {
+  fill: none;
+  stroke: #d9e0e7;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-preview-zone {
+  fill: rgba(154, 124, 255, 0.17);
+  stroke: #aa96ff;
+  stroke-width: 1.15;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-preview-zone-death,
+.map-preview-zone-deathzone {
+  fill: rgba(255, 91, 91, 0.16);
+  stroke: #ff7777;
+}
+
+.map-preview-zone-win,
+.map-preview-zone-winzone,
+.map-preview-zone-fortress {
+  fill: rgba(85, 244, 220, 0.15);
+  stroke: #55f4dc;
+}
+
+.map-preview-spawn {
+  fill: #ffd978;
+  stroke: #171717;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-preview-spawn-direction {
+  stroke: #ffd978;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (max-width: 900px) {
+  .map-review-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .map-review-preview,
+  .map-review-preview-svg {
+    min-height: 240px;
+  }
 }
 
 @keyframes auth-spin {
