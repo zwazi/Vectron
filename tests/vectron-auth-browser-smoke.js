@@ -16,17 +16,21 @@ const testUrl = process.env.VECTRON_TEST_URL || "http://127.0.0.1:8000/";
 const nonce = `${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
 const userName = `Browser User ${nonce}`;
 const adminName = `Browser Admin ${nonce}`;
+const deniedUserName = `Browser Denied ${nonce}`;
 const mapName = `Browser Map ${nonce}`;
 const userEmail = `vectron-user-${nonce}@example.com`;
 const adminEmail = `vectron-admin-${nonce}@example.com`;
+const deniedUserEmail = `vectron-denied-${nonce}@example.com`;
 const userPassword = `Vu-${crypto.randomUUID()}!`;
 const adminPassword = `Va-${crypto.randomUUID()}!`;
+const deniedUserPassword = `Vd-${crypto.randomUUID()}!`;
 const root = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
 
 if(!oauthToken) throw new Error("VECTRON_ADMIN_OAUTH_TOKEN is required for safe cleanup.");
 
 let user = null;
 let admin = null;
+let deniedUser = null;
 let submission = null;
 
 const managementHeaders = json => ({
@@ -117,10 +121,18 @@ function decodeDocument(document) {
 }
 
 async function listDocuments(collectionPath) {
-    const response = await checkedFetch(`${root}/${collectionPath}?pageSize=300`, {
-        headers: managementHeaders(false)
-    });
-    return ((await response.json()).documents || []).map(decodeDocument);
+    const documents = [];
+    let pageToken = "";
+    do {
+        const url = new URL(`${root}/${collectionPath}`);
+        url.searchParams.set("pageSize", "300");
+        if(pageToken) url.searchParams.set("pageToken", pageToken);
+        const response = await checkedFetch(url, {headers: managementHeaders(false)});
+        const page = await response.json();
+        documents.push(...(page.documents || []).map(decodeDocument));
+        pageToken = page.nextPageToken || "";
+    } while(pageToken);
+    return documents;
 }
 
 async function waitForRemote(check, message, timeout = 30000) {
@@ -162,7 +174,7 @@ async function deleteStoragePrefix(prefix) {
 }
 
 async function cleanup() {
-    const accounts = [user, admin].filter(Boolean);
+    const accounts = [user, admin, deniedUser].filter(Boolean);
     const uids = accounts.map(item => item.localId);
     const [submissions, maps, audits] = await Promise.all([
         listDocuments("mapSubmissions"), listDocuments("maps"), listDocuments("auditEvents")
@@ -188,13 +200,19 @@ async function cleanup() {
     }
     await deleteDocument("authors", authorKey(userName));
     await deleteDocument("authors", authorKey(adminName));
+    await deleteDocument("authors", authorKey(deniedUserName));
     for(const account of accounts) {
         const removed = await fetch(
             `https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:delete`,
             {method: "POST", headers: managementHeaders(true),
                 body: JSON.stringify({localId: account.localId})}
         );
-        if(!removed.ok && removed.status !== 404) throw new Error(`Could not delete test account (${removed.status}).`);
+        if(!removed.ok && removed.status !== 404) {
+            const detail = await removed.text();
+            if(!/USER_NOT_FOUND/i.test(detail)) {
+                throw new Error(`Could not delete test account (${removed.status}).`);
+            }
+        }
     }
 }
 
@@ -383,7 +401,7 @@ ws.onopen = async () => {
             const cardStyle = getComputedStyle(card);
             const actionStyle = getComputedStyle(card.querySelector(".map-review-actions"));
             const layout = {
-                columns: cardStyle.gridTemplateColumns.trim().split(/\s+/).length,
+                columns: cardStyle.gridTemplateColumns.trim().split(/\\s+/).length,
                 actionDirection: actionStyle.flexDirection,
                 hasDelete: Boolean(card.querySelector('[data-admin-action="delete-submission-map"]')),
                 submittedReason: card.querySelector(".map-review-submission-reason span").textContent
@@ -411,8 +429,54 @@ ws.onopen = async () => {
             return Array.from(document.querySelectorAll("#notification-list .account-card strong"), function(node){ return node.textContent; });
         `);
         assert.ok(notices.some(title => /approved/i.test(title)));
+
+        await logout(context);
+        await evaluate(context, `
+            document.getElementById("auth-signup-tab").click();
+            document.getElementById("auth-name").value = ${JSON.stringify(deniedUserName)};
+            document.getElementById("auth-email").value = ${JSON.stringify(deniedUserEmail)};
+            document.getElementById("auth-password").value = ${JSON.stringify(deniedUserPassword)};
+            document.getElementById("auth-confirm-password").value = ${JSON.stringify(deniedUserPassword)};
+            document.getElementById("auth-form").requestSubmit();
+            await waitFor(function(){ return window.vectron_userRole === "pending" &&
+                document.querySelector("[data-auth-email]").textContent === ${JSON.stringify(deniedUserEmail)}; },
+                "Disposable denial account did not become pending");
+            return true;
+        `);
+        deniedUser = await waitForRemote(async () => {
+            const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
+                method: "POST", headers: {"content-type": "application/json"},
+                body: JSON.stringify({email: deniedUserEmail, password: deniedUserPassword, returnSecureToken: true})
+            });
+            return response.ok ? response.json() : null;
+        }, "Disposable denial account was not created");
+        await logout(context);
+        await login(context, adminEmail, adminPassword, "Admin");
+        const denial = await evaluate(context, `
+            document.querySelector("[data-admin-review]").click();
+            document.querySelector('[data-admin-tab="accounts"]').click();
+            await waitFor(function(){ return document.querySelector('[data-admin-card="${deniedUser.localId}"]'); },
+                "Pending denial account was missing", 45000);
+            const card = document.querySelector('[data-admin-card="${deniedUser.localId}"]');
+            card.querySelector("[data-admin-reason]").value = "Disposable browser deletion test";
+            window.confirm = function(){ return true; };
+            card.querySelector('[data-admin-action="deny-account"]').click();
+            await waitFor(function(){ return /permanently deleted/i.test(document.getElementById("admin-status").textContent); },
+                "Registration deletion did not complete", 45000);
+            return document.getElementById("admin-status").textContent;
+        `);
+        assert.match(denial, /permanently deleted/i);
+        await waitForRemote(async () => !(await listDocuments("accounts"))
+            .some(item => item.id === deniedUser.localId),
+        "Denied registration record still exists");
+        const deletedLogin = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
+            method: "POST", headers: {"content-type": "application/json"},
+            body: JSON.stringify({email: deniedUserEmail, password: deniedUserPassword, returnSecureToken: true})
+        });
+        assert.strictEqual(deletedLogin.ok, false, "Denied Firebase login still exists");
         console.log(JSON.stringify({guestMaps: guest.visibleMaps, pendingReadOnly: true,
-            registrationApproved: true, submissionApproved: true, notifications: notices.length}, null, 2));
+            registrationApproved: true, registrationDeleted: true,
+            submissionApproved: true, notifications: notices.length}, null, 2));
     } catch(error) {
         console.error(error.stack || error.message || error);
         process.exitCode = 1;
