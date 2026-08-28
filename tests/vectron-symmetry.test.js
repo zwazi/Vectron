@@ -148,12 +148,17 @@ const context = vm.createContext({
     vectron_width:800, vectron_height:600, vectron_zoom:1,
     vectron_panX:0, vectron_panY:0, vectron_grid_spacing:8,
     vectron_currentTool:"", vectron_toolActive:false,
+    xml_dtd:"sty.dtd",
     cursor_realX:400, cursor_realY:300, cursor_neverSnappedX:400,
     cursor_neverSnappedY:300, cursor_snap:false, config_isDark:false,
     gui_writeLog() {}, gui_toast() {}, vectron_render() {},
     actionHistory_update() {}, alert() {}, setTimeout
 });
 context.window = context;
+const domControls = {};
+context.document = {
+    getElementById(id) { return domControls[id] || null; }
+};
 
 function load(relative) {
     vm.runInContext(read(relative), context, {filename:relative});
@@ -166,6 +171,7 @@ load("js/AamapTools/wallTool.js");
 load("js/AamapTools/zoneTool.js");
 load("js/aamap.js");
 load("js/AamapTools/selectTool.js");
+load("js/AamapTools/editSelectedTool.js");
 
 const {Wall, WallPoint, Spawn, Zone} = context;
 
@@ -281,7 +287,19 @@ assert.deepStrictEqual(
     [absoluteTeleport.x, absoluteTeleport.y,
         absoluteTeleport.zoneData.destX, absoluteTeleport.zoneData.destY],
     [7, 9, 42, -17],
-    "Moving an absolute teleport also moves its destination");
+    "Whole-map translation moves an absolute teleport and its destination");
+absoluteTeleport.moveEntrance(-2, -3);
+assert.deepStrictEqual(
+    [absoluteTeleport.x, absoluteTeleport.y,
+        absoluteTeleport.zoneData.destX, absoluteTeleport.zoneData.destY],
+    [5, 6, 42, -17],
+    "Moving only an absolute teleport entrance leaves its destination fixed");
+absoluteTeleport.moveTeleportDestination(-5, 4);
+assert.deepStrictEqual(
+    [absoluteTeleport.x, absoluteTeleport.y,
+        absoluteTeleport.zoneData.destX, absoluteTeleport.zoneData.destY],
+    [5, 6, 37, -13],
+    "The teleport destination can move without moving its entrance");
 
 const relativeTeleport = new Zone(5, 6, 7, 0, 6, {
     mode:"rel", destX:10, destY:-4, dirX:1, dirY:0, reloc:1
@@ -291,7 +309,131 @@ assert.deepStrictEqual(
     [relativeTeleport.x, relativeTeleport.y,
         relativeTeleport.zoneData.destX, relativeTeleport.zoneData.destY],
     [7, 9, 10, -4],
-    "Moving a relative teleport leaves its destination offset unchanged");
+    "Whole-map translation preserves a relative teleport offset");
+relativeTeleport.moveEntrance(-2, -3);
+assert.deepStrictEqual(
+    [relativeTeleport.x, relativeTeleport.y,
+        relativeTeleport.zoneData.destX, relativeTeleport.zoneData.destY],
+    [5, 6, 12, -1],
+    "Moving only a relative teleport entrance adjusts its stored offset");
+assert.deepStrictEqual(
+    [relativeTeleport.teleportDestination().x, relativeTeleport.teleportDestination().y],
+    [17, 5],
+    "Relative teleport destination coordinates remain visually fixed");
+relativeTeleport.setTeleportDestination(30, 40);
+assert.deepStrictEqual(
+    [relativeTeleport.zoneData.destX, relativeTeleport.zoneData.destY],
+    [25, 34],
+    "Setting a rendered relative destination stores the correct offset");
+
+reset();
+const shortWall = wall([[0, 0], [2, 0]], 2);
+const tallWall = wall([[0, 2], [2, 2]], 8);
+context.aamap_objects = [shortWall, tallWall];
+domControls["edit-selected-wall-height"] = {value:"12"};
+context.editSelected_applyWalls([shortWall, tallWall]);
+assert.deepStrictEqual([shortWall.height, tallWall.height], [12, 12],
+    "Edit Selected applies one height to a mixed wall selection");
+context.aamap_undo();
+assert.deepStrictEqual([shortWall.height, tallWall.height], [2, 8],
+    "Batch wall edits are undoable as one action");
+context.aamap_redo();
+assert.deepStrictEqual([shortWall.height, tallWall.height], [12, 12],
+    "Batch wall edits are redoable as one action");
+
+reset();
+const firstSpawn = new Spawn();
+const secondSpawn = new Spawn();
+context.aamap_objects = [firstSpawn, secondSpawn];
+domControls["edit-selected-spawn-angle"] = {value:"90"};
+context.editSelected_applySpawns([firstSpawn, secondSpawn]);
+assert.ok(Math.abs(firstSpawn.xDir) < 1e-9 && Math.abs(secondSpawn.xDir) < 1e-9);
+assert.ok(Math.abs(firstSpawn.yDir - 1) < 1e-9 && Math.abs(secondSpawn.yDir - 1) < 1e-9,
+    "Edit Selected applies one direction to multiple spawns");
+
+reset();
+const firstTeleport = new Zone(0, 0, 3, 0, 6, {
+    mode:"abs", destX:10, destY:20, dirX:0, dirY:0, reloc:0
+});
+const secondTeleport = new Zone(5, 5, 8, 1, 6, {
+    mode:"rel", destX:4, destY:5, dirX:0, dirY:0, reloc:1
+});
+context.aamap_objects = [firstTeleport, secondTeleport];
+domControls["edit-selected-zone-radius"] = {value:"14"};
+domControls["edit-selected-zone-growth"] = {value:""};
+domControls["edit-selected-zone-type"] = {value:""};
+domControls["edit-selected-zone-private"] = {checked:true, indeterminate:false};
+domControls["edit-selected-zone-dest-x"] = {value:"50"};
+domControls["edit-selected-zone-dest-y"] = {value:"60"};
+domControls["edit-selected-zone-exit-angle"] = {value:"180"};
+context.editSelected_applyZones([firstTeleport, secondTeleport]);
+assert.deepStrictEqual([firstTeleport.radius, secondTeleport.radius], [14, 14]);
+assert.deepStrictEqual(
+    [firstTeleport.teleportDestination().x, firstTeleport.teleportDestination().y,
+        secondTeleport.teleportDestination().x, secondTeleport.teleportDestination().y],
+    [50, 60, 50, 60],
+    "Edit Selected can batch destination coordinates across teleport modes");
+assert.strictEqual(firstTeleport.privatePerPlayer, true);
+assert.strictEqual(secondTeleport.privatePerPlayer, true,
+    "Zone-wide properties apply to every selected teleport");
+assert.ok(Math.abs(firstTeleport.zoneData.dirX + 1) < 1e-9 &&
+    Math.abs(secondTeleport.zoneData.dirX + 1) < 1e-9,
+    "Teleport exit direction can be batch edited as an angle");
+
+reset();
+const incomingDirectionTeleport = new Zone(1, 2, 4, 0, 6, {
+    mode:"abs", destX:12, destY:13, dirX:0, dirY:0, reloc:0
+});
+context.aamap_objects = [incomingDirectionTeleport];
+domControls["edit-selected-zone-radius"] = {value:"9", dataset:{originalValue:"4"}};
+domControls["edit-selected-zone-growth"] = {value:"0", dataset:{originalValue:"0"}};
+domControls["edit-selected-zone-type"] = {value:"6", dataset:{originalValue:"6"}};
+domControls["edit-selected-zone-private"] = {
+    checked:false, indeterminate:false, dataset:{originalValue:"false"}
+};
+domControls["edit-selected-zone-dest-x"] = {value:"12", dataset:{originalValue:"12"}};
+domControls["edit-selected-zone-dest-y"] = {value:"13", dataset:{originalValue:"13"}};
+domControls["edit-selected-zone-exit-angle"] = {value:"", dataset:{originalValue:""}};
+context.editSelected_applyZones([incomingDirectionTeleport]);
+assert.deepStrictEqual(
+    [incomingDirectionTeleport.radius, incomingDirectionTeleport.zoneData.destX,
+        incomingDirectionTeleport.zoneData.destY, incomingDirectionTeleport.zoneData.dirX,
+        incomingDirectionTeleport.zoneData.dirY],
+    [9, 12, 13, 0, 0],
+    "Applying one zone field leaves untouched teleport properties unchanged");
+
+reset();
+const draggedTeleport = new Zone(0, 0, 4, 0, 6, {
+    mode:"abs", destX:30, destY:20, dirX:0, dirY:0, reloc:0
+});
+draggedTeleport.isSelected = true;
+context.aamap_objects = [draggedTeleport];
+context.selectTool_selectedObjs = [draggedTeleport];
+context.vectron_currentTool = "select";
+context.eventHandler_ctrl = false;
+draggedTeleport.render();
+const destinationScreenX = context.aamap_realX(30);
+const destinationScreenY = context.aamap_realY(20);
+context.cursor_realX = context.cursor_neverSnappedX = destinationScreenX;
+context.cursor_realY = context.cursor_neverSnappedY = destinationScreenY;
+assert.strictEqual(context.selectTool_resolveHoveredSetFromCursor(), true,
+    "A selected teleport destination has its own hit target");
+context.selectTool_start();
+context.cursor_realX = context.cursor_neverSnappedX = destinationScreenX + 7;
+context.cursor_realY = context.cursor_neverSnappedY = destinationScreenY - 9;
+context.selectTool_progress();
+context.selectTool_complete();
+assert.deepStrictEqual(
+    [draggedTeleport.x, draggedTeleport.y,
+        draggedTeleport.teleportDestination().x, draggedTeleport.teleportDestination().y],
+    [0, 0, 37, 29],
+    "Dragging the destination handle leaves the entrance in place");
+context.aamap_undo();
+assert.deepStrictEqual(
+    [draggedTeleport.teleportDestination().x, draggedTeleport.teleportDestination().y],
+    [30, 20],
+    "Dragging a teleport destination is undoable");
+context.vectron_currentTool = "";
 
 const mirroredTeleport = context.aamap_symmetryClone(new Zone(6, 2, 4, 0, 6, {
     mode:"abs", destX:30, destY:8, dirX:1, dirY:0, reloc:1

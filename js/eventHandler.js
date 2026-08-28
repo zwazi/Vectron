@@ -965,6 +965,11 @@ function eventHandler_init() {
         return false;
     });
 
+    $(document).on("mouseup", "#contextMenu-edit-selected", function(e) {
+        e.preventDefault();
+        if(typeof editSelected_open === "function") editSelected_open();
+    });
+
 
     $('body').on("click", function() {
         if( !aamap_active )
@@ -1631,6 +1636,7 @@ function eventHandler_init() {
         if(typeof zoneTool_syncSelectedProperties === "function") {
             zoneTool_syncSelectedProperties();
         }
+        if(typeof editSelected_sync === "function") editSelected_sync();
         if (!$('#xml-editor-overlay').hasClass('visible')) return;
         var hasSelected = selectTool_selectedObjs && selectTool_selectedObjs.length > 0;
         if (xmlEditor_mode === 'selected') {
@@ -1941,6 +1947,10 @@ function eventHandler_init() {
     $("#canvas_container").mouseup(function(e) {
         e.preventDefault();
         if(!aamap_active) {
+            // The native contextmenu event and mouseup order differs between
+            // browsers. Never interpret the right-button release that opened
+            // the menu as an outside click that should immediately close it.
+            if(e.which === 3 || e.button === 2) return;
             $contextMenu.fadeOut(150);
             aamap_active = true;
             return;

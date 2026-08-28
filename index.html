@@ -27,6 +27,7 @@
         <script type="text/javascript" src="./js/AamapTools/zoneTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/navigationTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/selectTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/editSelectedTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/wallVertexMoveTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/splitTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/joinTool.js"></script>
@@ -281,7 +282,7 @@
                         <table class="table table-bordered" style="font-size:12px;">
                             <thead><tr><th>Tool</th><th>Key</th><th>Description</th></tr></thead>
                             <tbody>
-                                <tr><td><b>Select</b></td><td><kbd>1</kbd></td><td>Click an object to select it. Drag on empty space to box-select. Click a selected object to deselect. <kbd>Del</kbd> deletes the selection.</td></tr>
+                                <tr><td><b>Select</b></td><td><kbd>1</kbd></td><td>Click an object to select it. Drag on empty space to box-select. The Edit Selected panel groups walls, zones, and spawns for batch changes. A selected teleport's exit marker can be dragged independently. <kbd>Del</kbd> deletes the selection.</td></tr>
                                 <tr><td><b>Wall</b></td><td><kbd>3</kbd></td><td>Open the Wall Tool window to choose freeform walls, rectangles, circles, arcs, ellipses, or text walls. For shape tools, click the requested points, set the wall count if prompted, then press <b>Generate Walls</b>. Text walls use a typed string, a two-corner box, and <b>Submit</b>. Double-click or press <kbd>Shift+W</kbd> to finish freeform walls. Press <kbd>Esc</kbd> to cancel.</td></tr>
                                 <tr><td><b>Zone</b></td><td><kbd>4</kbd></td><td>Choose a zone type in the Zone Tool window, then click to place. <kbd>+</kbd>/<kbd>=</kbd> increase radius; <kbd>-</kbd>/<kbd>_</kbd> decrease radius. <kbd>Shift+Z</kbd> cycles zone types.</td></tr>
                                 <tr><td><b>Spawn</b></td><td><kbd>5</kbd></td><td>Click to place a spawn point. Move the cursor to set the spawn direction, then click again to confirm.</td></tr>
@@ -318,7 +319,7 @@
                             <tbody>
                                 <tr><td><b>Scroll wheel</b></td><td>Zoom in/out</td></tr>
                                 <tr><td><b>Middle-click drag</b></td><td>Pan the view (works with any tool)</td></tr>
-                                <tr><td><b>Right-click</b></td><td>Open context menu (copy, paste, undo, redo, delete, pan/zoom shortcuts, view XML)</td></tr>
+                                <tr><td><b>Right-click</b></td><td>Open context menu (including Edit Selected, copy, paste, undo, redo, delete, pan/zoom shortcuts, and view XML)</td></tr>
                                 <tr><td><b>Double-click</b> (Wall tool)</td><td>End the current wall</td></tr>
                             </tbody>
                         </table>
@@ -589,6 +590,15 @@
                 </div>
             </div>
         </div>
+
+        <!-- Batch editor for the current selection -->
+        <div id="edit-selected-window" style="display:none;">
+            <div id="edit-selected-header">Edit Selected <span id="edit-selected-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="edit-selected-close" title="Close" class="vt-window-action">✕</span></div>
+            <div id="edit-selected-body">
+                <div id="edit-selected-summary" aria-live="polite">Nothing selected.</div>
+                <div id="edit-selected-groups"></div>
+            </div>
+        </div>
         <div id="tool_bar">
             <ul>
                 <li>
@@ -678,6 +688,7 @@
                 <li class="divider"></li>
                 <li><a tabindex="-1" href="#" class="toolbar-delete">Delete <span class="cm-shortcut">Del</span></a></li>
                 <li><a tabindex="-1" href="#" id="contextMenu-delete-vertex" style="display:none;">Delete Vertex <span class="cm-shortcut">Del</span></a></li>
+                <li><a tabindex="-1" href="#" id="contextMenu-edit-selected">Edit Selected</a></li>
                 <li class="divider"></li>
                 <li class="dropdown-submenu">
                     <a tabindex="-1" href="#">Pan/Zoom</a>

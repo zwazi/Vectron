@@ -58,6 +58,11 @@ var selectTool_sets = [];
 
 var selectTool_hoveredSet = null;
 var selectTool_hoveredAamapObj = null;
+var selectTool_hoveredTeleportDestination = null;
+var selectTool_movingTeleportDestination = null;
+var selectTool_teleportMoveStart = null;
+var selectTool_teleportMoveOriginalDestination = null;
+var selectTool_teleportGuideObj = null;
 var SELECT_TOOL_HIGHLIGHT_OFFSET = 5;
 var SELECT_TOOL_HIGHLIGHT_STROKE_WIDTH = SELECT_TOOL_HIGHLIGHT_OFFSET * 2;
 var SELECT_TOOL_HIT_TOLERANCE = SELECT_TOOL_HIGHLIGHT_OFFSET;
@@ -99,7 +104,54 @@ function selectTool_beginRenderCycle() {
     if(!vectron_toolActive) {
         selectTool_hoveredSet = null;
         selectTool_hoveredAamapObj = null;
+        selectTool_hoveredTeleportDestination = null;
     }
+}
+
+function selectTool_isTeleport(aamapObject) {
+    return aamapObject instanceof Zone &&
+        (zoneTool_typeArray[aamapObject.type] || [])[0] === "teleport" &&
+        aamapObject.zoneData;
+}
+
+function selectTool_moveSelectionObject(aamapObject, dx, dy) {
+    if(selectTool_isTeleport(aamapObject) && typeof aamapObject.moveEntrance === "function") {
+        aamapObject.moveEntrance(dx, dy);
+    } else {
+        aamapObject.move(dx, dy);
+    }
+}
+
+function selectTool_defaultTeleportDestinationAttrs(zone) {
+    if(!zone || !zone.teleportDestinationObj) return;
+    zone.teleportDestinationObj.attr({
+        r:5,
+        "stroke-width":2,
+        "fill-opacity":0.2,
+        cursor:"default"
+    });
+}
+
+function selectTool_findTeleportDestinationAt(screenX, screenY) {
+    var tolerance = 11;
+    for(var index = aamap_objects.length - 1; index >= 0; index--) {
+        var zone = aamap_objects[index];
+        // Requiring selection avoids an ambiguous handle when a newly placed
+        // teleport still has its entrance and destination at the same point.
+        if(!selectTool_isTeleport(zone) || !zone.isSelected || !zone.teleportDestinationObj) continue;
+        var destination = zone.teleportDestination();
+        var destinationX = aamap_realX(destination.x);
+        var destinationY = aamap_realY(destination.y);
+        var entranceX = aamap_realX(zone.x);
+        var entranceY = aamap_realY(zone.y);
+        var separationX = destinationX - entranceX;
+        var separationY = destinationY - entranceY;
+        if(Math.sqrt(separationX * separationX + separationY * separationY) <= tolerance) continue;
+        var dx = screenX - destinationX;
+        var dy = screenY - destinationY;
+        if(Math.sqrt(dx * dx + dy * dy) <= tolerance) return zone;
+    }
+    return null;
 }
 
 function selectTool_pointInGlow(aamapObject, x, y) {
@@ -139,6 +191,21 @@ function selectTool_resolveHoveredSetFromCursor() {
     }
     var bestObj = null;
     var bestArea = Infinity;
+
+    for(var markerIndex = 0; markerIndex < aamap_objects.length; markerIndex++) {
+        if(selectTool_isTeleport(aamap_objects[markerIndex])) {
+            selectTool_defaultTeleportDestinationAttrs(aamap_objects[markerIndex]);
+        }
+    }
+    selectTool_hoveredTeleportDestination = selectTool_findTeleportDestinationAt(x, y);
+    if(selectTool_hoveredTeleportDestination) {
+        var hoveredMarker = selectTool_hoveredTeleportDestination.teleportDestinationObj;
+        hoveredMarker.attr({r:8, "stroke-width":3, "fill-opacity":0.55, cursor:"move"});
+        selectTool_hoveredAamapObj = selectTool_hoveredTeleportDestination;
+        selectTool_hoveredSet = selectTool_findSetForObject(selectTool_hoveredTeleportDestination);
+        shouldAddToSelected = false;
+        return true;
+    }
 
     for(var i = aamap_objects.length - 1; i >= 0; i--) {
         if(selectTool_pointInGlow(aamap_objects[i], x, y)) {
@@ -349,6 +416,12 @@ function selectTool_disconnect() {
     if(selectTool_guideObj != null) {
         selectTool_guideObj.remove();
     }
+    if(selectTool_teleportGuideObj != null) selectTool_teleportGuideObj.remove();
+    selectTool_teleportGuideObj = null;
+    selectTool_hoveredTeleportDestination = null;
+    selectTool_movingTeleportDestination = null;
+    selectTool_teleportMoveStart = null;
+    selectTool_teleportMoveOriginalDestination = null;
     selectTool_deselectAll();
     selectTool_clickedAlreadySelected = false;
 
@@ -367,6 +440,20 @@ function selectTool_start() {
 
     selectTool_additiveSelection = eventHandler_ctrl;
     selectTool_resolveHoveredSetFromCursor();
+
+    if(selectTool_hoveredTeleportDestination) {
+        selectTool_movingTeleportDestination = selectTool_hoveredTeleportDestination;
+        selectTool_teleportMoveOriginalDestination =
+            selectTool_movingTeleportDestination.teleportDestination();
+        var startScreenX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
+        var startScreenY = cursor_snap ? cursor_realY : cursor_neverSnappedY;
+        selectTool_teleportMoveStart = {
+            x:aamap_mapX(startScreenX),
+            y:aamap_mapY(startScreenY)
+        };
+        vectron_toolActive = true;
+        return;
+    }
 
     if(selectTool_hoveredSet != null) {
         // we have a move!
@@ -418,6 +505,29 @@ function selectTool_start() {
 }
 
 function selectTool_progress() {
+    if(selectTool_movingTeleportDestination) {
+        if(selectTool_teleportGuideObj != null) selectTool_teleportGuideObj.remove();
+        var screenX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
+        var screenY = cursor_snap ? cursor_realY : cursor_neverSnappedY;
+        var mapX = aamap_mapX(screenX);
+        var mapY = aamap_mapY(screenY);
+        var preview = {
+            x:selectTool_teleportMoveOriginalDestination.x + mapX - selectTool_teleportMoveStart.x,
+            y:selectTool_teleportMoveOriginalDestination.y + mapY - selectTool_teleportMoveStart.y
+        };
+        var color = zoneTool_typeArray[selectTool_movingTeleportDestination.type][1];
+        selectTool_teleportGuideObj = vectron_screen.set();
+        selectTool_teleportGuideObj.push(vectron_screen.path([
+            "M", aamap_realX(selectTool_movingTeleportDestination.x),
+            aamap_realY(selectTool_movingTeleportDestination.y),
+            "L", aamap_realX(preview.x), aamap_realY(preview.y)
+        ]).attr({"stroke":color, "stroke-width":2, "stroke-dasharray":"--"}));
+        selectTool_teleportGuideObj.push(vectron_screen.circle(
+            aamap_realX(preview.x), aamap_realY(preview.y), 8
+        ).attr({"stroke":color, "stroke-width":3, "fill":color, "fill-opacity":0.35}));
+        return;
+    }
+
     if(selectTool_hoveredSet != null) {
         gui_writeLog("in progress of moving, dont select!");
         var curX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
@@ -470,6 +580,48 @@ function selectTool_progress() {
 }
 
 function selectTool_complete() {
+    if(selectTool_movingTeleportDestination) {
+        var zone = selectTool_movingTeleportDestination;
+        var before = {
+            x:selectTool_teleportMoveOriginalDestination.x,
+            y:selectTool_teleportMoveOriginalDestination.y
+        };
+        var endScreenX = cursor_snap ? cursor_realX : cursor_neverSnappedX;
+        var endScreenY = cursor_snap ? cursor_realY : cursor_neverSnappedY;
+        var endMapX = aamap_mapX(endScreenX);
+        var endMapY = aamap_mapY(endScreenY);
+        var after = {
+            x:zone_round(before.x + endMapX - selectTool_teleportMoveStart.x),
+            y:zone_round(before.y + endMapY - selectTool_teleportMoveStart.y)
+        };
+        zone.setTeleportDestination(after.x, after.y);
+        if(before.x !== after.x || before.y !== after.y) {
+            aamap_recordAction({
+                label:"Move teleport destination",
+                undo:function() {
+                    zone.setTeleportDestination(before.x, before.y);
+                    vectron_render();
+                },
+                redo:function() {
+                    zone.setTeleportDestination(after.x, after.y);
+                    vectron_render();
+                }
+            });
+        }
+        if(selectTool_teleportGuideObj != null) selectTool_teleportGuideObj.remove();
+        selectTool_teleportGuideObj = null;
+        selectTool_movingTeleportDestination = null;
+        selectTool_teleportMoveStart = null;
+        selectTool_teleportMoveOriginalDestination = null;
+        selectTool_hoveredTeleportDestination = null;
+        selectTool_hoveredSet = null;
+        selectTool_hoveredAamapObj = null;
+        vectron_toolActive = false;
+        vectron_render();
+        if(window.xmlEditor_onSelectionChange) xmlEditor_onSelectionChange();
+        return;
+    }
+
     if(selectTool_hoveredSet != null) {
 
         var endX = aamap_mapX(cursor_realX);
@@ -506,7 +658,7 @@ function selectTool_complete() {
                 return {object:object, dx:0, dy:0};
             }), created:[]};
         movePlan.entries.forEach(function(entry) {
-            entry.object.move(entry.dx, entry.dy);
+            selectTool_moveSelectionObject(entry.object, entry.dx, entry.dy);
             entry.object.render();
         });
 
@@ -517,7 +669,7 @@ function selectTool_complete() {
                 label: "Move object(s)",
                 undo: function() {
                     movePlan.entries.forEach(function(entry) {
-                        entry.object.move(-entry.dx, -entry.dy);
+                        selectTool_moveSelectionObject(entry.object, -entry.dx, -entry.dy);
                     });
                     aamap_restoreSymmetryMovePlanBefore(movePlan);
                     vectron_render();
@@ -525,7 +677,7 @@ function selectTool_complete() {
                 redo: function() {
                     aamap_restoreSymmetryMovePlanAfter(movePlan);
                     movePlan.entries.forEach(function(entry) {
-                        entry.object.move(entry.dx, entry.dy);
+                        selectTool_moveSelectionObject(entry.object, entry.dx, entry.dy);
                     });
                     vectron_render();
                 }
@@ -978,5 +1130,3 @@ var selectTool_hoverOutSelected = function(evt) {
     selectTool_resolveHoveredSetFromCursor();
     gui_writeLog("NUll now");
 }
-
-
