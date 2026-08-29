@@ -758,7 +758,7 @@
             <ul id="action-history-list"></ul>
         </div>
         <div id="map-repository-overlay" class="repository-overlay" hidden>
-            <section class="repository-dialog" role="dialog" aria-modal="true" aria-labelledby="map-repository-title">
+            <section class="repository-dialog repository-browser-dialog" role="dialog" aria-modal="true" aria-labelledby="map-repository-title">
                 <header class="repository-header">
                     <div class="repository-title-wrap">
                         <span class="repository-title-icon" aria-hidden="true"><i class="fa-solid fa-map"></i></span>
@@ -773,9 +773,11 @@
                     </label>
                     <button id="map-repository-search-submit" class="repository-refresh-button" type="button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span></button>
                     <div class="repository-layout-switch" role="group" aria-label="Repository layout">
-                        <button id="map-repository-gallery" class="repository-icon-button active" type="button" aria-pressed="true" title="Gallery layout" aria-label="Gallery layout"><i class="fa-solid fa-grip" aria-hidden="true"></i></button>
-                        <button id="map-repository-list-layout" class="repository-icon-button" type="button" aria-pressed="false" title="List layout" aria-label="List layout"><i class="fa-solid fa-list" aria-hidden="true"></i></button>
+                        <button id="map-repository-gallery" class="repository-icon-button" type="button" aria-pressed="false" title="Gallery layout" aria-label="Gallery layout"><i class="fa-solid fa-grip" aria-hidden="true"></i></button>
+                        <button id="map-repository-list-layout" class="repository-icon-button active" type="button" aria-pressed="true" title="List layout" aria-label="List layout"><i class="fa-solid fa-list" aria-hidden="true"></i></button>
                     </div>
+                    <label class="compact-sort-control" for="map-repository-sort">Sort<select id="map-repository-sort"><option value="author">Author</option><option value="mapName">Map name</option><option value="updatedAt">Last updated</option></select></label>
+                    <button id="map-repository-sort-order" class="repository-icon-button sort-order-button" type="button" data-direction="asc" aria-label="Sort ascending" title="Sort ascending"><i class="fa-solid fa-arrow-down-a-z" aria-hidden="true"></i></button>
                     <button id="map-repository-refresh" class="repository-refresh-button" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Refresh</span></button>
                 </div>
                 <div class="repository-tabs" role="tablist" aria-label="Repository map scope">
@@ -827,19 +829,24 @@
                     <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="history">Review history <span data-admin-history-count>0</span></button>
                     <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="maps">Published maps <span data-admin-map-count>0</span></button>
                 </div>
-                <div id="admin-filters" class="admin-filters" hidden>
+                <div id="admin-filters" class="admin-filters">
                     <label id="admin-author-filter-wrap">Author<select id="admin-author-filter"><option value="">All authors</option></select></label>
                     <label id="admin-decision-filter-wrap" hidden>Decision<select id="admin-decision-filter"><option value="">Approved and denied</option><option value="approved">Approved</option><option value="denied">Denied</option></select></label>
                     <label id="admin-reason-filter-wrap" hidden>Reason<select id="admin-reason-filter"><option value="">All reasons</option></select></label>
+                    <label id="admin-sort-wrap">Sort<select id="admin-sort"></select></label>
+                    <button id="admin-sort-order" class="repository-icon-button sort-order-button" type="button" data-direction="desc" aria-label="Sort descending" title="Sort descending"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i></button>
                 </div>
                 <div id="admin-summary" class="repository-summary" aria-live="polite">Open a queue to begin reviewing.</div>
                 <div id="admin-status" class="repository-status" role="status" aria-live="polite" hidden></div>
                 <div id="admin-list" class="repository-list account-list" aria-label="Admin review items"></div>
                 <div id="admin-pagination" class="admin-pagination" aria-label="Admin queue pagination">
                     <label>Show<select id="admin-page-size"><option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+                    <button id="admin-page-first" class="repository-icon-button" type="button" aria-label="First page" title="First page"><i class="fa-solid fa-angles-left" aria-hidden="true"></i></button>
                     <button id="admin-page-previous" class="repository-icon-button" type="button" aria-label="Previous page" title="Previous page"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
-                    <span id="admin-page-status" aria-live="polite">Page 1 of 1</span>
+                    <label class="admin-page-jump">Page<input id="admin-page-number" type="number" min="1" value="1" inputmode="numeric" aria-label="Go to page"></label>
+                    <span id="admin-page-status" aria-live="polite">of 1</span>
                     <button id="admin-page-next" class="repository-icon-button" type="button" aria-label="Next page" title="Next page"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+                    <button id="admin-page-last" class="repository-icon-button" type="button" aria-label="Last page" title="Last page"><i class="fa-solid fa-angles-right" aria-hidden="true"></i></button>
                 </div>
                 <span class="admin-resize-handle admin-resize-n" data-admin-resize="n" aria-hidden="true"></span>
                 <span class="admin-resize-handle admin-resize-ne" data-admin-resize="ne" aria-hidden="true"></span>

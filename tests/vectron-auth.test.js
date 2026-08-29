@@ -35,17 +35,37 @@ assert.deepStrictEqual(firebase.firestore, {
     indexes: "firestore.indexes.json"
 });
 assert.deepStrictEqual(firebase.functions, {source: "functions", codebase: "default"});
-assert.deepStrictEqual(firestoreIndexes, {
-    indexes: [{
-        collectionGroup: "mapSubmissions",
-        queryScope: "COLLECTION",
-        fields: [
-            {fieldPath:"status", order:"ASCENDING"},
-            {fieldPath:"reviewedAt", order:"DESCENDING"}
-        ]
-    }],
-    fieldOverrides: []
+assert.deepStrictEqual(firestoreIndexes.fieldOverrides, []);
+assert.strictEqual(firestoreIndexes.indexes.length, 10);
+assert.deepStrictEqual(
+    new Set(firestoreIndexes.indexes.slice(0, 8).map(indexDefinition =>
+        `${indexDefinition.fields[2].fieldPath}:${indexDefinition.fields[2].order}`
+    )),
+    new Set([
+        "authorName:ASCENDING", "authorName:DESCENDING",
+        "mapName:ASCENDING", "mapName:DESCENDING",
+        "createdAt:ASCENDING", "createdAt:DESCENDING",
+        "reviewedAt:ASCENDING", "reviewedAt:DESCENDING"
+    ])
+);
+firestoreIndexes.indexes.slice(0, 8).forEach(indexDefinition => {
+    assert.strictEqual(indexDefinition.collectionGroup, "mapSubmissions");
+    assert.strictEqual(indexDefinition.queryScope, "COLLECTION");
+    assert.deepStrictEqual(indexDefinition.fields.slice(0, 2), [
+        {fieldPath:"historyVisible", order:"ASCENDING"},
+        {fieldPath:"status", order:"ASCENDING"}
+    ]);
 });
+assert.deepStrictEqual(firestoreIndexes.indexes.slice(8).map(item => item.fields), [
+    [
+        {fieldPath:"submittedBy", order:"ASCENDING"},
+        {fieldPath:"status", order:"ASCENDING"}
+    ],
+    [
+        {fieldPath:"submittedBy", order:"ASCENDING"},
+        {fieldPath:"resubmissionOf", order:"ASCENDING"}
+    ]
+]);
 assert.strictEqual(firebaseRc.projects.default, "tronnerrepository");
 
 assert.match(index, /<body class="noscroll auth-locked">/);
@@ -80,8 +100,10 @@ assert.match(index, /data-admin-tab="maps"/);
 assert.match(index, /id="map-repository-overlay"[^>]*repository-overlay/);
 assert.match(index, /id="map-repository-search"/);
 assert.match(index, /id="map-repository-search-submit"/);
-assert.match(index, /id="map-repository-gallery"/);
-assert.match(index, /id="map-repository-list-layout"/);
+assert.match(index, /id="map-repository-gallery"[^>]*aria-pressed="false"/);
+assert.match(index, /id="map-repository-list-layout"[^>]*class="repository-icon-button active"[^>]*aria-pressed="true"/);
+assert.match(index, /id="map-repository-sort"/);
+assert.match(index, /id="map-repository-sort-order"/);
 assert.match(index, /id="map-repository-list"/);
 assert.match(index, /id="map-repository-mine-tab"[^>]*aria-selected="true"/);
 assert.match(index, /id="map-repository-others-tab"[^>]*aria-selected="false"/);
@@ -89,7 +111,12 @@ assert.match(index, /id="admin-search-submit"/);
 assert.match(index, /id="admin-author-filter"/);
 assert.match(index, /id="admin-decision-filter"/);
 assert.match(index, /id="admin-reason-filter"/);
+assert.match(index, /id="admin-sort"/);
+assert.match(index, /id="admin-sort-order"/);
 assert.match(index, /id="admin-page-size"[\s\S]*?<option value="10" selected>[\s\S]*?<option value="25">[\s\S]*?<option value="50">[\s\S]*?<option value="100">/);
+assert.match(index, /id="admin-page-first"/);
+assert.match(index, /id="admin-page-number"[^>]*type="number"/);
+assert.match(index, /id="admin-page-last"/);
 assert.strictEqual((index.match(/data-admin-resize=/g) || []).length, 8);
 assert.match(index, /id="map-metadata-form"/);
 assert.match(index, /id="auth-account-controls"[^>]*auth-account-controls/);
@@ -202,7 +229,12 @@ assert.match(authSource, /function startAdminListeners\(/);
 assert.match(authSource, /function startAdminQueueListeners\(/);
 assert.match(authSource, /function loadPublicCatalog\(/);
 assert.match(authSource, /collection\(firestore, "catalogState"|doc\(firestore, "catalogState", "current"\)/);
-assert.match(authSource, /firestoreSdk\.limit\(100\)/);
+assert.doesNotMatch(authSource, /firestoreSdk\.limit\(100\)/);
+assert.match(authSource, /firestoreSdk\.getCountFromServer/);
+assert.match(authSource, /firestoreSdk\.startAfter/);
+assert.match(authSource, /where\("historyVisible", "==", true\)/);
+assert.match(authSource, /cacheKey = "all-visible-history"/);
+assert.doesNotMatch(authSource, /cacheKey = JSON\.stringify\(\{[\s\S]*decision:adminFilterState\.history\.decision,[\s\S]*field:sort\.field/);
 assert.match(authSource, /function reviewAccount\(/);
 assert.match(authSource, /function denyRegistration\(/);
 assert.match(authSource, /Deny and delete user/);
@@ -219,7 +251,8 @@ assert.match(authSource, /window\.localStorage\.setItem\([\s\S]*CUSTOM_QUICK_DEN
 assert.match(authSource, /function addCustomQuickDenyReason\(/);
 assert.match(authSource, /function removeCustomQuickDenyReason\(/);
 assert.match(authSource, /dataset\.denyQuickAdd/);
-assert.match(authSource, /dataset\.denyQuickRemove/);
+assert.match(authSource, /select\.className = "auth-deny-quick-select"/);
+assert.match(authSource, /customQuickDenyReasons\.includes\(select\.value\)/);
 assert.match(authSource, /reason\.type = "text"/);
 assert.match(authSource, /submitAdminSubmissionDenial\(submission\.id, reason\)/);
 assert.match(authSource, /function submitAdminSubmissionDenial\([\s\S]*skipConfirmation:true/);
@@ -276,9 +309,19 @@ assert.match(authSource, /function submitAdminSearch\(/);
 assert.match(authSource, /function submitRepositorySearch\(/);
 assert.match(authSource, /adminPagination = \{[\s\S]*pageSize:10/);
 assert.match(authSource, /adminReasonCategory\(item\.reviewReason\)/);
-assert.match(authSource, /if\(map\.denied\)[\s\S]*map\.authorId === currentAccount\.authorId/);
+assert.match(authSource, /function repositoryMapIsMine\(map\)[\s\S]*currentAccount\.authorId[\s\S]*map\.authorId === currentAccount\.authorId/);
+assert.match(authSource, /!map\.authorId && map\.ownerUid === auth\.currentUser\.uid/);
+assert.doesNotMatch(authSource, /map\.ownerUid === auth\.currentUser\.uid \|\|/);
 assert.doesNotMatch(authSource, /repositorySearchInput\.addEventListener\("input", renderRepositoryMaps\)/);
 assert.doesNotMatch(authSource, /adminSearchInput\.addEventListener\("input", renderAdminList\)/);
+assert.match(authSource, /adminPageFirst\.addEventListener\("click"/);
+assert.match(authSource, /adminPageLast\.addEventListener\("click"/);
+assert.match(authSource, /adminPageNumber\.addEventListener\("keydown"/);
+assert.match(authSource, /repositoryLayout = readRepositoryLayout\(\)/);
+assert.match(authSource, /vectron\.repositoryLayout\.v2[\s\S]*\? "gallery" : "list"/);
+assert.match(authCss, /\.repository-browser-dialog\s*\{[\s\S]*width: min\(620px, 100%\);[\s\S]*height: calc\(100vh - 48px\);/);
+assert.match(authCss, /\.repository-author-maps\.gallery\s*\{[\s\S]*display: block/);
+assert.match(authCss, /\.repository-map-row\.gallery\s*\{[\s\S]*grid-template-columns: minmax\(180px, 0\.8fr\) minmax\(0, 1\.2fr\)/);
 assert.match(authSource, /recipientUid:/);
 assert.match(authSource, /collection\(firestore, "auditEvents"\)/);
 assert.match(authSource, /Your registration is awaiting admin approval/);

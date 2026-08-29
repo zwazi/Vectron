@@ -808,6 +808,15 @@ body.auth-locked {
   box-shadow: 0 34px 100px rgba(0, 0, 0, 0.62), inset 0 1px rgba(255, 255, 255, 0.07);
 }
 
+.repository-browser-dialog {
+  width: min(620px, 100%);
+  height: calc(100vh - 48px);
+  min-width: min(620px, 100%);
+  min-height: 420px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+}
+
 .repository-header {
   grid-row: 1;
   min-height: 67px;
@@ -916,6 +925,31 @@ body.auth-locked {
   align-items: center;
   gap: 9px;
   padding: 13px 18px 10px;
+}
+
+.compact-sort-control {
+  display: grid;
+  gap: 3px;
+  color: #aeb0b8;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.compact-sort-control select {
+  min-height: 30px;
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: #f4f5f8;
+  background: #1e1e1e;
+  font-size: 9px;
+  text-transform: none;
+}
+
+.sort-order-button {
+  flex: 0 0 31px;
 }
 
 .repository-search {
@@ -1135,20 +1169,18 @@ button.repository-author-heading:disabled {
 }
 
 .repository-author-maps.gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 10px;
+  display: block;
   padding: 10px;
 }
 
 .repository-map-row.gallery {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 180px auto auto;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr);
   align-items: stretch;
-  gap: 9px;
-  padding: 9px;
+  gap: 14px;
+  margin-bottom: 10px;
+  padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   background: rgba(12, 13, 15, 0.42);
@@ -1156,13 +1188,14 @@ button.repository-author-heading:disabled {
 
 .repository-map-row.gallery .repository-map-preview,
 .repository-map-row.gallery .repository-map-preview .map-review-preview-svg {
-  min-height: 0;
-  height: 180px;
+  min-height: 300px;
+  height: 100%;
 }
 
 .repository-map-row.gallery .repository-map-actions {
   flex-wrap: wrap;
   justify-content: flex-start;
+  margin-top: 10px;
 }
 
 .repository-map-row.gallery .repository-remix-button {
@@ -1350,6 +1383,7 @@ button.repository-author-heading:disabled {
 
 .admin-filters select,
 .admin-pagination select,
+.admin-pagination input,
 .metadata-fields input {
   min-height: 32px;
   padding: 5px 8px;
@@ -1393,6 +1427,13 @@ button.repository-author-heading:disabled {
 
 .admin-pagination select {
   min-height: 30px;
+}
+
+.admin-pagination input {
+  width: 54px;
+  min-height: 30px;
+  box-sizing: border-box;
+  text-align: center;
 }
 
 .admin-pagination button:disabled {
@@ -1578,6 +1619,25 @@ button.repository-author-heading:disabled {
   flex-wrap: wrap;
   gap: 5px;
   margin-top: 7px;
+}
+
+.auth-deny-quick-select {
+  min-width: min(250px, 100%);
+  min-height: 29px;
+  flex: 1 1 220px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 6px;
+  color: #f4f5f8;
+  background: #1e1e1e;
+  font-size: 9px;
+}
+
+.account-card-button.auth-deny-quick-remove {
+  min-height: 25px;
+  border-left: 1px solid rgba(255, 107, 107, 0.28);
+  border-radius: 6px;
+  font-size: 8px;
 }
 
 .account-card-button.auth-deny-quick-reason {
