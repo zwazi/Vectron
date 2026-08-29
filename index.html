@@ -43,7 +43,7 @@
         <script type="text/javascript" src="./js/vectron.js"></script>
 
         <script type="text/javascript">
-            var targetVersion = 1.111;
+            var targetVersion = 1.112;
             if(window.vtVersion != targetVersion) location.reload(true);
         </script>
 
@@ -189,6 +189,41 @@
                 </span>
             </span>
             <span class="info-sep">|</span>
+            <span class="info-section info-adjust-section">
+                <span id="map-adjust-dropdown">
+                    <b class="map-adjust-picker-label">adjust</b>
+                    <button id="map-adjust-menu-toggle" class="info-icon-btn map-adjust-menu-btn" type="button" aria-expanded="false" aria-controls="map-adjust-menu" aria-label="Adjust map" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Adjust map"><i class="fa-solid fa-arrows-up-down-left-right" aria-hidden="true"></i></button>
+                    <span id="map-adjust-menu" style="display:none;">
+                        <span class="map-adjust-menu-row">
+                            <label for="map_scale">Scale</label>
+                            <input type="number" id="map_scale" name="map_scale" value="1" step="any" aria-label="Map scale factor" />
+                            <button id="scale_map" type="button">Apply</button>
+                        </span>
+                        <span class="map-adjust-menu-row map-adjust-rotate-row">
+                            <span>Rotate 90°</span>
+                            <span class="map-adjust-rotate-actions">
+                                <button id="map_rotate_left" type="button" title="Rotate left 90°" aria-label="Rotate map left 90 degrees"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
+                                <button id="map_rotate_right" type="button" title="Rotate right 90°" aria-label="Rotate map right 90 degrees"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
+                            </span>
+                        </span>
+                        <span class="map-adjust-menu-row">
+                            <label for="map_rot_angle">Rotate</label>
+                            <input type="number" id="map_rot_angle" name="map_rot_angle" value="0" step="any" aria-label="Custom rotation in degrees" />
+                            <button id="rotate_map" type="button">Apply</button>
+                        </span>
+                        <span class="map-adjust-menu-row map-adjust-move-row">
+                            <span>Move</span>
+                            <label for="map_move_x">X</label>
+                            <input type="number" id="map_move_x" name="map_move_x" value="0" step="any" />
+                            <label for="map_move_y">Y</label>
+                            <input type="number" id="map_move_y" name="map_move_y" value="0" step="any" />
+                            <button id="move_map" type="button">Apply</button>
+                        </span>
+                        <button id="center_map_origin" class="map-adjust-center-button" type="button" title="Translate all objects so their group center lands on coordinate (0,0)"><i class="fa-solid fa-bullseye" aria-hidden="true"></i><span>Center over 0,0</span></button>
+                    </span>
+                </span>
+            </span>
+            <span class="info-sep">|</span>
             <span class="info-section info-anchor-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Return to origin" aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
         </div>
 
@@ -198,7 +233,6 @@
                 <ul id="gui-tab" class="nav nav-tabs">
                     <li class="active"><a href="#gui-config" data-toggle="tab">Configure</a></li>
                     <li><a href="#gui-settings" data-toggle="tab">Map Settings</a></li>
-                    <li><a href="#gui-adjustment" data-toggle="tab">Adjust Map</a></li>
                     <li class="dropdown">
                         <a href="#" id="gui-dropdown" class="dropdown-toggle" data-toggle="dropdown">Help <b class="caret"></b></a>
                         <ul class="dropdown-menu" role="menu" aria-labelledby="gui-dropdown">
@@ -225,54 +259,6 @@
                           <span id="map-settings-empty" style="color:#aaa;font-style:italic;font-family:sans-serif;">No settings added.</span>
                         </div>
                         <textarea id="map_settings" name="map_settings" style="display:none;"></textarea>
-                      </div>
-                    </div>
-
-                    <div class="tab-pane fade" id="gui-adjustment">
-                      <div class="form-group">
-                        <label>Scale Map</label>
-                        <div class="input-group" style="max-width:200px;">
-                          <input type="text" class="form-control" id="map_scale" name="map_scale" value="1" placeholder="Scale factor" />
-                          <span class="input-group-btn">
-                            <button id="scale_map" class="btn btn-default">Scale</button>
-                          </span>
-                        </div>
-                      </div>
-                      <div class="form-group">
-                        <label>Rotate Map</label>
-                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                          <button id="map_rotate_left" class="btn btn-default" title="Rotate left 90°"><span class="glyphicon glyphicon-repeat" style="-webkit-transform:scaleX(-1);transform:scaleX(-1);display:inline-block;"></span></button>
-                          <button id="map_rotate_right" class="btn btn-default" title="Rotate right 90°"><span class="glyphicon glyphicon-repeat"></span></button>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
-                          <span style="font-size:12px;color:#888;">Custom angle:</span>
-                          <div class="input-group" style="max-width:180px;">
-                            <input type="text" class="form-control" id="map_rot_angle" name="map_rot_angle" value="0" placeholder="Degrees" />
-                            <span class="input-group-btn">
-                              <button id="rotate_map" class="btn btn-default">Rotate</button>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="form-group">
-                        <label>Move <small>(translate)</small> Map</label>
-                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                          <div class="input-group" style="max-width:130px;">
-                            <span class="input-group-addon">X</span>
-                            <input type="text" class="form-control" id="map_move_x" name="map_move_x" value="0" />
-                          </div>
-                          <div class="input-group" style="max-width:130px;">
-                            <span class="input-group-addon">Y</span>
-                            <input type="text" class="form-control" id="map_move_y" name="map_move_y" value="0" />
-                          </div>
-                          <button id="move_map" class="btn btn-default">Move</button>
-                        </div>
-                      </div>
-                      <div class="form-group">
-                        <label>Center Map</label>
-                        <div>
-                          <button id="center_map_origin" class="btn btn-default" title="Translate all objects so their group center lands on coordinate (0,0)">Center over 0,0</button>
-                        </div>
                       </div>
                     </div>
 
@@ -342,7 +328,6 @@
                             <tbody>
                                 <tr><td><b>Configure</b></td><td>Theme, info bar, action history, grid shape/colors, and keybinds.</td></tr>
                                 <tr><td><b>Map Settings</b></td><td>Settings tags embedded in the map file (not your server config).</td></tr>
-                                <tr><td><b>Adjust Map</b></td><td>Scale, rotate, translate, or center all objects at once. "Center over 0,0" moves all objects so their group center lands on the world origin.</td></tr>
                                 <tr><td><b>Help dropdown</b></td><td>Opens the Help and About reference pages.</td></tr>
                             </tbody>
                         </table>
@@ -355,6 +340,7 @@
                                 <tr><td><b>Import</b></td><td>Load an <code>.aamap.xml</code> file from disk.</td></tr>
                                 <tr><td><b>Export</b></td><td>Save the current map as an <code>.aamap.xml</code> file.</td></tr>
                                 <tr><td><b>Action History</b></td><td>Toggle the action history panel (also accessible from Configure).</td></tr>
+                                <tr><td><b>Adjust Map</b></td><td>Use the Adjust control in the bottom toolbar to scale, rotate, translate, or center all objects at once.</td></tr>
                                 <tr><td><b>Settings</b></td><td>Open/close this settings window.</td></tr>
                             </tbody>
                         </table>
@@ -470,7 +456,7 @@
                 <button class="auth-admin-button" type="button" data-admin-review hidden aria-expanded="false" aria-controls="admin-overlay" title="Review registrations and maps" aria-label="Review registrations and maps"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span class="auth-action-label">Review</span><span class="auth-count-badge" data-admin-count hidden>0</span></button>
                 <button class="auth-repository-button" type="button" data-map-repository aria-expanded="false" aria-controls="map-repository-overlay" title="Browse repository maps" aria-label="Browse repository maps"><i class="fa-solid fa-map" aria-hidden="true"></i><span>Maps</span></button>
                 <button class="auth-upload-button" type="button" data-map-upload title="Upload map" aria-label="Upload map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Upload</span></button>
-                <button class="auth-upload-button auth-review-publish-button" type="button" data-map-review-publish hidden title="Save changes, approve, and publish" aria-label="Save changes, approve, and publish"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Save changes, Approve, and Publish</span></button>
+                <button class="auth-upload-button auth-review-publish-button" type="button" data-map-review-publish hidden title="Approve" aria-label="Approve"><i class="fa-solid fa-check" aria-hidden="true"></i><span>Approve</span></button>
                 <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
             </div>
         </div>

@@ -1084,11 +1084,31 @@ function eventHandler_init() {
         var open = !menu.is(':visible');
         menu.toggle(open);
         $(this).attr('aria-expanded', open ? 'true' : 'false');
+        if(open) {
+            $('#map-adjust-menu').hide();
+            $('#map-adjust-menu-toggle').attr('aria-expanded', 'false');
+        }
+    });
+    $('#map-adjust-menu-toggle').on('click', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var menu = $('#map-adjust-menu');
+        var open = !menu.is(':visible');
+        menu.toggle(open);
+        $(this).attr('aria-expanded', open ? 'true' : 'false');
+        if(open) {
+            $('#symmetry-menu').hide();
+            $('#symmetry-menu-toggle').attr('aria-expanded', 'false');
+        }
     });
     $(document).on('mousedown', function(event) {
         if(!$(event.target).closest('#symmetry-dropdown').length) {
             $('#symmetry-menu').hide();
             $('#symmetry-menu-toggle').attr('aria-expanded', 'false');
+        }
+        if(!$(event.target).closest('#map-adjust-dropdown').length) {
+            $('#map-adjust-menu').hide();
+            $('#map-adjust-menu-toggle').attr('aria-expanded', 'false');
         }
     });
     $('#map_settings').on('input change', function() {
@@ -1138,7 +1158,7 @@ function eventHandler_init() {
     });
 
     // Map Adjustments
-    $("#scale_map").mouseup(function(e)
+    $("#scale_map").on("click", function(e)
     {
         var factor = parseFloat($("#map_scale").val());
         if(isNaN(factor) || factor === 0) return;
@@ -1152,7 +1172,7 @@ function eventHandler_init() {
         });
     });
 
-    $("#map_rotate_left").mouseup(function(e)
+    $("#map_rotate_left").on("click", function(e)
     {
         var affectedObjs = aamap_objects.slice();
         aamap_rotateSimple(-1);
@@ -1163,7 +1183,7 @@ function eventHandler_init() {
             redo: function() { affectedObjs.forEach(function(o){ o.rotateSimple(-1); }); aamap_panCenter(); }
         });
     });
-    $("#map_rotate_right").mouseup(function(e)
+    $("#map_rotate_right").on("click", function(e)
     {
         var affectedObjs = aamap_objects.slice();
         aamap_rotateSimple(1);
@@ -1175,7 +1195,7 @@ function eventHandler_init() {
         });
     });
 
-    $("#rotate_map").mouseup(function(e)
+    $("#rotate_map").on("click", function(e)
     {
         var ang = parseFloat($("#map_rot_angle").val());
         if(isNaN(ang)) { alert("invalid value!"); return; }
@@ -1190,7 +1210,7 @@ function eventHandler_init() {
         });
     });
 
-    $("#move_map").mouseup(function(e)
+    $("#move_map").on("click", function(e)
     {
         var x = parseFloat($("#map_move_x").val());
         var y = parseFloat($("#map_move_y").val());
@@ -1205,7 +1225,7 @@ function eventHandler_init() {
         });
     });
 
-    $("#center_map_origin").mouseup(function(e)
+    $("#center_map_origin").on("click", function(e)
     {
         var ptsx = [], ptsy = [];
         for(var i = 0, ii = aamap_objects.length; i < ii; i++) {
