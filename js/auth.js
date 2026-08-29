@@ -5,12 +5,14 @@ import {
     authorKey,
     authorNameError,
     bumpMapVersion,
+    categoryError,
     formatTimestamp,
     mapFileCommand,
     mapFileName,
     mapNameError,
     mapVersionError,
     normalizeAuthorName,
+    normalizeCategory,
     normalizeMapVersion,
     resourceIdentityFromXml,
     resourceKey,
@@ -81,6 +83,9 @@ const repositoryOverlay = document.getElementById("map-repository-overlay");
 const repositoryCloseButton = document.getElementById("map-repository-close");
 const repositoryRefreshButton = document.getElementById("map-repository-refresh");
 const repositorySearchInput = document.getElementById("map-repository-search");
+const repositorySearchButton = document.getElementById("map-repository-search-submit");
+const repositoryGalleryButton = document.getElementById("map-repository-gallery");
+const repositoryListLayoutButton = document.getElementById("map-repository-list-layout");
 const repositorySummary = document.getElementById("map-repository-summary");
 const repositoryStatus = document.getElementById("map-repository-status");
 const repositoryList = document.getElementById("map-repository-list");
@@ -102,6 +107,18 @@ const adminOverlay = document.getElementById("admin-overlay");
 const adminCloseButton = document.getElementById("admin-close");
 const adminRefreshButton = document.getElementById("admin-refresh");
 const adminSearchInput = document.getElementById("admin-search");
+const adminSearchButton = document.getElementById("admin-search-submit");
+const adminFilters = document.getElementById("admin-filters");
+const adminAuthorFilterWrap = document.getElementById("admin-author-filter-wrap");
+const adminAuthorFilter = document.getElementById("admin-author-filter");
+const adminDecisionFilterWrap = document.getElementById("admin-decision-filter-wrap");
+const adminDecisionFilter = document.getElementById("admin-decision-filter");
+const adminReasonFilterWrap = document.getElementById("admin-reason-filter-wrap");
+const adminReasonFilter = document.getElementById("admin-reason-filter");
+const adminPageSize = document.getElementById("admin-page-size");
+const adminPagePrevious = document.getElementById("admin-page-previous");
+const adminPageNext = document.getElementById("admin-page-next");
+const adminPageStatus = document.getElementById("admin-page-status");
 const adminSummary = document.getElementById("admin-summary");
 const adminStatus = document.getElementById("admin-status");
 const adminList = document.getElementById("admin-list");
@@ -123,6 +140,11 @@ const mapFileCommandOverlay = document.getElementById("map-file-command-overlay"
 const mapFileCommandValue = document.getElementById("map-file-command-value");
 const mapFileCommandCopy = document.getElementById("map-file-command-copy");
 const mapFileCommandClose = document.getElementById("map-file-command-close");
+const metadataOverlay = document.getElementById("map-metadata-overlay");
+const metadataForm = document.getElementById("map-metadata-form");
+const metadataCloseButton = document.getElementById("map-metadata-close");
+const metadataCancelButton = document.getElementById("map-metadata-cancel");
+const metadataStatus = document.getElementById("map-metadata-status");
 
 let auth = null;
 let authSdk = null;
@@ -140,6 +162,9 @@ let repositoryBusy = false;
 let repositoryMaps = [];
 let repositorySubmissions = [];
 let repositoryTab = "mine";
+let repositorySearchQuery = "";
+let repositoryLayout = readRepositoryLayout();
+let repositoryPreviewObserver = null;
 let repositoryPreviousFocus = null;
 let repositoryEditState = null;
 let currentUserRole = "user";
@@ -153,6 +178,18 @@ let notificationUnsubscribe = null;
 let adminQueueUnsubscribes = [];
 let adminUnsubscribes = [];
 let adminData = {accounts: [], submissions: [], maps: [], authors: [], history: []};
+let adminSearchQueries = {accounts:"", submissions:"", history:"", maps:""};
+let adminPagination = {
+    accounts:{page:1, pageSize:10},
+    submissions:{page:1, pageSize:10},
+    history:{page:1, pageSize:10},
+    maps:{page:1, pageSize:10}
+};
+let adminFilterState = {
+    submissions:{author:""},
+    history:{author:"", decision:"", reason:""},
+    maps:{author:""}
+};
 let publicCatalogState = null;
 let publicCatalogManifest = null;
 let publicCatalogGeneration = "";
@@ -169,6 +206,35 @@ let confirmAnchor = null;
 let confirmOptions = null;
 let customQuickDenyReasons = readCustomQuickDenyReasons();
 let adminDragging = null;
+let adminResizing = null;
+let metadataMapId = "";
+let metadataPreviousFocus = null;
+
+function readRepositoryLayout() {
+    try {
+        return window.localStorage.getItem("vectron.repositoryLayout.v1") === "list"
+            ? "list" : "gallery";
+    } catch(error) {
+        return "gallery";
+    }
+}
+
+function setRepositoryLayout(layout) {
+    repositoryLayout = layout === "list" ? "list" : "gallery";
+    try {
+        window.localStorage.setItem("vectron.repositoryLayout.v1", repositoryLayout);
+    } catch(error) {
+        console.warn("Vectron could not persist the repository layout.", error);
+    }
+    [[repositoryGalleryButton, "gallery"], [repositoryListLayoutButton, "list"]]
+        .forEach(([button, value]) => {
+            if(!button) return;
+            const active = repositoryLayout === value;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", String(active));
+        });
+    if(repositoryOverlay && !repositoryOverlay.hidden) renderRepositoryMaps();
+}
 
 function positionConfirmationPopover() {
     if(!confirmPopover || confirmPopover.hidden) return;
@@ -194,7 +260,7 @@ function settleConfirmation(result) {
     if(result && confirmOptions && confirmOptions.reasonRequired) {
         const reason = String(confirmReasonInput && confirmReasonInput.value || "").trim();
         if(!reason) {
-            confirmReasonError.textContent = "Enter a reason before denying this map.";
+            confirmReasonError.textContent = "Enter a reason to continue.";
             confirmReasonError.hidden = false;
             confirmReasonInput.setAttribute("aria-invalid", "true");
             confirmReasonInput.focus();
@@ -1283,6 +1349,17 @@ function setAdminBusy(value) {
     adminBusy = value;
     adminRefreshButton.disabled = value;
     adminSearchInput.disabled = value;
+    if(adminSearchButton) adminSearchButton.disabled = value;
+    [adminAuthorFilter, adminDecisionFilter, adminReasonFilter, adminPageSize,
+        adminPagePrevious, adminPageNext].forEach(control => {
+        if(control) control.disabled = value;
+    });
+    if(!value && adminPagination[adminTab]) {
+        const pagination = adminPagination[adminTab];
+        const pageCount = Math.max(1, Math.ceil(adminFilteredItems().length / pagination.pageSize));
+        adminPagePrevious.disabled = pagination.page <= 1;
+        adminPageNext.disabled = pagination.page >= pageCount;
+    }
     adminList.querySelectorAll("button,input,select,textarea").forEach(control => {
         control.disabled = value;
     });
@@ -1392,6 +1469,7 @@ function refreshQuickDenyReasons() {
             populateQuickDenyReasons(container, container.vectronDenyReasonInput);
         }
     });
+    if(adminTab === "history" && adminOverlay && !adminOverlay.hidden) renderAdminList();
     positionConfirmationPopover();
 }
 
@@ -1464,6 +1542,7 @@ function adminMapIdentity(card, fallback = {}) {
     const authorInput = card && card.querySelector("[data-admin-map-author]");
     const nameInput = card && card.querySelector("[data-admin-map-name]");
     const versionInput = card && card.querySelector("[data-admin-map-version]");
+    const categoryInput = card && card.querySelector("[data-admin-category]");
     const authorName = normalizeAuthorName(
         authorInput && authorInput.value || fallback.authorName
     );
@@ -1481,6 +1560,12 @@ function adminMapIdentity(card, fallback = {}) {
     const versionError = mapVersionError(rawVersion);
     if(versionError) throw new Error(versionError);
     const mapVersion = normalizeMapVersion(rawVersion);
+    const rawCategory = String(
+        categoryInput && categoryInput.value || fallback.category || MAP_CATEGORY
+    );
+    const invalidCategory = categoryError(rawCategory);
+    if(invalidCategory) throw new Error(invalidCategory);
+    const category = normalizeCategory(rawCategory);
 
     const existingAuthor = adminData.authors.find(author =>
         normalizeAuthorName(author.name).toLocaleLowerCase("en-US") ===
@@ -1493,7 +1578,7 @@ function adminMapIdentity(card, fallback = {}) {
         author: existingAuthor
             ? {id: existingAuthor.id, name: authorName, create: false}
             : {id: authorKey(authorName), name: authorName, create: true},
-        category: MAP_CATEGORY,
+        category,
         mapName,
         mapVersion
     };
@@ -1753,6 +1838,28 @@ function queueAdminSubmissionPreview(preview, submission) {
     }, 0);
 }
 
+function queueRepositoryMapPreview(preview, map) {
+    adminPreviewTargets.set(preview, map);
+    const load = () => loadAdminSubmissionPreview(preview, map);
+    if(typeof IntersectionObserver !== "function") {
+        window.setTimeout(load, 0);
+        return;
+    }
+    if(!repositoryPreviewObserver) {
+        repositoryPreviewObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if(!entry.isIntersecting) return;
+                repositoryPreviewObserver.unobserve(entry.target);
+                const item = adminPreviewTargets.get(entry.target);
+                if(item) loadAdminSubmissionPreview(entry.target, item);
+            });
+        }, {root: repositoryList, rootMargin:"240px 0px"});
+    }
+    window.setTimeout(() => {
+        if(preview.isConnected) repositoryPreviewObserver.observe(preview);
+    }, 0);
+}
+
 function renderAdminAccount(account) {
     const card = document.createElement("article");
     card.className = "account-card";
@@ -1794,6 +1901,16 @@ function renderAdminAccount(account) {
     return card;
 }
 
+function reviewTextArea(value, dataName, placeholder) {
+    const input = document.createElement("textarea");
+    input.rows = 3;
+    input.maxLength = 1000;
+    input.value = String(value || "");
+    input.placeholder = placeholder;
+    input.dataset[dataName] = "";
+    return input;
+}
+
 function renderAdminSubmission(submission) {
     const card = document.createElement("article");
     card.className = "account-card map-review-card";
@@ -1811,15 +1928,13 @@ function renderAdminSubmission(submission) {
     const meta = document.createElement("div");
     meta.className = "account-card-meta";
     meta.textContent = `${submission.operation || "create"} by ${submission.submittedByName || submission.submittedBy} · ${submission.authorName}/${submission.category}`;
-    const submittedReason = document.createElement("div");
-    submittedReason.className = "map-review-submission-reason";
-    const reasonLabel = document.createElement("strong");
-    reasonLabel.textContent = "Submitted for review because";
-    const reasonCopy = document.createElement("span");
-    reasonCopy.textContent = submission.submissionReason || "No reason was provided.";
-    submittedReason.append(reasonLabel, reasonCopy);
     const fields = document.createElement("div");
     fields.className = "account-card-fields map-review-fields";
+    const submittedReason = reviewTextArea(
+        submission.submissionReason,
+        "adminSubmissionReason",
+        "Why this map was submitted for review"
+    );
     const authorInput = adminIdentityInput(submission.authorName, "adminMapAuthor", 60);
     const mapNameInput = adminIdentityInput(submission.mapName, "adminMapName", 100);
     const mapVersionInput = adminIdentityInput(submission.mapVersion, "adminMapVersion", 64);
@@ -1834,6 +1949,7 @@ function renderAdminSubmission(submission) {
     reason.autocomplete = "off";
     reason.placeholder = "Required when denying; optional approval note";
     reason.dataset.adminReason = "";
+    reason.value = submission.reviewReason || "";
     reason.addEventListener("keydown", event => {
         if(event.key !== "Enter" || event.isComposing) return;
         event.preventDefault();
@@ -1845,6 +1961,7 @@ function renderAdminSubmission(submission) {
     quickReasons.setAttribute("aria-label", "Quick denial reasons");
     populateQuickDenyReasons(quickReasons, reason);
     fields.append(
+        cardField("Submitted for review because", submittedReason),
         cardField("Final author", authorInput),
         cardField("Final map name", mapNameInput),
         cardField("Final version", mapVersionInput),
@@ -1855,12 +1972,13 @@ function renderAdminSubmission(submission) {
     const actions = document.createElement("div");
     actions.className = "account-card-actions map-review-actions";
     actions.append(
+        actionButton("Save review text", "save-review-text", submission.id),
         actionButton("Edit map in Vectron", "edit-submission", submission.id),
         actionButton("Deny submission", "deny-submission", submission.id, true),
         actionButton("Deny and delete map", "delete-submission-map", submission.id, true),
         actionButton("Approve and publish", "approve-submission", submission.id)
     );
-    details.append(header, meta, submittedReason, fields, actions);
+    details.append(header, meta, fields, actions);
     const preview = document.createElement("div");
     preview.className = "map-review-preview";
     preview.dataset.adminPreviewId = submission.id;
@@ -1897,24 +2015,29 @@ function renderAdminHistory(submission) {
     const decision = approved ? "Approved and published" : "Denied";
     meta.textContent = `${decision} · ${submission.authorName}/${submission.category} · ` +
         `${submission.operation || "create"} by ${submission.submittedByName || submission.submittedBy}`;
-    const submittedReason = document.createElement("div");
-    submittedReason.className = "map-review-submission-reason";
-    const submittedLabel = document.createElement("strong");
-    submittedLabel.textContent = "Submitted for review because";
-    const submittedCopy = document.createElement("span");
-    submittedCopy.textContent = submission.submissionReason || "No reason was provided.";
-    submittedReason.append(submittedLabel, submittedCopy);
-    const reviewReason = document.createElement("div");
-    reviewReason.className = "map-review-submission-reason";
-    const reviewLabel = document.createElement("strong");
-    reviewLabel.textContent = "Review decision";
-    const reviewCopy = document.createElement("span");
-    reviewCopy.textContent = submission.reviewReason || "No decision note was provided.";
-    reviewReason.append(reviewLabel, reviewCopy);
+    const fields = document.createElement("div");
+    fields.className = "account-card-fields map-review-fields";
+    const submittedReason = reviewTextArea(
+        submission.submissionReason,
+        "adminSubmissionReason",
+        "Why this map was submitted for review"
+    );
+    const reviewReason = reviewTextArea(
+        submission.reviewReason,
+        "adminReason",
+        "Review decision"
+    );
+    fields.append(
+        cardField("Submitted for review because", submittedReason),
+        cardField("Review decision", reviewReason)
+    );
     const actions = document.createElement("div");
     actions.className = "account-card-actions map-review-actions";
-    actions.append(actionButton("Reopen and edit", "reopen-history", submission.id));
-    details.append(header, meta, submittedReason, reviewReason, actions);
+    actions.append(
+        actionButton("Save review text", "save-review-text", submission.id),
+        actionButton("Reopen and edit", "reopen-history", submission.id)
+    );
+    details.append(header, meta, fields, actions);
     const preview = document.createElement("div");
     preview.className = "map-review-preview";
     preview.dataset.adminPreviewId = `history:${submission.id}`;
@@ -1954,9 +2077,8 @@ function renderAdminMap(map) {
     const mapNameInput = adminIdentityInput(map.mapName, "adminMapName", 100);
     const mapVersionInput = adminIdentityInput(map.mapVersion, "adminMapVersion", 64);
     const category = document.createElement("input");
-    category.value = MAP_CATEGORY;
-    category.readOnly = true;
-    category.title = "Vectron uploads always use the maps category.";
+    category.value = map.category || MAP_CATEGORY;
+    category.maxLength = 60;
     category.dataset.adminCategory = "";
     fields.append(
         cardField("Author", authorInput),
@@ -1966,7 +2088,11 @@ function renderAdminMap(map) {
     );
     const actions = document.createElement("div");
     actions.className = "account-card-actions map-review-actions";
-    actions.append(actionButton("Save metadata revision", "edit-map-metadata", map.id));
+    actions.append(
+        actionButton("Edit metadata", "edit-map-metadata", map.id),
+        actionButton("Hold for review", "hold-map-review", map.id),
+        actionButton("Delete", "delete-published-map", map.id, true)
+    );
     details.append(header, meta, fields, actions);
     const preview = document.createElement("div");
     preview.className = "map-review-preview";
@@ -1984,10 +2110,91 @@ function renderAdminMap(map) {
     return card;
 }
 
-function renderAdminList() {
+function adminQuickReasons() {
+    const seen = new Set();
+    return [...QUICK_DENY_REASONS, ...customQuickDenyReasons].filter(reason => {
+        const key = normalizedQuickDenyReason(reason).toLocaleLowerCase("en-US");
+        if(!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function adminReasonCategory(reason) {
+    const normalized = normalizedQuickDenyReason(reason).toLocaleLowerCase("en-US");
+    const quick = adminQuickReasons().find(item =>
+        item.toLocaleLowerCase("en-US") === normalized
+    );
+    return quick ? normalized : "__custom__";
+}
+
+function replaceSelectOptions(select, options, selected) {
+    if(!select) return;
+    select.replaceChildren(...options.map(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        return option;
+    }));
+    select.value = selected;
+    if(select.value !== selected) select.value = "";
+}
+
+function syncAdminFilterControls() {
+    const filterable = ["submissions", "history", "maps"].includes(adminTab);
+    adminFilters.hidden = !filterable;
+    if(!filterable) return;
+    const state = adminFilterState[adminTab];
     const items = adminData[adminTab] || [];
-    const query = adminSearchInput.value.trim().toLocaleLowerCase();
-    const visible = items.filter(item => !query || JSON.stringify(item).toLocaleLowerCase().includes(query));
+    const authors = Array.from(new Set(items.map(item =>
+        normalizeAuthorName(item.authorName)
+    ).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, {sensitivity:"base"}));
+    replaceSelectOptions(
+        adminAuthorFilter,
+        [["", "All authors"], ...authors.map(author => [author.toLocaleLowerCase("en-US"), author])],
+        state.author
+    );
+    if(adminAuthorFilter.value !== state.author) state.author = adminAuthorFilter.value;
+    adminAuthorFilterWrap.hidden = false;
+    const history = adminTab === "history";
+    adminDecisionFilterWrap.hidden = !history;
+    adminReasonFilterWrap.hidden = !history;
+    if(history) {
+        adminDecisionFilter.value = state.decision;
+        replaceSelectOptions(
+            adminReasonFilter,
+            [["", "All reasons"],
+             ...adminQuickReasons().map(reason => [reason.toLocaleLowerCase("en-US"), reason]),
+             ["__custom__", "Custom"]],
+            state.reason
+        );
+        if(adminReasonFilter.value !== state.reason) state.reason = adminReasonFilter.value;
+    }
+}
+
+function adminFilteredItems() {
+    const items = adminData[adminTab] || [];
+    const query = adminSearchQueries[adminTab].toLocaleLowerCase("en-US");
+    const filters = adminFilterState[adminTab] || {};
+    return items.filter(item => {
+        if(query && !JSON.stringify(item).toLocaleLowerCase("en-US").includes(query)) return false;
+        if(filters.author && normalizeAuthorName(item.authorName)
+            .toLocaleLowerCase("en-US") !== filters.author) return false;
+        if(filters.decision && item.status !== filters.decision) return false;
+        if(filters.reason && adminReasonCategory(item.reviewReason) !== filters.reason) return false;
+        return true;
+    });
+}
+
+function renderAdminList() {
+    syncAdminFilterControls();
+    const items = adminData[adminTab] || [];
+    const visible = adminFilteredItems();
+    const pagination = adminPagination[adminTab];
+    const pageCount = Math.max(1, Math.ceil(visible.length / pagination.pageSize));
+    pagination.page = Math.min(Math.max(1, pagination.page), pageCount);
+    const start = (pagination.page - 1) * pagination.pageSize;
+    const pageItems = visible.slice(start, start + pagination.pageSize);
     if(adminPreviewObserver) {
         adminPreviewObserver.disconnect();
         adminPreviewObserver = null;
@@ -1996,11 +2203,18 @@ function renderAdminList() {
     const queueLabel = adminTab === "accounts" ? "pending registrations" :
         adminTab === "submissions" ? "pending map submissions" :
         adminTab === "history" ? "review decisions" : "published maps";
-    adminSummary.textContent = `${visible.length} of ${items.length} ${queueLabel}.`;
+    adminSummary.textContent = visible.length
+        ? `Showing ${start + 1}–${start + pageItems.length} of ${visible.length} matching ` +
+          `${queueLabel} (${items.length} total).`
+        : `0 of ${items.length} ${queueLabel}.`;
+    adminPageSize.value = String(pagination.pageSize);
+    adminPageStatus.textContent = `Page ${pagination.page} of ${pageCount}`;
+    adminPagePrevious.disabled = pagination.page <= 1;
+    adminPageNext.disabled = pagination.page >= pageCount;
     if(!visible.length) {
         const empty = document.createElement("div");
         empty.className = "repository-empty";
-        empty.textContent = query ? "Nothing in this queue matches your search." :
+        empty.textContent = adminSearchQueries[adminTab] ? "Nothing in this queue matches your search and filters." :
             adminTab === "maps" ? "No published maps are in the catalog." :
             adminTab === "history" ? "No completed reviews are in the history yet." :
                 "This review queue is clear.";
@@ -2011,8 +2225,15 @@ function renderAdminList() {
         adminTab === "submissions" ? renderAdminSubmission :
         adminTab === "history" ? renderAdminHistory : renderAdminMap;
     const fragment = document.createDocumentFragment();
-    visible.forEach(item => fragment.appendChild(renderer(item)));
+    pageItems.forEach(item => fragment.appendChild(renderer(item)));
     adminList.appendChild(fragment);
+}
+
+function submitAdminSearch() {
+    adminSearchQueries[adminTab] = adminSearchInput.value.trim();
+    adminPagination[adminTab].page = 1;
+    adminList.scrollTop = 0;
+    renderAdminList();
 }
 
 function setAdminTab(value) {
@@ -2022,6 +2243,8 @@ function setAdminTab(value) {
         tab.classList.toggle("active", active);
         tab.setAttribute("aria-selected", String(active));
     });
+    adminSearchInput.value = adminSearchQueries[adminTab];
+    adminPageSize.value = String(adminPagination[adminTab].pageSize);
     adminList.scrollTop = 0;
     renderAdminList();
     if(adminOverlay && !adminOverlay.hidden) startAdminListeners();
@@ -2091,6 +2314,53 @@ function adminNotificationRef(uid) {
 
 function adminAuditRef() {
     return firestoreSdk.doc(firestoreSdk.collection(firestore, "auditEvents"));
+}
+
+async function saveReviewText(submissionId) {
+    const submission = [...adminData.submissions, ...adminData.history]
+        .find(item => item.id === submissionId);
+    const card = adminCard(submissionId);
+    if(!submission || !card) return;
+    const submissionReason = String(
+        card.querySelector("[data-admin-submission-reason]")?.value || ""
+    ).trim();
+    const reviewReason = decisionReason(card, false);
+    if(submissionReason.length > 1000) {
+        throw new Error("Keep the submission reason to 1,000 characters or fewer.");
+    }
+    setAdminBusy(true);
+    setAdminStatus("Saving review text…");
+    try {
+        const submissionRef = firestoreSdk.doc(firestore, "mapSubmissions", submissionId);
+        const auditRef = adminAuditRef();
+        await firestoreSdk.runTransaction(firestore, async transaction => {
+            const snapshot = await transaction.get(submissionRef);
+            if(!snapshot.exists()) throw new Error("This review no longer exists.");
+            const current = snapshot.data();
+            transaction.update(submissionRef, {
+                submissionReason,
+                reviewReason,
+                updatedAt: firestoreSdk.serverTimestamp()
+            });
+            transaction.set(auditRef, {
+                actorUid: auth.currentUser.uid,
+                actorName: displayNameForUser(auth.currentUser),
+                action: "map.review.text",
+                targetType: "mapSubmission",
+                targetId: submissionId,
+                mapId: current.mapId || "",
+                before: {
+                    submissionReason: current.submissionReason || "",
+                    reviewReason: current.reviewReason || ""
+                },
+                after: {submissionReason, reviewReason},
+                createdAt: firestoreSdk.serverTimestamp()
+            });
+        });
+        setAdminStatus("Review text saved.");
+    } finally {
+        setAdminBusy(false);
+    }
 }
 
 async function denyRegistration(accountId) {
@@ -2295,15 +2565,26 @@ async function reviewSubmission(submissionId, approved, options = {}) {
         : decisionReason(card, !approved);
     if(!approved && !reason) throw new Error("Enter a reason before denying this request.");
     if(reason.length > 1000) throw new Error("Keep the decision reason to 1,000 characters or fewer.");
+    const submissionReason = String(
+        card && card.querySelector("[data-admin-submission-reason]")?.value ||
+        submission.submissionReason || ""
+    ).trim();
+    if(submissionReason.length > 1000) {
+        throw new Error("Keep the submission reason to 1,000 characters or fewer.");
+    }
     let finalIdentity = null;
     if(approved) {
         finalIdentity = adminMapIdentity(card, submission);
         const serverOrigin = submission.operation === "server-review" ||
             String(submission.submittedBy || "").startsWith("server:");
-        const activeMap = adminData.maps.find(map => map.id === submission.mapId);
-        const reusablePublishedPath = serverOrigin && activeMap &&
-            activeMap.activeRevisionId === submission.sourceRevisionId
-            ? activeMap.resourcePath : "";
+        const reusablePublishedPath = serverOrigin
+            ? submission.sourceResourcePath || activeResourcePath(
+                submission.authorName,
+                submission.category || MAP_CATEGORY,
+                submission.mapName,
+                submission.mapVersion
+            )
+            : "";
         const availableVersion = await nextAvailableAdminVersion(
             finalIdentity.author.name,
             finalIdentity.category,
@@ -2423,6 +2704,7 @@ async function reviewSubmission(submissionId, approved, options = {}) {
                     updatedAt: firestoreSdk.serverTimestamp(),
                     reviewedAt: firestoreSdk.serverTimestamp(),
                     reviewedBy: reviewer.uid,
+                    submissionReason,
                     reviewReason: reason
                 });
             }
@@ -2439,6 +2721,7 @@ async function reviewSubmission(submissionId, approved, options = {}) {
             transaction.update(originalRef, {
                 status: approved ? "approved" : "denied",
                 finalRevisionId: approved ? reviewed.revisionId : "",
+                submissionReason,
                 reviewedAt: firestoreSdk.serverTimestamp(),
                 reviewedBy: reviewer.uid,
                 reviewReason: reason,
@@ -2657,15 +2940,204 @@ async function deleteReviewedMap(submissionId) {
     }
 }
 
-async function editPublishedMapMetadata(mapId) {
-    const map = adminData.maps.find(item => item.id === mapId);
-    const card = adminCard(mapId);
+function publishedMapById(mapId) {
+    return adminData.maps.find(item => item.id === mapId) ||
+        repositoryMaps.find(item => item.id === mapId || item.mapId === mapId) || null;
+}
+
+function setPublishedMapActionStatus(message, type = "") {
+    setAdminStatus(message, type);
+    if(repositoryOverlay && !repositoryOverlay.hidden) setRepositoryStatus(message, type);
+    if(metadataOverlay && !metadataOverlay.hidden) {
+        metadataStatus.textContent = message || "";
+        metadataStatus.className = `repository-status${type ? ` ${type}` : ""}`;
+        metadataStatus.hidden = !message;
+    }
+}
+
+function setMetadataBusy(value) {
+    if(!metadataForm) return;
+    metadataForm.querySelectorAll("button,input,select,textarea").forEach(control => {
+        control.disabled = value;
+    });
+}
+
+async function holdPublishedMap(mapId) {
+    const map = publishedMapById(mapId);
+    if(!map) throw new Error("That published map is no longer available.");
+    const confirmation = await confirmAction(
+        `Hold ${map.mapName} ${map.mapVersion} for admin review and remove it from server rotation?`,
+        {
+            confirmLabel:"Hold for review",
+            reasonRequired:true,
+            reasonPlaceholder:"Why this published map needs review"
+        }
+    );
+    if(!confirmation || confirmation.confirmed !== true) return false;
+    const reason = confirmation.reason;
+    const submissionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
+    const mapRef = firestoreSdk.doc(firestore, "maps", mapId);
+    const auditRef = adminAuditRef();
+    setAdminBusy(true);
+    setRepositoryBusy(true);
+    setPublishedMapActionStatus("Holding map for review…");
+    try {
+        await firestoreSdk.runTransaction(firestore, async transaction => {
+            const snapshot = await transaction.get(mapRef);
+            if(!snapshot.exists() || snapshot.data().status !== "active") {
+                throw new Error("Only an active published map can be held for review.");
+            }
+            const current = snapshot.data();
+            if(map.activeRevisionId && current.activeRevisionId !== map.activeRevisionId) {
+                throw new Error("This map changed before it could be held. Refresh and try again.");
+            }
+            const actorName = displayNameForUser(auth.currentUser);
+            transaction.set(submissionRef, {
+                submissionId: submissionRef.id,
+                mapId,
+                operation: "server-review",
+                status: "pending",
+                submittedBy: auth.currentUser.uid,
+                submittedByName: actorName,
+                authorId: current.authorId,
+                authorName: current.authorName,
+                category: current.category,
+                mapName: current.mapName,
+                mapVersion: current.mapVersion,
+                storagePath: current.storagePath,
+                sourceRevisionId: current.activeRevisionId,
+                sourceMapId: mapId,
+                sourceResourcePath: current.resourcePath,
+                sha256: current.sha256,
+                submissionReason: reason,
+                reviewReason: "",
+                createdAt: firestoreSdk.serverTimestamp(),
+                updatedAt: firestoreSdk.serverTimestamp()
+            });
+            transaction.update(mapRef, {
+                status: "inactive",
+                statusReason: reason,
+                statusUpdatedBy: auth.currentUser.uid,
+                statusUpdatedAt: firestoreSdk.serverTimestamp(),
+                reviewSubmissionId: submissionRef.id,
+                updatedAt: firestoreSdk.serverTimestamp()
+            });
+            transaction.set(auditRef, {
+                actorUid: auth.currentUser.uid,
+                actorName,
+                action: "map.review.submit",
+                targetType: "mapSubmission",
+                targetId: submissionRef.id,
+                mapId,
+                reason,
+                before: {status:current.status},
+                after: {status:"inactive", reviewStatus:"pending"},
+                createdAt: firestoreSdk.serverTimestamp()
+            });
+        });
+        setPublishedMapActionStatus("Map held for review and removed from server rotation.");
+        return true;
+    } finally {
+        setAdminBusy(false);
+        setRepositoryBusy(false);
+    }
+}
+
+async function deletePublishedMap(mapId) {
+    const map = publishedMapById(mapId);
+    if(!map) throw new Error("That published map is no longer available.");
+    const confirmation = await confirmAction(
+        `Permanently delete ${map.mapName} ${map.mapVersion}, its review history, and every stored revision?`,
+        {
+            confirmLabel:"Delete map permanently",
+            danger:true,
+            reasonRequired:true,
+            reasonPlaceholder:"Why this published map is being deleted"
+        }
+    );
+    if(!confirmation || confirmation.confirmed !== true) return false;
+    const reason = confirmation.reason;
+    setAdminBusy(true);
+    setRepositoryBusy(true);
+    setPublishedMapActionStatus("Deleting map and its revisions…");
+    try {
+        const mapRef = firestoreSdk.doc(firestore, "maps", mapId);
+        const [submissionSnapshots, resourceSnapshots, pendingSnapshots] = await Promise.all([
+            firestoreSdk.getDocs(firestoreSdk.query(
+                firestoreSdk.collection(firestore, "mapSubmissions"),
+                firestoreSdk.where("mapId", "==", mapId)
+            )),
+            firestoreSdk.getDocs(firestoreSdk.query(
+                firestoreSdk.collection(firestore, "resourcePaths"),
+                firestoreSdk.where("mapId", "==", mapId)
+            )),
+            firestoreSdk.getDocs(firestoreSdk.query(
+                firestoreSdk.collection(firestore, "pendingResourcePaths"),
+                firestoreSdk.where("mapId", "==", mapId)
+            ))
+        ]);
+        const storagePaths = new Set([map.storagePath].filter(Boolean));
+        submissionSnapshots.docs.forEach(item => {
+            const storagePath = item.data().storagePath;
+            if(storagePath) storagePaths.add(String(storagePath));
+        });
+        const auditRef = adminAuditRef();
+        await firestoreSdk.runTransaction(firestore, async transaction => {
+            const snapshot = await transaction.get(mapRef);
+            if(!snapshot.exists()) throw new Error("This map has already been deleted.");
+            const current = snapshot.data();
+            if(map.activeRevisionId && current.activeRevisionId !== map.activeRevisionId) {
+                throw new Error("This map changed before it could be deleted. Refresh and try again.");
+            }
+            submissionSnapshots.docs.forEach(item => transaction.delete(item.ref));
+            resourceSnapshots.docs.forEach(item => transaction.delete(item.ref));
+            pendingSnapshots.docs.forEach(item => transaction.delete(item.ref));
+            transaction.delete(mapRef);
+            transaction.set(auditRef, {
+                actorUid: auth.currentUser.uid,
+                actorName: displayNameForUser(auth.currentUser),
+                action: "map.delete",
+                targetType: "map",
+                targetId: mapId,
+                mapId,
+                reason,
+                before: {
+                    status:current.status,
+                    activeRevisionId:current.activeRevisionId,
+                    submissionCount:submissionSnapshots.size,
+                    resourcePathCount:resourceSnapshots.size
+                },
+                after: {status:"deleted"},
+                createdAt: firestoreSdk.serverTimestamp()
+            });
+        });
+        const removals = await Promise.allSettled(Array.from(storagePaths).map(storagePath =>
+            storageSdk.deleteObject(storageSdk.ref(storage, storagePath))
+        ));
+        const failed = removals.filter(result => result.status === "rejected" &&
+            result.reason && result.reason.code !== "storage/object-not-found");
+        setPublishedMapActionStatus(
+            failed.length
+                ? `Map removed from the catalog; ${failed.length} storage object(s) require manual cleanup.`
+                : "Map, review history, reservations, and stored revisions permanently deleted.",
+            failed.length ? "error" : ""
+        );
+        return true;
+    } finally {
+        setAdminBusy(false);
+        setRepositoryBusy(false);
+    }
+}
+
+async function editPublishedMapMetadata(mapId, card = null) {
+    const map = publishedMapById(mapId);
+    card = card || adminCard(mapId);
     if(!map || !card) return;
     const identity = adminMapIdentity(card, map);
     if(identity.author.id === map.authorId && identity.author.name === map.authorName &&
        identity.category === map.category && identity.mapName === map.mapName &&
        identity.mapVersion === map.mapVersion) {
-        throw new Error("Change the author, map name, or version before saving a metadata revision.");
+        throw new Error("Change the author, map name, version, or category before saving a metadata revision.");
     }
     const requestedVersion = identity.mapVersion;
     identity.mapVersion = await nextAvailableAdminVersion(
@@ -2677,7 +3149,7 @@ async function editPublishedMapMetadata(mapId) {
     if(identity.mapVersion !== requestedVersion) {
         const versionInput = card.querySelector("[data-admin-map-version]");
         if(versionInput) versionInput.value = identity.mapVersion;
-        setAdminStatus(
+        setPublishedMapActionStatus(
             `${identity.mapName} ${requestedVersion} is reserved; this revision will use ${identity.mapVersion}.`
         );
     }
@@ -2686,7 +3158,9 @@ async function editPublishedMapMetadata(mapId) {
         {confirmLabel:"Publish revision"}
     )) return;
     setAdminBusy(true);
-    setAdminStatus("Creating immutable metadata revision…");
+    setRepositoryBusy(true);
+    setMetadataBusy(true);
+    setPublishedMapActionStatus("Creating immutable metadata revision…");
     try {
         const xml = await downloadRepositoryMap(map.storagePath);
         const correctedXml = rewriteResourceIdentity(xml, {
@@ -2807,9 +3281,57 @@ async function editPublishedMapMetadata(mapId) {
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
-        setAdminStatus("Map identity correction published as a new revision.");
+        setPublishedMapActionStatus("Map metadata published as a new immutable revision.");
+        return true;
     } finally {
         setAdminBusy(false);
+        setRepositoryBusy(false);
+        setMetadataBusy(false);
+    }
+}
+
+function openMetadataEditor(mapId) {
+    const map = publishedMapById(mapId);
+    if(!map || !metadataOverlay || !metadataForm) {
+        throw new Error("That published map is no longer available.");
+    }
+    metadataMapId = mapId;
+    metadataPreviousFocus = document.activeElement;
+    metadataForm.querySelector("[data-admin-map-author]").value = map.authorName || map.author || "";
+    metadataForm.querySelector("[data-admin-map-name]").value = map.mapName || "";
+    metadataForm.querySelector("[data-admin-map-version]").value = map.mapVersion || "";
+    metadataForm.querySelector("[data-admin-category]").value = map.category || MAP_CATEGORY;
+    metadataStatus.textContent = "";
+    metadataStatus.hidden = true;
+    metadataOverlay.hidden = false;
+    window.setTimeout(() => metadataForm.querySelector("[data-admin-map-author]").focus(), 0);
+}
+
+function closeMetadataEditor() {
+    if(!metadataOverlay || metadataOverlay.hidden) return;
+    metadataOverlay.hidden = true;
+    metadataMapId = "";
+    if(metadataPreviousFocus && typeof metadataPreviousFocus.focus === "function") {
+        metadataPreviousFocus.focus();
+    }
+    metadataPreviousFocus = null;
+}
+
+async function submitMetadataEditor(event) {
+    event.preventDefault();
+    if(adminBusy || !currentUserIsAdmin() || !metadataMapId) return;
+    try {
+        const saved = await editPublishedMapMetadata(metadataMapId, metadataForm);
+        if(saved) closeMetadataEditor();
+    } catch(error) {
+        console.error("Vectron metadata edit failed.", error);
+        setPublishedMapActionStatus(
+            error && error.message ? error.message : "The metadata revision could not be published.",
+            "error"
+        );
+        setAdminBusy(false);
+        setRepositoryBusy(false);
+        setMetadataBusy(false);
     }
 }
 
@@ -3172,6 +3694,9 @@ async function handleAdminAction(action, id) {
         else if(action === "edit-submission") await editPendingSubmission(id);
         else if(action === "reopen-history") await reopenReviewHistory(id);
         else if(action === "edit-map-metadata") await editPublishedMapMetadata(id);
+        else if(action === "save-review-text") await saveReviewText(id);
+        else if(action === "hold-map-review") await holdPublishedMap(id);
+        else if(action === "delete-published-map") await deletePublishedMap(id);
     } catch(error) {
         console.error("Vectron admin action failed.", error);
         setAdminStatus(error && error.message ? error.message : "The admin action failed.", "error");
@@ -3918,13 +4443,21 @@ function repositoryMapDetailsData(id, data) {
             data.authorName, data.category, data.mapName, data.mapVersion
         ),
         authorId: data.authorId,
+        authorName: data.authorName || "Unknown",
         author: data.authorName || "Unknown",
         category: data.category || MAP_CATEGORY,
         mapName: data.mapName || "Untitled map",
         mapVersion: normalizeMapVersion(data.mapVersion),
         name: `${data.mapName || "Untitled map"} · ${normalizeMapVersion(data.mapVersion)}`,
         activeRevisionId: data.activeRevisionId || "",
-        ownerUid: data.ownerUid || ""
+        previousRevisionId: data.previousRevisionId || "",
+        ownerUid: data.ownerUid || "",
+        recordKey: data.recordKey || data.resourcePath || "",
+        ratingKey: data.ratingKey || id,
+        sha256: data.sha256 || "",
+        status: data.status || "active",
+        createdAt: data.createdAt || null,
+        updatedAt: data.updatedAt || null
     };
 }
 
@@ -3952,7 +4485,7 @@ function repositoryDeniedSubmissionDetails(snapshot, resubmittedIds = new Set())
         activeRevisionId: "",
         sourceRevisionId: data.sourceRevisionId || "",
         operation: data.operation || "create",
-        ownerUid: data.submittedBy || "",
+        ownerUid: "",
         denied: true,
         resubmitted: resubmittedIds.has(snapshot.id),
         denialReason: data.reviewReason || "No reason was provided.",
@@ -4051,6 +4584,9 @@ function setRepositoryStatus(message, type = "") {
 function setRepositoryBusy(nextBusy) {
     repositoryBusy = nextBusy;
     repositoryRefreshButton.disabled = nextBusy;
+    if(repositorySearchButton) repositorySearchButton.disabled = nextBusy;
+    if(repositoryGalleryButton) repositoryGalleryButton.disabled = nextBusy;
+    if(repositoryListLayoutButton) repositoryListLayoutButton.disabled = nextBusy;
     repositorySearchInput.disabled = nextBusy && !repositoryMaps.length;
     repositoryList.querySelectorAll(".repository-remix-button").forEach(button => {
         button.disabled = nextBusy;
@@ -4065,9 +4601,12 @@ function repositoryCurrentAuthor() {
 }
 
 function repositoryMapIsMine(map) {
-    return Boolean(map && auth && auth.currentUser &&
-        (map.ownerUid === auth.currentUser.uid ||
-          currentAccount && map.authorId === currentAccount.authorId));
+    if(!map || !auth || !auth.currentUser) return false;
+    if(map.denied) {
+        return Boolean(currentAccount && map.authorId === currentAccount.authorId);
+    }
+    return Boolean(map.ownerUid === auth.currentUser.uid ||
+        currentAccount && map.authorId === currentAccount.authorId);
 }
 
 function repositoryMapCanEdit(map) {
@@ -4080,7 +4619,9 @@ function repositoryCanRead() {
 }
 
 function setRepositoryTab(nextTab, focusTab = false) {
+    const previousTab = repositoryTab;
     repositoryTab = guestMode || nextTab === "others" ? "others" : "mine";
+    if(repositoryTab === "others" && previousTab !== "others") repositoryExpandedAuthors.clear();
     repositoryTabs.forEach(tab => {
         const selected = tab.dataset.repositoryTab === repositoryTab;
         tab.classList.toggle("active", selected);
@@ -4093,13 +4634,17 @@ function setRepositoryTab(nextTab, focusTab = false) {
 }
 
 function renderRepositoryMaps() {
+    if(repositoryPreviewObserver) {
+        repositoryPreviewObserver.disconnect();
+        repositoryPreviewObserver = null;
+    }
     const items = repositoryItems();
     const mine = items.filter(repositoryMapIsMine);
     const others = repositoryMaps.filter(map => !repositoryMapIsMine(map));
     repositoryMineCount.textContent = String(mine.length);
     repositoryOthersCount.textContent = String(others.length);
     const tabMaps = repositoryTab === "mine" ? mine : others;
-    const query = repositorySearchInput.value.trim().toLocaleLowerCase();
+    const query = repositorySearchQuery.toLocaleLowerCase("en-US");
     const visibleMaps = tabMaps.filter(map => {
         if(!query) return true;
         return `${map.name} ${map.author} ${map.category} ${map.resourcePath} ${map.denialReason || ""}`
@@ -4135,7 +4680,7 @@ function renderRepositoryMaps() {
             const group = document.createElement("section");
             group.className = "repository-author-group";
             const collapsible = repositoryTab === "others";
-            const expanded = !collapsible || Boolean(query) || repositoryExpandedAuthors.has(author);
+            const expanded = !collapsible || repositoryExpandedAuthors.has(author);
             group.classList.toggle("collapsed", !expanded);
 
             const heading = document.createElement(collapsible ? "button" : "header");
@@ -4163,13 +4708,29 @@ function renderRepositoryMaps() {
 
             const mapList = document.createElement("div");
             mapList.className = "repository-author-maps";
+            mapList.classList.toggle("gallery", repositoryLayout === "gallery");
             mapList.id = `repository-author-maps-${authorIndex}`;
             mapList.hidden = !expanded;
 
             maps.forEach(map => {
                 const row = document.createElement("div");
                 row.className = "repository-map-row";
+                row.classList.toggle("gallery", repositoryLayout === "gallery");
                 if(map.denied) row.classList.add("repository-map-denied");
+                if(repositoryLayout === "gallery") {
+                    const preview = document.createElement("div");
+                    preview.className = "map-review-preview repository-map-preview";
+                    preview.dataset.adminPreviewPath = map.storagePath || "";
+                    preview.setAttribute("role", "img");
+                    preview.setAttribute("aria-label", `Map preview for ${map.mapName || "Untitled"}`);
+                    preview.setAttribute("aria-busy", "true");
+                    const loading = document.createElement("span");
+                    loading.className = "map-review-preview-message";
+                    loading.textContent = "Loading map preview…";
+                    preview.appendChild(loading);
+                    row.appendChild(preview);
+                    queueRepositoryMapPreview(preview, map);
+                }
                 const copy = document.createElement("span");
                 copy.className = "repository-map-copy";
                 const name = document.createElement("strong");
@@ -4203,10 +4764,25 @@ function renderRepositoryMaps() {
                     button.setAttribute("aria-label", `${editing ? "Edit" : "Remix"} ${map.name} by ${map.author}`);
                     actions.appendChild(button);
                 };
+                const addAdminAction = (label, action, danger = false) => {
+                    const button = document.createElement("button");
+                    button.className = `repository-remix-button${danger ? " danger" : ""}`;
+                    button.type = "button";
+                    button.dataset.repositoryAdminAction = action;
+                    button.dataset.repositoryMapId = map.mapId;
+                    button.disabled = repositoryBusy;
+                    button.textContent = label;
+                    actions.appendChild(button);
+                };
                 if(repositoryMapCanEdit(map) && !map.resubmitted) {
                     addAction(map.denied ? "edit-denied" : "edit");
                 }
                 if(!map.denied && (!repositoryMapIsMine(map) || currentUserIsAdmin())) addAction("remix");
+                if(currentUserIsAdmin() && !map.denied) {
+                    addAdminAction("Edit metadata", "metadata");
+                    addAdminAction("Hold for review", "hold");
+                    addAdminAction("Delete", "delete", true);
+                }
                 row.append(copy, actions);
                 mapList.appendChild(row);
             });
@@ -4214,6 +4790,13 @@ function renderRepositoryMaps() {
             fragment.appendChild(group);
         });
     repositoryList.appendChild(fragment);
+}
+
+function submitRepositorySearch() {
+    repositorySearchQuery = repositorySearchInput.value.trim();
+    repositoryExpandedAuthors.clear();
+    repositoryList.scrollTop = 0;
+    renderRepositoryMaps();
 }
 
 async function refreshRepositoryMaps() {
@@ -4262,7 +4845,9 @@ function openRepository() {
         return;
     }
     repositorySearchInput.value = "";
+    repositorySearchQuery = "";
     repositoryExpandedAuthors.clear();
+    setRepositoryLayout(repositoryLayout);
     setRepositoryTab(guestMode ? "others" : "mine");
     repositoryPreviousFocus = document.activeElement;
     repositoryOverlay.hidden = false;
@@ -4277,6 +4862,10 @@ function closeRepository() {
     if(repositoryOverlay.hidden) return;
     repositoryOverlay.hidden = true;
     repositoryButton.setAttribute("aria-expanded", "false");
+    if(repositoryPreviewObserver) {
+        repositoryPreviewObserver.disconnect();
+        repositoryPreviewObserver = null;
+    }
     stopRepositoryStatusListeners();
     if(repositoryPreviousFocus && typeof repositoryPreviousFocus.focus === "function") {
         repositoryPreviousFocus.focus();
@@ -4444,7 +5033,18 @@ function bindUi() {
     }
     repositoryCloseButton.addEventListener("click", closeRepository);
     repositoryRefreshButton.addEventListener("click", refreshRepositoryMaps);
-    repositorySearchInput.addEventListener("input", renderRepositoryMaps);
+    if(repositorySearchButton) repositorySearchButton.addEventListener("click", submitRepositorySearch);
+    repositorySearchInput.addEventListener("keydown", event => {
+        if(event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault();
+        submitRepositorySearch();
+    });
+    if(repositoryGalleryButton) {
+        repositoryGalleryButton.addEventListener("click", () => setRepositoryLayout("gallery"));
+    }
+    if(repositoryListLayoutButton) {
+        repositoryListLayoutButton.addEventListener("click", () => setRepositoryLayout("list"));
+    }
     repositoryTabs.forEach(tab => {
         tab.addEventListener("click", () => setRepositoryTab(tab.dataset.repositoryTab));
         tab.addEventListener("keydown", event => {
@@ -4464,6 +5064,25 @@ function bindUi() {
             const nextToggle = Array.from(repositoryList.querySelectorAll("[data-repository-author]"))
                 .find(button => button.dataset.repositoryAuthor === author);
             if(nextToggle) nextToggle.focus();
+            return;
+        }
+        const adminAction = event.target.closest("[data-repository-admin-action]");
+        if(adminAction) {
+            const mapId = adminAction.dataset.repositoryMapId;
+            const action = adminAction.dataset.repositoryAdminAction;
+            if(action === "metadata") openMetadataEditor(mapId);
+            else if(action === "hold") holdPublishedMap(mapId).catch(error => {
+                console.error("Vectron repository hold failed.", error);
+                setPublishedMapActionStatus(error && error.message ? error.message : "The map could not be held.", "error");
+                setAdminBusy(false);
+                setRepositoryBusy(false);
+            });
+            else if(action === "delete") deletePublishedMap(mapId).catch(error => {
+                console.error("Vectron repository deletion failed.", error);
+                setPublishedMapActionStatus(error && error.message ? error.message : "The map could not be deleted.", "error");
+                setAdminBusy(false);
+                setRepositoryBusy(false);
+            });
             return;
         }
         const button = event.target.closest("[data-repository-open]");
@@ -4492,7 +5111,47 @@ function bindUi() {
     if(adminButton) adminButton.addEventListener("click", openAdmin);
     if(adminCloseButton) adminCloseButton.addEventListener("click", closeAdmin);
     if(adminRefreshButton) adminRefreshButton.addEventListener("click", refreshAdminQueues);
-    if(adminSearchInput) adminSearchInput.addEventListener("input", renderAdminList);
+    if(adminSearchButton) adminSearchButton.addEventListener("click", submitAdminSearch);
+    if(adminSearchInput) adminSearchInput.addEventListener("keydown", event => {
+        if(event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault();
+        submitAdminSearch();
+    });
+    if(adminAuthorFilter) adminAuthorFilter.addEventListener("change", () => {
+        if(!adminFilterState[adminTab]) return;
+        adminFilterState[adminTab].author = adminAuthorFilter.value;
+        adminPagination[adminTab].page = 1;
+        renderAdminList();
+    });
+    if(adminDecisionFilter) adminDecisionFilter.addEventListener("change", () => {
+        if(adminTab !== "history") return;
+        adminFilterState.history.decision = adminDecisionFilter.value;
+        adminPagination.history.page = 1;
+        renderAdminList();
+    });
+    if(adminReasonFilter) adminReasonFilter.addEventListener("change", () => {
+        if(adminTab !== "history") return;
+        adminFilterState.history.reason = adminReasonFilter.value;
+        adminPagination.history.page = 1;
+        renderAdminList();
+    });
+    if(adminPageSize) adminPageSize.addEventListener("change", () => {
+        const pageSize = [10, 25, 50, 100].includes(Number(adminPageSize.value))
+            ? Number(adminPageSize.value) : 10;
+        adminPagination[adminTab] = {page:1, pageSize};
+        adminList.scrollTop = 0;
+        renderAdminList();
+    });
+    if(adminPagePrevious) adminPagePrevious.addEventListener("click", () => {
+        adminPagination[adminTab].page = Math.max(1, adminPagination[adminTab].page - 1);
+        adminList.scrollTop = 0;
+        renderAdminList();
+    });
+    if(adminPageNext) adminPageNext.addEventListener("click", () => {
+        adminPagination[adminTab].page += 1;
+        adminList.scrollTop = 0;
+        renderAdminList();
+    });
     adminTabs.forEach(tab => tab.addEventListener("click", () => setAdminTab(tab.dataset.adminTab)));
     if(adminList) adminList.addEventListener("click", event => {
         const button = event.target.closest("[data-admin-action]");
@@ -4522,6 +5181,17 @@ function bindUi() {
         settleConfirmation(true);
     });
     populateQuickDenyReasons(confirmQuickReasons, confirmReasonInput);
+    if(metadataForm) metadataForm.addEventListener("submit", submitMetadataEditor);
+    if(metadataCloseButton) metadataCloseButton.addEventListener("click", closeMetadataEditor);
+    if(metadataCancelButton) metadataCancelButton.addEventListener("click", closeMetadataEditor);
+    if(metadataOverlay) {
+        metadataOverlay.addEventListener("mousedown", event => {
+            if(event.target === metadataOverlay) closeMetadataEditor();
+        });
+        metadataOverlay.addEventListener("keydown", event => {
+            if(event.key === "Escape") closeMetadataEditor();
+        });
+    }
     document.addEventListener("mousedown", event => {
         if(confirmPopover && !confirmPopover.hidden &&
            !confirmPopover.contains(event.target) &&
@@ -4538,6 +5208,25 @@ function bindUi() {
     }, true);
     if(adminDialog) {
         const header = adminDialog.querySelector(".repository-header");
+        adminDialog.querySelectorAll("[data-admin-resize]").forEach(handle => {
+            handle.addEventListener("mousedown", event => {
+                if(event.button !== 0) return;
+                anchorAdminDialog();
+                const rect = adminDialog.getBoundingClientRect();
+                adminDragging = null;
+                adminResizing = {
+                    direction:handle.dataset.adminResize,
+                    startX:event.clientX,
+                    startY:event.clientY,
+                    left:rect.left,
+                    right:rect.right,
+                    top:rect.top,
+                    bottom:rect.bottom
+                };
+                event.preventDefault();
+                event.stopPropagation();
+            });
+        });
         header.addEventListener("mousedown", event => {
             if(event.button !== 0 || event.target.closest("button,input,select,textarea,a")) return;
             anchorAdminDialog();
@@ -4549,6 +5238,50 @@ function bindUi() {
             event.preventDefault();
         });
         document.addEventListener("mousemove", event => {
+            if(adminResizing) {
+                const margin = 12;
+                const maximumRight = Math.max(margin + 120, window.innerWidth - margin);
+                const maximumBottom = Math.max(margin + 120, window.innerHeight - margin);
+                const minimumWidth = Math.min(420, maximumRight - margin);
+                const minimumHeight = Math.min(320, maximumBottom - margin);
+                const deltaX = event.clientX - adminResizing.startX;
+                const deltaY = event.clientY - adminResizing.startY;
+                let left = adminResizing.left;
+                let right = adminResizing.right;
+                let top = adminResizing.top;
+                let bottom = adminResizing.bottom;
+                const direction = adminResizing.direction;
+                if(direction.includes("w")) {
+                    left = Math.max(margin, Math.min(
+                        adminResizing.left + deltaX,
+                        right - minimumWidth
+                    ));
+                }
+                if(direction.includes("e")) {
+                    right = Math.min(maximumRight, Math.max(
+                        adminResizing.right + deltaX,
+                        left + minimumWidth
+                    ));
+                }
+                if(direction.includes("n")) {
+                    top = Math.max(margin, Math.min(
+                        adminResizing.top + deltaY,
+                        bottom - minimumHeight
+                    ));
+                }
+                if(direction.includes("s")) {
+                    bottom = Math.min(maximumBottom, Math.max(
+                        adminResizing.bottom + deltaY,
+                        top + minimumHeight
+                    ));
+                }
+                adminDialog.style.left = `${Math.round(left)}px`;
+                adminDialog.style.top = `${Math.round(top)}px`;
+                adminDialog.style.width = `${Math.round(right - left)}px`;
+                adminDialog.style.height = `${Math.round(bottom - top)}px`;
+                event.preventDefault();
+                return;
+            }
             if(!adminDragging) return;
             const rect = adminDialog.getBoundingClientRect();
             const margin = 12;
@@ -4563,7 +5296,10 @@ function bindUi() {
             adminDialog.style.left = `${Math.round(left)}px`;
             adminDialog.style.top = `${Math.round(top)}px`;
         });
-        document.addEventListener("mouseup", () => { adminDragging = null; });
+        document.addEventListener("mouseup", () => {
+            adminDragging = null;
+            adminResizing = null;
+        });
     }
     window.addEventListener("resize", () => {
         positionConfirmationPopover();
