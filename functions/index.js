@@ -6,7 +6,9 @@ const {FieldValue, getFirestore} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
 const {createHash} = require("node:crypto");
 const logger = require("firebase-functions/logger");
+const {onDocumentWritten} = require("firebase-functions/v2/firestore");
 const {onRequest} = require("firebase-functions/v2/https");
+const {buildCatalogArtifacts} = require("./catalog-manifest");
 
 initializeApp();
 
@@ -207,7 +209,7 @@ exports.createMapSubmission = onRequest({
     // This query also catches pending submissions created before deterministic
     // pending-version reservations were introduced.
     const authorSubmissions = await db.collection("mapSubmissions")
-      .where("authorId", "==", payload.authorId).get();
+      .where("status", "==", "pending").get();
     if(duplicatePendingSubmission(authorSubmissions, payload)) {
       throw httpError(
         409,
@@ -310,6 +312,73 @@ exports.createMapSubmission = onRequest({
     );
   }
 });
+
+async function saveImmutableManifest(path, contents, isPublic) {
+  try {
+    await bucket.file(path).save(contents, {
+      resumable: false,
+      preconditionOpts: {ifGenerationMatch: 0},
+      metadata: {
+        contentType: "application/json; charset=utf-8",
+        contentEncoding: "gzip",
+        cacheControl: isPublic
+          ? "public, max-age=31536000, immutable"
+          : "private, max-age=31536000, immutable"
+      }
+    });
+  } catch(error) {
+    if(Number(error && error.code) !== 412) throw error;
+  }
+}
+
+async function publishCatalogState(event) {
+  const [maps, settings] = await Promise.all([
+    db.collection("maps").get(),
+    db.collection("catalogSettings").doc("current").get()
+  ]);
+  const ready = settings.exists && settings.data().ready === true;
+  const artifacts = buildCatalogArtifacts(maps.docs, ready);
+  await Promise.all([
+    saveImmutableManifest(artifacts.serverPath, artifacts.server, false),
+    saveImmutableManifest(artifacts.publicPath, artifacts.public, true)
+  ]);
+  await db.collection("catalogState").doc("current").set({
+    schemaVersion: 1,
+    catalogVersion: FieldValue.increment(1),
+    generation: artifacts.generation,
+    serverManifestPath: artifacts.serverPath,
+    serverManifestSha256: artifacts.serverSha256,
+    publicManifestPath: artifacts.publicPath,
+    publicManifestSha256: artifacts.publicSha256,
+    mapCount: artifacts.mapCount,
+    activeMapCount: artifacts.activeMapCount,
+    ready,
+    lastSourceId: String(event.params.mapId || event.params.settingId || ""),
+    updatedAt: FieldValue.serverTimestamp()
+  }, {merge: true});
+  logger.info("Published immutable map catalog manifests", {
+    catalogGeneration: artifacts.generation,
+    mapCount: artifacts.mapCount,
+    activeMapCount: artifacts.activeMapCount,
+    lastSourceId: event.params.mapId || event.params.settingId
+  });
+}
+
+const catalogPublisherOptions = {
+  region: "us-central1",
+  timeoutSeconds: 60,
+  memory: "256MiB"
+};
+
+exports.publishCatalogManifest = onDocumentWritten({
+  ...catalogPublisherOptions,
+  document: "maps/{mapId}"
+}, publishCatalogState);
+
+exports.publishCatalogSettingsManifest = onDocumentWritten({
+  ...catalogPublisherOptions,
+  document: "catalogSettings/{settingId}"
+}, publishCatalogState);
 
 exports.denyRegistration = onRequest({
   region: "us-central1",
