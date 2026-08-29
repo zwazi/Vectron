@@ -57,6 +57,16 @@ service firebase.storage {
           && submission(submissionId).data.storagePath == expectedPath);
     }
 
+    match /_catalog/public/{fileName} {
+      allow get: if true;
+      allow list, create, update, delete: if false;
+    }
+
+    // Game servers download this with their service-account credentials.
+    match /_catalog/server/{fileName} {
+      allow read, write: if false;
+    }
+
     // Retain read support for immutable revisions uploaded before filenames
     // became part of the storage path.
     match /_revisions/{ownerUid}/{submissionId} {
@@ -87,7 +97,7 @@ service firebase.storage {
     // Existing objects remain public while the one-time migration records them
     // in Firestore. They are read-only; new revisions use /_revisions/.
     match /{author}/{category}/{fileName} {
-      allow get: if author != '_revisions'
+      allow get: if author != '_revisions' && author != '_catalog'
         && fileName.matches('.*\\.aamap\\.xml');
       allow create, update, delete, list: if false;
     }

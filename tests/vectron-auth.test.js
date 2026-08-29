@@ -35,7 +35,17 @@ assert.deepStrictEqual(firebase.firestore, {
     indexes: "firestore.indexes.json"
 });
 assert.deepStrictEqual(firebase.functions, {source: "functions", codebase: "default"});
-assert.deepStrictEqual(firestoreIndexes, {indexes: [], fieldOverrides: []});
+assert.deepStrictEqual(firestoreIndexes, {
+    indexes: [{
+        collectionGroup: "mapSubmissions",
+        queryScope: "COLLECTION",
+        fields: [
+            {fieldPath:"status", order:"ASCENDING"},
+            {fieldPath:"reviewedAt", order:"DESCENDING"}
+        ]
+    }],
+    fieldOverrides: []
+});
 assert.strictEqual(firebaseRc.projects.default, "tronnerrepository");
 
 assert.match(index, /<body class="noscroll auth-locked">/);
@@ -179,6 +189,10 @@ assert.match(authSource, /function startAccountListener\(/);
 assert.match(authSource, /status: "approved"/);
 assert.match(authSource, /status: approved \? "approved" : "denied"/);
 assert.match(authSource, /function startAdminListeners\(/);
+assert.match(authSource, /function startAdminQueueListeners\(/);
+assert.match(authSource, /function loadPublicCatalog\(/);
+assert.match(authSource, /collection\(firestore, "catalogState"|doc\(firestore, "catalogState", "current"\)/);
+assert.match(authSource, /firestoreSdk\.limit\(100\)/);
 assert.match(authSource, /function reviewAccount\(/);
 assert.match(authSource, /function denyRegistration\(/);
 assert.match(authSource, /Deny and delete user/);
