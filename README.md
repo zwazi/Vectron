@@ -46,8 +46,9 @@ Admins may:
   its catalog records, reserved paths, and stored revisions;
 - link an account to an existing author;
 - open any pending submission in the full Vectron editor and save its changes
-  as an immutable review draft on the same review item, or save, approve, and
-  publish the edited revision in one step;
+  as an immutable review draft on the same review item, or approve and publish
+  the edited revision; a successful editor approval opens the next pending map
+  automatically;
 - freely correct the final author, map name, and version before approval, with
   occupied versions automatically advanced until the resource path is free;
 - review each pending map in a two-column card with its submitted reason,
@@ -66,12 +67,13 @@ notification, and returns the exact approved source or admin-edited draft to
 the server catalog. Denial leaves it inactive for follow-up or explicit
 cancellation from the server.
 
-After a successful upload, Vectron displays a copyable `MAP_FILE` command in
+After a successful user upload, Vectron displays a copyable `MAP_FILE` command in
 the form `MAP_FILE map-version.aamap.xml(full-revision-URL)`. The immutable
 revision becomes publicly readable only after its matching submission record
 exists, allowing the author to run the exact uploaded bytes on another
-Armagetron server. Revision writes, replacement, deletion, and listing remain
-restricted by Firebase rules.
+Armagetron server. Admin approvals skip this prompt and continue directly to
+the next map in the review queue. Revision writes, replacement, deletion, and
+listing remain restricted by Firebase rules.
 
 The review dialog defaults to its 620-pixel content-safe minimum width and the
 maximum height that fits the viewport. Wall and Zone tool windows follow their

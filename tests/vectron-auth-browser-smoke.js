@@ -331,15 +331,29 @@ ws.onopen = async () => {
             await waitFor(function(){ return document.querySelectorAll("[data-repository-open]").length >= 150; }, "Guest catalog failed", 45000);
             const visibleMaps = document.querySelectorAll("[data-repository-open]").length;
             const editActions = document.querySelectorAll('[data-repository-action="edit"]').length;
+            const repositoryList = document.getElementById("map-repository-list");
+            repositoryList.scrollTop = repositoryList.scrollHeight;
+            const repositoryScrollable = repositoryList.scrollTop > 0;
+            document.getElementById("map-repository-refresh").click();
+            const refreshResetScroll = repositoryList.scrollTop === 0;
+            await waitFor(function(){ return !document.getElementById("map-repository-refresh").disabled; },
+                "Guest catalog refresh failed", 45000);
+            repositoryList.scrollTop = repositoryList.scrollHeight;
+            document.getElementById("map-repository-mine-tab").click();
+            const tabResetScroll = repositoryList.scrollTop === 0;
             await clickConfirmed(document.querySelector('[data-repository-action="remix"]'),
                 "Guest remix confirmation did not open");
             await waitFor(function(){ return document.getElementById("map-repository-overlay").hidden; }, "Guest map download failed", 45000);
             return {visibleMaps, editActions, uploadHidden: document.querySelector("[data-map-upload]").hidden,
-                toast: document.getElementById("vt-toast").textContent};
+                toast: document.getElementById("vt-toast").textContent,
+                repositoryScrollable, refreshResetScroll, tabResetScroll};
         `);
         assert.ok(guest.visibleMaps >= 150);
         assert.strictEqual(guest.editActions, 0);
         assert.strictEqual(guest.uploadHidden, true);
+        assert.strictEqual(guest.repositoryScrollable, true);
+        assert.strictEqual(guest.refreshResetScroll, true);
+        assert.strictEqual(guest.tabResetScroll, true);
         assert.match(guest.toast, /Remixing/);
         await logout(context);
 
@@ -397,13 +411,17 @@ ws.onopen = async () => {
             let uploadError = "";
             try { await window.vectron_uploadCurrentMap(); }
             catch(error) { uploadError = error && (error.stack || error.message) || String(error); }
+            const mapCommandShown = !document.getElementById("map-file-command-overlay").hidden;
+            document.getElementById("map-file-command-close").click();
             return {toast: document.getElementById("vt-toast").textContent,
                 notificationCount: Number(document.querySelector("[data-notification-count]").textContent || 0),
                 role: window.vectron_userRole,
                 uploadDisabled: document.querySelector("[data-map-upload]").disabled,
-                uploadError};
+                uploadError, mapCommandShown};
         `);
         assert.match(upload.toast, /submitted for admin review/i, JSON.stringify(upload));
+        assert.strictEqual(upload.mapCommandShown, true,
+            "Ordinary user uploads should still offer the MAP_FILE command");
         assert.ok(upload.notificationCount >= 1);
         submission = await waitForRemote(async () => (await listDocuments("mapSubmissions"))
             .find(item => item.submittedBy === user.localId && item.mapName === mapName && item.status === "pending"),
@@ -442,10 +460,15 @@ ws.onopen = async () => {
             await waitFor(function(){ return !publishButton.classList.contains("auth-uploading"); },
                 "One-step publication did not settle", 60000);
             return {status: document.getElementById("vt-toast").textContent, layout,
-                publishButtonHidden: document.querySelector("[data-map-review-publish]").hidden};
+                publishButtonHidden: document.querySelector("[data-map-review-publish]").hidden,
+                mapCommandHidden: document.getElementById("map-file-command-overlay").hidden,
+                publishLabel: publishButton.querySelector("span").textContent};
         `);
         assert.match(publication.status, /published/i);
         assert.strictEqual(publication.publishButtonHidden, true);
+        assert.strictEqual(publication.mapCommandHidden, true,
+            "Admin approval should not open the MAP_FILE command panel");
+        assert.strictEqual(publication.publishLabel, "Approve");
         assert.strictEqual(publication.layout.columns, 2);
         assert.strictEqual(publication.layout.actionDirection, "column");
         assert.strictEqual(publication.layout.hasDelete, true);
