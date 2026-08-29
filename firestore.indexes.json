@@ -4,8 +4,88 @@
       "collectionGroup": "mapSubmissions",
       "queryScope": "COLLECTION",
       "fields": [
+        {"fieldPath": "historyVisible", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "authorName", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "historyVisible", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "authorName", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "historyVisible", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "mapName", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "historyVisible", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "mapName", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "historyVisible", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "historyVisible", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "historyVisible", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "reviewedAt", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "historyVisible", "order": "ASCENDING"},
         {"fieldPath": "status", "order": "ASCENDING"},
         {"fieldPath": "reviewedAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "submittedBy", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "mapSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "submittedBy", "order": "ASCENDING"},
+        {"fieldPath": "resubmissionOf", "order": "ASCENDING"}
       ]
     }
   ],
