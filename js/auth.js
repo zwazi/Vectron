@@ -540,6 +540,9 @@ function setCurrentUserRole(value) {
             : "User";
         element.dataset.role = currentUserRole;
     });
+    if(typeof window.vectron_syncAdvancedOptionLocks === "function") {
+        window.vectron_syncAdvancedOptionLocks();
+    }
     return currentUserRole;
 }
 

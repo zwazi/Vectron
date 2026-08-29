@@ -11,6 +11,7 @@
         <link href="./css/vectron.css" rel="stylesheet">
         <link href="./css/auth.css" rel="stylesheet">
         <link id="theme" rel="stylesheet">
+        <link href="./css/workspace-theme.css" rel="stylesheet">
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer">
         <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400,300,700,600" rel="stylesheet" type="text/css">
         <script type="text/javascript" src="./js/libs/jquery.js"></script>
@@ -43,7 +44,7 @@
         <script type="text/javascript" src="./js/vectron.js"></script>
 
         <script type="text/javascript">
-            var targetVersion = 1.114;
+            var targetVersion = 1.115;
             if(window.vtVersion != targetVersion) location.reload(true);
         </script>
 
@@ -176,14 +177,14 @@
             <span class="info-section info-symmetry-section">
                 <span id="symmetry-dropdown">
                     <b class="symmetry-picker-label">Symmetry</b>
-                    <button id="symmetry-menu-toggle" class="info-icon-btn symmetry-menu-btn" type="button" aria-expanded="false" aria-label="Choose symmetry"><b id="symmetry-summary">Off</b></button>
+                    <button id="symmetry-menu-toggle" class="info-icon-btn symmetry-menu-btn" type="button" aria-expanded="false" aria-label="Choose symmetry" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="Mirror new edits across selected lines or points."><b id="symmetry-summary">Off</b></button>
                     <span id="symmetry-menu" style="display:none;">
                         <label class="symmetry-menu-row"><input id="symmetry-x-toggle" type="checkbox" /><span>Vertical line x = 0</span></label>
                         <label class="symmetry-menu-row"><input id="symmetry-y-toggle" type="checkbox" /><span>Horizontal line y = 0</span></label>
                         <label class="symmetry-menu-row"><input id="symmetry-origin-toggle" type="checkbox" /><span>Point at origin</span></label>
-                        <label class="symmetry-menu-row symmetry-value-row"><input id="symmetry-custom-x-toggle" type="checkbox" /><span>Vertical line x =</span><input id="symmetry-custom-x-value" type="number" step="any" value="0" aria-label="Custom symmetry x coordinate" /></label>
-                        <label class="symmetry-menu-row symmetry-value-row"><input id="symmetry-custom-y-toggle" type="checkbox" /><span>Horizontal line y =</span><input id="symmetry-custom-y-value" type="number" step="any" value="0" aria-label="Custom symmetry y coordinate" /></label>
-                        <label class="symmetry-menu-row symmetry-value-row symmetry-point-row"><input id="symmetry-custom-point-toggle" type="checkbox" /><span>Point x =</span><input id="symmetry-custom-point-x" type="number" step="any" value="0" aria-label="Custom symmetry point x coordinate" /><span>y =</span><input id="symmetry-custom-point-y" type="number" step="any" value="0" aria-label="Custom symmetry point y coordinate" /></label>
+                        <label class="symmetry-menu-row symmetry-value-row"><input id="symmetry-custom-x-toggle" type="checkbox" /><span>Vertical line x =</span><input id="symmetry-custom-x-value" type="number" step="any" value="0" aria-label="Custom symmetry x coordinate" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="Mirror new edits across this vertical map coordinate." /></label>
+                        <label class="symmetry-menu-row symmetry-value-row"><input id="symmetry-custom-y-toggle" type="checkbox" /><span>Horizontal line y =</span><input id="symmetry-custom-y-value" type="number" step="any" value="0" aria-label="Custom symmetry y coordinate" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="Mirror new edits across this horizontal map coordinate." /></label>
+                        <label class="symmetry-menu-row symmetry-value-row symmetry-point-row"><input id="symmetry-custom-point-toggle" type="checkbox" /><span>Point x =</span><input id="symmetry-custom-point-x" type="number" step="any" value="0" aria-label="Custom symmetry point x coordinate" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="X coordinate of the custom symmetry point." /><span>y =</span><input id="symmetry-custom-point-y" type="number" step="any" value="0" aria-label="Custom symmetry point y coordinate" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="Y coordinate of the custom symmetry point." /></label>
                         <label class="symmetry-menu-row symmetry-check-row"><input id="symmetry-check-toggle" type="checkbox" /><span>Visual check only</span></label>
                     </span>
                 </span>
@@ -224,7 +225,7 @@
                 </span>
             </span>
             <span class="info-sep">|</span>
-            <span class="info-section info-anchor-section"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover" data-placement="top" data-original-title="Return to origin" aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
+            <span class="info-section info-anchor-section"><span class="info-anchor-values" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="The map coordinate currently anchored at the center of the editor." tabindex="0"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="Return the editor anchor to coordinate 0, 0." aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
         </div>
 
         <div id="control_box">
@@ -358,8 +359,16 @@
                       <div class="checkbox cfg-checkbox">
                         <label><input type="checkbox" id="show-action-history" name="show-action-history"> Show action history window</label>
                       </div>
+                      <div class="checkbox cfg-checkbox">
+                        <label><input type="checkbox" id="show-tooltips" name="show-tooltips"> Show helpful tooltips</label>
+                      </div>
                       <hr class="cfg-divider" />
                       <p class="cfg-section-label">Behavior</p>
+                      <div class="checkbox cfg-checkbox cfg-advanced-options">
+                        <label><input type="checkbox" id="unlock-advanced-map-options" name="unlock-advanced-map-options"> Unlock advanced map options</label>
+                        <small id="advanced-map-options-help">Allows changing the map DTD and player-private zone behavior. Leave locked unless you know the target server supports them.</small>
+                      </div>
+                      <hr class="cfg-divider" />
                       <div class="form-group cfg-form-group">
                         <label for="zoom-step-select">Scroll Wheel Zoom Step</label>
                         <select class="form-control" id="zoom-step-select" name="zoom-step-select" onchange="config_zoomStep=parseFloat(this.value);_config_set('zoomStep',this.value);">
@@ -417,36 +426,36 @@
         <div id="top-settings-bar">
             <div class="top-settings-fields">
                 <span class="tsb-field">
-                    <label for="map_name" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="What should this map be called?">Name</label>
-                    <input type="text" class="tsb-input" id="map_name" placeholder="Map name">
+                    <label for="map_name">Name</label>
+                    <input type="text" class="tsb-input" id="map_name" placeholder="Map name" rel="tooltip" data-trigger="hover focus" data-placement="bottom" data-original-title="What should this map be called?">
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
-                    <label for="map_author" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Who created this map? Admins may edit this field.">Author</label>
-                    <input type="text" class="tsb-input" id="map_author" placeholder="Map author" readonly aria-readonly="true">
+                    <label for="map_author">Author</label>
+                    <input type="text" class="tsb-input" id="map_author" placeholder="Map author" readonly aria-readonly="true" rel="tooltip" data-trigger="hover focus" data-placement="bottom" data-original-title="Who created this map? Admins may edit this field.">
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
-                    <label for="map_category" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Uploads are stored in the maps category">Category</label>
-                    <input type="text" class="tsb-input" id="map_category" value="maps" readonly aria-readonly="true">
+                    <label for="map_category">Category</label>
+                    <input type="text" class="tsb-input" id="map_category" value="maps" readonly aria-readonly="true" rel="tooltip" data-trigger="hover focus" data-placement="bottom" data-original-title="Uploads are stored in the maps category.">
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
-                    <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The map revision is locked for users; admins may edit it.">Revision</label>
-                    <input type="text" class="tsb-input tsb-input-sm" id="map_version" value="1" readonly aria-readonly="true" title="Locked to the current map revision">
+                    <label for="map_version">Revision</label>
+                    <input type="text" class="tsb-input tsb-input-sm" id="map_version" value="1" readonly aria-readonly="true" rel="tooltip" data-trigger="hover focus" data-placement="bottom" data-original-title="The map revision is locked for users; admins may edit it.">
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
-                    <label for="map_dtd" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The DTD file this map is verified against. Don't change this unless you know what you're doing.">DTD</label>
+                    <label for="map_dtd">DTD</label>
                     <span class="tsb-combobox">
-                        <input type="text" class="tsb-input" id="map_dtd" value="sty.dtd" autocomplete="off" role="combobox" aria-autocomplete="none" aria-haspopup="listbox" aria-expanded="false" aria-controls="map-dtd-options">
+                        <input type="text" class="tsb-input" id="map_dtd" value="sty.dtd" autocomplete="off" role="combobox" aria-autocomplete="none" aria-haspopup="listbox" aria-expanded="false" aria-controls="map-dtd-options" rel="tooltip" data-trigger="hover focus" data-placement="bottom" data-original-title="No need to change this unless you know what you're doing. Unlock from the settings menu.">
                         <button id="map-dtd-toggle" class="tsb-combobox-toggle" type="button" aria-label="Show all DTD options" aria-expanded="false" aria-controls="map-dtd-options"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
                     </span>
                 </span>
                 <span class="tsb-sep">|</span>
-                <span class="tsb-field" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Map axes control turning directions and are always written to the map file.">
+                <span class="tsb-field">
                     <label for="map_axes">Axes</label>
-                    <input type="number" class="tsb-input tsb-input-sm" id="map_axes" name="map_axes" min="2" max="360" value="4" />
+                    <input type="number" class="tsb-input tsb-input-sm" id="map_axes" name="map_axes" min="2" max="360" value="4" rel="tooltip" data-trigger="hover focus" data-placement="bottom" data-original-title="Map axes control turning directions and are always written to the map file." />
                 </span>
             </div>
             <div id="auth-account-controls" class="auth-session auth-session-plan auth-account-controls" hidden aria-label="Signed-in account and map actions">
@@ -528,7 +537,7 @@
                         <label class="vt-tool-name" for="dRubberVal">Rubber Value</label>
                         <span class="vt-tool-input"><input type="number" id="dRubberVal" name="dRubberVal" value="2" step="0.1" min="0" /></span>
                     </div>
-                    <div id="zone-private-setting" class="vt-tool-grid-row vt-setting-row">
+                    <div id="zone-private-setting" class="vt-tool-grid-row vt-setting-row" rel="tooltip" data-trigger="hover focus" data-placement="right" data-original-title="Creates one independent zone per player. Unlock advanced map options in Settings to change this.">
                         <span class="vt-tool-icon"><span class="glyphicon glyphicon-user" aria-hidden="true"></span></span>
                         <label class="vt-tool-name" for="zone-private-per-player">Player-private</label>
                         <span class="vt-tool-input"><input type="checkbox" id="zone-private-per-player" title="Create an independent copy visible and interactive only for each player. Stock servers use the ordinary global zone fallback." /></span>
@@ -565,7 +574,7 @@
                     </div>
                     <div id="zone-selected-properties" class="vt-zone-properties" style="display:none;">
                         <strong id="zone-selected-title">Selected zone</strong>
-                        <label id="zone-selected-private-row">Player-private <input id="zone-selected-private" type="checkbox" /></label>
+                        <label id="zone-selected-private-row" rel="tooltip" data-trigger="hover focus" data-placement="right" data-original-title="Creates one independent zone per player. Unlock advanced map options in Settings to change this.">Player-private <input id="zone-selected-private" type="checkbox" /></label>
                         <label id="zone-selected-teleport-mode-row">Destination mode <select id="zone-selected-teleport-mode"><option value="abs">Absolute point</option><option value="rel">Map-relative offset</option><option value="cycle">Cycle-relative offset</option></select></label>
                         <label id="zone-selected-dest-x-row">Destination X <input id="zone-selected-dest-x" type="number" step="any" /></label>
                         <label id="zone-selected-dest-y-row">Destination Y <input id="zone-selected-dest-y" type="number" step="any" /></label>
@@ -657,7 +666,7 @@
             </ul>
             <ul>
                 <li>
-                    <a class="toolbar-help-toggle" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Show Tooltips"><i class="fa-solid fa-question" aria-hidden="true"></i></a>
+                    <a class="toolbar-help-toggle" href="#" rel="tooltip" data-trigger="hover focus" data-placement="right" data-original-title="Disable tooltips" aria-pressed="true"><i class="fa-solid fa-question" aria-hidden="true"></i></a>
                 </li>
                 <li>
                     <a class="toolbar-gui-open" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Settings"></a>
@@ -753,6 +762,16 @@
                 </div>
             </div>
         </div>
+        <aside id="tooltip-welcome-popover" class="tooltip-welcome-popover" hidden role="dialog" aria-labelledby="tooltip-welcome-title">
+            <button id="tooltip-welcome-close" class="tooltip-welcome-close" type="button" aria-label="Close welcome panel"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            <span class="tooltip-welcome-icon" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+            <div>
+                <strong id="tooltip-welcome-title">Welcome!</strong>
+                <p>Thanks for using Vectron.</p>
+                <button id="tooltip-welcome-disable" class="btn btn-sm btn-primary" type="button">Disable tooltips</button>
+                <small>You can re-enable them any time with the <i class="fa-solid fa-question" aria-hidden="true"></i> button or in Settings → Configure.</small>
+            </div>
+        </aside>
         <div id="action-history-window" style="display:none;">
             <div id="action-history-header">Action History <span id="action-history-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="action-history-close" title="Close" style="float:right;cursor:pointer;font-weight:bold;">✕</span></div>
             <ul id="action-history-list"></ul>
@@ -776,13 +795,14 @@
                         <button id="map-repository-gallery" class="repository-icon-button" type="button" aria-pressed="false" title="Gallery layout" aria-label="Gallery layout"><i class="fa-solid fa-grip" aria-hidden="true"></i></button>
                         <button id="map-repository-list-layout" class="repository-icon-button active" type="button" aria-pressed="true" title="List layout" aria-label="List layout"><i class="fa-solid fa-list" aria-hidden="true"></i></button>
                     </div>
-                    <label class="compact-sort-control" for="map-repository-sort">Sort<select id="map-repository-sort"><option value="author">Author</option><option value="mapName">Map name</option><option value="updatedAt">Last updated</option></select></label>
+                    <label class="sr-only" for="map-repository-sort">Sort repository maps</label>
+                    <select id="map-repository-sort" class="repository-toolbar-select" aria-label="Sort repository maps"><option value="author">Author</option><option value="mapName">Map name</option><option value="updatedAt">Last updated</option></select>
                     <button id="map-repository-sort-order" class="repository-icon-button sort-order-button" type="button" data-direction="asc" aria-label="Sort ascending" title="Sort ascending"><i class="fa-solid fa-arrow-down-a-z" aria-hidden="true"></i></button>
                     <button id="map-repository-refresh" class="repository-refresh-button" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Refresh</span></button>
                 </div>
                 <div class="repository-tabs" role="tablist" aria-label="Repository map scope">
                     <button id="map-repository-mine-tab" class="repository-tab active" type="button" role="tab" aria-selected="true" aria-controls="map-repository-list" data-repository-tab="mine">My maps <span id="map-repository-mine-count">0</span></button>
-                    <button id="map-repository-others-tab" class="repository-tab" type="button" role="tab" aria-selected="false" aria-controls="map-repository-list" data-repository-tab="others">Other maps <span id="map-repository-others-count">0</span></button>
+                    <button id="map-repository-others-tab" class="repository-tab" type="button" role="tab" aria-selected="false" aria-controls="map-repository-list" data-repository-tab="others">Race maps <span id="map-repository-others-count">0</span></button>
                 </div>
                 <div id="map-repository-summary" class="repository-summary" aria-live="polite">Open the repository to remix maps.</div>
                 <div id="map-repository-status" class="repository-status" role="status" aria-live="polite" hidden></div>
@@ -830,10 +850,10 @@
                     <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="maps">Published maps <span data-admin-map-count>0</span></button>
                 </div>
                 <div id="admin-filters" class="admin-filters">
-                    <label id="admin-author-filter-wrap">Author<select id="admin-author-filter"><option value="">All authors</option></select></label>
-                    <label id="admin-decision-filter-wrap" hidden>Decision<select id="admin-decision-filter"><option value="">Approved and denied</option><option value="approved">Approved</option><option value="denied">Denied</option></select></label>
-                    <label id="admin-reason-filter-wrap" hidden>Reason<select id="admin-reason-filter"><option value="">All reasons</option></select></label>
-                    <label id="admin-sort-wrap">Sort<select id="admin-sort"></select></label>
+                    <span id="admin-author-filter-wrap" class="admin-filter-control"><label class="sr-only" for="admin-author-filter">Filter by author</label><select id="admin-author-filter" aria-label="Filter by author"><option value="">All authors</option></select></span>
+                    <span id="admin-decision-filter-wrap" class="admin-filter-control" hidden><label class="sr-only" for="admin-decision-filter">Filter by decision</label><select id="admin-decision-filter" aria-label="Filter by decision"><option value="">Approved and denied</option><option value="approved">Approved</option><option value="denied">Denied</option></select></span>
+                    <span id="admin-reason-filter-wrap" class="admin-filter-control" hidden><label class="sr-only" for="admin-reason-filter">Filter by reason</label><select id="admin-reason-filter" aria-label="Filter by reason"><option value="">All reasons</option></select></span>
+                    <span id="admin-sort-wrap" class="admin-filter-control"><label class="sr-only" for="admin-sort">Sort review maps</label><select id="admin-sort" aria-label="Sort review maps"></select></span>
                     <button id="admin-sort-order" class="repository-icon-button sort-order-button" type="button" data-direction="desc" aria-label="Sort descending" title="Sort descending"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i></button>
                 </div>
                 <div id="admin-summary" class="repository-summary" aria-live="polite">Open a queue to begin reviewing.</div>

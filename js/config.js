@@ -30,6 +30,8 @@ var config_scrollWheelZoom = true;
 var config_snapToPosition = true;
 var config_autoAdjustGridSpacing = true;
 var config_zoomStep = 0.02; // scroll wheel zoom step (fraction): 0.02 = finest
+var config_showTooltips = true;
+var config_advancedMapOptionsUnlocked = false;
 
 // Grid line appearance (empty string = use theme default)
 var config_gridNarrowColor     = '';
@@ -144,6 +146,8 @@ function _config_check_default(item)
         case "darkTheme": return "true";
         case "showInfoBar": return "true";
         case "showActionHistory": return "true";
+        case "showTooltips": return "true";
+        case "advancedMapOptionsUnlocked": return "false";
         case "zoomStep": return "0.02";
     }
 }
@@ -305,6 +309,22 @@ function config_load()
     {
         actionHistory_show();
         document.getElementById("show-action-history").checked = true;
+    }
+
+    config_showTooltips = _config_check("showTooltips");
+    config_advancedMapOptionsUnlocked = _config_check("advancedMapOptionsUnlocked");
+    var showTooltipsCheckbox = document.getElementById("show-tooltips");
+    var advancedOptionsCheckbox = document.getElementById("unlock-advanced-map-options");
+    if(showTooltipsCheckbox) showTooltipsCheckbox.checked = config_showTooltips;
+    if(advancedOptionsCheckbox) advancedOptionsCheckbox.checked = config_advancedMapOptionsUnlocked;
+    if(typeof eventHandler_setTooltipsEnabled === "function") {
+        eventHandler_setTooltipsEnabled(config_showTooltips, false);
+    }
+    if(typeof eventHandler_syncAdvancedOptionLocks === "function") {
+        eventHandler_syncAdvancedOptionLocks();
+    }
+    if(typeof eventHandler_showTooltipWelcomeIfNeeded === "function") {
+        eventHandler_showTooltipWelcomeIfNeeded();
     }
 
     var savedZoomStep = parseFloat(_config_get("zoomStep"));

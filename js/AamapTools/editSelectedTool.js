@@ -160,6 +160,9 @@ function editSelected_sync(forceOpen) {
     summary.textContent = selection.length + " selected · " + parts.join(" · ");
     container.innerHTML = editSelected_renderWalls(groups.walls) +
         editSelected_renderZones(groups.zones) + editSelected_renderSpawns(groups.spawns);
+    if(typeof window.vectron_syncAdvancedOptionLocks === "function") {
+        window.vectron_syncAdvancedOptionLocks();
+    }
 
     if(groups.walls.length) {
         editSelected_input("edit-selected-wall-height", editSelected_commonValue(
