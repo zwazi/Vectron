@@ -43,7 +43,7 @@
         <script type="text/javascript" src="./js/vectron.js"></script>
 
         <script type="text/javascript">
-            var targetVersion = 1.113;
+            var targetVersion = 1.114;
             if(window.vtVersion != targetVersion) location.reload(true);
         </script>
 
@@ -848,9 +848,10 @@
             <div id="auth-confirm-message" class="auth-confirm-message"></div>
             <label id="auth-confirm-reason-field" class="auth-confirm-reason-field" for="auth-confirm-reason" hidden>
                 <span>Reason</span>
-                <textarea id="auth-confirm-reason" rows="3" maxlength="1000" aria-describedby="auth-confirm-reason-error"></textarea>
+                <input id="auth-confirm-reason" type="text" maxlength="1000" autocomplete="off" aria-describedby="auth-confirm-reason-error">
                 <small id="auth-confirm-reason-error" role="alert" hidden></small>
             </label>
+            <div id="auth-confirm-quick-reasons" class="auth-deny-quick-reasons" role="group" aria-label="Quick denial reasons" hidden></div>
             <div class="auth-confirm-actions">
                 <button id="auth-confirm-cancel" type="button" class="account-card-button">Cancel</button>
                 <button id="auth-confirm-accept" type="button" class="account-card-button">Confirm</button>

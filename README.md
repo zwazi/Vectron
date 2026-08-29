@@ -49,7 +49,10 @@ Admins may:
   as an immutable review draft on the same review item, or approve and publish
   the edited revision; the editor's top-right **Approve** and **Deny** actions
   both open the next pending map automatically, and denial requires a recorded
-  reason;
+  reason. Denial reasons use a one-line field that submits with Enter and offers
+  common quick-reason choices in both the review queue and editor toolbar.
+  Admins can save the current reason as an additional browser-persistent quick
+  choice and remove custom choices when they are no longer useful;
 - freely correct the final author, map name, and version before approval, with
   occupied versions automatically advanced until the resource path is free;
 - review each pending map in a two-column card with its submitted reason,
