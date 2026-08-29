@@ -771,6 +771,11 @@
                         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                         <input id="map-repository-search" type="search" autocomplete="off" placeholder="Search maps or authors">
                     </label>
+                    <button id="map-repository-search-submit" class="repository-refresh-button" type="button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span></button>
+                    <div class="repository-layout-switch" role="group" aria-label="Repository layout">
+                        <button id="map-repository-gallery" class="repository-icon-button active" type="button" aria-pressed="true" title="Gallery layout" aria-label="Gallery layout"><i class="fa-solid fa-grip" aria-hidden="true"></i></button>
+                        <button id="map-repository-list-layout" class="repository-icon-button" type="button" aria-pressed="false" title="List layout" aria-label="List layout"><i class="fa-solid fa-list" aria-hidden="true"></i></button>
+                    </div>
                     <button id="map-repository-refresh" class="repository-refresh-button" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Refresh</span></button>
                 </div>
                 <div class="repository-tabs" role="tablist" aria-label="Repository map scope">
@@ -813,6 +818,7 @@
                         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                         <input id="admin-search" type="search" autocomplete="off" placeholder="Search the current queue">
                     </label>
+                    <button id="admin-search-submit" class="repository-refresh-button" type="button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span></button>
                     <button id="admin-refresh" class="repository-refresh-button" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Refresh</span></button>
                 </div>
                 <div class="repository-tabs" role="tablist" aria-label="Admin review section">
@@ -821,10 +827,51 @@
                     <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="history">Review history <span data-admin-history-count>0</span></button>
                     <button class="repository-tab" type="button" role="tab" aria-selected="false" data-admin-tab="maps">Published maps <span data-admin-map-count>0</span></button>
                 </div>
+                <div id="admin-filters" class="admin-filters" hidden>
+                    <label id="admin-author-filter-wrap">Author<select id="admin-author-filter"><option value="">All authors</option></select></label>
+                    <label id="admin-decision-filter-wrap" hidden>Decision<select id="admin-decision-filter"><option value="">Approved and denied</option><option value="approved">Approved</option><option value="denied">Denied</option></select></label>
+                    <label id="admin-reason-filter-wrap" hidden>Reason<select id="admin-reason-filter"><option value="">All reasons</option></select></label>
+                </div>
                 <div id="admin-summary" class="repository-summary" aria-live="polite">Open a queue to begin reviewing.</div>
                 <div id="admin-status" class="repository-status" role="status" aria-live="polite" hidden></div>
                 <div id="admin-list" class="repository-list account-list" aria-label="Admin review items"></div>
+                <div id="admin-pagination" class="admin-pagination" aria-label="Admin queue pagination">
+                    <label>Show<select id="admin-page-size"><option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+                    <button id="admin-page-previous" class="repository-icon-button" type="button" aria-label="Previous page" title="Previous page"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+                    <span id="admin-page-status" aria-live="polite">Page 1 of 1</span>
+                    <button id="admin-page-next" class="repository-icon-button" type="button" aria-label="Next page" title="Next page"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+                </div>
+                <span class="admin-resize-handle admin-resize-n" data-admin-resize="n" aria-hidden="true"></span>
+                <span class="admin-resize-handle admin-resize-ne" data-admin-resize="ne" aria-hidden="true"></span>
+                <span class="admin-resize-handle admin-resize-e" data-admin-resize="e" aria-hidden="true"></span>
+                <span class="admin-resize-handle admin-resize-se" data-admin-resize="se" aria-hidden="true"></span>
+                <span class="admin-resize-handle admin-resize-s" data-admin-resize="s" aria-hidden="true"></span>
+                <span class="admin-resize-handle admin-resize-sw" data-admin-resize="sw" aria-hidden="true"></span>
+                <span class="admin-resize-handle admin-resize-w" data-admin-resize="w" aria-hidden="true"></span>
+                <span class="admin-resize-handle admin-resize-nw" data-admin-resize="nw" aria-hidden="true"></span>
             </section>
+        </div>
+        <div id="map-metadata-overlay" class="repository-overlay metadata-overlay" hidden>
+            <form id="map-metadata-form" class="repository-dialog metadata-dialog" role="dialog" aria-modal="true" aria-labelledby="map-metadata-title">
+                <header class="repository-header">
+                    <div class="repository-title-wrap">
+                        <span class="repository-title-icon" aria-hidden="true"><i class="fa-solid fa-tags"></i></span>
+                        <span><strong id="map-metadata-title">Edit map metadata</strong><small>Publish an immutable metadata-only revision</small></span>
+                    </div>
+                    <button id="map-metadata-close" class="repository-icon-button" type="button" aria-label="Close metadata editor" title="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                </header>
+                <div class="metadata-fields">
+                    <label>Author<input id="map-metadata-author" type="text" maxlength="60" data-admin-map-author></label>
+                    <label>Map name<input id="map-metadata-name" type="text" maxlength="100" data-admin-map-name></label>
+                    <label>Version<input id="map-metadata-version" type="text" maxlength="64" data-admin-map-version></label>
+                    <label>Category<input id="map-metadata-category" type="text" maxlength="60" data-admin-category></label>
+                </div>
+                <div id="map-metadata-status" class="repository-status" role="status" aria-live="polite" hidden></div>
+                <div class="metadata-actions">
+                    <button id="map-metadata-cancel" class="account-card-button" type="button">Cancel</button>
+                    <button class="account-card-button" type="submit">Save metadata revision</button>
+                </div>
+            </form>
         </div>
         <div id="map-file-command-overlay" class="repository-overlay" hidden>
             <section class="repository-dialog map-file-command-dialog" role="dialog" aria-modal="true" aria-labelledby="map-file-command-title">
