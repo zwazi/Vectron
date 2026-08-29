@@ -86,6 +86,8 @@ const repositorySearchInput = document.getElementById("map-repository-search");
 const repositorySearchButton = document.getElementById("map-repository-search-submit");
 const repositoryGalleryButton = document.getElementById("map-repository-gallery");
 const repositoryListLayoutButton = document.getElementById("map-repository-list-layout");
+const repositorySort = document.getElementById("map-repository-sort");
+const repositorySortOrder = document.getElementById("map-repository-sort-order");
 const repositorySummary = document.getElementById("map-repository-summary");
 const repositoryStatus = document.getElementById("map-repository-status");
 const repositoryList = document.getElementById("map-repository-list");
@@ -115,9 +117,14 @@ const adminDecisionFilterWrap = document.getElementById("admin-decision-filter-w
 const adminDecisionFilter = document.getElementById("admin-decision-filter");
 const adminReasonFilterWrap = document.getElementById("admin-reason-filter-wrap");
 const adminReasonFilter = document.getElementById("admin-reason-filter");
+const adminSort = document.getElementById("admin-sort");
+const adminSortOrder = document.getElementById("admin-sort-order");
 const adminPageSize = document.getElementById("admin-page-size");
+const adminPageFirst = document.getElementById("admin-page-first");
 const adminPagePrevious = document.getElementById("admin-page-previous");
 const adminPageNext = document.getElementById("admin-page-next");
+const adminPageLast = document.getElementById("admin-page-last");
+const adminPageNumber = document.getElementById("admin-page-number");
 const adminPageStatus = document.getElementById("admin-page-status");
 const adminSummary = document.getElementById("admin-summary");
 const adminStatus = document.getElementById("admin-status");
@@ -164,6 +171,7 @@ let repositorySubmissions = [];
 let repositoryTab = "mine";
 let repositorySearchQuery = "";
 let repositoryLayout = readRepositoryLayout();
+let repositorySortState = {field:"author", direction:"asc"};
 let repositoryPreviewObserver = null;
 let repositoryPreviousFocus = null;
 let repositoryEditState = null;
@@ -190,6 +198,24 @@ let adminFilterState = {
     history:{author:"", decision:"", reason:""},
     maps:{author:""}
 };
+let adminSortState = {
+    accounts:{field:"createdAt", direction:"desc"},
+    submissions:{field:"createdAt", direction:"desc"},
+    history:{field:"reviewedAt", direction:"desc"},
+    maps:{field:"updatedAt", direction:"desc"}
+};
+let adminHistoryPaging = {
+    signature:"",
+    total:0,
+    allTotal:0,
+    pageCount:1,
+    pages:new Map(),
+    materialized:null,
+    materializedCache:new Map(),
+    countCache:new Map(),
+    loading:false,
+    requestId:0
+};
 let publicCatalogState = null;
 let publicCatalogManifest = null;
 let publicCatalogGeneration = "";
@@ -212,17 +238,17 @@ let metadataPreviousFocus = null;
 
 function readRepositoryLayout() {
     try {
-        return window.localStorage.getItem("vectron.repositoryLayout.v1") === "list"
-            ? "list" : "gallery";
+        return window.localStorage.getItem("vectron.repositoryLayout.v2") === "gallery"
+            ? "gallery" : "list";
     } catch(error) {
-        return "gallery";
+        return "list";
     }
 }
 
 function setRepositoryLayout(layout) {
     repositoryLayout = layout === "list" ? "list" : "gallery";
     try {
-        window.localStorage.setItem("vectron.repositoryLayout.v1", repositoryLayout);
+        window.localStorage.setItem("vectron.repositoryLayout.v2", repositoryLayout);
     } catch(error) {
         console.warn("Vectron could not persist the repository layout.", error);
     }
@@ -234,6 +260,26 @@ function setRepositoryLayout(layout) {
             button.setAttribute("aria-pressed", String(active));
         });
     if(repositoryOverlay && !repositoryOverlay.hidden) renderRepositoryMaps();
+}
+
+function compareRepositoryMaps(left, right) {
+    const field = repositorySortState.field;
+    const leftValue = field === "updatedAt"
+        ? timestampMillis(left.updatedAt || left.createdAt)
+        : String(left[field] || "");
+    const rightValue = field === "updatedAt"
+        ? timestampMillis(right.updatedAt || right.createdAt)
+        : String(right[field] || "");
+    const comparison = typeof leftValue === "number"
+        ? leftValue - rightValue
+        : leftValue.localeCompare(rightValue, undefined, {numeric:true, sensitivity:"base"});
+    const stable = comparison || left.name.localeCompare(right.name, undefined, {numeric:true});
+    return repositorySortState.direction === "desc" ? -stable : stable;
+}
+
+function syncRepositorySortControls() {
+    if(repositorySort) repositorySort.value = repositorySortState.field;
+    syncSortOrderButton(repositorySortOrder, repositorySortState);
 }
 
 function positionConfirmationPopover() {
@@ -1240,37 +1286,37 @@ function updateAdminBadge() {
     if(adminAccountCount) adminAccountCount.textContent = String(adminData.accounts.length);
     if(adminSubmissionCount) adminSubmissionCount.textContent = String(adminData.submissions.length);
     if(adminMapCount) adminMapCount.textContent = String(adminData.maps.length);
-    if(adminHistoryCount) adminHistoryCount.textContent = String(adminData.history.length);
+    if(adminHistoryCount) adminHistoryCount.textContent = String(
+        adminHistoryPaging.allTotal || adminHistoryPaging.total || adminData.history.length
+    );
+}
+
+function normalizeAdminHistoryRecords(records) {
+    const recordsById = new Map(records.map(item => [item.id, item]));
+    const finalRevisionIds = new Set(records.map(item => item.finalRevisionId).filter(Boolean));
+    return records
+        .filter(item => item.historyVisible !== false && !item.sourceSubmissionId &&
+            !(finalRevisionIds.has(item.id) && item.finalRevisionId !== item.id))
+        .map(item => {
+            const final = item.finalRevisionId && item.finalRevisionId !== item.id
+                ? recordsById.get(item.finalRevisionId) : null;
+            return final ? {
+                ...item,
+                authorId: final.authorId || item.authorId,
+                authorName: final.authorName || item.authorName,
+                category: final.category || item.category,
+                mapName: final.mapName || item.mapName,
+                mapVersion: final.mapVersion || item.mapVersion,
+                storagePath: final.storagePath || item.storagePath,
+                sha256: final.sha256 || item.sha256
+            } : item;
+        });
 }
 
 function setAdminCollection(key, snapshot) {
     const records = snapshot.docs.map(item => ({id: item.id, ...item.data()}));
     if(key === "history") {
-        const recordsById = new Map(records.map(item => [item.id, item]));
-        const finalRevisionIds = new Set(records.map(item => item.finalRevisionId).filter(Boolean));
-        adminData.history = records
-            .filter(item => !item.sourceSubmissionId &&
-                !(finalRevisionIds.has(item.id) && item.finalRevisionId !== item.id))
-            .map(item => {
-                const final = item.finalRevisionId && item.finalRevisionId !== item.id
-                    ? recordsById.get(item.finalRevisionId) : null;
-                return final ? {
-                    ...item,
-                    authorId: final.authorId || item.authorId,
-                    authorName: final.authorName || item.authorName,
-                    category: final.category || item.category,
-                    mapVersion: final.mapVersion || item.mapVersion,
-                    storagePath: final.storagePath || item.storagePath,
-                    sha256: final.sha256 || item.sha256
-                } : item;
-            })
-            .sort((a, b) => {
-                const aTime = a.reviewedAt && typeof a.reviewedAt.toMillis === "function"
-                    ? a.reviewedAt.toMillis() : 0;
-                const bTime = b.reviewedAt && typeof b.reviewedAt.toMillis === "function"
-                    ? b.reviewedAt.toMillis() : 0;
-                return bTime - aTime;
-            });
+        adminData.history = normalizeAdminHistoryRecords(records);
     } else {
         adminData[key] = records;
     }
@@ -1314,14 +1360,6 @@ function startAdminListeners() {
     adminUnsubscribes.forEach(unsubscribe => unsubscribe());
     adminUnsubscribes = [];
     const specs = [["authors", firestoreSdk.collection(firestore, "authors")]];
-    if(adminTab === "history") {
-        specs.push(["history", firestoreSdk.query(
-            firestoreSdk.collection(firestore, "mapSubmissions"),
-            firestoreSdk.where("status", "in", ["approved", "denied"]),
-            firestoreSdk.orderBy("reviewedAt", "desc"),
-            firestoreSdk.limit(100)
-        )]);
-    }
     adminUnsubscribes.push(...specs.map(([key, reference]) =>
         firestoreSdk.onSnapshot(
             reference,
@@ -1329,20 +1367,18 @@ function startAdminListeners() {
             error => reportAdminListenerError(key, error)
         )
     ));
-    if(["submissions", "maps", "history"].includes(adminTab)) {
-        const catalogReference = firestoreSdk.doc(firestore, "catalogState", "current");
-        adminUnsubscribes.push(firestoreSdk.onSnapshot(catalogReference, async snapshot => {
-            try {
-                const state = snapshot.exists() ? {id:snapshot.id, ...snapshot.data()} : null;
-                const maps = await loadPublicCatalog(false, state);
-                adminData.maps = maps.map(item => ({...item, id:item.id || item.mapId}));
-                updateAdminBadge();
-                if(adminOverlay && !adminOverlay.hidden) renderAdminList();
-            } catch(error) {
-                reportAdminListenerError("map catalog", error);
-            }
-        }, error => reportAdminListenerError("map catalog", error)));
-    }
+    const catalogReference = firestoreSdk.doc(firestore, "catalogState", "current");
+    adminUnsubscribes.push(firestoreSdk.onSnapshot(catalogReference, async snapshot => {
+        try {
+            const state = snapshot.exists() ? {id:snapshot.id, ...snapshot.data()} : null;
+            const maps = await loadPublicCatalog(false, state);
+            adminData.maps = maps.map(item => ({...item, id:item.id || item.mapId}));
+            updateAdminBadge();
+            if(adminOverlay && !adminOverlay.hidden) renderAdminList();
+        } catch(error) {
+            reportAdminListenerError("map catalog", error);
+        }
+    }, error => reportAdminListenerError("map catalog", error)));
 }
 
 function setAdminBusy(value) {
@@ -1350,15 +1386,20 @@ function setAdminBusy(value) {
     adminRefreshButton.disabled = value;
     adminSearchInput.disabled = value;
     if(adminSearchButton) adminSearchButton.disabled = value;
-    [adminAuthorFilter, adminDecisionFilter, adminReasonFilter, adminPageSize,
-        adminPagePrevious, adminPageNext].forEach(control => {
+    [adminAuthorFilter, adminDecisionFilter, adminReasonFilter, adminSort,
+        adminSortOrder, adminPageSize, adminPageFirst, adminPagePrevious,
+        adminPageNumber, adminPageNext, adminPageLast].forEach(control => {
         if(control) control.disabled = value;
     });
     if(!value && adminPagination[adminTab]) {
         const pagination = adminPagination[adminTab];
-        const pageCount = Math.max(1, Math.ceil(adminFilteredItems().length / pagination.pageSize));
+        const pageCount = adminTab === "history" && !historyUsesMaterializedResults()
+            ? adminHistoryPaging.pageCount
+            : Math.max(1, Math.ceil(adminFilteredItems().length / pagination.pageSize));
+        adminPageFirst.disabled = pagination.page <= 1;
         adminPagePrevious.disabled = pagination.page <= 1;
         adminPageNext.disabled = pagination.page >= pageCount;
+        adminPageLast.disabled = pagination.page >= pageCount;
     }
     adminList.querySelectorAll("button,input,select,textarea").forEach(control => {
         control.disabled = value;
@@ -1512,20 +1553,35 @@ function removeCustomQuickDenyReason(reason, input) {
 function populateQuickDenyReasons(container, input) {
     if(!container || !input) return;
     container.vectronDenyReasonInput = input;
-    const controls = QUICK_DENY_REASONS.map(reason => quickDenyReasonButton(input, reason));
-    customQuickDenyReasons.forEach(reason => {
-        const item = document.createElement("span");
-        item.className = "auth-deny-quick-custom";
-        const removeButton = document.createElement("button");
-        removeButton.type = "button";
-        removeButton.className = "auth-deny-quick-remove";
-        removeButton.dataset.denyQuickRemove = reason;
-        removeButton.textContent = "×";
-        removeButton.title = `Remove ${reason}`;
-        removeButton.setAttribute("aria-label", `Remove quick denial message: ${reason}`);
-        removeButton.addEventListener("click", () => removeCustomQuickDenyReason(reason, input));
-        item.append(quickDenyReasonButton(input, reason), removeButton);
-        controls.push(item);
+    const select = document.createElement("select");
+    select.className = "auth-deny-quick-select";
+    select.setAttribute("aria-label", "Quick denial reason");
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Choose a quick reason…";
+    select.appendChild(placeholder);
+    const standardGroup = document.createElement("optgroup");
+    standardGroup.label = "Quick reasons";
+    QUICK_DENY_REASONS.forEach(reason => {
+        const option = document.createElement("option");
+        option.value = reason;
+        option.textContent = reason;
+        standardGroup.appendChild(option);
+    });
+    select.appendChild(standardGroup);
+    if(customQuickDenyReasons.length) {
+        const customGroup = document.createElement("optgroup");
+        customGroup.label = "Saved reasons";
+        customQuickDenyReasons.forEach(reason => {
+            const option = document.createElement("option");
+            option.value = reason;
+            option.textContent = reason;
+            customGroup.appendChild(option);
+        });
+        select.appendChild(customGroup);
+    }
+    select.addEventListener("change", () => {
+        if(select.value) applyQuickDenyReason(input, select.value);
     });
     const addButton = document.createElement("button");
     addButton.type = "button";
@@ -1534,8 +1590,20 @@ function populateQuickDenyReasons(container, input) {
     addButton.textContent = "+ Save current";
     addButton.title = "Save the current reason as a custom quick denial message";
     addButton.addEventListener("click", () => addCustomQuickDenyReason(input));
-    controls.push(addButton);
-    container.replaceChildren(...controls);
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "account-card-button auth-deny-quick-remove";
+    removeButton.textContent = "Remove saved";
+    removeButton.title = "Remove the selected saved quick reason";
+    removeButton.addEventListener("click", () => {
+        if(customQuickDenyReasons.includes(select.value)) {
+            removeCustomQuickDenyReason(select.value, input);
+        } else {
+            showEditorMessage("Choose a saved quick reason to remove.");
+            select.focus();
+        }
+    });
+    container.replaceChildren(select, addButton, removeButton);
 }
 
 function adminMapIdentity(card, fallback = {}) {
@@ -2128,6 +2196,66 @@ function adminReasonCategory(reason) {
     return quick ? normalized : "__custom__";
 }
 
+function adminSortOptions(tab = adminTab) {
+    if(tab === "accounts") return [
+        ["requestedAuthorName", "Author"],
+        ["createdAt", "Time submitted"]
+    ];
+    if(tab === "submissions") return [
+        ["authorName", "Author"],
+        ["mapName", "Map name"],
+        ["createdAt", "Time submitted"]
+    ];
+    if(tab === "history") return [
+        ["authorName", "Author"],
+        ["mapName", "Map name"],
+        ["createdAt", "Time submitted"],
+        ["reviewedAt", "Time reviewed"]
+    ];
+    return [
+        ["authorName", "Author"],
+        ["mapName", "Map name"],
+        ["createdAt", "Time published"],
+        ["updatedAt", "Last updated"]
+    ];
+}
+
+function timestampMillis(value) {
+    if(value && typeof value.toMillis === "function") return value.toMillis();
+    if(value && Number.isFinite(value.seconds)) return value.seconds * 1000;
+    const parsed = Date.parse(String(value || ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function adminSortValue(item, field) {
+    if(["createdAt", "updatedAt", "reviewedAt"].includes(field)) {
+        return timestampMillis(item && item[field]);
+    }
+    return String(item && item[field] || "").normalize("NFKC");
+}
+
+function compareAdminItems(left, right, state = adminSortState[adminTab]) {
+    const leftValue = adminSortValue(left, state.field);
+    const rightValue = adminSortValue(right, state.field);
+    const comparison = typeof leftValue === "number"
+        ? leftValue - rightValue
+        : leftValue.localeCompare(rightValue, undefined, {numeric:true, sensitivity:"base"});
+    const stable = comparison || String(left.id || "").localeCompare(String(right.id || ""));
+    return state.direction === "desc" ? -stable : stable;
+}
+
+function syncSortOrderButton(button, state) {
+    if(!button || !state) return;
+    const ascending = state.direction === "asc";
+    button.dataset.direction = state.direction;
+    button.title = ascending ? "Sort ascending" : "Sort descending";
+    button.setAttribute("aria-label", button.title);
+    const icon = button.querySelector("i");
+    if(icon) icon.className = ascending
+        ? "fa-solid fa-arrow-up-wide-short"
+        : "fa-solid fa-arrow-down-wide-short";
+}
+
 function replaceSelectOptions(select, options, selected) {
     if(!select) return;
     select.replaceChildren(...options.map(([value, label]) => {
@@ -2142,20 +2270,21 @@ function replaceSelectOptions(select, options, selected) {
 
 function syncAdminFilterControls() {
     const filterable = ["submissions", "history", "maps"].includes(adminTab);
-    adminFilters.hidden = !filterable;
-    if(!filterable) return;
-    const state = adminFilterState[adminTab];
-    const items = adminData[adminTab] || [];
-    const authors = Array.from(new Set(items.map(item =>
-        normalizeAuthorName(item.authorName)
-    ).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, {sensitivity:"base"}));
-    replaceSelectOptions(
-        adminAuthorFilter,
-        [["", "All authors"], ...authors.map(author => [author.toLocaleLowerCase("en-US"), author])],
-        state.author
-    );
-    if(adminAuthorFilter.value !== state.author) state.author = adminAuthorFilter.value;
-    adminAuthorFilterWrap.hidden = false;
+    adminFilters.hidden = false;
+    const state = adminFilterState[adminTab] || {};
+    adminAuthorFilterWrap.hidden = !filterable;
+    if(filterable) {
+        const sourceItems = adminTab === "history" ? adminData.authors : adminData[adminTab] || [];
+        const authors = Array.from(new Set(sourceItems.map(item =>
+            normalizeAuthorName(item.authorName || item.name)
+        ).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, {sensitivity:"base"}));
+        replaceSelectOptions(
+            adminAuthorFilter,
+            [["", "All authors"], ...authors.map(author => [author, author])],
+            state.author
+        );
+        if(adminAuthorFilter.value !== state.author) state.author = adminAuthorFilter.value;
+    }
     const history = adminTab === "history";
     adminDecisionFilterWrap.hidden = !history;
     adminReasonFilterWrap.hidden = !history;
@@ -2170,31 +2299,251 @@ function syncAdminFilterControls() {
         );
         if(adminReasonFilter.value !== state.reason) state.reason = adminReasonFilter.value;
     }
+    const sortState = adminSortState[adminTab];
+    replaceSelectOptions(adminSort, adminSortOptions(), sortState.field);
+    if(adminSort.value !== sortState.field) sortState.field = adminSort.value;
+    syncSortOrderButton(adminSortOrder, sortState);
+}
+
+function adminItemMatches(item, tab = adminTab) {
+    const query = adminSearchQueries[tab].toLocaleLowerCase("en-US");
+    const filters = adminFilterState[tab] || {};
+    if(query && !JSON.stringify(item).toLocaleLowerCase("en-US").includes(query)) return false;
+    if(filters.author && normalizeAuthorName(item.authorName) !== filters.author) return false;
+    if(filters.decision && item.status !== filters.decision) return false;
+    if(filters.reason && adminReasonCategory(item.reviewReason) !== filters.reason) return false;
+    return true;
 }
 
 function adminFilteredItems() {
-    const items = adminData[adminTab] || [];
-    const query = adminSearchQueries[adminTab].toLocaleLowerCase("en-US");
-    const filters = adminFilterState[adminTab] || {};
-    return items.filter(item => {
-        if(query && !JSON.stringify(item).toLocaleLowerCase("en-US").includes(query)) return false;
-        if(filters.author && normalizeAuthorName(item.authorName)
-            .toLocaleLowerCase("en-US") !== filters.author) return false;
-        if(filters.decision && item.status !== filters.decision) return false;
-        if(filters.reason && adminReasonCategory(item.reviewReason) !== filters.reason) return false;
-        return true;
+    return (adminData[adminTab] || [])
+        .filter(item => adminItemMatches(item))
+        .slice()
+        .sort(compareAdminItems);
+}
+
+function historyUsesMaterializedResults() {
+    const filters = adminFilterState.history;
+    return Boolean(adminSearchQueries.history || filters.author || filters.reason);
+}
+
+function historyQuerySignature() {
+    const pagination = adminPagination.history;
+    const filters = adminFilterState.history;
+    const sort = adminSortState.history;
+    return JSON.stringify({
+        pageSize:pagination.pageSize,
+        decision:filters.decision,
+        author:filters.author,
+        reason:filters.reason,
+        search:adminSearchQueries.history,
+        field:sort.field,
+        direction:sort.direction,
+        materialized:historyUsesMaterializedResults()
     });
+}
+
+function historyWhereConstraints() {
+    const decision = adminFilterState.history.decision;
+    return [
+        firestoreSdk.where("historyVisible", "==", true),
+        decision
+            ? firestoreSdk.where("status", "==", decision)
+            : firestoreSdk.where("status", "in", ["approved", "denied"])
+    ];
+}
+
+function historyOrderedQuery(direction = adminSortState.history.direction, anchor = null, size = 0) {
+    const constraints = [
+        ...historyWhereConstraints(),
+        firestoreSdk.orderBy(adminSortState.history.field, direction),
+        firestoreSdk.orderBy(firestoreSdk.documentId(), direction)
+    ];
+    if(anchor) constraints.push(firestoreSdk.startAfter(anchor));
+    if(size) constraints.push(firestoreSdk.limit(size));
+    return firestoreSdk.query(
+        firestoreSdk.collection(firestore, "mapSubmissions"),
+        ...constraints
+    );
+}
+
+function recordsFromHistorySnapshot(snapshot, reverse = false) {
+    const docs = reverse ? snapshot.docs.slice().reverse() : snapshot.docs.slice();
+    return {
+        snapshots:docs,
+        items:normalizeAdminHistoryRecords(docs.map(item => ({id:item.id, ...item.data()})))
+    };
+}
+
+async function fetchHistoryCursorPage(reverse, anchor, size) {
+    const direction = adminSortState.history.direction;
+    const queryDirection = reverse ? (direction === "asc" ? "desc" : "asc") : direction;
+    const snapshot = await firestoreSdk.getDocs(
+        historyOrderedQuery(queryDirection, anchor, size)
+    );
+    return recordsFromHistorySnapshot(snapshot, reverse);
+}
+
+function resetHistoryPaging(signature) {
+    adminHistoryPaging.signature = signature;
+    adminHistoryPaging.total = 0;
+    adminHistoryPaging.pageCount = 1;
+    adminHistoryPaging.pages = new Map();
+    adminHistoryPaging.materialized = null;
+    adminData.history = [];
+}
+
+function invalidateAdminHistory() {
+    adminHistoryPaging.requestId += 1;
+    resetHistoryPaging("");
+    adminHistoryPaging.allTotal = 0;
+    adminHistoryPaging.materializedCache.clear();
+    adminHistoryPaging.countCache.clear();
+}
+
+async function loadMaterializedHistory(requestId) {
+    const cacheKey = "all-visible-history";
+    let sourceRecords = adminHistoryPaging.materializedCache.get(cacheKey);
+    if(!sourceRecords) {
+        const snapshot = await firestoreSdk.getDocs(firestoreSdk.query(
+            firestoreSdk.collection(firestore, "mapSubmissions"),
+            firestoreSdk.where("historyVisible", "==", true),
+            firestoreSdk.where("status", "in", ["approved", "denied"]),
+            firestoreSdk.orderBy("reviewedAt", "desc"),
+            firestoreSdk.orderBy(firestoreSdk.documentId(), "desc")
+        ));
+        if(requestId !== adminHistoryPaging.requestId) return false;
+        sourceRecords = normalizeAdminHistoryRecords(
+            snapshot.docs.map(item => ({id:item.id, ...item.data()}))
+        );
+        adminHistoryPaging.materializedCache.set(cacheKey, sourceRecords);
+    }
+    adminHistoryPaging.allTotal = sourceRecords.length;
+    const records = sourceRecords.filter(item => adminItemMatches(item, "history"));
+    adminHistoryPaging.materialized = records;
+    adminHistoryPaging.total = records.length;
+    adminHistoryPaging.pageCount = Math.max(
+        1, Math.ceil(records.length / adminPagination.history.pageSize)
+    );
+    adminData.history = records;
+    return true;
+}
+
+async function ensureHistoryCursorCount(requestId) {
+    if(adminHistoryPaging.total || adminHistoryPaging.pages.size) return true;
+    const countKey = adminFilterState.history.decision || "all";
+    let count = adminHistoryPaging.countCache.get(countKey);
+    if(count === undefined) {
+        const countSnapshot = await firestoreSdk.getCountFromServer(firestoreSdk.query(
+            firestoreSdk.collection(firestore, "mapSubmissions"),
+            ...historyWhereConstraints()
+        ));
+        count = Number(countSnapshot.data().count || 0);
+        adminHistoryPaging.countCache.set(countKey, count);
+    }
+    if(requestId !== adminHistoryPaging.requestId) return false;
+    adminHistoryPaging.total = count;
+    if(!adminFilterState.history.decision) {
+        adminHistoryPaging.allTotal = adminHistoryPaging.total;
+    }
+    adminHistoryPaging.pageCount = Math.max(
+        1, Math.ceil(adminHistoryPaging.total / adminPagination.history.pageSize)
+    );
+    return true;
+}
+
+async function ensureBoundaryHistoryPage(page, requestId) {
+    if(adminHistoryPaging.pages.has(page)) return true;
+    const pageSize = adminPagination.history.pageSize;
+    if(page <= 1) {
+        const loaded = await fetchHistoryCursorPage(false, null, pageSize);
+        if(requestId !== adminHistoryPaging.requestId) return false;
+        adminHistoryPaging.pages.set(1, loaded);
+        return true;
+    }
+    if(page === adminHistoryPaging.pageCount) {
+        const finalSize = adminHistoryPaging.total % pageSize || pageSize;
+        const loaded = await fetchHistoryCursorPage(true, null, finalSize);
+        if(requestId !== adminHistoryPaging.requestId) return false;
+        adminHistoryPaging.pages.set(page, loaded);
+    }
+    return true;
+}
+
+async function ensureHistoryPage(page, jump = false, requestId = adminHistoryPaging.requestId) {
+    if(adminHistoryPaging.pages.has(page)) return true;
+    if(!await ensureBoundaryHistoryPage(page, requestId)) return false;
+    if(adminHistoryPaging.pages.has(page)) return true;
+    if(jump) {
+        const loaded = await Promise.all([
+            ensureBoundaryHistoryPage(1, requestId),
+            ensureBoundaryHistoryPage(adminHistoryPaging.pageCount, requestId)
+        ]);
+        if(loaded.includes(false) || requestId !== adminHistoryPaging.requestId) return false;
+    }
+    const cachedPages = Array.from(adminHistoryPaging.pages.keys());
+    let cursorPage = cachedPages.reduce((nearest, candidate) =>
+        Math.abs(candidate - page) < Math.abs(nearest - page) ? candidate : nearest
+    );
+    while(cursorPage !== page) {
+        const current = adminHistoryPaging.pages.get(cursorPage);
+        const forward = cursorPage < page;
+        const nextPage = cursorPage + (forward ? 1 : -1);
+        const anchor = forward
+            ? current.snapshots[current.snapshots.length - 1]
+            : current.snapshots[0];
+        const loaded = await fetchHistoryCursorPage(!forward, anchor, adminPagination.history.pageSize);
+        if(requestId !== adminHistoryPaging.requestId) return false;
+        adminHistoryPaging.pages.set(nextPage, loaded);
+        cursorPage = nextPage;
+    }
+    return true;
+}
+
+async function loadAdminHistoryPage(targetPage = 1, options = {}) {
+    if(!firestoreSdk || !firestore || adminTab !== "history") return;
+    const signature = historyQuerySignature();
+    if(signature !== adminHistoryPaging.signature) resetHistoryPaging(signature);
+    const requestId = ++adminHistoryPaging.requestId;
+    adminHistoryPaging.loading = true;
+    setAdminStatus(historyUsesMaterializedResults()
+        ? "Loading the complete filtered history once for this search…"
+        : "Loading review history page…");
+    try {
+        if(historyUsesMaterializedResults()) {
+            if(!adminHistoryPaging.materialized && !await loadMaterializedHistory(requestId)) return;
+        } else {
+            if(!await ensureHistoryCursorCount(requestId)) return;
+            targetPage = Math.max(1, Math.min(targetPage, adminHistoryPaging.pageCount));
+            if(!await ensureHistoryPage(targetPage, options.jump === true, requestId)) return;
+            adminData.history = adminHistoryPaging.pages.get(targetPage).items;
+        }
+        const pagination = adminPagination.history;
+        pagination.page = Math.max(1, Math.min(targetPage, adminHistoryPaging.pageCount));
+        updateAdminBadge();
+        setAdminStatus("");
+        renderAdminList();
+    } catch(error) {
+        reportAdminListenerError("review history", error);
+    } finally {
+        if(requestId === adminHistoryPaging.requestId) adminHistoryPaging.loading = false;
+    }
 }
 
 function renderAdminList() {
     syncAdminFilterControls();
     const items = adminData[adminTab] || [];
-    const visible = adminFilteredItems();
+    const cursorHistory = adminTab === "history" && !historyUsesMaterializedResults();
+    const visible = cursorHistory ? items : adminFilteredItems();
     const pagination = adminPagination[adminTab];
-    const pageCount = Math.max(1, Math.ceil(visible.length / pagination.pageSize));
+    const pageCount = cursorHistory ? adminHistoryPaging.pageCount :
+        Math.max(1, Math.ceil(visible.length / pagination.pageSize));
     pagination.page = Math.min(Math.max(1, pagination.page), pageCount);
     const start = (pagination.page - 1) * pagination.pageSize;
-    const pageItems = visible.slice(start, start + pagination.pageSize);
+    const pageItems = cursorHistory ? visible : visible.slice(start, start + pagination.pageSize);
+    const matchingTotal = cursorHistory ? adminHistoryPaging.total : visible.length;
+    const sourceTotal = adminTab === "history"
+        ? adminHistoryPaging.allTotal || matchingTotal : items.length;
     if(adminPreviewObserver) {
         adminPreviewObserver.disconnect();
         adminPreviewObserver = null;
@@ -2203,15 +2552,19 @@ function renderAdminList() {
     const queueLabel = adminTab === "accounts" ? "pending registrations" :
         adminTab === "submissions" ? "pending map submissions" :
         adminTab === "history" ? "review decisions" : "published maps";
-    adminSummary.textContent = visible.length
-        ? `Showing ${start + 1}–${start + pageItems.length} of ${visible.length} matching ` +
-          `${queueLabel} (${items.length} total).`
-        : `0 of ${items.length} ${queueLabel}.`;
+    adminSummary.textContent = matchingTotal
+        ? `Showing ${start + 1}–${start + pageItems.length} of ${matchingTotal} matching ` +
+          `${queueLabel} (${sourceTotal} total).`
+        : `0 of ${sourceTotal} ${queueLabel}.`;
     adminPageSize.value = String(pagination.pageSize);
-    adminPageStatus.textContent = `Page ${pagination.page} of ${pageCount}`;
+    adminPageNumber.value = String(pagination.page);
+    adminPageNumber.max = String(pageCount);
+    adminPageStatus.textContent = `of ${pageCount}`;
+    adminPageFirst.disabled = pagination.page <= 1;
     adminPagePrevious.disabled = pagination.page <= 1;
     adminPageNext.disabled = pagination.page >= pageCount;
-    if(!visible.length) {
+    adminPageLast.disabled = pagination.page >= pageCount;
+    if(!matchingTotal) {
         const empty = document.createElement("div");
         empty.className = "repository-empty";
         empty.textContent = adminSearchQueries[adminTab] ? "Nothing in this queue matches your search and filters." :
@@ -2233,6 +2586,27 @@ function submitAdminSearch() {
     adminSearchQueries[adminTab] = adminSearchInput.value.trim();
     adminPagination[adminTab].page = 1;
     adminList.scrollTop = 0;
+    if(adminTab === "history") void loadAdminHistoryPage(1);
+    else renderAdminList();
+}
+
+function currentAdminPageCount() {
+    if(adminTab === "history" && !historyUsesMaterializedResults()) {
+        return adminHistoryPaging.pageCount;
+    }
+    return Math.max(1, Math.ceil(
+        adminFilteredItems().length / adminPagination[adminTab].pageSize
+    ));
+}
+
+function goToAdminPage(page, options = {}) {
+    const target = Math.max(1, Math.min(Number(page) || 1, currentAdminPageCount()));
+    adminList.scrollTop = 0;
+    if(adminTab === "history" && !historyUsesMaterializedResults()) {
+        void loadAdminHistoryPage(target, options);
+        return;
+    }
+    adminPagination[adminTab].page = target;
     renderAdminList();
 }
 
@@ -2247,23 +2621,29 @@ function setAdminTab(value) {
     adminPageSize.value = String(adminPagination[adminTab].pageSize);
     adminList.scrollTop = 0;
     renderAdminList();
-    if(adminOverlay && !adminOverlay.hidden) startAdminListeners();
+    if(adminTab === "history" && adminOverlay && !adminOverlay.hidden) {
+        void loadAdminHistoryPage(adminPagination.history.page);
+    }
 }
 
 function refreshAdminQueues() {
     adminList.scrollTop = 0;
+    invalidateAdminHistory();
     startAdminQueueListeners();
     startAdminListeners();
+    if(adminTab === "history") void loadAdminHistoryPage(1);
 }
 
 function openAdmin() {
     if(!currentUserIsAdmin()) return;
     overlayPreviousFocus = document.activeElement;
+    invalidateAdminHistory();
     adminOverlay.hidden = false;
     anchorAdminDialog();
     adminButton.setAttribute("aria-expanded", "true");
     adminSearchInput.value = "";
     setAdminTab(adminTab);
+    startAdminListeners();
     window.setTimeout(() => adminSearchInput.focus(), 0);
 }
 
@@ -2357,7 +2737,10 @@ async function saveReviewText(submissionId) {
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
+        submission.submissionReason = submissionReason;
+        submission.reviewReason = reviewReason;
         setAdminStatus("Review text saved.");
+        if(adminTab === "history") renderAdminList();
     } finally {
         setAdminBusy(false);
     }
@@ -2705,7 +3088,8 @@ async function reviewSubmission(submissionId, approved, options = {}) {
                     reviewedAt: firestoreSdk.serverTimestamp(),
                     reviewedBy: reviewer.uid,
                     submissionReason,
-                    reviewReason: reason
+                    reviewReason: reason,
+                    historyVisible: false
                 });
             }
             if(draftRef && draftSnapshot && draftSnapshot.exists()) {
@@ -2715,6 +3099,7 @@ async function reviewSubmission(submissionId, approved, options = {}) {
                     reviewedAt: firestoreSdk.serverTimestamp(),
                     reviewedBy: reviewer.uid,
                     reviewReason: reason,
+                    historyVisible: false,
                     updatedAt: firestoreSdk.serverTimestamp()
                 });
             }
@@ -2725,6 +3110,16 @@ async function reviewSubmission(submissionId, approved, options = {}) {
                 reviewedAt: firestoreSdk.serverTimestamp(),
                 reviewedBy: reviewer.uid,
                 reviewReason: reason,
+                historyVisible: true,
+                ...(approved ? {
+                    authorId: finalSubmission.authorId,
+                    authorName: finalSubmission.authorName,
+                    category: finalSubmission.category,
+                    mapName: finalSubmission.mapName,
+                    mapVersion: finalSubmission.mapVersion,
+                    storagePath: reviewed.storagePath,
+                    sha256: reviewed.sha256
+                } : {}),
                 updatedAt: firestoreSdk.serverTimestamp()
             });
             if(pendingResourceSnapshot.exists() &&
@@ -2813,6 +3208,7 @@ async function reviewSubmission(submissionId, approved, options = {}) {
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
+        invalidateAdminHistory();
         setAdminStatus(serverOrigin
             ? approved ? "Map approved, published, and returned to server rotation."
                 : "Map denied and kept out of server rotation."
@@ -2923,6 +3319,7 @@ async function deleteReviewedMap(submissionId) {
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
+        invalidateAdminHistory();
         const storagePathList = Array.from(storagePaths);
         const removals = await Promise.allSettled(storagePathList.map(storagePath =>
             storageSdk.deleteObject(storageSdk.ref(storage, storagePath))
@@ -3111,6 +3508,7 @@ async function deletePublishedMap(mapId) {
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
+        invalidateAdminHistory();
         const removals = await Promise.allSettled(Array.from(storagePaths).map(storagePath =>
             storageSdk.deleteObject(storageSdk.ref(storage, storagePath))
         ));
@@ -3239,7 +3637,8 @@ async function editPublishedMapMetadata(mapId, card = null) {
                 updatedAt: firestoreSdk.serverTimestamp(),
                 reviewedAt: firestoreSdk.serverTimestamp(),
                 reviewedBy: auth.currentUser.uid,
-                reviewReason: "Admin metadata correction"
+                reviewReason: "Admin metadata correction",
+                historyVisible: true
             });
             transaction.update(mapRef, {
                 authorId: identity.author.id,
@@ -3281,6 +3680,7 @@ async function editPublishedMapMetadata(mapId, card = null) {
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
+        invalidateAdminHistory();
         setPublishedMapActionStatus("Map metadata published as a new immutable revision.");
         return true;
     } finally {
@@ -4063,6 +4463,7 @@ async function savePendingReviewDraft(
                 reviewedAt: publish ? firestoreSdk.serverTimestamp() : null,
                 reviewedBy: publish ? user.uid : "",
                 reviewReason: publish ? reviewReason : "",
+                historyVisible: false,
                 createdAt: firestoreSdk.serverTimestamp(),
                 updatedAt: firestoreSdk.serverTimestamp()
             });
@@ -4085,6 +4486,7 @@ async function savePendingReviewDraft(
                 reviewedAt: publish ? firestoreSdk.serverTimestamp() : null,
                 reviewedBy: publish ? user.uid : "",
                 reviewReason: publish ? reviewReason : "",
+                historyVisible: publish,
                 updatedAt: firestoreSdk.serverTimestamp()
             });
             if(priorDraftRef) {
@@ -4189,6 +4591,7 @@ async function savePendingReviewDraft(
                 createdAt: firestoreSdk.serverTimestamp()
             });
         });
+        if(publish) invalidateAdminHistory();
         clearRepositoryEditState();
         if(typeof window.vectron_localDraftSaveNow === "function") {
             window.vectron_localDraftSaveNow();
@@ -4587,6 +4990,8 @@ function setRepositoryBusy(nextBusy) {
     if(repositorySearchButton) repositorySearchButton.disabled = nextBusy;
     if(repositoryGalleryButton) repositoryGalleryButton.disabled = nextBusy;
     if(repositoryListLayoutButton) repositoryListLayoutButton.disabled = nextBusy;
+    if(repositorySort) repositorySort.disabled = nextBusy;
+    if(repositorySortOrder) repositorySortOrder.disabled = nextBusy;
     repositorySearchInput.disabled = nextBusy && !repositoryMaps.length;
     repositoryList.querySelectorAll(".repository-remix-button").forEach(button => {
         button.disabled = nextBusy;
@@ -4602,11 +5007,10 @@ function repositoryCurrentAuthor() {
 
 function repositoryMapIsMine(map) {
     if(!map || !auth || !auth.currentUser) return false;
-    if(map.denied) {
-        return Boolean(currentAccount && map.authorId === currentAccount.authorId);
+    if(currentAccount && currentAccount.authorId) {
+        return map.authorId === currentAccount.authorId;
     }
-    return Boolean(map.ownerUid === auth.currentUser.uid ||
-        currentAccount && map.authorId === currentAccount.authorId);
+    return Boolean(!map.authorId && map.ownerUid === auth.currentUser.uid);
 }
 
 function repositoryMapCanEdit(map) {
@@ -4650,7 +5054,7 @@ function renderRepositoryMaps() {
         return `${map.name} ${map.author} ${map.category} ${map.resourcePath} ${map.denialReason || ""}`
             .toLocaleLowerCase()
             .includes(query);
-    });
+    }).sort(compareRepositoryMaps);
     const authors = new Map();
     visibleMaps.forEach(map => {
         if(!authors.has(map.author)) authors.set(map.author, []);
@@ -4674,7 +5078,11 @@ function renderRepositoryMaps() {
     }
 
     const fragment = document.createDocumentFragment();
-    Array.from(authors.keys()).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: "base"}))
+    Array.from(authors.keys()).sort((a, b) => {
+        const comparison = a.localeCompare(b, undefined, {sensitivity:"base"});
+        return repositorySortState.field === "author" && repositorySortState.direction === "desc"
+            ? -comparison : comparison;
+    })
         .forEach((author, authorIndex) => {
             const maps = authors.get(author);
             const group = document.createElement("section");
@@ -4717,8 +5125,9 @@ function renderRepositoryMaps() {
                 row.className = "repository-map-row";
                 row.classList.toggle("gallery", repositoryLayout === "gallery");
                 if(map.denied) row.classList.add("repository-map-denied");
+                let preview = null;
                 if(repositoryLayout === "gallery") {
-                    const preview = document.createElement("div");
+                    preview = document.createElement("div");
                     preview.className = "map-review-preview repository-map-preview";
                     preview.dataset.adminPreviewPath = map.storagePath || "";
                     preview.setAttribute("role", "img");
@@ -4728,7 +5137,6 @@ function renderRepositoryMaps() {
                     loading.className = "map-review-preview-message";
                     loading.textContent = "Loading map preview…";
                     preview.appendChild(loading);
-                    row.appendChild(preview);
                     queueRepositoryMapPreview(preview, map);
                 }
                 const copy = document.createElement("span");
@@ -4783,7 +5191,14 @@ function renderRepositoryMaps() {
                     addAdminAction("Hold for review", "hold");
                     addAdminAction("Delete", "delete", true);
                 }
-                row.append(copy, actions);
+                if(repositoryLayout === "gallery") {
+                    const details = document.createElement("div");
+                    details.className = "map-review-details repository-map-details";
+                    details.append(copy, actions);
+                    row.append(details, preview);
+                } else {
+                    row.append(copy, actions);
+                }
                 mapList.appendChild(row);
             });
             group.appendChild(mapList);
@@ -4807,10 +5222,21 @@ async function refreshRepositoryMaps() {
     setRepositoryStatus("Loading repository maps…");
     try {
         const submissionsRequest = !guestMode && auth && auth.currentUser
-            ? firestoreSdk.getDocs(firestoreSdk.query(
-                firestoreSdk.collection(firestore, "mapSubmissions"),
-                firestoreSdk.where("submittedBy", "==", auth.currentUser.uid)
-            ))
+            ? Promise.all([
+                firestoreSdk.getDocs(firestoreSdk.query(
+                    firestoreSdk.collection(firestore, "mapSubmissions"),
+                    firestoreSdk.where("submittedBy", "==", auth.currentUser.uid),
+                    firestoreSdk.where("status", "==", "denied")
+                )),
+                firestoreSdk.getDocs(firestoreSdk.query(
+                    firestoreSdk.collection(firestore, "mapSubmissions"),
+                    firestoreSdk.where("submittedBy", "==", auth.currentUser.uid),
+                    firestoreSdk.where("resubmissionOf", ">", "")
+                ))
+            ]).then(snapshots => ({
+                docs:Array.from(new Map(snapshots.flatMap(snapshot => snapshot.docs)
+                    .map(item => [item.id, item])).values())
+            }))
             : Promise.resolve({docs:[]});
         const [catalogMaps, submissionSnapshot] = await Promise.all([
             loadPublicCatalog(),
@@ -4848,6 +5274,7 @@ function openRepository() {
     repositorySearchQuery = "";
     repositoryExpandedAuthors.clear();
     setRepositoryLayout(repositoryLayout);
+    syncRepositorySortControls();
     setRepositoryTab(guestMode ? "others" : "mine");
     repositoryPreviousFocus = document.activeElement;
     repositoryOverlay.hidden = false;
@@ -5045,6 +5472,15 @@ function bindUi() {
     if(repositoryListLayoutButton) {
         repositoryListLayoutButton.addEventListener("click", () => setRepositoryLayout("list"));
     }
+    if(repositorySort) repositorySort.addEventListener("change", () => {
+        repositorySortState.field = repositorySort.value;
+        renderRepositoryMaps();
+    });
+    if(repositorySortOrder) repositorySortOrder.addEventListener("click", () => {
+        repositorySortState.direction = repositorySortState.direction === "asc" ? "desc" : "asc";
+        syncRepositorySortControls();
+        renderRepositoryMaps();
+    });
     repositoryTabs.forEach(tab => {
         tab.addEventListener("click", () => setRepositoryTab(tab.dataset.repositoryTab));
         tab.addEventListener("keydown", event => {
@@ -5121,37 +5557,58 @@ function bindUi() {
         if(!adminFilterState[adminTab]) return;
         adminFilterState[adminTab].author = adminAuthorFilter.value;
         adminPagination[adminTab].page = 1;
-        renderAdminList();
+        if(adminTab === "history") void loadAdminHistoryPage(1);
+        else renderAdminList();
     });
     if(adminDecisionFilter) adminDecisionFilter.addEventListener("change", () => {
         if(adminTab !== "history") return;
         adminFilterState.history.decision = adminDecisionFilter.value;
         adminPagination.history.page = 1;
-        renderAdminList();
+        void loadAdminHistoryPage(1);
     });
     if(adminReasonFilter) adminReasonFilter.addEventListener("change", () => {
         if(adminTab !== "history") return;
         adminFilterState.history.reason = adminReasonFilter.value;
         adminPagination.history.page = 1;
-        renderAdminList();
+        void loadAdminHistoryPage(1);
+    });
+    if(adminSort) adminSort.addEventListener("change", () => {
+        adminSortState[adminTab].field = adminSort.value;
+        adminPagination[adminTab].page = 1;
+        if(adminTab === "history") void loadAdminHistoryPage(1);
+        else renderAdminList();
+    });
+    if(adminSortOrder) adminSortOrder.addEventListener("click", () => {
+        const state = adminSortState[adminTab];
+        state.direction = state.direction === "asc" ? "desc" : "asc";
+        adminPagination[adminTab].page = 1;
+        if(adminTab === "history") void loadAdminHistoryPage(1);
+        else renderAdminList();
     });
     if(adminPageSize) adminPageSize.addEventListener("change", () => {
         const pageSize = [10, 25, 50, 100].includes(Number(adminPageSize.value))
             ? Number(adminPageSize.value) : 10;
         adminPagination[adminTab] = {page:1, pageSize};
         adminList.scrollTop = 0;
-        renderAdminList();
+        if(adminTab === "history") void loadAdminHistoryPage(1);
+        else renderAdminList();
     });
-    if(adminPagePrevious) adminPagePrevious.addEventListener("click", () => {
-        adminPagination[adminTab].page = Math.max(1, adminPagination[adminTab].page - 1);
-        adminList.scrollTop = 0;
-        renderAdminList();
-    });
-    if(adminPageNext) adminPageNext.addEventListener("click", () => {
-        adminPagination[adminTab].page += 1;
-        adminList.scrollTop = 0;
-        renderAdminList();
-    });
+    if(adminPageFirst) adminPageFirst.addEventListener("click", () => goToAdminPage(1));
+    if(adminPagePrevious) adminPagePrevious.addEventListener("click", () =>
+        goToAdminPage(adminPagination[adminTab].page - 1));
+    if(adminPageNext) adminPageNext.addEventListener("click", () =>
+        goToAdminPage(adminPagination[adminTab].page + 1));
+    if(adminPageLast) adminPageLast.addEventListener("click", () =>
+        goToAdminPage(currentAdminPageCount()));
+    if(adminPageNumber) {
+        const submitPageNumber = () => goToAdminPage(adminPageNumber.value, {jump:true});
+        adminPageNumber.addEventListener("change", submitPageNumber);
+        adminPageNumber.addEventListener("keydown", event => {
+            if(event.key !== "Enter" || event.isComposing) return;
+            event.preventDefault();
+            submitPageNumber();
+        });
+    }
     adminTabs.forEach(tab => tab.addEventListener("click", () => setAdminTab(tab.dataset.adminTab)));
     if(adminList) adminList.addEventListener("click", event => {
         const button = event.target.closest("[data-admin-action]");
