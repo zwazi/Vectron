@@ -35,6 +35,7 @@ var eventHandler_armawebtronPreviewUrl = "https://armawebtron.github.io/Armawebt
 var eventHandler_armawebtronPreviewTimer = null;
 var eventHandler_armawebtronSettingsCustomCfgPath = "tampermonkey/settings_custom.cfg";
 var eventHandler_tooltipsPinned = false;
+var eventHandler_tooltipsEnabled = true;
 var eventHandler_pinnedTooltipGap = 6;
 var eventHandler_pinnedTooltipArrowMargin = 8;
 var eventHandler_pinnedTooltipArrowOffset = -5;
@@ -329,16 +330,48 @@ function eventHandler_setTooltipText(element, text) {
 }
 
 function eventHandler_getTooltipElements() {
+    $('[title]').each(function() {
+        var title = this.getAttribute('title');
+        if(!title) return;
+        if(!this.getAttribute('data-original-title')) this.setAttribute('data-original-title', title);
+        this.removeAttribute('title');
+        this.setAttribute('rel', 'tooltip');
+        if(!this.getAttribute('data-placement')) {
+            if($(this).closest('#tool_bar').length) this.setAttribute('data-placement', 'right');
+            else if($(this).closest('#top-settings-bar').length) this.setAttribute('data-placement', 'bottom');
+            else if($(this).closest('.info').length) this.setAttribute('data-placement', 'top');
+        }
+    });
+    $('[data-tooltip-title]').attr('rel', 'tooltip').each(function() {
+        if(!this.getAttribute('data-placement')) this.setAttribute('data-placement', 'right');
+    });
     return $('[rel=tooltip]');
 }
 
 function eventHandler_initTooltips(trigger) {
-    eventHandler_getTooltipElements().tooltip({
+    var $tooltipElements = eventHandler_getTooltipElements();
+    if(!eventHandler_tooltipsEnabled) return;
+    $tooltipElements.tooltip({
+        html: true,
         container: "body",
-        trigger: trigger || "hover",
+        trigger: trigger || "hover focus",
+        delay: {
+            show: 220,
+            hide: 80
+        },
+        title: function() {
+            var $element = $(this);
+            var richTitle = $element.attr("data-tooltip-title");
+            var description = $element.attr("data-tooltip-desc");
+            if(richTitle) {
+                return '<span class="vt-tooltip-title">' + richTitle + '</span>' +
+                    (description ? '<span class="vt-tooltip-desc">' + description + '</span>' : '');
+            }
+            return $element.attr("data-original-title") || $element.attr("title") || "";
+        },
         viewport: {
             selector: "body",
-            padding: 4
+            padding: 10
         }
     });
 }
@@ -348,6 +381,43 @@ function eventHandler_resetTooltips(trigger) {
     $(".tooltip").remove();
     eventHandler_removePinnedTooltipConnectors();
     eventHandler_initTooltips(trigger);
+}
+
+function eventHandler_setTooltipsEnabled(enabled, persist) {
+    eventHandler_tooltipsEnabled = enabled !== false;
+    eventHandler_tooltipsPinned = false;
+    document.documentElement.dataset.tooltipsEnabled = eventHandler_tooltipsEnabled ? "true" : "false";
+    if(typeof config_showTooltips !== "undefined") config_showTooltips = eventHandler_tooltipsEnabled;
+    if(persist !== false && typeof _config_set === "function") {
+        _config_set("showTooltips", eventHandler_tooltipsEnabled ? "true" : "false");
+    }
+
+    var checkbox = document.getElementById("show-tooltips");
+    if(checkbox) checkbox.checked = eventHandler_tooltipsEnabled;
+    var $toggle = $(eventHandler_pinnedTooltipHelpToggleSelector);
+    $toggle.toggleClass("toolbar-tool-active", eventHandler_tooltipsEnabled);
+    $toggle.attr("aria-pressed", eventHandler_tooltipsEnabled ? "true" : "false");
+    eventHandler_setTooltipText($toggle[0], eventHandler_tooltipsEnabled ? "Disable tooltips" : "Enable tooltips");
+    eventHandler_resetTooltips("hover focus");
+}
+
+function eventHandler_closeTooltipWelcome() {
+    var popover = document.getElementById("tooltip-welcome-popover");
+    if(!popover) return;
+    popover.classList.remove("visible");
+    window.setTimeout(function() {
+        popover.hidden = true;
+    }, 180);
+}
+
+function eventHandler_showTooltipWelcomeIfNeeded() {
+    var popover = document.getElementById("tooltip-welcome-popover");
+    if(!popover || typeof _config_get !== "function" || _config_get("tooltipWelcomeSeen.v1") !== null) return;
+    _config_set("tooltipWelcomeSeen.v1", "true");
+    popover.hidden = false;
+    window.setTimeout(function() {
+        popover.classList.add("visible");
+    }, 80);
 }
 
 function eventHandler_updatePreviewButtonState() {
@@ -363,14 +433,14 @@ function eventHandler_updatePreviewButtonState() {
 
 function eventHandler_refreshPreviewButtonTooltip() {
     var $target = $("#armawebtron-preview-open-tooltip");
-    if(!$target.length || !$target.is(":visible")) {
+    if(!$target.length || !$target.is(":visible") || !eventHandler_tooltipsEnabled) {
         return;
     }
 
     $target.tooltip("destroy");
     $target.tooltip({
         container: "body",
-        trigger: eventHandler_tooltipsPinned ? "manual" : "hover focus",
+        trigger: "hover focus",
         placement: "top",
         viewport: {
             selector: "body",
@@ -643,18 +713,7 @@ function eventHandler_getPinnedTooltipElements() {
 }
 
 function eventHandler_togglePinnedTooltips() {
-    eventHandler_tooltipsPinned = !eventHandler_tooltipsPinned;
-    if(eventHandler_tooltipsPinned) {
-        $(eventHandler_pinnedTooltipHelpToggleSelector).addClass("toolbar-tool-active");
-        eventHandler_setTooltipText($(eventHandler_pinnedTooltipHelpToggleSelector)[0], "Hide Tooltips");
-        eventHandler_resetTooltips("manual");
-        eventHandler_showPinnedTooltips();
-    } else {
-        $(eventHandler_pinnedTooltipHelpToggleSelector).removeClass("toolbar-tool-active");
-        eventHandler_setTooltipText($(eventHandler_pinnedTooltipHelpToggleSelector)[0], "Show Tooltips");
-        eventHandler_removePinnedTooltipConnectors();
-        eventHandler_resetTooltips("hover");
-    }
+    eventHandler_setTooltipsEnabled(!eventHandler_tooltipsEnabled, true);
 }
 
 function eventHandler_previewInArmawebtron() {
@@ -780,6 +839,10 @@ function eventHandler_setDtdActiveOption(index) {
 function eventHandler_openDtdMenu() {
     var elements = eventHandler_dtdElements();
     if(!elements.input || !elements.toggle || !elements.menu) return;
+    if(elements.input.readOnly || elements.toggle.disabled) {
+        eventHandler_closeDtdMenu();
+        return;
+    }
     elements.menu.hidden = false;
     elements.input.setAttribute("aria-expanded", "true");
     elements.toggle.setAttribute("aria-expanded", "true");
@@ -802,7 +865,7 @@ function eventHandler_closeDtdMenu() {
 
 function eventHandler_chooseDtd(value) {
     var elements = eventHandler_dtdElements();
-    if(!elements.input) return;
+    if(!elements.input || elements.input.readOnly) return;
     elements.input.value = value;
     elements.input.dispatchEvent(new Event("input", {bubbles: true}));
     elements.input.dispatchEvent(new Event("change", {bubbles: true}));
@@ -880,11 +943,50 @@ function eventHandler_initDtdCombobox() {
     window.addEventListener("resize", eventHandler_positionDtdMenu);
 }
 
+function eventHandler_syncAdvancedOptionLocks() {
+    var isAdmin = window.vectron_userRole === "admin";
+    var userUnlocked = typeof config_advancedMapOptionsUnlocked !== "undefined" &&
+        config_advancedMapOptionsUnlocked === true;
+    var unlocked = isAdmin || userUnlocked;
+    var dtdInput = document.getElementById("map_dtd");
+    var dtdToggle = document.getElementById("map-dtd-toggle");
+    var advancedCheckbox = document.getElementById("unlock-advanced-map-options");
+    var advancedHelp = document.getElementById("advanced-map-options-help");
+
+    if(dtdInput) {
+        dtdInput.readOnly = !unlocked;
+        dtdInput.setAttribute("aria-readonly", unlocked ? "false" : "true");
+        dtdInput.closest(".tsb-field").classList.toggle("advanced-option-locked", !unlocked);
+    }
+    if(dtdToggle) dtdToggle.disabled = !unlocked;
+    ["zone-private-per-player", "zone-selected-private", "edit-selected-zone-private"].forEach(function(id) {
+        var input = document.getElementById(id);
+        if(!input) return;
+        input.disabled = !unlocked;
+        input.setAttribute("aria-disabled", unlocked ? "false" : "true");
+        var row = input.closest(".vt-setting-row, label, .edit-selected-group");
+        if(row) row.classList.toggle("advanced-option-locked", !unlocked);
+    });
+    if(advancedCheckbox) {
+        advancedCheckbox.checked = isAdmin || userUnlocked;
+        advancedCheckbox.disabled = isAdmin;
+    }
+    if(advancedHelp) {
+        advancedHelp.textContent = isAdmin
+            ? "Advanced map options are always unlocked for admins."
+            : "Allows changing the map DTD and player-private zone behavior. Leave locked unless you know the target server supports them.";
+    }
+    if(!unlocked) eventHandler_closeDtdMenu();
+}
+
+window.vectron_syncAdvancedOptionLocks = eventHandler_syncAdvancedOptionLocks;
+
 function eventHandler_init() {
 
     var $contextMenu = $("#contextMenu");
-    eventHandler_initTooltips("hover");
+    eventHandler_initTooltips("hover focus");
     eventHandler_initDtdCombobox();
+    eventHandler_syncAdvancedOptionLocks();
 
     $(document).on("mousedown", function(e) {
         var active = document.activeElement;
@@ -1151,6 +1253,22 @@ function eventHandler_init() {
         }
     });
 
+    $("#show-tooltips").change(function() {
+        eventHandler_setTooltipsEnabled(this.checked, true);
+    });
+
+    $("#unlock-advanced-map-options").change(function() {
+        config_advancedMapOptionsUnlocked = this.checked;
+        _config_set("advancedMapOptionsUnlocked", this.checked ? "true" : "false");
+        eventHandler_syncAdvancedOptionLocks();
+    });
+
+    $("#tooltip-welcome-close").on("click", eventHandler_closeTooltipWelcome);
+    $("#tooltip-welcome-disable").on("click", function() {
+        eventHandler_setTooltipsEnabled(false, true);
+        eventHandler_closeTooltipWelcome();
+    });
+
     $(document).on("click", "#action-history-close", function() {
         actionHistory_hide();
         $("#show-action-history").prop("checked", false);
@@ -1405,68 +1523,6 @@ function eventHandler_init() {
         }
         wallTool_setMode($(this).data("mode"));
     });
-
-    (function initWallModeTooltips() {
-        var descTimer = null;
-        var $buttons = $(".wall-tool-mode-btn");
-        $buttons.tooltip({
-            html: true,
-            container: "body",
-            placement: "right",
-            trigger: "manual",
-            title: function() {
-                return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") + '</div>';
-            }
-        });
-        $buttons.on("mouseenter focus", function() {
-            var btn = this;
-            clearTimeout(descTimer);
-            $(btn).tooltip("show");
-            descTimer = setTimeout(function() {
-                var title = $(btn).data("tooltip-title") || "";
-                var desc = $(btn).data("tooltip-desc") || "";
-                var instance = $(btn).data("bs.tooltip") || $(btn).data("tooltip");
-                var $tip = instance ? (instance.$tip || (instance.tip ? instance.tip() : null)) : null;
-                if($tip && $tip.length) {
-                    $tip.find(".tooltip-inner").html('<div class="vt-tooltip-title">' + title + '</div><div class="vt-tooltip-desc">' + desc + '</div>');
-                }
-            }, 1800);
-        }).on("mouseleave blur", function() {
-            clearTimeout(descTimer);
-            $(this).tooltip("hide");
-        });
-    })();
-
-    (function initZoneModeTooltips() {
-        var descTimer = null;
-        var $buttons = $(".zone-type-btn");
-        $buttons.tooltip({
-            html: true,
-            container: "body",
-            placement: "right",
-            trigger: "manual",
-            title: function() {
-                return '<div class="vt-tooltip-title">' + ($(this).data("tooltip-title") || "") + '</div>';
-            }
-        });
-        $buttons.on("mouseenter focus", function() {
-            var btn = this;
-            clearTimeout(descTimer);
-            $(btn).tooltip("show");
-            descTimer = setTimeout(function() {
-                var title = $(btn).data("tooltip-title") || "";
-                var desc = $(btn).data("tooltip-desc") || "";
-                var instance = $(btn).data("bs.tooltip") || $(btn).data("tooltip");
-                var $tip = instance ? (instance.$tip || (instance.tip ? instance.tip() : null)) : null;
-                if($tip && $tip.length) {
-                    $tip.find(".tooltip-inner").html('<div class="vt-tooltip-title">' + title + '</div><div class="vt-tooltip-desc">' + desc + '</div>');
-                }
-            }, 1800);
-        }).on("mouseleave blur", function() {
-            clearTimeout(descTimer);
-            $(this).tooltip("hide");
-        });
-    })();
 
     $("#dWallSegments").on("change input", function() {
         wallTool_refreshCountInput(true);
