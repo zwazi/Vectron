@@ -78,6 +78,31 @@ body {
 
 #symmetry-menu .symmetry-check-row { border-top-color:#555; }
 
+#map-adjust-menu {
+	background:#1d1d1d;
+	color:#eee;
+	border-color:#555;
+}
+
+#map-adjust-menu input[type="number"] {
+	background:#2b2b2b;
+	color:#eee;
+	border-color:#555;
+}
+
+#map-adjust-menu button {
+	background:#303030;
+	color:#eee;
+	border-color:#666;
+}
+
+#map-adjust-menu button:hover,
+#map-adjust-menu button:focus {
+	background:#404040;
+	color:#fff;
+	border-color:#888;
+}
+
 .tooltip-inner {
 	background-color: #f2f2f2;
 	color: #111;

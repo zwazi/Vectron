@@ -3,6 +3,7 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
 
 const root = path.resolve(__dirname, "..");
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
@@ -46,6 +47,7 @@ assert.match(index, /Continue as guest/);
 assert.match(index, /data-auth-signout/);
 assert.match(index, /data-map-upload/);
 assert.match(index, /data-map-review-publish/);
+assert.match(index, /data-map-review-publish[^>]*title="Approve"[^>]*aria-label="Approve"[\s\S]*?<span>Approve<\/span>/);
 assert.match(index, /data-map-repository/);
 assert.match(index, /data-notifications/);
 assert.match(index, /data-admin-review/);
@@ -189,7 +191,14 @@ assert.match(authSource, /map-preview-checkpoint-label/);
 assert.match(authSource, /map-preview-teleport-link/);
 assert.match(authSource, /IntersectionObserver/);
 assert.match(authSource, /function editPendingSubmission\(/);
-assert.match(authSource, /function editPendingSubmission[\s\S]*nextAvailableAdminVersion\(/);
+assert.match(authSource, /function pendingSubmissionIdentity[\s\S]*nextAvailableAdminVersion\(/);
+assert.match(authSource, /function loadPendingSubmissionIntoEditor\(/);
+assert.match(authSource, /function nextPendingSubmissionAfter\(/);
+assert.match(authSource, /nextPendingSubmissionAfter\(editState\.reviewSubmissionId\)/);
+assert.match(authSource, /Now editing [\s\S]*the next map in the review queue/);
+assert.match(authSource, /The map review queue is clear/);
+assert.match(authSource, /if\(publish\)[\s\S]*nextPendingSubmissionAfter[\s\S]*} else \{[\s\S]*showMapFileCommand\(mapName, mapVersion, objectPath\)/);
+assert.match(authSource, /confirmLabel:"Approve"/);
 assert.match(authSource, /function nextAvailableReviewVersion[\s\S]*let version = normalizeMapVersion\(startingVersion\)/);
 assert.match(authSource, /function savePendingReviewDraft\(/);
 assert.match(authSource, /publish \? "map\.review\.edit-approve" : "map\.review\.edit"/);
@@ -214,7 +223,40 @@ assert.match(authSource, /you cannot submit yet/);
 assert.match(authSource, /function confirmAction\(/);
 assert.match(authSource, /function anchorAdminDialog\(/);
 assert.match(authSource, /adminDialog\.classList\.add\("positioned"\)/);
+assert.match(authSource, /function setAdminTab[\s\S]*adminList\.scrollTop = 0;[\s\S]*renderAdminList\(\)/);
+assert.match(authSource, /function refreshAdminQueues[\s\S]*adminList\.scrollTop = 0;[\s\S]*startAdminListeners\(\)/);
+assert.match(authSource, /function setRepositoryTab[\s\S]*repositoryList\.scrollTop = 0;[\s\S]*renderRepositoryMaps\(\)/);
+assert.match(authSource, /function refreshRepositoryMaps[\s\S]*repositoryList\.scrollTop = 0;/);
+assert.match(authSource, /adminRefreshButton\.addEventListener\("click", refreshAdminQueues\)/);
 assert.doesNotMatch(authSource, /window\.(?:confirm|alert)\s*\(/);
+
+const nextSubmissionSource = authSource.match(
+    /function nextPendingSubmissionAfter\(submissionId\) \{[\s\S]*?\n\}/
+);
+assert.ok(nextSubmissionSource, "The next-review selector must remain independently testable");
+const nextSubmissionContext = {
+    adminData: {submissions: [{id:"first"}, {id:"second"}, {id:"third"}]},
+    selected: null
+};
+vm.runInNewContext(
+    `${nextSubmissionSource[0]}\nselected = nextPendingSubmissionAfter("second");`,
+    nextSubmissionContext
+);
+assert.strictEqual(nextSubmissionContext.selected.id, "third",
+    "Approval advances to the following queued map");
+vm.runInNewContext(
+    `${nextSubmissionSource[0]}\nselected = nextPendingSubmissionAfter("third");`,
+    nextSubmissionContext
+);
+assert.strictEqual(nextSubmissionContext.selected.id, "first",
+    "Approval wraps to the first remaining queued map");
+nextSubmissionContext.adminData.submissions = [{id:"only"}];
+vm.runInNewContext(
+    `${nextSubmissionSource[0]}\nselected = nextPendingSubmissionAfter("only");`,
+    nextSubmissionContext
+);
+assert.strictEqual(nextSubmissionContext.selected, null,
+    "Approval leaves the editor idle when the review queue is clear");
 
 assert.match(vectronSource, /function vectron_start\(\)/);
 assert.match(vectronSource, /if\(vectron_started\) return;/);
