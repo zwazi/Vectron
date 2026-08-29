@@ -35,6 +35,7 @@
         <script type="text/javascript" src="./js/xml.js"></script>
         <script type="text/javascript" src="./js/aamap.js"></script>
         <script type="text/javascript" src="./js/cursor.js"></script>
+        <script type="text/javascript" src="./js/xmlEditorFind.js"></script>
         <script type="text/javascript" src="./js/eventHandler.js"></script>
         <script type="text/javascript" src="./js/gui.js"></script>
         <script type="text/javascript" src="./js/config.js"></script>
@@ -42,7 +43,7 @@
         <script type="text/javascript" src="./js/vectron.js"></script>
 
         <script type="text/javascript">
-            var targetVersion = 1.110;
+            var targetVersion = 1.111;
             if(window.vtVersion != targetVersion) location.reload(true);
         </script>
 
@@ -349,7 +350,7 @@
                         <p class="cfg-section-label">Toolbar Buttons</p>
                         <table class="table table-bordered" style="font-size:12px;">
                             <tbody>
-                                <tr><td><b>XML Editor</b></td><td>View and edit the map XML directly. Changes are applied immediately.</td></tr>
+                                <tr><td><b>XML Editor</b></td><td>View and edit map XML directly. Use Find / Replace or <kbd>Ctrl/Cmd+F</kbd> and <kbd>Ctrl/Cmd+H</kbd>; edits take effect when you apply them.</td></tr>
                                 <tr><td><b>New Map</b></td><td>Clears all objects and replaces the current local draft with a blank map.</td></tr>
                                 <tr><td><b>Import</b></td><td>Load an <code>.aamap.xml</code> file from disk.</td></tr>
                                 <tr><td><b>Export</b></td><td>Save the current map as an <code>.aamap.xml</code> file.</td></tr>
@@ -714,10 +715,28 @@
                     <li id="xml-tab-full"><a href="#" data-tab="full">Full Map</a></li>
                     <li id="xml-tab-selected"><a href="#" data-tab="selected">Selection <span id="xml-tab-sel-count"></span></a></li>
                 </ul>
+                <div id="xml-editor-find-bar" aria-label="Find and replace XML" hidden>
+                    <div class="xml-editor-find-row">
+                        <label class="sr-only" for="xml-editor-find">Find XML text</label>
+                        <input id="xml-editor-find" type="text" autocomplete="off" spellcheck="false" placeholder="Find">
+                        <button id="xml-editor-find-previous" class="btn btn-xs btn-default" type="button" aria-label="Find previous" title="Find previous (Shift+Enter)">↑</button>
+                        <button id="xml-editor-find-next" class="btn btn-xs btn-default" type="button" aria-label="Find next" title="Find next (Enter)">↓</button>
+                        <button id="xml-editor-find-close" class="btn btn-xs btn-default" type="button" aria-label="Close find and replace" title="Close find and replace">✕</button>
+                    </div>
+                    <div class="xml-editor-find-row xml-editor-replace-row">
+                        <label class="sr-only" for="xml-editor-replace">Replacement XML text</label>
+                        <input id="xml-editor-replace" type="text" autocomplete="off" spellcheck="false" placeholder="Replace with">
+                        <button id="xml-editor-replace-one" class="btn btn-xs btn-default" type="button">Replace</button>
+                        <button id="xml-editor-replace-all" class="btn btn-xs btn-default" type="button">Replace All</button>
+                        <label class="xml-editor-match-case" title="Match case"><input id="xml-editor-match-case" type="checkbox" aria-label="Match case"> Aa</label>
+                    </div>
+                    <div id="xml-editor-find-status" role="status" aria-live="polite"></div>
+                </div>
                 <textarea id="xml-editor-content" spellcheck="false"></textarea>
                 <div id="xml-editor-error" style="display:none;"></div>
                 <div class="xml-editor-actions">
                     <button id="xml-editor-apply" class="btn btn-primary">Apply Changes</button>
+                    <button id="xml-editor-find-toggle" class="btn btn-default" type="button" aria-controls="xml-editor-find-bar" aria-expanded="false">Find / Replace</button>
                     <button id="xml-editor-close" class="btn btn-default">Close</button>
                 </div>
             </div>

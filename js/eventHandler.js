@@ -1592,6 +1592,234 @@ function eventHandler_init() {
 
     var xmlEditor_mode = 'full'; // 'full' or 'selected'
     var xmlEditor_selectedSnapshot = [];
+    var xmlEditor_findActiveIndex = -1;
+    var xmlEditor_findAnchor = 0;
+
+    function xmlEditor_findBarVisible() {
+        var bar = document.getElementById('xml-editor-find-bar');
+        return !!(bar && !bar.hidden);
+    }
+
+    function xmlEditor_findMatches() {
+        var editor = document.getElementById('xml-editor-content');
+        var findInput = document.getElementById('xml-editor-find');
+        var matchCase = document.getElementById('xml-editor-match-case');
+        if(!editor || !findInput || !window.VectronXmlFind) return [];
+        return window.VectronXmlFind.findMatches(
+            editor.value,
+            findInput.value,
+            !!(matchCase && matchCase.checked)
+        );
+    }
+
+    function xmlEditor_setFindStatus(message, noMatch) {
+        var status = document.getElementById('xml-editor-find-status');
+        if(!status) return;
+        status.textContent = message || '';
+        status.classList.toggle('no-match', !!noMatch);
+    }
+
+    function xmlEditor_updateFindControls(matches) {
+        var findInput = document.getElementById('xml-editor-find');
+        var enabled = !!(findInput && findInput.value && matches.length);
+        [
+            'xml-editor-find-previous', 'xml-editor-find-next',
+            'xml-editor-replace-one', 'xml-editor-replace-all'
+        ].forEach(function(id) {
+            var control = document.getElementById(id);
+            if(control) control.disabled = !enabled;
+        });
+    }
+
+    function xmlEditor_scrollToMatch(editor, start) {
+        var style = window.getComputedStyle ? window.getComputedStyle(editor) : null;
+        var lineHeight = style ? parseFloat(style.lineHeight) : 0;
+        var line = editor.value.slice(0, start).split('\n').length - 1;
+        var top;
+        if(!isFinite(lineHeight)) lineHeight = 0;
+        lineHeight = lineHeight || 16;
+        top = line * lineHeight;
+        if(top < editor.scrollTop || top + lineHeight > editor.scrollTop + editor.clientHeight) {
+            editor.scrollTop = Math.max(0, top - editor.clientHeight / 2);
+        }
+    }
+
+    function xmlEditor_selectFindMatch(matches, index, focusEditor) {
+        var editor = document.getElementById('xml-editor-content');
+        var match;
+        if(!editor || !matches.length) return false;
+        index = (index + matches.length) % matches.length;
+        match = matches[index];
+        xmlEditor_findActiveIndex = index;
+        editor.setSelectionRange(match.start, match.end);
+        xmlEditor_scrollToMatch(editor, match.start);
+        if(focusEditor) editor.focus();
+        xmlEditor_updateFindControls(matches);
+        xmlEditor_setFindStatus((index + 1) + ' of ' + matches.length, false);
+        return true;
+    }
+
+    function xmlEditor_refreshFind(selectMatch) {
+        var findInput = document.getElementById('xml-editor-find');
+        var matches;
+        var index;
+        if(!findInput || !findInput.value) {
+            xmlEditor_findActiveIndex = -1;
+            xmlEditor_updateFindControls([]);
+            xmlEditor_setFindStatus('', false);
+            return;
+        }
+        matches = xmlEditor_findMatches();
+        if(!matches.length) {
+            xmlEditor_findActiveIndex = -1;
+            xmlEditor_updateFindControls(matches);
+            xmlEditor_setFindStatus('No matches', true);
+            return;
+        }
+        xmlEditor_updateFindControls(matches);
+        if(!selectMatch) {
+            xmlEditor_findActiveIndex = -1;
+            xmlEditor_setFindStatus(matches.length + (matches.length === 1 ? ' match' : ' matches'), false);
+            return;
+        }
+        index = matches.findIndex(function(match) { return match.start >= xmlEditor_findAnchor; });
+        xmlEditor_selectFindMatch(matches, index < 0 ? 0 : index, false);
+    }
+
+    function xmlEditor_resetFindForContent() {
+        xmlEditor_findActiveIndex = -1;
+        xmlEditor_findAnchor = 0;
+        if(xmlEditor_findBarVisible()) xmlEditor_refreshFind(true);
+    }
+
+    function xmlEditor_openFind() {
+        var bar = document.getElementById('xml-editor-find-bar');
+        var toggle = document.getElementById('xml-editor-find-toggle');
+        var editor = document.getElementById('xml-editor-content');
+        var findInput = document.getElementById('xml-editor-find');
+        var selected;
+        if(!bar || !editor || !findInput) return;
+        bar.hidden = false;
+        if(toggle) toggle.setAttribute('aria-expanded', 'true');
+        xmlEditor_findAnchor = editor.selectionStart || 0;
+        selected = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+        if(!findInput.value && selected && selected.length <= 200 && !/[\r\n]/.test(selected)) {
+            findInput.value = selected;
+        }
+        xmlEditor_findActiveIndex = -1;
+        xmlEditor_refreshFind(true);
+        findInput.focus();
+        findInput.select();
+    }
+
+    function xmlEditor_closeFind(focusEditor) {
+        var bar = document.getElementById('xml-editor-find-bar');
+        var toggle = document.getElementById('xml-editor-find-toggle');
+        var editor = document.getElementById('xml-editor-content');
+        if(bar) bar.hidden = true;
+        if(toggle) toggle.setAttribute('aria-expanded', 'false');
+        xmlEditor_findActiveIndex = -1;
+        xmlEditor_setFindStatus('', false);
+        if(focusEditor && editor) editor.focus();
+    }
+
+    function xmlEditor_findStep(direction, focusEditor) {
+        var editor = document.getElementById('xml-editor-content');
+        var matches = xmlEditor_findMatches();
+        var index = -1;
+        if(!editor || !matches.length) {
+            xmlEditor_refreshFind(false);
+            return false;
+        }
+        if(xmlEditor_findActiveIndex >= 0 && xmlEditor_findActiveIndex < matches.length) {
+            var active = matches[xmlEditor_findActiveIndex];
+            if(editor.selectionStart === active.start && editor.selectionEnd === active.end) {
+                index = xmlEditor_findActiveIndex + direction;
+            }
+        }
+        if(index < 0 && direction > 0) {
+            index = matches.findIndex(function(match) { return match.start >= editor.selectionEnd; });
+            if(index < 0) index = 0;
+        } else if(index < 0) {
+            for(var i = matches.length - 1; i >= 0; i--) {
+                if(matches[i].end <= editor.selectionStart) {
+                    index = i;
+                    break;
+                }
+            }
+            if(index < 0) index = matches.length - 1;
+        }
+        return xmlEditor_selectFindMatch(matches, index, focusEditor !== false);
+    }
+
+    function xmlEditor_selectionMatchesQuery(editor) {
+        var findInput = document.getElementById('xml-editor-find');
+        var matchCase = document.getElementById('xml-editor-match-case');
+        var selected;
+        var matches;
+        if(!findInput || !findInput.value || editor.selectionStart === editor.selectionEnd) return false;
+        selected = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+        matches = window.VectronXmlFind.findMatches(
+            selected,
+            findInput.value,
+            !!(matchCase && matchCase.checked)
+        );
+        return matches.length === 1 && matches[0].start === 0 && matches[0].end === selected.length;
+    }
+
+    function xmlEditor_replaceOne() {
+        var editor = document.getElementById('xml-editor-content');
+        var replacement = document.getElementById('xml-editor-replace');
+        var start;
+        var end;
+        var cursor;
+        if(!editor || !replacement) return;
+        if(!xmlEditor_selectionMatchesQuery(editor)) {
+            xmlEditor_findStep(1);
+            return;
+        }
+        start = editor.selectionStart;
+        end = editor.selectionEnd;
+        editor.value = editor.value.slice(0, start) + replacement.value + editor.value.slice(end);
+        cursor = start + replacement.value.length;
+        editor.setSelectionRange(cursor, cursor);
+        xmlEditor_findAnchor = cursor;
+        xmlEditor_findActiveIndex = -1;
+        editor.dispatchEvent(new Event('input', {bubbles: true}));
+        xmlEditor_findStep(1);
+    }
+
+    function xmlEditor_replaceAll() {
+        var editor = document.getElementById('xml-editor-content');
+        var findInput = document.getElementById('xml-editor-find');
+        var replacement = document.getElementById('xml-editor-replace');
+        var matchCase = document.getElementById('xml-editor-match-case');
+        var result;
+        var cursor;
+        if(!editor || !findInput || !findInput.value || !replacement || !window.VectronXmlFind) return;
+        result = window.VectronXmlFind.replaceAll(
+            editor.value,
+            findInput.value,
+            replacement.value,
+            !!(matchCase && matchCase.checked)
+        );
+        if(!result.count) {
+            xmlEditor_refreshFind(false);
+            return;
+        }
+        cursor = Math.min(editor.selectionStart, result.text.length);
+        editor.value = result.text;
+        editor.setSelectionRange(cursor, cursor);
+        xmlEditor_findAnchor = cursor;
+        xmlEditor_findActiveIndex = -1;
+        editor.dispatchEvent(new Event('input', {bubbles: true}));
+        xmlEditor_updateFindControls(xmlEditor_findMatches());
+        xmlEditor_setFindStatus(
+            result.count + (result.count === 1 ? ' replacement' : ' replacements'),
+            false
+        );
+        editor.focus();
+    }
 
     function xmlEditor_switchTab(mode) {
         xmlEditor_mode = mode;
@@ -1611,6 +1839,7 @@ function eventHandler_init() {
         } else {
             $('#xml-tab-selected').removeClass('disabled');
         }
+        xmlEditor_resetFindForContent();
     }
 
     function xmlEditor_open(preferSelected) {
@@ -1621,12 +1850,14 @@ function eventHandler_init() {
         } else {
             $('#xml-tab-selected').addClass('disabled');
         }
+        xmlEditor_closeFind(false);
         xmlEditor_switchTab((preferSelected && hasSelected) ? 'selected' : 'full');
         $('#xml-editor-overlay').addClass('visible');
         // Do NOT set aamap_active=false — allow canvas interaction while window is open
     }
 
     function xmlEditor_close() {
+        xmlEditor_closeFind(false);
         $('#xml-editor-overlay').removeClass('visible');
         // Do NOT touch aamap_active — let the canvas remain in its current state
     }
@@ -1646,12 +1877,14 @@ function eventHandler_init() {
                 $('#xml-editor-content').val(xmlEditor_getSelectedXML());
                 $('#xml-tab-sel-count').text('(' + selectTool_selectedObjs.length + ')');
                 $('#xml-tab-selected').removeClass('disabled');
+                xmlEditor_resetFindForContent();
             } else {
                 // Selection cleared while on selection tab — keep tab, show empty placeholder
                 xmlEditor_selectedSnapshot = [];
                 $('#xml-editor-content').val('<!-- No objects selected -->');
                 $('#xml-tab-sel-count').text('');
                 $('#xml-tab-selected').addClass('disabled');
+                xmlEditor_resetFindForContent();
             }
         } else {
             // Not on selection tab: if selection exists, auto-switch to it
@@ -1749,6 +1982,69 @@ function eventHandler_init() {
 
     $(document).on("click", "#xml-editor-close-x", function() {
         xmlEditor_close();
+    });
+
+    $(document).on('click', '#xml-editor-find-toggle', function() {
+        if(xmlEditor_findBarVisible()) xmlEditor_closeFind(true);
+        else xmlEditor_openFind();
+    });
+
+    $(document).on('click', '#xml-editor-find-close', function() {
+        xmlEditor_closeFind(true);
+    });
+
+    $(document).on('click', '#xml-editor-find-previous', function() {
+        xmlEditor_findStep(-1);
+    });
+
+    $(document).on('click', '#xml-editor-find-next', function() {
+        xmlEditor_findStep(1);
+    });
+
+    $(document).on('click', '#xml-editor-replace-one', xmlEditor_replaceOne);
+    $(document).on('click', '#xml-editor-replace-all', xmlEditor_replaceAll);
+
+    $(document).on('input', '#xml-editor-find', function() {
+        xmlEditor_findActiveIndex = -1;
+        xmlEditor_refreshFind(true);
+    });
+
+    $(document).on('change', '#xml-editor-match-case', function() {
+        var editor = document.getElementById('xml-editor-content');
+        xmlEditor_findAnchor = editor ? editor.selectionStart : 0;
+        xmlEditor_findActiveIndex = -1;
+        xmlEditor_refreshFind(true);
+    });
+
+    $(document).on('input', '#xml-editor-content', function() {
+        if(!xmlEditor_findBarVisible()) return;
+        xmlEditor_findAnchor = this.selectionStart;
+        xmlEditor_refreshFind(false);
+    });
+
+    $(document).on('keydown.xmlEditorFind', function(e) {
+        var editorOpen = $('#xml-editor-overlay').hasClass('visible');
+        var key = String(e.key || '').toLocaleLowerCase('en-US');
+        if(!editorOpen) return;
+        if((e.ctrlKey || e.metaKey) && !e.altKey && (key === 'f' || key === 'h')) {
+            e.preventDefault();
+            xmlEditor_openFind();
+            if(key === 'h') document.getElementById('xml-editor-replace').focus();
+            return;
+        }
+        if(e.target && e.target.id === 'xml-editor-find' && key === 'enter') {
+            e.preventDefault();
+            xmlEditor_findStep(e.shiftKey ? -1 : 1, false);
+        } else if(e.target && e.target.id === 'xml-editor-replace' && key === 'enter') {
+            e.preventDefault();
+            xmlEditor_replaceOne();
+            e.target.focus();
+        } else if(key === 'escape' && e.target &&
+                  $(e.target).closest('#xml-editor-find-bar').length) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            xmlEditor_closeFind(true);
+        }
     });
 
     $("#xml-editor-apply").mouseup(function(e) {
