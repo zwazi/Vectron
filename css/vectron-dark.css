@@ -300,6 +300,24 @@ body {
 #xml-editor-tabs > li.disabled > a {
 	color: #666;
 }
+#xml-editor-find-bar {
+	background: #272727;
+	border-color: #444;
+}
+.xml-editor-find-row > input[type="text"] {
+	background: #171717;
+	border-color: #555;
+	color: #eee;
+}
+.xml-editor-find-row > input[type="text"]::placeholder {
+	color: #888;
+}
+#xml-editor-find-status {
+	color: #aaa;
+}
+#xml-editor-find-status.no-match {
+	color: #ff7777;
+}
 
 /* XML editor action buttons */
 #xml-editor-box .btn-default {
