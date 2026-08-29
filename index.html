@@ -78,7 +78,7 @@
                             <label for="auth-name">Author name</label>
                             <div class="auth-input-wrap">
                                 <i class="fa-regular fa-user" aria-hidden="true"></i>
-                                <input id="auth-name" name="name" type="text" autocomplete="name" minlength="2" maxlength="60" placeholder="Track builder">
+                                <input id="auth-name" name="name" type="text" autocomplete="name" minlength="1" maxlength="60" placeholder="Track builder">
                             </div>
                             <small class="auth-field-hint">This becomes your permanent map author and upload folder.</small>
                         </div>
@@ -138,9 +138,9 @@
                             <label for="auth-profile-name">Author name</label>
                             <div class="auth-input-wrap">
                                 <i class="fa-regular fa-user" aria-hidden="true"></i>
-                                <input id="auth-profile-name" type="text" autocomplete="name" minlength="2" maxlength="60" placeholder="Track builder" required>
+                                <input id="auth-profile-name" type="text" autocomplete="name" minlength="1" maxlength="60" placeholder="Track builder" required>
                             </div>
-                            <small class="auth-field-hint">Letters, numbers, spaces, periods, hyphens, and underscores.</small>
+                            <small class="auth-field-hint">Any Unicode characters are supported.</small>
                         </div>
                         <div id="auth-profile-status" class="auth-status" role="status" aria-live="polite" hidden></div>
                         <button id="auth-profile-submit" class="auth-submit" type="submit">
@@ -422,7 +422,7 @@
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
-                    <label for="map_author" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Who created this map?">Author</label>
+                    <label for="map_author" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="Who created this map? Admins may edit this field.">Author</label>
                     <input type="text" class="tsb-input" id="map_author" placeholder="Map author" readonly aria-readonly="true">
                 </span>
                 <span class="tsb-sep">|</span>
@@ -432,7 +432,7 @@
                 </span>
                 <span class="tsb-sep">|</span>
                 <span class="tsb-field">
-                    <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The map revision is locked to the current map metadata.">Revision</label>
+                    <label for="map_version" rel="tooltip" data-trigger="hover" data-placement="bottom" data-original-title="The map revision is locked for users; admins may edit it.">Revision</label>
                     <input type="text" class="tsb-input tsb-input-sm" id="map_version" value="1" readonly aria-readonly="true" title="Locked to the current map revision">
                 </span>
                 <span class="tsb-sep">|</span>

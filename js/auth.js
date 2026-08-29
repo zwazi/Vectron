@@ -7,6 +7,9 @@ import {
     bumpMapVersion,
     formatTimestamp,
     mapFileCommand,
+    mapFileName,
+    mapNameError,
+    mapVersionError,
     normalizeAuthorName,
     normalizeMapVersion,
     resourceIdentityFromXml,
@@ -390,9 +393,13 @@ function accountCanSubmit() {
 }
 
 function sessionAuthorName(user = auth && auth.currentUser) {
-    if(currentAccount && currentAccount.authorName) return currentAccount.authorName;
-    if(currentAccount && currentAccount.requestedAuthorName) return currentAccount.requestedAuthorName;
-    return user ? displayNameForUser(user) : "";
+    if(currentAccount && currentAccount.authorName) {
+        return normalizeAuthorName(currentAccount.authorName);
+    }
+    if(currentAccount && currentAccount.requestedAuthorName) {
+        return normalizeAuthorName(currentAccount.requestedAuthorName);
+    }
+    return user ? normalizeAuthorName(displayNameForUser(user)) : "";
 }
 
 function accountRole() {
@@ -562,7 +569,7 @@ function normalizeRepositoryEditState(value) {
     const reviewDecisionReason = String(value.reviewDecisionReason || "").trim().slice(0, 1000);
     const signedInAuthor = sessionAuthorName();
     if(!sourcePath || !rawSourceName || !sourceCategory || sourceCategory.includes("/") ||
-       !targetAuthor || targetAuthor.includes("/") || !targetAuthorId || !mapId) return null;
+       !targetAuthor || !targetAuthorId || !mapId) return null;
     if(signedInAuthor && targetAuthor !== signedInAuthor && !currentUserIsAdmin()) return null;
     return {
         sourcePath, sourceName, sourceVersion, sourceCategory, targetAuthor,
@@ -590,9 +597,10 @@ function getRepositoryEditState() {
 function syncMapMetadata(user = auth && auth.currentUser) {
     const guest = guestMode && !user;
     if(!guest && (!user || authorNameError(user.displayName))) return;
+    const admin = currentUserIsAdmin();
     const signedInAuthor = guest ? "Guest" : sessionAuthorName(user);
-    const author = repositoryEditState &&
-        (repositoryEditState.targetAuthor === signedInAuthor || currentUserIsAdmin())
+    const repositoryAuthor = repositoryEditState &&
+        (repositoryEditState.targetAuthor === signedInAuthor || admin)
         ? repositoryEditState.targetAuthor
         : signedInAuthor;
     const authorInput = document.getElementById("map_author");
@@ -602,6 +610,10 @@ function syncMapMetadata(user = auth && auth.currentUser) {
     const remixIdentity = currentRemixIdentity();
     const lockedName = remixIdentity ? remixIdentity.mapName :
         (repositoryEditState && repositoryEditState.sourceName || "");
+    const editedAuthor = admin && authorInput
+        ? normalizeAuthorName(authorInput.value)
+        : "";
+    const author = editedAuthor || repositoryAuthor;
 
     window.xml_author = author;
     const category = MAP_CATEGORY;
@@ -610,7 +622,7 @@ function syncMapMetadata(user = auth && auth.currentUser) {
     window.vectron_mapCategory = category;
 
     if(nameInput) {
-        if(lockedName) {
+        if(lockedName && !admin) {
             nameInput.value = lockedName;
             nameInput.readOnly = true;
             nameInput.setAttribute("aria-readonly", "true");
@@ -627,9 +639,11 @@ function syncMapMetadata(user = auth && auth.currentUser) {
 
     if(authorInput) {
         authorInput.value = author;
-        authorInput.readOnly = true;
-        authorInput.setAttribute("aria-readonly", "true");
-        authorInput.title = guest
+        authorInput.readOnly = !admin;
+        authorInput.setAttribute("aria-readonly", String(authorInput.readOnly));
+        authorInput.title = admin
+            ? "Admins may change the map author"
+            : guest
             ? "Guest work stays local; sign in to use your permanent author name and upload"
             : author === signedInAuthor
             ? "Locked to your Vectron author name"
@@ -646,11 +660,15 @@ function syncMapMetadata(user = auth && auth.currentUser) {
     if(versionInput) {
         if(!versionInput.value.trim()) versionInput.value = "1";
         window.xml_version = versionInput.value;
-        versionInput.readOnly = true;
-        versionInput.setAttribute("aria-readonly", "true");
-        versionInput.title = "Locked to the current map revision";
+        versionInput.readOnly = !admin;
+        versionInput.setAttribute("aria-readonly", String(versionInput.readOnly));
+        versionInput.title = admin
+            ? "Admins may change the map version"
+            : "Locked to the current map revision";
     }
 }
+
+window.vectron_mapFileName = mapFileName;
 
 window.vectron_syncLockedMetadata = () => syncMapMetadata();
 window.vectron_getRepositoryEditState = getRepositoryEditState;
@@ -826,7 +844,7 @@ async function handleSubmit(event) {
     try {
         if(mode === "signup") {
             const credential = await authSdk.createUserWithEmailAndPassword(auth, email, password);
-            const requestedName = nameInput.value.trim();
+            const requestedName = normalizeAuthorName(nameInput.value);
             await authSdk.updateProfile(credential.user, {displayName: requestedName});
             await loadAccountSession(credential.user);
             unlockEditor(credential.user);
@@ -854,7 +872,9 @@ async function handleProfileSubmit(event) {
     setProfileBusy(true);
     setProfileStatus("");
     try {
-        await authSdk.updateProfile(profileUser, {displayName: profileNameInput.value.trim()});
+        await authSdk.updateProfile(profileUser, {
+            displayName: normalizeAuthorName(profileNameInput.value)
+        });
         await loadAccountSession(profileUser);
         unlockEditor(profileUser);
     } catch(error) {
@@ -1409,24 +1429,25 @@ function adminMapIdentity(card, fallback = {}) {
     const authorError = authorNameError(authorName);
     if(authorError) throw new Error(authorError);
 
-    const rawName = String(nameInput && nameInput.value || fallback.mapName || "").trim();
+    const rawName = String(nameInput && nameInput.value || fallback.mapName || "");
+    const nameError = mapNameError(rawName);
+    if(nameError) throw new Error(nameError);
     const mapName = safeMapName(rawName);
-    if(!rawName || mapName !== rawName) {
-        throw new Error("Use a map name containing only letters, numbers, spaces, periods, hyphens, or underscores.");
-    }
 
     const rawVersion = String(
         versionInput && versionInput.value || fallback.mapVersion || ""
-    ).trim();
+    );
+    const versionError = mapVersionError(rawVersion);
+    if(versionError) throw new Error(versionError);
     const mapVersion = normalizeMapVersion(rawVersion);
-    if(!/^(v)?\d+(?:\.\d+)*$/i.test(rawVersion) || mapVersion !== rawVersion) {
-        throw new Error("Use a numeric map version such as 1, v2, or 2.1.");
-    }
 
     const existingAuthor = adminData.authors.find(author =>
         normalizeAuthorName(author.name).toLocaleLowerCase("en-US") ===
         authorName.toLocaleLowerCase("en-US")
-    );
+    ) || (fallback.authorId && normalizeAuthorName(fallback.authorName)
+        .toLocaleLowerCase("en-US") === authorName.toLocaleLowerCase("en-US")
+        ? {id:fallback.authorId}
+        : null);
     return {
         author: existingAuthor
             ? {id: existingAuthor.id, name: authorName, create: false}
@@ -3198,6 +3219,28 @@ function uploadAuthorFor(user, editState = null) {
     return signedInAuthor;
 }
 
+function uploadAuthorIdentity(user, editState = null) {
+    const fallbackName = uploadAuthorFor(user, editState);
+    if(!currentUserIsAdmin()) {
+        return {
+            id: editState ? editState.targetAuthorId : currentAccount.authorId,
+            name: fallbackName
+        };
+    }
+    const authorInput = document.getElementById("map_author");
+    const name = normalizeAuthorName(authorInput && authorInput.value || fallbackName);
+    const error = authorNameError(name);
+    if(error) throw new Error(error);
+    const normalized = name.toLocaleLowerCase("en-US");
+    const knownAuthor = [
+        editState && {id:editState.targetAuthorId, name:editState.targetAuthor},
+        currentAccount && {id:currentAccount.authorId, name:currentAccount.authorName},
+        ...adminData.authors
+    ].find(author => author && author.id &&
+        normalizeAuthorName(author.name).toLocaleLowerCase("en-US") === normalized);
+    return {id:knownAuthor ? knownAuthor.id : authorKey(name), name};
+}
+
 function mapUploadMetadata(user, submissionId, authorId, author, category, mapName, mapVersion, operation, sha256) {
     const remixIdentity = currentRemixIdentity();
     return {
@@ -3654,11 +3697,25 @@ async function uploadCurrentMap(options = {}) {
         "Approve and publish this map, then open the next review?",
         {confirmLabel:"Approve"}
     )) return;
-    const author = uploadAuthorFor(user, editState);
-    const authorId = editState ? editState.targetAuthorId : currentAccount.authorId;
+    let authorIdentity;
+    try {
+        authorIdentity = uploadAuthorIdentity(user, editState);
+    } catch(error) {
+        showEditorMessage(error.message);
+        return;
+    }
+    const author = authorIdentity.name;
+    const authorId = authorIdentity.id;
     const category = MAP_CATEGORY;
-    const mapName = setCurrentMapName(document.getElementById("map_name").value);
-    let mapVersion = setCurrentMapVersion(document.getElementById("map_version").value);
+    const rawMapName = document.getElementById("map_name").value;
+    const rawMapVersion = document.getElementById("map_version").value;
+    const identityError = mapNameError(rawMapName) || mapVersionError(rawMapVersion);
+    if(identityError) {
+        showEditorMessage(identityError);
+        return;
+    }
+    const mapName = setCurrentMapName(rawMapName);
+    let mapVersion = setCurrentMapVersion(rawMapVersion);
     const requestedVersion = mapVersion;
     try {
         let availableVersion = mapVersion;

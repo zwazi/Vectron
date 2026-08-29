@@ -4,6 +4,7 @@ const {initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
 const {FieldValue, getFirestore} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
+const {createHash} = require("node:crypto");
 const logger = require("firebase-functions/logger");
 const {onRequest} = require("firebase-functions/v2/https");
 
@@ -44,34 +45,64 @@ function httpError(status, message) {
   return Object.assign(new Error(message), {status});
 }
 
-function safeMapName(value) {
-  const cleaned = String(value || "map")
-    .normalize("NFKC")
-    .replace(/[^\p{L}\p{N} ._-]+/gu, "-")
-    .replace(/\s+/g, " ")
-    .replace(/^[. ]+|[. ]+$/g, "")
-    .slice(0, 100);
-  return cleaned || "map";
+const LEGACY_AUTHOR_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} ._-]*$/u;
+const LEGACY_MAP_NAME_PATTERN = /^[\p{L}\p{N} ._-]+$/u;
+const LEGACY_VERSION_PATTERN = /^(v)?\d+(?:\.\d+)*$/i;
+
+function normalizedIdentityText(value) {
+  return String(value ?? "").normalize("NFKC").trim();
+}
+
+function base64Url(value) {
+  return Buffer.from(value, "utf8").toString("base64url");
+}
+
+function legacyMapName(value) {
+  return value.length <= 100 && LEGACY_MAP_NAME_PATTERN.test(value) &&
+    !/^[. ]|[. ]$| {2,}/.test(value);
+}
+
+function authorPathSegment(value) {
+  const author = normalizedIdentityText(value);
+  return LEGACY_AUTHOR_PATTERN.test(author) ? author : `~${base64Url(author)}`;
+}
+
+function mapFileName(mapName, mapVersion) {
+  if(legacyMapName(mapName) && LEGACY_VERSION_PATTERN.test(mapVersion)) {
+    return `${mapName}-${mapVersion}.aamap.xml`;
+  }
+  return `~${base64Url(mapName)}.${base64Url(mapVersion)}.aamap.xml`;
 }
 
 function resourceKey(value) {
-  return `resource_${Buffer.from(String(value || "").normalize("NFKC"), "utf8")
-    .toString("base64url")}`;
+  const normalized = String(value ?? "").normalize("NFKC");
+  const encoded = base64Url(normalized);
+  return encoded.length <= 1400
+    ? `resource_${encoded}`
+    : `resource_sha256_${createHash("sha256").update(normalized).digest("hex")}`;
 }
 
 function submissionPayload(body) {
   const data = body && typeof body === "object" ? body : {};
-  const string = (name, maximum = 1000) => String(data[name] || "").trim().slice(0, maximum);
+  const string = (name, maximum = 1000) => String(data[name] ?? "").trim().slice(0, maximum);
+  const identity = (name, maximum, label) => {
+    const raw = String(data[name] ?? "");
+    const normalized = normalizedIdentityText(raw);
+    if(!normalized || Array.from(normalized).length > maximum || raw !== normalized) {
+      throw httpError(400, `The map ${label} is invalid.`);
+    }
+    return normalized;
+  };
   const payload = {
     submissionId: string("submissionId", 128),
     mapId: string("mapId", 128),
     operation: string("operation", 32),
-    authorId: string("authorId", 256),
-    authorName: string("authorName", 60),
+    authorId: string("authorId", 1024),
+    authorName: identity("authorName", 60, "author"),
     category: string("category", 60),
-    mapName: string("mapName", 100),
-    mapVersion: string("mapVersion", 64),
-    storagePath: string("storagePath", 1024),
+    mapName: identity("mapName", 100, "name"),
+    mapVersion: identity("mapVersion", 64, "version"),
+    storagePath: string("storagePath", 2048),
     sourceRevisionId: string("sourceRevisionId", 128),
     sourceMapId: string("sourceMapId", 128),
     resubmissionOf: string("resubmissionOf", 128),
@@ -86,8 +117,7 @@ function submissionPayload(body) {
   if(!["create", "edit", "metadata", "size"].includes(payload.operation)) {
     throw httpError(400, "The map operation is invalid.");
   }
-  if(payload.category !== MAP_CATEGORY || payload.mapName !== safeMapName(payload.mapName) ||
-     !/^(v)?\d+(?:\.\d+)*$/i.test(payload.mapVersion)) {
+  if(!payload.authorId || payload.category !== MAP_CATEGORY) {
     throw httpError(400, "The map name, version, or category is invalid.");
   }
   if(!/^[0-9a-f]{64}$/.test(payload.sha256) ||
@@ -106,7 +136,8 @@ function submissionPayload(body) {
 }
 
 function activeResourcePath(payload) {
-  return `${payload.authorName}/${MAP_CATEGORY}/${payload.mapName}-${payload.mapVersion}.aamap.xml`;
+  return `${authorPathSegment(payload.authorName)}/${MAP_CATEGORY}/` +
+    mapFileName(payload.mapName, payload.mapVersion);
 }
 
 function duplicatePendingSubmission(snapshot, payload) {
@@ -138,14 +169,17 @@ exports.createMapSubmission = onRequest({
     const accountRef = db.collection("accounts").doc(user.uid);
     const accountSnapshot = await accountRef.get();
     const account = accountSnapshot.exists ? accountSnapshot.data() : null;
-    if(!account || account.status !== "approved" || !account.authorId || !account.authorName) {
+    const admin = user.admin === true;
+    if(!admin && (!account || account.status !== "approved" ||
+       !account.authorId || !account.authorName)) {
       throw httpError(403, "Your Vectron account is not approved and linked to an author.");
     }
-    if(payload.authorId !== account.authorId || payload.authorName !== account.authorName) {
+    if(!admin && (payload.authorId !== account.authorId ||
+       payload.authorName !== normalizedIdentityText(account.authorName))) {
       throw httpError(403, "This submission does not match your linked Vectron author.");
     }
     const expectedStoragePath = `_revisions/${user.uid}/${payload.submissionId}/` +
-      `${payload.mapName}-${payload.mapVersion}.aamap.xml`;
+      mapFileName(payload.mapName, payload.mapVersion);
     if(payload.storagePath !== expectedStoragePath) {
       throw httpError(400, "The uploaded revision path does not match this submission.");
     }
@@ -200,9 +234,9 @@ exports.createMapSubmission = onRequest({
       ]);
       const [freshAccount, existingSubmission, publishedResource, pendingResource, deniedSource] = reads;
       const freshAccountData = freshAccount.exists ? freshAccount.data() : null;
-      if(!freshAccountData || freshAccountData.status !== "approved" ||
+      if(!admin && (!freshAccountData || freshAccountData.status !== "approved" ||
          freshAccountData.authorId !== payload.authorId ||
-         freshAccountData.authorName !== payload.authorName) {
+         normalizedIdentityText(freshAccountData.authorName) !== payload.authorName)) {
         throw httpError(403, "Your linked author changed before the submission completed.");
       }
       if(existingSubmission.exists) {
@@ -234,7 +268,7 @@ exports.createMapSubmission = onRequest({
         ...payload,
         status: "pending",
         submittedBy: user.uid,
-        submittedByName: account.authorName,
+        submittedByName: account && account.authorName || user.name || user.email || user.uid,
         pendingResourceId,
         resourcePath,
         createdAt: FieldValue.serverTimestamp(),
