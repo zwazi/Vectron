@@ -64,6 +64,7 @@ const profileSubmit = document.getElementById("auth-profile-submit");
 const profileSignout = document.getElementById("auth-profile-signout");
 const uploadButton = document.querySelector("[data-map-upload]");
 const reviewPublishButton = document.querySelector("[data-map-review-publish]");
+const reviewDenyButton = document.querySelector("[data-map-review-deny]");
 const repositoryButton = document.querySelector("[data-map-repository]");
 const repositoryOverlay = document.getElementById("map-repository-overlay");
 const repositoryCloseButton = document.getElementById("map-repository-close");
@@ -101,6 +102,9 @@ const adminHistoryCount = document.querySelector("[data-admin-history-count]");
 const adminDialog = adminOverlay && adminOverlay.querySelector(".admin-dialog");
 const confirmPopover = document.getElementById("auth-confirm-popover");
 const confirmMessage = document.getElementById("auth-confirm-message");
+const confirmReasonField = document.getElementById("auth-confirm-reason-field");
+const confirmReasonInput = document.getElementById("auth-confirm-reason");
+const confirmReasonError = document.getElementById("auth-confirm-reason-error");
 const confirmCancelButton = document.getElementById("auth-confirm-cancel");
 const confirmAcceptButton = document.getElementById("auth-confirm-accept");
 const mapFileCommandOverlay = document.getElementById("map-file-command-overlay");
@@ -144,6 +148,7 @@ const adminPreviewCache = new Map();
 const adminPreviewTargets = new WeakMap();
 let confirmResolver = null;
 let confirmAnchor = null;
+let confirmOptions = null;
 let adminDragging = null;
 
 function positionConfirmationPopover() {
@@ -167,15 +172,42 @@ function positionConfirmationPopover() {
 
 function settleConfirmation(result) {
     if(!confirmPopover || confirmPopover.hidden) return;
+    if(result && confirmOptions && confirmOptions.reasonRequired) {
+        const reason = String(confirmReasonInput && confirmReasonInput.value || "").trim();
+        if(!reason) {
+            confirmReasonError.textContent = "Enter a reason before denying this map.";
+            confirmReasonError.hidden = false;
+            confirmReasonInput.setAttribute("aria-invalid", "true");
+            confirmReasonInput.focus();
+            positionConfirmationPopover();
+            return;
+        }
+        if(reason.length > 1000) {
+            confirmReasonError.textContent = "Keep the reason to 1,000 characters or fewer.";
+            confirmReasonError.hidden = false;
+            confirmReasonInput.setAttribute("aria-invalid", "true");
+            confirmReasonInput.focus();
+            positionConfirmationPopover();
+            return;
+        }
+        result = {confirmed:true, reason};
+    }
     const resolver = confirmResolver;
     const anchor = confirmAnchor;
     confirmResolver = null;
     confirmAnchor = null;
+    confirmOptions = null;
     confirmPopover.hidden = true;
     confirmPopover.classList.remove("danger");
     confirmAcceptButton.classList.remove("danger");
+    if(confirmReasonField) confirmReasonField.hidden = true;
+    if(confirmReasonError) {
+        confirmReasonError.textContent = "";
+        confirmReasonError.hidden = true;
+    }
+    if(confirmReasonInput) confirmReasonInput.removeAttribute("aria-invalid");
     if(anchor && typeof anchor.focus === "function") anchor.focus();
-    if(resolver) resolver(Boolean(result));
+    if(resolver) resolver(result && typeof result === "object" ? result : Boolean(result));
 }
 
 function confirmAction(message, options = {}) {
@@ -184,6 +216,18 @@ function confirmAction(message, options = {}) {
     confirmMessage.textContent = String(message || "Continue?");
     confirmAcceptButton.textContent = options.confirmLabel || "Confirm";
     confirmAcceptButton.classList.toggle("danger", options.danger === true);
+    confirmOptions = options;
+    const reasonRequired = options.reasonRequired === true;
+    if(confirmReasonField) confirmReasonField.hidden = !reasonRequired;
+    if(confirmReasonInput) {
+        confirmReasonInput.value = reasonRequired ? String(options.reason || "") : "";
+        confirmReasonInput.placeholder = options.reasonPlaceholder || "Explain why this map is being denied";
+    }
+    if(confirmReasonError) {
+        confirmReasonError.textContent = "";
+        confirmReasonError.hidden = true;
+    }
+    if(confirmReasonInput) confirmReasonInput.removeAttribute("aria-invalid");
     confirmAnchor = options.anchor || (
         document.activeElement && document.activeElement !== document.body ?
             document.activeElement : null
@@ -191,7 +235,16 @@ function confirmAction(message, options = {}) {
     confirmPopover.hidden = false;
     positionConfirmationPopover();
     window.requestAnimationFrame(positionConfirmationPopover);
-    window.setTimeout(() => confirmAcceptButton.focus(), 0);
+    window.setTimeout(() => {
+        if(reasonRequired && confirmReasonInput) {
+            confirmReasonInput.focus();
+            confirmReasonInput.setSelectionRange(
+                confirmReasonInput.value.length, confirmReasonInput.value.length
+            );
+        } else {
+            confirmAcceptButton.focus();
+        }
+    }, 0);
     return new Promise(resolve => { confirmResolver = resolve; });
 }
 
@@ -413,6 +466,10 @@ function syncGuestSessionControls() {
         reviewPublishButton.hidden = true;
         reviewPublishButton.disabled = true;
     }
+    if(reviewDenyButton) {
+        reviewDenyButton.hidden = true;
+        reviewDenyButton.disabled = true;
+    }
     if(repositoryMineTab) repositoryMineTab.hidden = true;
     if(notificationButton) notificationButton.hidden = true;
     if(adminButton) adminButton.hidden = true;
@@ -462,6 +519,14 @@ function updateUploadButtonLabel() {
         reviewPublishButton.setAttribute("aria-label", "Approve");
         const label = reviewPublishButton.querySelector("span");
         if(label) label.textContent = "Approve";
+    }
+    if(reviewDenyButton) {
+        reviewDenyButton.hidden = !(reviewing && currentUserIsAdmin());
+        reviewDenyButton.disabled = uploadBusy || !(reviewing && currentUserIsAdmin());
+        reviewDenyButton.title = "Deny";
+        reviewDenyButton.setAttribute("aria-label", "Deny");
+        const label = reviewDenyButton.querySelector("span");
+        if(label) label.textContent = "Deny";
     }
 }
 
@@ -2003,11 +2068,16 @@ async function uploadReviewedRevision(submission, target) {
     };
 }
 
-async function reviewSubmission(submissionId, approved) {
+async function reviewSubmission(submissionId, approved, options = {}) {
     const submission = adminData.submissions.find(item => item.id === submissionId);
     const card = adminCard(submissionId);
-    if(!submission || !card) return;
-    const reason = decisionReason(card, !approved);
+    const hasProvidedReason = Object.prototype.hasOwnProperty.call(options, "reason");
+    if(!submission || (approved && !card) || (!card && !hasProvidedReason)) return false;
+    const reason = hasProvidedReason
+        ? String(options.reason || "").trim()
+        : decisionReason(card, !approved);
+    if(!approved && !reason) throw new Error("Enter a reason before denying this request.");
+    if(reason.length > 1000) throw new Error("Keep the decision reason to 1,000 characters or fewer.");
     let finalIdentity = null;
     if(approved) {
         finalIdentity = adminMapIdentity(card, submission);
@@ -2034,12 +2104,12 @@ async function reviewSubmission(submissionId, approved) {
             );
         }
     }
-    if(!await confirmAction(
+    if(options.skipConfirmation !== true && !await confirmAction(
         approved
             ? `Approve and publish ${finalIdentity.mapName} ${finalIdentity.mapVersion}?`
             : `Deny ${submission.mapName}?`,
         {confirmLabel:approved ? "Approve and publish" : "Deny", danger:!approved}
-    )) return;
+    )) return false;
     setAdminBusy(true);
     setAdminStatus(`${approved ? "Validating and publishing" : "Denying"} map submission…`);
     try {
@@ -2248,6 +2318,7 @@ async function reviewSubmission(submissionId, approved) {
                 : "Map denied and kept out of server rotation."
             : approved ? "Map approved, published, and submitter notified."
                 : "Map denied and submitter notified.");
+        return true;
     } finally {
         setAdminBusy(false);
     }
@@ -2613,6 +2684,77 @@ async function editPendingSubmission(submissionId) {
         );
     } finally {
         setAdminBusy(false);
+    }
+}
+
+async function denyCurrentReview() {
+    if(uploadBusy || adminBusy || !currentUserIsAdmin()) return;
+    const editState = getRepositoryEditState();
+    if(!editState || !editState.reviewSubmissionId) {
+        showEditorMessage("Open a pending review before denying it.");
+        return;
+    }
+    const submission = adminData.submissions.find(
+        item => item.id === editState.reviewSubmissionId
+    );
+    if(!submission) {
+        showEditorMessage("This review is no longer pending. Open Vectron review to continue.");
+        return;
+    }
+    const confirmation = await confirmAction(
+        `Deny ${submission.mapName}? The submitter will be notified, then the next review will open.`,
+        {
+            confirmLabel:"Deny",
+            danger:true,
+            reasonRequired:true,
+            reason:editState.reviewDecisionReason,
+            anchor:reviewDenyButton
+        }
+    );
+    if(!confirmation) return;
+
+    const nextSubmission = nextPendingSubmissionAfter(editState.reviewSubmissionId);
+    uploadBusy = true;
+    reviewDenyButton.classList.add("auth-uploading");
+    reviewDenyButton.setAttribute("aria-busy", "true");
+    updateUploadButtonLabel();
+    showEditorMessage(`Denying ${submission.mapName}…`);
+    try {
+        const denied = await reviewSubmission(editState.reviewSubmissionId, false, {
+            reason:confirmation.reason,
+            skipConfirmation:true
+        });
+        if(!denied) throw new Error("This review could not be denied.");
+        clearRepositoryEditState();
+        if(typeof window.vectron_localDraftSaveNow === "function") {
+            window.vectron_localDraftSaveNow();
+        }
+        if(nextSubmission) {
+            try {
+                const nextIdentity = await pendingSubmissionIdentity(nextSubmission);
+                await loadPendingSubmissionIntoEditor(nextSubmission, nextIdentity);
+                showEditorMessage(
+                    `${submission.mapName} was denied. Now editing ` +
+                    `${nextIdentity.mapName} ${nextIdentity.mapVersion}, the next map in the review queue.`
+                );
+            } catch(nextError) {
+                console.error("Vectron could not open the next pending review after denial.", nextError);
+                showEditorMessage(
+                    `${submission.mapName} was denied, but the next review could not be opened. ` +
+                    "Open Vectron review to continue."
+                );
+            }
+        } else {
+            showEditorMessage(`${submission.mapName} was denied. The map review queue is clear.`);
+        }
+    } catch(error) {
+        console.error("Vectron editor review denial failed.", error);
+        showEditorMessage(error && error.message ? error.message : "The review could not be denied.");
+    } finally {
+        uploadBusy = false;
+        reviewDenyButton.classList.remove("auth-uploading");
+        reviewDenyButton.removeAttribute("aria-busy");
+        updateUploadButtonLabel();
     }
 }
 
@@ -3052,6 +3194,7 @@ async function savePendingReviewDraft(
         reviewPublishButton.setAttribute("aria-busy", "true");
         reviewPublishButton.disabled = true;
     }
+    if(reviewDenyButton) reviewDenyButton.disabled = true;
     showEditorMessage(publish
         ? "Approving and publishing this review…"
         : "Saving an immutable draft to this review…");
@@ -3917,6 +4060,12 @@ function bindUi() {
             uploadCurrentMap({publishReview: true});
         });
     }
+    if(reviewDenyButton) {
+        reviewDenyButton.addEventListener("click", event => {
+            event.preventDefault();
+            denyCurrentReview();
+        });
+    }
     if(mapFileCommandClose) mapFileCommandClose.addEventListener("click", closeMapFileCommand);
     if(mapFileCommandCopy) mapFileCommandCopy.addEventListener("click", copyMapFileCommand);
     if(mapFileCommandOverlay) {
@@ -3999,6 +4148,13 @@ function bindUi() {
     }
     if(confirmCancelButton) confirmCancelButton.addEventListener("click", () => settleConfirmation(false));
     if(confirmAcceptButton) confirmAcceptButton.addEventListener("click", () => settleConfirmation(true));
+    if(confirmReasonInput) confirmReasonInput.addEventListener("input", () => {
+        confirmReasonInput.removeAttribute("aria-invalid");
+        if(confirmReasonError) {
+            confirmReasonError.textContent = "";
+            confirmReasonError.hidden = true;
+        }
+    });
     document.addEventListener("mousedown", event => {
         if(confirmPopover && !confirmPopover.hidden &&
            !confirmPopover.contains(event.target) &&

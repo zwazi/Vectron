@@ -47,8 +47,9 @@ Admins may:
 - link an account to an existing author;
 - open any pending submission in the full Vectron editor and save its changes
   as an immutable review draft on the same review item, or approve and publish
-  the edited revision; a successful editor approval opens the next pending map
-  automatically;
+  the edited revision; the editor's top-right **Approve** and **Deny** actions
+  both open the next pending map automatically, and denial requires a recorded
+  reason;
 - freely correct the final author, map name, and version before approval, with
   occupied versions automatically advanced until the resource path is free;
 - review each pending map in a two-column card with its submitted reason,

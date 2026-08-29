@@ -713,6 +713,12 @@ body.auth-locked {
   background: rgba(154, 124, 255, 0.1);
 }
 
+.auth-review-deny-button {
+  border-color: rgba(255, 107, 107, 0.5);
+  color: #ffadad;
+  background: rgba(255, 107, 107, 0.08);
+}
+
 .auth-notification-button,
 .auth-admin-button {
   position: relative;
@@ -1310,6 +1316,39 @@ button.repository-author-heading:disabled {
   font-size: 10px;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.auth-confirm-reason-field {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  color: #d9dbe1;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.auth-confirm-reason-field textarea {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: #f1f2f5;
+  background: rgba(0, 0, 0, 0.24);
+  font: 10px/1.45 "Open Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+.auth-confirm-reason-field textarea:focus {
+  border-color: rgba(255, 107, 107, 0.72);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.12);
+}
+
+.auth-confirm-reason-field small {
+  color: #ffadad;
+  font-size: 9px;
+  font-weight: 600;
 }
 
 .auth-confirm-actions {
