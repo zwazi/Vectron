@@ -1327,10 +1327,9 @@ button.repository-author-heading:disabled {
   font-weight: 700;
 }
 
-.auth-confirm-reason-field textarea {
+.auth-confirm-reason-field input {
   width: 100%;
-  min-height: 62px;
-  resize: vertical;
+  min-height: 32px;
   padding: 7px 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
@@ -1339,7 +1338,7 @@ button.repository-author-heading:disabled {
   font: 10px/1.45 "Open Sans", "Helvetica Neue", Arial, sans-serif;
 }
 
-.auth-confirm-reason-field textarea:focus {
+.auth-confirm-reason-field input:focus {
   border-color: rgba(255, 107, 107, 0.72);
   outline: none;
   box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.12);
@@ -1349,6 +1348,69 @@ button.repository-author-heading:disabled {
   color: #ffadad;
   font-size: 9px;
   font-weight: 600;
+}
+
+.auth-deny-quick-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.account-card-button.auth-deny-quick-reason {
+  max-width: 210px;
+  min-height: 25px;
+  padding: 0 7px;
+  border-color: rgba(255, 107, 107, 0.28);
+  color: #ffbcbc;
+  font-size: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-card-button.auth-deny-quick-reason:hover,
+.account-card-button.auth-deny-quick-reason:focus-visible {
+  border-color: rgba(255, 107, 107, 0.66);
+  color: #fff;
+  background: rgba(255, 107, 107, 0.14);
+}
+
+.auth-deny-quick-custom {
+  max-width: 240px;
+  display: inline-flex;
+}
+
+.auth-deny-quick-custom .account-card-button.auth-deny-quick-reason {
+  border-radius: 6px 0 0 6px;
+}
+
+.auth-deny-quick-remove {
+  min-width: 24px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+  color: #ffbcbc;
+  background: rgba(165, 48, 48, 0.08);
+  font-size: 12px;
+}
+
+.auth-deny-quick-remove:hover,
+.auth-deny-quick-remove:focus-visible {
+  color: #fff;
+  background: rgba(255, 107, 107, 0.2);
+}
+
+.account-card-button.auth-deny-quick-add {
+  min-height: 25px;
+  padding: 0 7px;
+  font-size: 8px;
+}
+
+.map-review-quick-reasons {
+  width: 100%;
+  margin-top: -1px;
 }
 
 .auth-confirm-actions {
