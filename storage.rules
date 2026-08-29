@@ -38,7 +38,12 @@ service firebase.storage {
         && request.resource.metadata.submissionId == submissionId
         && request.resource.metadata.authorId is string
         && request.resource.metadata.authorName is string
-        && request.resource.metadata.category == 'maps'
+        && (request.resource.metadata.category == 'maps'
+          || (isAdmin()
+            && request.resource.metadata.category is string
+            && request.resource.metadata.category.size() > 0
+            && request.resource.metadata.category.size() <= 60
+            && !request.resource.metadata.category.matches('.*[/].*')))
         && request.resource.metadata.mapName is string
         && request.resource.metadata.mapVersion is string
         && request.resource.metadata.mapName.size() > 0
