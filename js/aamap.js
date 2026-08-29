@@ -703,8 +703,18 @@ function aamap_init() {
     aamap_render();
 }
 
+function aamap_escapeXmlAttribute(value) {
+    return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
 function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
-    var fileName = name + "-" + version + ".aamap.xml";
+    var fileName = typeof window.vectron_mapFileName == "function"
+        ? window.vectron_mapFileName(name, version)
+        : name + "-" + version + ".aamap.xml";
 
     function isSpecialZone(object) {
         if(typeof Zone === "undefined" || !(object instanceof Zone)) return false;
@@ -758,9 +768,11 @@ function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
     }
 
     var xml = "";
-    xml += '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>'+"\n";
+    xml += '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'+"\n";
     xml += '<!DOCTYPE Resource SYSTEM "' + dtd + '">'+"\n";
-    xml += '<Resource type="aamap" name="'+ name +'" version="'+ version +'" author="'+ author +'" category="'+ category +'">'+"\n";
+    xml += '<Resource type="aamap" name="'+ aamap_escapeXmlAttribute(name) +'" version="'+
+        aamap_escapeXmlAttribute(version) +'" author="'+ aamap_escapeXmlAttribute(author) +
+        '" category="'+ aamap_escapeXmlAttribute(category) +'">'+"\n";
     if(typeof xml_buildRemixComments == "function") xml += xml_buildRemixComments("  ");
     xml += '  <Map version="0.2.8">'+"\n";
     var mapSettings = [];
