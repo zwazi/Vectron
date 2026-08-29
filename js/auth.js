@@ -150,8 +150,14 @@ let currentUserAdminClaim = false;
 let accountUnsubscribe = null;
 let notifications = [];
 let notificationUnsubscribe = null;
+let adminQueueUnsubscribes = [];
 let adminUnsubscribes = [];
 let adminData = {accounts: [], submissions: [], maps: [], authors: [], history: []};
+let publicCatalogState = null;
+let publicCatalogManifest = null;
+let publicCatalogGeneration = "";
+let repositoryStatusUnsubscribes = [];
+let serverCatalogStates = [];
 let adminTab = "accounts";
 let adminBusy = false;
 let overlayPreviousFocus = null;
@@ -948,8 +954,11 @@ function stopAccountListeners() {
     accountUnsubscribe = null;
     if(notificationUnsubscribe) notificationUnsubscribe();
     notificationUnsubscribe = null;
+    adminQueueUnsubscribes.forEach(unsubscribe => unsubscribe());
+    adminQueueUnsubscribes = [];
     adminUnsubscribes.forEach(unsubscribe => unsubscribe());
     adminUnsubscribes = [];
+    stopRepositoryStatusListeners();
     notifications = [];
     repositorySubmissions = [];
     adminData = {accounts: [], submissions: [], maps: [], authors: [], history: []};
@@ -1024,7 +1033,7 @@ async function loadAccountSession(user) {
         ["pending", "deleting"].includes(currentAccount.status) ? "pending" :
         currentAccount.status === "denied" ? "denied" : "user");
     startNotificationListener(user.uid);
-    if(isAdminClaim) startAdminListeners();
+    if(isAdminClaim) startAdminQueueListeners();
     startAccountListener(user);
     return currentAccount;
 }
@@ -1205,8 +1214,17 @@ function setAdminCollection(key, snapshot) {
     }
 }
 
-function startAdminListeners() {
-    adminUnsubscribes.forEach(unsubscribe => unsubscribe());
+function reportAdminListenerError(key, error) {
+    console.error(`Vectron admin ${key} queue failed to load.`, error);
+    if(adminStatus) {
+        adminStatus.textContent = "One or more admin queues could not be loaded.";
+        adminStatus.className = "repository-status error";
+        adminStatus.hidden = false;
+    }
+}
+
+function startAdminQueueListeners() {
+    adminQueueUnsubscribes.forEach(unsubscribe => unsubscribe());
     const specs = [
         ["accounts", firestoreSdk.query(
             firestoreSdk.collection(firestore, "accounts"),
@@ -1215,27 +1233,50 @@ function startAdminListeners() {
         ["submissions", firestoreSdk.query(
             firestoreSdk.collection(firestore, "mapSubmissions"),
             firestoreSdk.where("status", "==", "pending")
-        )],
-        ["maps", firestoreSdk.query(
-            firestoreSdk.collection(firestore, "maps"),
-            firestoreSdk.where("status", "==", "active")
-        )],
-        ["history", firestoreSdk.query(
-            firestoreSdk.collection(firestore, "mapSubmissions"),
-            firestoreSdk.where("status", "in", ["approved", "denied"])
-        )],
-        ["authors", firestoreSdk.collection(firestore, "authors")]
+        )]
     ];
-    adminUnsubscribes = specs.map(([key, reference]) =>
-        firestoreSdk.onSnapshot(reference, snapshot => setAdminCollection(key, snapshot), error => {
-            console.error(`Vectron admin ${key} queue failed to load.`, error);
-            if(adminStatus) {
-                adminStatus.textContent = "One or more admin queues could not be loaded.";
-                adminStatus.className = "repository-status error";
-                adminStatus.hidden = false;
-            }
-        })
+    adminQueueUnsubscribes = specs.map(([key, reference]) =>
+        firestoreSdk.onSnapshot(
+            reference,
+            snapshot => setAdminCollection(key, snapshot),
+            error => reportAdminListenerError(key, error)
+        )
     );
+}
+
+function startAdminListeners() {
+    adminUnsubscribes.forEach(unsubscribe => unsubscribe());
+    adminUnsubscribes = [];
+    const specs = [["authors", firestoreSdk.collection(firestore, "authors")]];
+    if(adminTab === "history") {
+        specs.push(["history", firestoreSdk.query(
+            firestoreSdk.collection(firestore, "mapSubmissions"),
+            firestoreSdk.where("status", "in", ["approved", "denied"]),
+            firestoreSdk.orderBy("reviewedAt", "desc"),
+            firestoreSdk.limit(100)
+        )]);
+    }
+    adminUnsubscribes.push(...specs.map(([key, reference]) =>
+        firestoreSdk.onSnapshot(
+            reference,
+            snapshot => setAdminCollection(key, snapshot),
+            error => reportAdminListenerError(key, error)
+        )
+    ));
+    if(["submissions", "maps", "history"].includes(adminTab)) {
+        const catalogReference = firestoreSdk.doc(firestore, "catalogState", "current");
+        adminUnsubscribes.push(firestoreSdk.onSnapshot(catalogReference, async snapshot => {
+            try {
+                const state = snapshot.exists() ? {id:snapshot.id, ...snapshot.data()} : null;
+                const maps = await loadPublicCatalog(false, state);
+                adminData.maps = maps.map(item => ({...item, id:item.id || item.mapId}));
+                updateAdminBadge();
+                if(adminOverlay && !adminOverlay.hidden) renderAdminList();
+            } catch(error) {
+                reportAdminListenerError("map catalog", error);
+            }
+        }, error => reportAdminListenerError("map catalog", error)));
+    }
 }
 
 function setAdminBusy(value) {
@@ -1983,10 +2024,12 @@ function setAdminTab(value) {
     });
     adminList.scrollTop = 0;
     renderAdminList();
+    if(adminOverlay && !adminOverlay.hidden) startAdminListeners();
 }
 
 function refreshAdminQueues() {
     adminList.scrollTop = 0;
+    startAdminQueueListeners();
     startAdminListeners();
 }
 
@@ -2006,6 +2049,8 @@ function closeAdmin() {
     if(confirmResolver) settleConfirmation(false);
     adminOverlay.hidden = true;
     adminButton.setAttribute("aria-expanded", "false");
+    adminUnsubscribes.forEach(unsubscribe => unsubscribe());
+    adminUnsubscribes = [];
     if(overlayPreviousFocus && typeof overlayPreviousFocus.focus === "function") {
         overlayPreviousFocus.focus();
     }
@@ -3819,11 +3864,54 @@ async function uploadCurrentMap(options = {}) {
 
 window.vectron_uploadCurrentMap = uploadCurrentMap;
 
-function repositoryMapDetails(snapshot) {
-    const data = snapshot.data();
+function firebaseStorageMediaUrl(fullPath) {
+    const objectUrl = new URL(
+        `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_CONFIG.storageBucket)}/o/${encodeURIComponent(fullPath)}`
+    );
+    objectUrl.searchParams.set("alt", "media");
+    return objectUrl;
+}
+
+async function loadPublicCatalog(force = false, stateOverride = undefined) {
+    let state = stateOverride;
+    if(state === undefined) {
+        const snapshot = await firestoreSdk.getDoc(
+            firestoreSdk.doc(firestore, "catalogState", "current")
+        );
+        state = snapshot.exists() ? {id:snapshot.id, ...snapshot.data()} : null;
+    }
+    if(state && state.generation && state.publicManifestPath) {
+        publicCatalogState = state;
+        if(!force && publicCatalogManifest && publicCatalogGeneration === state.generation) {
+            return publicCatalogManifest.maps;
+        }
+        const response = await fetch(firebaseStorageMediaUrl(state.publicManifestPath));
+        if(!response.ok) throw new Error(`Catalog manifest download failed (${response.status}).`);
+        const manifest = await response.json();
+        if(!manifest || manifest.generation !== state.generation || !Array.isArray(manifest.maps)) {
+            throw new Error("Catalog manifest did not match the published catalog state.");
+        }
+        publicCatalogManifest = manifest;
+        publicCatalogGeneration = state.generation;
+        return manifest.maps;
+    }
+
+    // Safe bootstrap path while the first generated manifest is being published.
+    const snapshot = await firestoreSdk.getDocs(firestoreSdk.query(
+        firestoreSdk.collection(firestore, "maps"),
+        firestoreSdk.where("status", "==", "active")
+    ));
+    const maps = snapshot.docs.map(item => ({id:item.id, mapId:item.id, ...item.data()}));
+    publicCatalogState = null;
+    publicCatalogManifest = {maps};
+    publicCatalogGeneration = "bootstrap";
+    return maps;
+}
+
+function repositoryMapDetailsData(id, data) {
     return {
-        id: snapshot.id,
-        mapId: snapshot.id,
+        id,
+        mapId: id,
         fullPath: data.storagePath,
         storagePath: data.storagePath,
         resourcePath: data.resourcePath || activeResourcePath(
@@ -3838,6 +3926,10 @@ function repositoryMapDetails(snapshot) {
         activeRevisionId: data.activeRevisionId || "",
         ownerUid: data.ownerUid || ""
     };
+}
+
+function repositoryMapDetails(snapshot) {
+    return repositoryMapDetailsData(snapshot.id, snapshot.data());
 }
 
 function repositoryDeniedSubmissionDetails(snapshot, resubmittedIds = new Set()) {
@@ -3881,11 +3973,56 @@ function repositoryItems() {
     return [...repositoryMaps, ...repositoryDeniedMaps()];
 }
 
+function repositoryCatalogSummary() {
+    const version = Number(publicCatalogState && publicCatalogState.catalogVersion || 0);
+    if(!version) return "";
+    let summary = ` Catalog v${version}.`;
+    if(currentUserIsAdmin() && serverCatalogStates.length) {
+        const synced = serverCatalogStates.filter(state =>
+            Number(state.appliedCatalogVersion || 0) === version &&
+            state.appliedGeneration === publicCatalogState.generation &&
+            state.status === "ready"
+        ).length;
+        summary += ` ${synced}/${serverCatalogStates.length} game servers synced.`;
+    }
+    return summary;
+}
+
+function stopRepositoryStatusListeners() {
+    repositoryStatusUnsubscribes.forEach(unsubscribe => unsubscribe());
+    repositoryStatusUnsubscribes = [];
+    serverCatalogStates = [];
+}
+
+function startRepositoryStatusListeners() {
+    stopRepositoryStatusListeners();
+    const catalogReference = firestoreSdk.doc(firestore, "catalogState", "current");
+    repositoryStatusUnsubscribes.push(firestoreSdk.onSnapshot(catalogReference, snapshot => {
+        const nextState = snapshot.exists() ? {id:snapshot.id, ...snapshot.data()} : null;
+        const changed = nextState && nextState.generation !== publicCatalogGeneration;
+        publicCatalogState = nextState;
+        if(changed && repositoryOverlay && !repositoryOverlay.hidden && !repositoryBusy) {
+            refreshRepositoryMaps();
+        } else if(repositoryOverlay && !repositoryOverlay.hidden &&
+                  (repositoryMaps.length || repositorySubmissions.length)) {
+            renderRepositoryMaps();
+        }
+    }, error => console.error("Vectron catalog status failed to refresh.", error)));
+    if(currentUserIsAdmin()) {
+        repositoryStatusUnsubscribes.push(firestoreSdk.onSnapshot(
+            firestoreSdk.collection(firestore, "serverCatalogState"),
+            snapshot => {
+                serverCatalogStates = snapshot.docs.map(item => ({id:item.id, ...item.data()}));
+                if(repositoryOverlay && !repositoryOverlay.hidden &&
+                   (repositoryMaps.length || repositorySubmissions.length)) renderRepositoryMaps();
+            },
+            error => console.error("Vectron game-server catalog status failed to refresh.", error)
+        ));
+    }
+}
+
 async function downloadRepositoryMap(fullPath) {
-    const objectUrl = new URL(
-        `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_CONFIG.storageBucket)}/o/${encodeURIComponent(fullPath)}`
-    );
-    objectUrl.searchParams.set("alt", "media");
+    const objectUrl = firebaseStorageMediaUrl(fullPath);
     const headers = {};
     if(auth && auth.currentUser) {
         const idToken = await authSdk.getIdToken(auth.currentUser);
@@ -3976,9 +4113,9 @@ function renderRepositoryMaps() {
     });
 
     repositoryList.replaceChildren();
-    repositorySummary.textContent = items.length
+    repositorySummary.textContent = (items.length
         ? `Showing ${visibleMaps.length} of ${tabMaps.length} ${repositoryTab === "mine" ? "your" : "other"} ${tabMaps.length === 1 ? "map" : "maps"}${authors.size ? ` across ${authors.size} ${authors.size === 1 ? "author" : "authors"}` : ""}.`
-        : "No repository maps loaded.";
+        : "No repository maps loaded.") + repositoryCatalogSummary();
 
     if(!visibleMaps.length) {
         const empty = document.createElement("div");
@@ -4092,14 +4229,13 @@ async function refreshRepositoryMaps() {
                 firestoreSdk.where("submittedBy", "==", auth.currentUser.uid)
             ))
             : Promise.resolve({docs:[]});
-        const [snapshot, submissionSnapshot] = await Promise.all([
-            firestoreSdk.getDocs(firestoreSdk.query(
-                firestoreSdk.collection(firestore, "maps"),
-                firestoreSdk.where("status", "==", "active")
-            )),
+        const [catalogMaps, submissionSnapshot] = await Promise.all([
+            loadPublicCatalog(),
             submissionsRequest
         ]);
-        repositoryMaps = snapshot.docs.map(repositoryMapDetails)
+        repositoryMaps = catalogMaps.map(item =>
+            repositoryMapDetailsData(item.id || item.mapId, item)
+        )
             .sort((a, b) => a.author.localeCompare(b.author, undefined, {sensitivity: "base"}) ||
                 a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: "base"}));
         repositorySubmissions = submissionSnapshot.docs;
@@ -4131,6 +4267,7 @@ function openRepository() {
     repositoryPreviousFocus = document.activeElement;
     repositoryOverlay.hidden = false;
     repositoryButton.setAttribute("aria-expanded", "true");
+    startRepositoryStatusListeners();
     window.setTimeout(() => repositorySearchInput.focus(), 0);
     if(repositoryMaps.length || repositorySubmissions.length) renderRepositoryMaps();
     refreshRepositoryMaps();
@@ -4140,6 +4277,7 @@ function closeRepository() {
     if(repositoryOverlay.hidden) return;
     repositoryOverlay.hidden = true;
     repositoryButton.setAttribute("aria-expanded", "false");
+    stopRepositoryStatusListeners();
     if(repositoryPreviousFocus && typeof repositoryPreviousFocus.focus === "function") {
         repositoryPreviousFocus.focus();
     }

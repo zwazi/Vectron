@@ -86,5 +86,17 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
+
+    // Small invalidation/status documents replace repeated full catalog scans.
+    // Only trusted server code writes either collection.
+    match /catalogState/{stateId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /serverCatalogState/{serverId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
   }
 }
