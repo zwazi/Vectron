@@ -41,6 +41,25 @@ assert.ok(darkCssSource.includes("#symmetry-menu {"),
     "vectron-dark.css restyles the symmetry menu for the dark theme");
 assert.ok(eventSource.includes("eventHandler_updateSymmetry"),
     "eventHandler.js wires the symmetry controls");
+[
+    "map-adjust-menu-toggle", "map-adjust-menu", "map_scale", "scale_map",
+    "map_rotate_left", "map_rotate_right", "map_rot_angle", "rotate_map",
+    "map_move_x", "map_move_y", "move_map", "center_map_origin"
+].forEach(id => assert.strictEqual((indexSource.match(new RegExp('id="' + id + '"', "g")) || []).length, 1,
+    "The bottom toolbar must expose one #" + id + " control"));
+assert.ok(indexSource.includes('class="info-section info-adjust-section"'),
+    "The map adjustment controls live in the bottom info toolbar");
+assert.ok(!indexSource.includes('href="#gui-adjustment"') &&
+    !indexSource.includes('id="gui-adjustment"'),
+"The old Adjust Map settings tab is removed");
+assert.ok(cssSource.includes("#map-adjust-menu {") &&
+    cssSource.includes(".map-adjust-menu-row {"),
+"vectron.css styles the bottom toolbar adjustment menu");
+assert.ok(darkCssSource.includes("#map-adjust-menu {"),
+    "vectron-dark.css restyles the map adjustment menu");
+assert.ok(eventSource.includes("#map-adjust-menu-toggle") &&
+    eventSource.includes("#map-adjust-dropdown"),
+"eventHandler.js opens and dismisses the map adjustment menu");
 assert.strictEqual((indexSource.match(/id="dCheckpointOrder"/g) || []).length, 1,
     "Vectron exposes one authoritative checkpoint ID field");
 assert.ok(!indexSource.includes('id="zone-selected-checkpoint-id"'),

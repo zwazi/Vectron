@@ -458,6 +458,10 @@ function updateUploadButtonLabel() {
     if(reviewPublishButton) {
         reviewPublishButton.hidden = !(reviewing && currentUserIsAdmin());
         reviewPublishButton.disabled = uploadBusy || !(reviewing && currentUserIsAdmin());
+        reviewPublishButton.title = "Approve";
+        reviewPublishButton.setAttribute("aria-label", "Approve");
+        const label = reviewPublishButton.querySelector("span");
+        if(label) label.textContent = "Approve";
     }
 }
 
@@ -1740,7 +1744,13 @@ function setAdminTab(value) {
         tab.classList.toggle("active", active);
         tab.setAttribute("aria-selected", String(active));
     });
+    adminList.scrollTop = 0;
     renderAdminList();
+}
+
+function refreshAdminQueues() {
+    adminList.scrollTop = 0;
+    startAdminListeners();
 }
 
 function openAdmin() {
@@ -2501,10 +2511,21 @@ async function editPublishedMapMetadata(mapId) {
     }
 }
 
-async function editPendingSubmission(submissionId) {
-    const submission = adminData.submissions.find(item => item.id === submissionId);
-    const card = adminCard(submissionId);
-    if(!submission || !card) return;
+function nextPendingSubmissionAfter(submissionId) {
+    const queue = adminData.submissions.filter(item => item && item.id !== submissionId);
+    if(!queue.length) return null;
+    const currentIndex = adminData.submissions.findIndex(item => item.id === submissionId);
+    if(currentIndex < 0) return queue[0];
+    for(let offset = 1; offset < adminData.submissions.length; offset += 1) {
+        const candidate = adminData.submissions[
+            (currentIndex + offset) % adminData.submissions.length
+        ];
+        if(candidate && candidate.id !== submissionId) return candidate;
+    }
+    return null;
+}
+
+async function pendingSubmissionIdentity(submission, card = null) {
     const identity = adminMapIdentity(card, submission);
     identity.mapVersion = await nextAvailableAdminVersion(
         identity.author.name,
@@ -2513,6 +2534,66 @@ async function editPendingSubmission(submissionId) {
         identity.mapVersion,
         submission.id
     );
+    return identity;
+}
+
+async function loadPendingSubmissionIntoEditor(submission, identity, reviewDecisionReason = "") {
+    const xml = await downloadRepositoryMap(submission.storagePath);
+    const parsed = $.parseXML(xml);
+    const resource = parsed.documentElement;
+    if(!resource || resource.tagName.toLocaleLowerCase() !== "resource" ||
+       resource.getAttribute("type") !== "aamap") {
+        throw new Error("The pending revision is not an Armagetron map resource.");
+    }
+    const editedXml = rewriteResourceIdentity(xml, {
+        author: identity.author.name,
+        category: identity.category,
+        name: identity.mapName,
+        version: identity.mapVersion
+    });
+    if(typeof window.vectron_localDraftSaveNow === "function") {
+        window.vectron_localDraftSaveNow();
+    }
+    try {
+        if(typeof window.vectron_resetForInitialMap === "function") {
+            window.vectron_resetForInitialMap();
+        } else {
+            window.aamap_objects = [];
+        }
+        window.xml_process(editedXml);
+        setRepositoryEditState({
+            sourcePath: submission.storagePath,
+            sourceName: identity.mapName,
+            sourceVersion: identity.mapVersion,
+            sourceCategory: identity.category,
+            targetAuthor: identity.author.name,
+            targetAuthorId: identity.author.id,
+            sourceOwnerUid: submission.submittedBy || "",
+            mapId: submission.mapId,
+            sourceRevisionId: submission.sourceRevisionId || "",
+            reviewSubmissionId: submission.id,
+            reviewSourceOperation: submission.operation || "edit",
+            reviewDecisionReason
+        });
+        setCurrentMapName(identity.mapName);
+        setCurrentMapVersion(identity.mapVersion);
+        syncMapMetadata(auth.currentUser);
+        if(typeof window.vectron_localDraftSaveNow === "function") {
+            window.vectron_localDraftSaveNow();
+        }
+    } catch(processError) {
+        if(typeof window.vectron_localDraftRestore === "function") {
+            window.vectron_localDraftRestore();
+        }
+        throw processError;
+    }
+}
+
+async function editPendingSubmission(submissionId) {
+    const submission = adminData.submissions.find(item => item.id === submissionId);
+    const card = adminCard(submissionId);
+    if(!submission || !card) return;
+    const identity = await pendingSubmissionIdentity(submission, card);
     if(!await confirmAction(
         `Edit ${submission.mapName} inside Vectron? This replaces your current local draft.`,
         {confirmLabel:"Open in Vectron"}
@@ -2521,60 +2602,14 @@ async function editPendingSubmission(submissionId) {
     setAdminBusy(true);
     setAdminStatus("Opening the pending revision in Vectron…");
     try {
-        const xml = await downloadRepositoryMap(submission.storagePath);
-        const parsed = $.parseXML(xml);
-        const resource = parsed.documentElement;
-        if(!resource || resource.tagName.toLocaleLowerCase() !== "resource" ||
-           resource.getAttribute("type") !== "aamap") {
-            throw new Error("The pending revision is not an Armagetron map resource.");
-        }
-        const editedXml = rewriteResourceIdentity(xml, {
-            author: identity.author.name,
-            category: identity.category,
-            name: identity.mapName,
-            version: identity.mapVersion
-        });
-        if(typeof window.vectron_localDraftSaveNow === "function") {
-            window.vectron_localDraftSaveNow();
-        }
-        try {
-            if(typeof window.vectron_resetForInitialMap === "function") {
-                window.vectron_resetForInitialMap();
-            } else {
-                window.aamap_objects = [];
-            }
-            window.xml_process(editedXml);
-            setRepositoryEditState({
-                sourcePath: submission.storagePath,
-                sourceName: identity.mapName,
-                sourceVersion: identity.mapVersion,
-                sourceCategory: identity.category,
-                targetAuthor: identity.author.name,
-                targetAuthorId: identity.author.id,
-                sourceOwnerUid: submission.submittedBy || "",
-                mapId: submission.mapId,
-                sourceRevisionId: submission.sourceRevisionId || "",
-                reviewSubmissionId: submission.id,
-                reviewSourceOperation: submission.operation || "edit",
-                reviewDecisionReason: decisionReason(card, false)
-            });
-            setCurrentMapName(identity.mapName);
-            setCurrentMapVersion(identity.mapVersion);
-            syncMapMetadata(auth.currentUser);
-            if(typeof window.vectron_localDraftSaveNow === "function") {
-                window.vectron_localDraftSaveNow();
-            }
-        } catch(processError) {
-            if(typeof window.vectron_localDraftRestore === "function") {
-                window.vectron_localDraftRestore();
-            }
-            throw processError;
-        }
+        await loadPendingSubmissionIntoEditor(
+            submission, identity, decisionReason(card, false)
+        );
         setAdminStatus("");
         closeAdmin();
         showEditorMessage(
             `Editing pending review for ${identity.mapName} ${identity.mapVersion}. ` +
-            "Save a draft, or save, approve, and publish in one step when ready."
+            "Save a draft, or approve it when ready."
         );
     } finally {
         setAdminBusy(false);
@@ -2745,7 +2780,7 @@ async function reopenReviewHistory(submissionId) {
         setAdminStatus("");
         closeAdmin();
         showEditorMessage(
-            `${mapName} was reopened as a new pending review. Edit it, then save or publish when ready.`
+            `${mapName} was reopened as a new pending review. Edit it, then save or approve when ready.`
         );
     } finally {
         setAdminBusy(false);
@@ -3018,7 +3053,7 @@ async function savePendingReviewDraft(
         reviewPublishButton.disabled = true;
     }
     showEditorMessage(publish
-        ? "Saving the edited revision, approving it, and publishing…"
+        ? "Approving and publishing this review…"
         : "Saving an immutable draft to this review…");
     try {
         await storageSdk.uploadString(storageSdk.ref(storage, objectPath), map.xml, "raw", {
@@ -3237,10 +3272,32 @@ async function savePendingReviewDraft(
         if(typeof window.vectron_localDraftSaveNow === "function") {
             window.vectron_localDraftSaveNow();
         }
-        showEditorMessage(publish
-            ? `${mapName} changes were saved, approved, and published.`
-            : `${mapName} review changes were saved. Return to Vectron review to approve or deny them.`);
-        showMapFileCommand(mapName, mapVersion, objectPath);
+        if(publish) {
+            const nextSubmission = nextPendingSubmissionAfter(editState.reviewSubmissionId);
+            if(nextSubmission) {
+                try {
+                    const nextIdentity = await pendingSubmissionIdentity(nextSubmission);
+                    await loadPendingSubmissionIntoEditor(nextSubmission, nextIdentity);
+                    showEditorMessage(
+                        `${mapName} was approved and published. Now editing ` +
+                        `${nextIdentity.mapName} ${nextIdentity.mapVersion}, the next map in the review queue.`
+                    );
+                } catch(nextError) {
+                    console.error("Vectron could not open the next pending review.", nextError);
+                    showEditorMessage(
+                        `${mapName} was approved and published, but the next review could not be opened. ` +
+                        "Open Vectron review to continue."
+                    );
+                }
+            } else {
+                showEditorMessage(`${mapName} was approved and published. The map review queue is clear.`);
+            }
+        } else {
+            showEditorMessage(
+                `${mapName} review changes were saved. Return to Vectron review to approve or deny them.`
+            );
+            showMapFileCommand(mapName, mapVersion, objectPath);
+        }
     } finally {
         uploadBusy = false;
         if(uploadButton) {
@@ -3282,12 +3339,12 @@ async function uploadCurrentMap(options = {}) {
     const editState = getRepositoryEditState();
     const publishReview = options.publishReview === true;
     if(publishReview && (!editState || !editState.reviewSubmissionId || !currentUserIsAdmin())) {
-        showEditorMessage("Open a pending review before using save, approve, and publish.");
+        showEditorMessage("Open a pending review before approving it.");
         return;
     }
     if(publishReview && !await confirmAction(
-        "Save these changes, approve this review, and publish the map now?",
-        {confirmLabel:"Save, approve, and publish"}
+        "Approve and publish this map, then open the next review?",
+        {confirmLabel:"Approve"}
     )) return;
     const author = uploadAuthorFor(user, editState);
     const authorId = editState ? editState.targetAuthorId : currentAccount.authorId;
@@ -3529,6 +3586,7 @@ function setRepositoryTab(nextTab, focusTab = false) {
         tab.tabIndex = selected ? 0 : -1;
         if(selected && focusTab) tab.focus();
     });
+    repositoryList.scrollTop = 0;
     if(repositoryMaps.length || repositorySubmissions.length) renderRepositoryMaps();
 }
 
@@ -3658,6 +3716,7 @@ function renderRepositoryMaps() {
 
 async function refreshRepositoryMaps() {
     if(repositoryBusy || !repositoryCanRead()) return;
+    repositoryList.scrollTop = 0;
     let shouldRender = false;
     setRepositoryBusy(true);
     setRepositoryStatus("Loading repository maps…");
@@ -3923,7 +3982,7 @@ function bindUi() {
     }
     if(adminButton) adminButton.addEventListener("click", openAdmin);
     if(adminCloseButton) adminCloseButton.addEventListener("click", closeAdmin);
-    if(adminRefreshButton) adminRefreshButton.addEventListener("click", startAdminListeners);
+    if(adminRefreshButton) adminRefreshButton.addEventListener("click", refreshAdminQueues);
     if(adminSearchInput) adminSearchInput.addEventListener("input", renderAdminList);
     adminTabs.forEach(tab => tab.addEventListener("click", () => setAdminTab(tab.dataset.adminTab)));
     if(adminList) adminList.addEventListener("click", event => {

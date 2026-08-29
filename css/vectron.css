@@ -130,6 +130,115 @@ body.noscroll {
 }
 .symmetry-check-row { margin-top:7px; padding-top:5px; border-top:1px solid #ccc; }
 
+.info-adjust-section {
+  display:inline-flex;
+  align-items:center;
+  white-space:nowrap;
+}
+
+#map-adjust-dropdown {
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+}
+
+.map-adjust-picker-label { margin-right:2px; }
+
+.map-adjust-menu-btn {
+  width:24px;
+  padding:1px 4px;
+  color:#eee;
+}
+
+#map-adjust-menu {
+  position:absolute;
+  left:50%;
+  bottom:30px;
+  width:min(390px, calc(100vw - 70px));
+  padding:10px;
+  background:#fff;
+  color:#222;
+  border:1px solid #aaa;
+  border-radius:5px;
+  box-shadow:0 -4px 16px rgba(0,0,0,0.25);
+  text-align:left;
+  transform:translateX(-50%);
+  z-index:1100;
+}
+
+.map-adjust-menu-row {
+  display:grid;
+  grid-template-columns:70px minmax(0,1fr) 58px;
+  align-items:center;
+  gap:6px;
+  min-height:31px;
+}
+
+.map-adjust-menu-row label,
+.map-adjust-menu-row > span:first-child {
+  margin:0;
+  font-weight:600;
+}
+
+#map-adjust-menu input[type="number"] {
+  width:100%;
+  min-width:0;
+  height:27px;
+  padding:2px 6px;
+  color:#222;
+  background:#fff;
+  border:1px solid #aaa;
+  border-radius:3px;
+}
+
+#map-adjust-menu button {
+  height:27px;
+  padding:2px 8px;
+  color:#222;
+  background:#f4f4f4;
+  border:1px solid #aaa;
+  border-radius:3px;
+}
+
+#map-adjust-menu button:hover,
+#map-adjust-menu button:focus {
+  color:#111;
+  background:#e7e7e7;
+  border-color:#777;
+}
+
+.map-adjust-rotate-row {
+  grid-template-columns:70px minmax(0,1fr);
+}
+
+.map-adjust-rotate-actions {
+  display:flex;
+  gap:6px;
+}
+
+.map-adjust-rotate-actions button {
+  width:38px;
+}
+
+.map-adjust-move-row {
+  grid-template-columns:44px 14px minmax(50px,1fr) 14px minmax(50px,1fr) 58px;
+}
+
+#map-adjust-menu .map-adjust-move-row label {
+  font-weight:normal;
+  text-align:right;
+}
+
+#map-adjust-menu .map-adjust-center-button {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  width:100%;
+  margin-top:5px;
+}
+
 #tool_bar {
   position:absolute;
   left:0;
