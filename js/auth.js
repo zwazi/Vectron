@@ -33,6 +33,14 @@ const FIREBASE_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SD
 const REGISTRATION_DENIAL_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/denyRegistration";
 const MAP_SUBMISSION_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/createMapSubmission";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+const QUICK_DENY_REASONS = Object.freeze([
+    "Tunnel Trouble",
+    "Too Easy",
+    "Too Long",
+    "Not a Race Map",
+    "duplicate"
+]);
+const CUSTOM_QUICK_DENY_REASONS_KEY = "vectron.quickDenyReasons.v1";
 
 const gate = document.getElementById("auth-gate");
 const loading = document.getElementById("auth-loading");
@@ -105,6 +113,7 @@ const confirmMessage = document.getElementById("auth-confirm-message");
 const confirmReasonField = document.getElementById("auth-confirm-reason-field");
 const confirmReasonInput = document.getElementById("auth-confirm-reason");
 const confirmReasonError = document.getElementById("auth-confirm-reason-error");
+const confirmQuickReasons = document.getElementById("auth-confirm-quick-reasons");
 const confirmCancelButton = document.getElementById("auth-confirm-cancel");
 const confirmAcceptButton = document.getElementById("auth-confirm-accept");
 const mapFileCommandOverlay = document.getElementById("map-file-command-overlay");
@@ -149,6 +158,7 @@ const adminPreviewTargets = new WeakMap();
 let confirmResolver = null;
 let confirmAnchor = null;
 let confirmOptions = null;
+let customQuickDenyReasons = readCustomQuickDenyReasons();
 let adminDragging = null;
 
 function positionConfirmationPopover() {
@@ -201,6 +211,7 @@ function settleConfirmation(result) {
     confirmPopover.classList.remove("danger");
     confirmAcceptButton.classList.remove("danger");
     if(confirmReasonField) confirmReasonField.hidden = true;
+    if(confirmQuickReasons) confirmQuickReasons.hidden = true;
     if(confirmReasonError) {
         confirmReasonError.textContent = "";
         confirmReasonError.hidden = true;
@@ -219,6 +230,7 @@ function confirmAction(message, options = {}) {
     confirmOptions = options;
     const reasonRequired = options.reasonRequired === true;
     if(confirmReasonField) confirmReasonField.hidden = !reasonRequired;
+    if(confirmQuickReasons) confirmQuickReasons.hidden = !reasonRequired;
     if(confirmReasonInput) {
         confirmReasonInput.value = reasonRequired ? String(options.reason || "") : "";
         confirmReasonInput.placeholder = options.reasonPlaceholder || "Explain why this map is being denied";
@@ -1261,6 +1273,132 @@ function adminIdentityInput(value, field, maximumLength) {
     return input;
 }
 
+function normalizedQuickDenyReason(value) {
+    return String(value || "").replace(/\s+/g, " ").trim().slice(0, 1000);
+}
+
+function readCustomQuickDenyReasons() {
+    try {
+        const saved = JSON.parse(window.localStorage.getItem(CUSTOM_QUICK_DENY_REASONS_KEY) || "[]");
+        if(!Array.isArray(saved)) return [];
+        const seen = new Set(QUICK_DENY_REASONS.map(reason => reason.toLocaleLowerCase("en-US")));
+        return saved.map(normalizedQuickDenyReason).filter(reason => {
+            const key = reason.toLocaleLowerCase("en-US");
+            if(!reason || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    } catch(error) {
+        console.warn("Vectron could not load custom quick denial reasons.", error);
+        return [];
+    }
+}
+
+function saveCustomQuickDenyReasons() {
+    try {
+        window.localStorage.setItem(
+            CUSTOM_QUICK_DENY_REASONS_KEY,
+            JSON.stringify(customQuickDenyReasons)
+        );
+        return true;
+    } catch(error) {
+        console.warn("Vectron could not persist custom quick denial reasons.", error);
+        return false;
+    }
+}
+
+function applyQuickDenyReason(input, reason) {
+    input.value = reason;
+    input.dispatchEvent(new Event("input", {bubbles:true}));
+    input.focus();
+    input.setSelectionRange(reason.length, reason.length);
+}
+
+function quickDenyReasonButton(input, reason) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "account-card-button auth-deny-quick-reason";
+    button.dataset.denyQuickReason = reason;
+    button.textContent = reason;
+    button.title = reason;
+    button.addEventListener("click", () => applyQuickDenyReason(input, reason));
+    return button;
+}
+
+function refreshQuickDenyReasons() {
+    document.querySelectorAll(".auth-deny-quick-reasons").forEach(container => {
+        if(container.vectronDenyReasonInput) {
+            populateQuickDenyReasons(container, container.vectronDenyReasonInput);
+        }
+    });
+    positionConfirmationPopover();
+}
+
+function addCustomQuickDenyReason(input) {
+    const reason = normalizedQuickDenyReason(input && input.value);
+    if(!reason) {
+        if(input) {
+            input.setAttribute("aria-invalid", "true");
+            input.focus();
+        }
+        showEditorMessage("Enter a denial reason before saving it as a quick message.");
+        return;
+    }
+    const allReasons = [...QUICK_DENY_REASONS, ...customQuickDenyReasons];
+    if(allReasons.some(item => item.toLocaleLowerCase("en-US") ===
+       reason.toLocaleLowerCase("en-US"))) {
+        applyQuickDenyReason(input, allReasons.find(item =>
+            item.toLocaleLowerCase("en-US") === reason.toLocaleLowerCase("en-US")
+        ));
+        showEditorMessage("That quick denial message is already available.");
+        return;
+    }
+    customQuickDenyReasons.push(reason);
+    const persisted = saveCustomQuickDenyReasons();
+    refreshQuickDenyReasons();
+    applyQuickDenyReason(input, reason);
+    showEditorMessage(persisted
+        ? `Saved “${reason}” as a quick denial message.`
+        : `Added “${reason}” for this session; browser storage was unavailable.`);
+}
+
+function removeCustomQuickDenyReason(reason, input) {
+    customQuickDenyReasons = customQuickDenyReasons.filter(item => item !== reason);
+    saveCustomQuickDenyReasons();
+    refreshQuickDenyReasons();
+    if(input) input.focus();
+    showEditorMessage(`Removed “${reason}” from quick denial messages.`);
+}
+
+function populateQuickDenyReasons(container, input) {
+    if(!container || !input) return;
+    container.vectronDenyReasonInput = input;
+    const controls = QUICK_DENY_REASONS.map(reason => quickDenyReasonButton(input, reason));
+    customQuickDenyReasons.forEach(reason => {
+        const item = document.createElement("span");
+        item.className = "auth-deny-quick-custom";
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "auth-deny-quick-remove";
+        removeButton.dataset.denyQuickRemove = reason;
+        removeButton.textContent = "×";
+        removeButton.title = `Remove ${reason}`;
+        removeButton.setAttribute("aria-label", `Remove quick denial message: ${reason}`);
+        removeButton.addEventListener("click", () => removeCustomQuickDenyReason(reason, input));
+        item.append(quickDenyReasonButton(input, reason), removeButton);
+        controls.push(item);
+    });
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "account-card-button auth-deny-quick-add";
+    addButton.dataset.denyQuickAdd = "";
+    addButton.textContent = "+ Save current";
+    addButton.title = "Save the current reason as a custom quick denial message";
+    addButton.addEventListener("click", () => addCustomQuickDenyReason(input));
+    controls.push(addButton);
+    container.replaceChildren(...controls);
+}
+
 function adminMapIdentity(card, fallback = {}) {
     const authorInput = card && card.querySelector("[data-admin-map-author]");
     const nameInput = card && card.querySelector("[data-admin-map-name]");
@@ -1628,16 +1766,29 @@ function renderAdminSubmission(submission) {
     category.readOnly = true;
     category.title = "Vectron uploads always use the maps category.";
     category.dataset.adminCategory = "";
-    const reason = document.createElement("textarea");
-    reason.rows = 2;
+    const reason = document.createElement("input");
+    reason.type = "text";
+    reason.maxLength = 1000;
+    reason.autocomplete = "off";
     reason.placeholder = "Required when denying; optional approval note";
     reason.dataset.adminReason = "";
+    reason.addEventListener("keydown", event => {
+        if(event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault();
+        submitAdminSubmissionDenial(submission.id, reason);
+    });
+    const quickReasons = document.createElement("div");
+    quickReasons.className = "auth-deny-quick-reasons map-review-quick-reasons";
+    quickReasons.setAttribute("role", "group");
+    quickReasons.setAttribute("aria-label", "Quick denial reasons");
+    populateQuickDenyReasons(quickReasons, reason);
     fields.append(
         cardField("Final author", authorInput),
         cardField("Final map name", mapNameInput),
         cardField("Final version", mapVersionInput),
         cardField("Final category", category),
-        cardField("Decision reason", reason)
+        cardField("Decision reason", reason),
+        quickReasons
     );
     const actions = document.createElement("div");
     actions.className = "account-card-actions map-review-actions";
@@ -2320,6 +2471,20 @@ async function reviewSubmission(submissionId, approved, options = {}) {
                 : "Map denied and submitter notified.");
         return true;
     } finally {
+        setAdminBusy(false);
+    }
+}
+
+async function submitAdminSubmissionDenial(submissionId, input) {
+    if(adminBusy || !currentUserIsAdmin()) return;
+    const card = input && input.closest("[data-admin-card]");
+    setAdminStatus("");
+    try {
+        const reason = decisionReason(card, true);
+        await reviewSubmission(submissionId, false, {reason, skipConfirmation:true});
+    } catch(error) {
+        console.error("Vectron quick map denial failed.", error);
+        setAdminStatus(error && error.message ? error.message : "The map could not be denied.", "error");
         setAdminBusy(false);
     }
 }
@@ -4155,6 +4320,13 @@ function bindUi() {
             confirmReasonError.hidden = true;
         }
     });
+    if(confirmReasonInput) confirmReasonInput.addEventListener("keydown", event => {
+        if(event.key !== "Enter" || event.isComposing ||
+           !confirmOptions || confirmOptions.reasonRequired !== true) return;
+        event.preventDefault();
+        settleConfirmation(true);
+    });
+    populateQuickDenyReasons(confirmQuickReasons, confirmReasonInput);
     document.addEventListener("mousedown", event => {
         if(confirmPopover && !confirmPopover.hidden &&
            !confirmPopover.contains(event.target) &&

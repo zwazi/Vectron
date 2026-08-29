@@ -445,7 +445,9 @@ ws.onopen = async () => {
                 hasDelete: Boolean(card.querySelector('[data-admin-action="delete-submission-map"]')),
                 submittedReason: card.querySelector(".map-review-submission-reason span").textContent,
                 previewRendered: Boolean(card.querySelector(".map-review-preview-svg")),
-                previewText: card.querySelector(".map-review-preview").textContent.trim()
+                previewText: card.querySelector(".map-review-preview").textContent.trim(),
+                reasonInputTag: card.querySelector("[data-admin-reason]").tagName,
+                quickReasonCount: card.querySelectorAll("[data-deny-quick-reason]").length
             };
             card.querySelector("[data-admin-reason]").value = "Edited and published in one step";
             await clickConfirmed(card.querySelector('[data-admin-action="edit-submission"]'),
@@ -474,6 +476,8 @@ ws.onopen = async () => {
         assert.strictEqual(publication.layout.hasDelete, true);
         assert.match(publication.layout.submittedReason, /No reason was provided/i);
         assert.strictEqual(publication.layout.previewRendered, true, publication.layout.previewText);
+        assert.strictEqual(publication.layout.reasonInputTag, "INPUT");
+        assert.ok(publication.layout.quickReasonCount >= 5);
         await waitForRemote(async () => (await listDocuments("maps"))
             .find(item => item.mapName === mapName && item.status === "active"),
         "Approved map did not become active");
@@ -529,13 +533,35 @@ ws.onopen = async () => {
             const reasonField = popover.querySelector("#auth-confirm-reason-field");
             const reasonInput = popover.querySelector("#auth-confirm-reason");
             result.reasonVisible = !reasonField.hidden;
+            result.reasonInputTag = reasonInput.tagName;
+            const quickReasons = popover.querySelectorAll("[data-deny-quick-reason]");
+            result.quickReasonCount = quickReasons.length;
+            quickReasons[0].click();
+            result.quickReason = reasonInput.value;
+            reasonInput.value = "Custom browser quick denial";
+            reasonInput.dispatchEvent(new Event("input", {bubbles:true}));
+            popover.querySelector("[data-deny-quick-add]").click();
+            result.customQuickAdded = Boolean(popover.querySelector(
+                '[data-deny-quick-reason="Custom browser quick denial"]'
+            ));
+            popover.querySelector(
+                '[data-deny-quick-remove="Custom browser quick denial"]'
+            ).click();
+            result.customQuickRemoved = !popover.querySelector(
+                '[data-deny-quick-reason="Custom browser quick denial"]'
+            );
+            reasonInput.value = "";
+            reasonInput.dispatchEvent(new Event("input", {bubbles:true}));
             popover.querySelector("#auth-confirm-accept").click();
             await waitFor(function(){
                 return !popover.hidden && !popover.querySelector("#auth-confirm-reason-error").hidden;
             }, "Editor denial accepted an empty reason");
             result.emptyReasonBlocked = true;
             reasonInput.value = "Denied from the editor workflow";
-            popover.querySelector("#auth-confirm-accept").click();
+            reasonInput.dispatchEvent(new Event("input", {bubbles:true}));
+            reasonInput.dispatchEvent(new KeyboardEvent("keydown", {
+                key: "Enter", code: "Enter", bubbles: true, cancelable: true
+            }));
             await waitFor(function(){ return denyButton.classList.contains("auth-uploading"); },
                 "Editor denial did not start", 15000);
             await waitFor(function(){ return !denyButton.classList.contains("auth-uploading"); },
@@ -546,10 +572,14 @@ ws.onopen = async () => {
             return result;
         `);
         assert.ok(["clear", "next"].includes(reviewHistory.queueOutcome));
+        assert.ok(reviewHistory.quickReasonCount >= 5);
+        delete reviewHistory.quickReasonCount;
         delete reviewHistory.queueOutcome;
         assert.deepStrictEqual(reviewHistory, {
             resize: "both", decision: "Edited and published in one step",
             hasReopen: true, reopened: true, denyVisible: true, reasonVisible: true,
+            reasonInputTag: "INPUT", quickReason: "Tunnel Trouble",
+            customQuickAdded: true, customQuickRemoved: true,
             emptyReasonBlocked: true, denied: true
         });
         await waitForRemote(async () => (await listDocuments("mapSubmissions"))
