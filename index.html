@@ -43,7 +43,7 @@
         <script type="text/javascript" src="./js/vectron.js"></script>
 
         <script type="text/javascript">
-            var targetVersion = 1.112;
+            var targetVersion = 1.113;
             if(window.vtVersion != targetVersion) location.reload(true);
         </script>
 
@@ -456,6 +456,7 @@
                 <button class="auth-admin-button" type="button" data-admin-review hidden aria-expanded="false" aria-controls="admin-overlay" title="Review registrations and maps" aria-label="Review registrations and maps"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span class="auth-action-label">Review</span><span class="auth-count-badge" data-admin-count hidden>0</span></button>
                 <button class="auth-repository-button" type="button" data-map-repository aria-expanded="false" aria-controls="map-repository-overlay" title="Browse repository maps" aria-label="Browse repository maps"><i class="fa-solid fa-map" aria-hidden="true"></i><span>Maps</span></button>
                 <button class="auth-upload-button" type="button" data-map-upload title="Upload map" aria-label="Upload map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Upload</span></button>
+                <button class="auth-upload-button auth-review-deny-button" type="button" data-map-review-deny hidden title="Deny" aria-label="Deny"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span>Deny</span></button>
                 <button class="auth-upload-button auth-review-publish-button" type="button" data-map-review-publish hidden title="Approve" aria-label="Approve"><i class="fa-solid fa-check" aria-hidden="true"></i><span>Approve</span></button>
                 <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
             </div>
@@ -845,6 +846,11 @@
         </div>
         <div id="auth-confirm-popover" class="auth-confirm-popover" role="dialog" aria-modal="false" aria-labelledby="auth-confirm-message" hidden>
             <div id="auth-confirm-message" class="auth-confirm-message"></div>
+            <label id="auth-confirm-reason-field" class="auth-confirm-reason-field" for="auth-confirm-reason" hidden>
+                <span>Reason</span>
+                <textarea id="auth-confirm-reason" rows="3" maxlength="1000" aria-describedby="auth-confirm-reason-error"></textarea>
+                <small id="auth-confirm-reason-error" role="alert" hidden></small>
+            </label>
             <div class="auth-confirm-actions">
                 <button id="auth-confirm-cancel" type="button" class="account-card-button">Cancel</button>
                 <button id="auth-confirm-accept" type="button" class="account-card-button">Confirm</button>

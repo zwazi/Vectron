@@ -519,16 +519,43 @@ ws.onopen = async () => {
                 !document.querySelector("[data-map-review-publish]").hidden; },
                 "Historical review did not reopen", 60000);
             result.reopened = true;
+            const denyButton = document.querySelector("[data-map-review-deny]");
+            result.denyVisible = !denyButton.hidden && !denyButton.disabled;
+            denyButton.click();
+            const popover = await waitFor(function(){
+                const candidate = document.getElementById("auth-confirm-popover");
+                return candidate && !candidate.hidden && candidate;
+            }, "Editor denial confirmation did not open");
+            const reasonField = popover.querySelector("#auth-confirm-reason-field");
+            const reasonInput = popover.querySelector("#auth-confirm-reason");
+            result.reasonVisible = !reasonField.hidden;
+            popover.querySelector("#auth-confirm-accept").click();
+            await waitFor(function(){
+                return !popover.hidden && !popover.querySelector("#auth-confirm-reason-error").hidden;
+            }, "Editor denial accepted an empty reason");
+            result.emptyReasonBlocked = true;
+            reasonInput.value = "Denied from the editor workflow";
+            popover.querySelector("#auth-confirm-accept").click();
+            await waitFor(function(){ return denyButton.classList.contains("auth-uploading"); },
+                "Editor denial did not start", 15000);
+            await waitFor(function(){ return !denyButton.classList.contains("auth-uploading"); },
+                "Editor denial did not settle", 60000);
+            result.denied = /was denied/i.test(document.getElementById("vt-toast").textContent);
+            result.queueOutcome = denyButton.hidden ? "clear" : "next";
             window.vectron_clearRepositoryEditState();
             return result;
         `);
+        assert.ok(["clear", "next"].includes(reviewHistory.queueOutcome));
+        delete reviewHistory.queueOutcome;
         assert.deepStrictEqual(reviewHistory, {
             resize: "both", decision: "Edited and published in one step",
-            hasReopen: true, reopened: true
+            hasReopen: true, reopened: true, denyVisible: true, reasonVisible: true,
+            emptyReasonBlocked: true, denied: true
         });
         await waitForRemote(async () => (await listDocuments("mapSubmissions"))
-            .find(item => item.historySourceSubmissionId === submission.id && item.status === "pending"),
-        "Historical review did not create a new pending revision");
+            .find(item => item.historySourceSubmissionId === submission.id &&
+                item.status === "denied" && item.reviewReason === "Denied from the editor workflow"),
+        "Historical review was not denied from the editor workflow");
 
         await logout(context);
         await login(context, userEmail, userPassword, "User");
