@@ -1574,9 +1574,12 @@ function eventHandler_init() {
     }
 
     function xmlEditor_getFullXML() {
-        var xml = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>\n';
+        var xml = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n';
         xml += '<!DOCTYPE Resource SYSTEM "' + (xml_dtd || 'sty.dtd') + '">\n';
-        xml += '<Resource type="aamap" name="' + (xml_name || '') + '" version="' + (xml_version || '') + '" author="' + (xml_author || '') + '" category="' + (xml_category || '') + '">\n';
+        xml += '<Resource type="aamap" name="' + aamap_escapeXmlAttribute(xml_name || '') +
+            '" version="' + aamap_escapeXmlAttribute(xml_version || '') + '" author="' +
+            aamap_escapeXmlAttribute(xml_author || '') + '" category="' +
+            aamap_escapeXmlAttribute(xml_category || '') + '">\n';
         if(typeof xml_buildRemixComments == "function") xml += xml_buildRemixComments('  ');
         xml += '  <Map version="0.2.8">\n';
         var settings = xml_settings.filter(function(s) { return s.trim(); });

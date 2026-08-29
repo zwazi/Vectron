@@ -29,6 +29,18 @@ vm.runInContext(read("js/xml.js"), context, {filename: "js/xml.js"});
 vm.runInContext(read("js/aamap.js"), context, {filename: "js/aamap.js"});
 context.aamap_objects = [];
 
+const identityXml = context.aamap_buildXml(
+    `Map / $& < > \"quoted\" O'Brien 💥`,
+    `Lover$Boy / $& < > \"quoted\" O'Brien 💥`,
+    "maps",
+    `release / $& < > \"quoted\" O'Brien 💥`,
+    "sty.dtd", 4, []
+).xml;
+assert.match(identityXml, /^<\?xml version="1\.0" encoding="UTF-8"/);
+assert.match(identityXml, /name="Map \/ \$&amp; &lt; &gt; &quot;quoted&quot; O'Brien 💥"/);
+assert.match(identityXml, /author="Lover\$Boy \/ \$&amp; &lt; &gt; &quot;quoted&quot; O'Brien 💥"/);
+assert.match(identityXml, /version="release \/ \$&amp; &lt; &gt; &quot;quoted&quot; O'Brien 💥"/);
+
 assert.deepStrictEqual(
     JSON.parse(JSON.stringify(context.xml_parsePlayerPrivateZoneOrdinals("1, 3;5 8 invalid 0 -2 3.5"))),
     {1:true, 3:true, 5:true, 8:true},

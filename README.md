@@ -35,9 +35,12 @@ Submission creation is handled by a trusted Cloud Function that atomically
 reserves the normalized author/name/version resource path. Published versions,
 pending versions, concurrent uploads, stale browser clients, and independent
 uploads that duplicate a pending resubmission are rejected before they can
-create another review item at the same path. The browser advances the numeric
-version until it finds a free path before uploading, while the trusted endpoint
-remains the authoritative concurrency guard.
+create another review item at the same path. The browser advances the version
+until it finds a free path before uploading, while the trusted endpoint remains
+the authoritative concurrency guard. Map names, versions, and authors accept
+Unicode and punctuation; reserved path characters are stored in an opaque,
+single-segment form while the original identity remains intact in the XML and
+catalog metadata.
 Admins may:
 
 - approve registrations or deny and permanently delete pending users, with a

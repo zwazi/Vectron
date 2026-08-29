@@ -41,7 +41,8 @@ service firebase.storage {
         && request.resource.metadata.category == 'maps'
         && request.resource.metadata.mapName is string
         && request.resource.metadata.mapVersion is string
-        && request.resource.metadata.mapVersion.matches('(v|V)?[0-9]+(\\.[0-9]+)*')
+        && request.resource.metadata.mapName.size() > 0
+        && request.resource.metadata.mapVersion.size() > 0
         && request.resource.metadata.sha256.matches('[0-9a-f]{64}')
         && (isAdmin()
           || request.resource.metadata.authorId == account(ownerUid).data.authorId);
