@@ -21,13 +21,22 @@ import {
     safeMapName
 } from "./catalog.js";
 
-const FIREBASE_CONFIG = Object.freeze({
+const REPOSITORY_FIREBASE_CONFIG = Object.freeze({
     apiKey: "AIzaSyCglVAiB3494_GQf2ESrE9y_2YWELpIfBg",
     authDomain: "tronnerrepository.firebaseapp.com",
     projectId: "tronnerrepository",
     storageBucket: "tronnerrepository.firebasestorage.app",
     messagingSenderId: "551644623151",
     appId: "1:551644623151:web:1ce98799ba393c491271da"
+});
+
+const NEOTRON_FIREBASE_CONFIG = Object.freeze({
+    apiKey: "AIzaSyC79B4VD9hyVmO3FclU7vRcP9pxlLoBONA",
+    authDomain: "neotron-7ba2a.firebaseapp.com",
+    projectId: "neotron-7ba2a",
+    storageBucket: "neotron-7ba2a.firebasestorage.app",
+    messagingSenderId: "188550964998",
+    appId: "1:188550964998:web:6d8a796c3162c7775c2087"
 });
 
 const FIREBASE_SDK_VERSION = "12.17.0";
@@ -37,6 +46,8 @@ const FIREBASE_STORAGE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_
 const FIREBASE_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`;
 const REGISTRATION_DENIAL_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/denyRegistration";
 const MAP_SUBMISSION_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/createMapSubmission";
+const IDENTITY_BRIDGE_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/exchangeNeotronIdentity";
+const NEOTRON_HANDOFF_EXCHANGE_URL = "https://us-central1-neotron-7ba2a.cloudfunctions.net/vectronAuthExchange";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 const QUICK_DENY_REASONS = Object.freeze([
     "Tunnel Trouble",
@@ -154,6 +165,7 @@ const metadataCancelButton = document.getElementById("map-metadata-cancel");
 const metadataStatus = document.getElementById("map-metadata-status");
 
 let auth = null;
+let identityAuth = null;
 let authSdk = null;
 let storage = null;
 let storageSdk = null;
@@ -458,9 +470,9 @@ function setMode(nextMode) {
     passwordInput.autocomplete = signingUp ? "new-password" : "current-password";
     title.textContent = signingUp ? "Build something new" : "Welcome back";
     subtitle.textContent = signingUp
-        ? "Create an account to open your Vectron workspace."
-        : "Sign in to open the Vectron editor.";
-    submitLabel.textContent = signingUp ? "Create account" : "Open Vectron";
+        ? "Create one Neotron account for the community and your Vectron workspace."
+        : "Use your Neotron account to open the Vectron editor.";
+    submitLabel.textContent = signingUp ? "Create Neotron account" : "Open Vectron";
     forgotButton.hidden = signingUp;
     setStatus("");
 }
@@ -949,7 +961,7 @@ function validateForm() {
 
 async function handleSubmit(event) {
     event.preventDefault();
-    if(busy || !auth || !authSdk) return;
+    if(busy || !identityAuth || !authSdk) return;
 
     const validationError = validateForm();
     if(validationError) {
@@ -964,14 +976,11 @@ async function handleSubmit(event) {
 
     try {
         if(mode === "signup") {
-            const credential = await authSdk.createUserWithEmailAndPassword(auth, email, password);
+            const credential = await authSdk.createUserWithEmailAndPassword(identityAuth, email, password);
             const requestedName = normalizeAuthorName(nameInput.value);
             await authSdk.updateProfile(credential.user, {displayName: requestedName});
-            await loadAccountSession(credential.user);
-            unlockEditor(credential.user);
-            showEditorMessage("Registration submitted. You can edit locally and browse maps while an admin reviews it.");
         } else {
-            await authSdk.signInWithEmailAndPassword(auth, email, password);
+            await authSdk.signInWithEmailAndPassword(identityAuth, email, password);
         }
     } catch(error) {
         setStatus(friendlyAuthError(error));
@@ -996,8 +1005,7 @@ async function handleProfileSubmit(event) {
         await authSdk.updateProfile(profileUser, {
             displayName: normalizeAuthorName(profileNameInput.value)
         });
-        await loadAccountSession(profileUser);
-        unlockEditor(profileUser);
+        await openRepositorySession(profileUser);
     } catch(error) {
         setProfileStatus(friendlyAuthError(error));
     } finally {
@@ -1006,7 +1014,7 @@ async function handleProfileSubmit(event) {
 }
 
 async function handlePasswordReset() {
-    if(busy || !auth || !authSdk) return;
+    if(busy || !identityAuth || !authSdk) return;
     const email = emailInput.value.trim();
     if(!email || !emailInput.validity.valid) {
         setStatus("Enter your email above, then choose Forgot your password again.");
@@ -1017,7 +1025,7 @@ async function handlePasswordReset() {
     setBusy(true);
     setStatus("");
     try {
-        await authSdk.sendPasswordResetEmail(auth, email);
+        await authSdk.sendPasswordResetEmail(identityAuth, email);
         setStatus("If an account uses that email, a password reset link is on its way.", "success");
     } catch(error) {
         if(error && error.code === "auth/user-not-found") {
@@ -1041,7 +1049,7 @@ async function handleSignOut() {
         exitGuestMode();
         return;
     }
-    if(!auth || !authSdk) return;
+    if(!identityAuth || !authSdk) return;
     if(hasUnsavedWork() && !await confirmAction(
         "Sign out of Vectron? Your in-progress map is saved locally and will be restored when you return.",
         {confirmLabel:"Sign out"}
@@ -1056,7 +1064,10 @@ async function handleSignOut() {
     const buttons = document.querySelectorAll("[data-auth-signout]");
     buttons.forEach(button => { button.disabled = true; });
     try {
-        await authSdk.signOut(auth);
+        await Promise.all([
+            auth ? authSdk.signOut(auth) : Promise.resolve(),
+            authSdk.signOut(identityAuth)
+        ]);
     } catch(error) {
         showEditorMessage(friendlyAuthError(error));
     } finally {
@@ -5787,6 +5798,68 @@ function bindUi() {
     });
 }
 
+function handoffCodeFromLocation() {
+    const fragment = window.location.hash.startsWith("#")
+        ? window.location.hash.slice(1)
+        : window.location.hash;
+    const params = new URLSearchParams(fragment);
+    const code = params.get("neotron-session") || "";
+    if(code) window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    return code;
+}
+
+async function responseJson(response, fallback) {
+    const result = await response.json().catch(() => ({}));
+    if(response.ok) return result;
+    const error = new Error(result.error?.message || fallback);
+    error.code = result.error?.code || `http/${response.status}`;
+    throw error;
+}
+
+async function redeemNeotronHandoff(code) {
+    if(!code) return null;
+    const response = await fetch(NEOTRON_HANDOFF_EXCHANGE_URL, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({code})
+    });
+    const result = await responseJson(response, "The Neotron sign-in link could not be opened.");
+    if(!result.customToken) throw new Error("The Neotron sign-in response was incomplete.");
+    return authSdk.signInWithCustomToken(identityAuth, result.customToken);
+}
+
+async function repositoryTokenFor(identityUser) {
+    const response = await fetch(IDENTITY_BRIDGE_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${await identityUser.getIdToken()}`
+        },
+        body: "{}"
+    });
+    const result = await responseJson(response, "Your Neotron account could not be linked to Vectron.");
+    if(!result.customToken) throw new Error("The Vectron account link response was incomplete.");
+    return result.customToken;
+}
+
+async function openRepositorySession(identityUser) {
+    const customToken = await repositoryTokenFor(identityUser);
+    const credential = await authSdk.signInWithCustomToken(auth, customToken);
+    const repositoryUser = credential.user;
+    const canonicalName = normalizeAuthorName(identityUser.displayName || "");
+    if(canonicalName && repositoryUser.displayName !== canonicalName) {
+        await authSdk.updateProfile(repositoryUser, {displayName: canonicalName});
+    }
+    await loadAccountSession(repositoryUser);
+    unlockEditor(repositoryUser);
+    if(currentAccount.status === "pending") {
+        showEditorMessage("Your registration is awaiting admin approval. You can browse maps and edit locally in the meantime.");
+    } else if(currentAccount.status === "denied") {
+        showEditorMessage(`Your registration was denied: ${currentAccount.denialReason || "No reason was provided."}`);
+    }
+    return repositoryUser;
+}
+
 async function initializeAuthentication() {
     setEditorInert(true);
     bindUi();
@@ -5802,20 +5875,32 @@ async function initializeAuthentication() {
         authSdk = loadedAuthSdk;
         storageSdk = loadedStorageSdk;
         firestoreSdk = loadedFirestoreSdk;
-        const app = appModule.initializeApp(FIREBASE_CONFIG);
-        auth = authSdk.getAuth(app);
-        storage = storageSdk.getStorage(app);
-        firestore = firestoreSdk.getFirestore(app);
+        const identityApp = appModule.initializeApp(NEOTRON_FIREBASE_CONFIG);
+        const repositoryApp = appModule.initializeApp(REPOSITORY_FIREBASE_CONFIG, "repository");
+        identityAuth = authSdk.getAuth(identityApp);
+        auth = authSdk.getAuth(repositoryApp);
+        storage = storageSdk.getStorage(repositoryApp);
+        firestore = firestoreSdk.getFirestore(repositoryApp);
 
         try {
-            await authSdk.setPersistence(auth, authSdk.browserLocalPersistence);
+            await Promise.all([
+                authSdk.setPersistence(identityAuth, authSdk.browserLocalPersistence),
+                authSdk.setPersistence(auth, authSdk.browserLocalPersistence)
+            ]);
         } catch(localPersistenceError) {
-            await authSdk.setPersistence(auth, authSdk.browserSessionPersistence);
+            await Promise.all([
+                authSdk.setPersistence(identityAuth, authSdk.browserSessionPersistence),
+                authSdk.setPersistence(auth, authSdk.browserSessionPersistence)
+            ]);
         }
 
+        identityAuth.useDeviceLanguage();
         auth.useDeviceLanguage();
-        authSdk.onAuthStateChanged(auth, async user => {
+        const handoffCode = handoffCodeFromLocation();
+        if(handoffCode) await redeemNeotronHandoff(handoffCode);
+        authSdk.onAuthStateChanged(identityAuth, async user => {
             if(!user) {
+                if(auth.currentUser) await authSdk.signOut(auth).catch(() => undefined);
                 if(!guestMode) lockEditor();
                 return;
             }
@@ -5824,13 +5909,7 @@ async function initializeAuthentication() {
                 return;
             }
             try {
-                await loadAccountSession(user);
-                unlockEditor(user);
-                if(currentAccount.status === "pending") {
-                    showEditorMessage("Your registration is awaiting admin approval. You can browse maps and edit locally in the meantime.");
-                } else if(currentAccount.status === "denied") {
-                    showEditorMessage(`Your registration was denied: ${currentAccount.denialReason || "No reason was provided."}`);
-                }
+                await openRepositorySession(user);
             } catch(error) {
                 console.error("Vectron account session failed to initialize.", error);
                 showFatal(friendlyAuthError(error));

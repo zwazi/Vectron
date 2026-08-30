@@ -98,5 +98,23 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create, update, delete: if false;
     }
+
+    // Canonical Neotron UID -> legacy Vectron repository UID. Only trusted
+    // bridge code may read or write these private migration records.
+    match /accountLinks/{neotronUid} {
+      allow read, write: if false;
+    }
+
+    // Precomputed, bounded leaderboard snapshots. Exact document reads are
+    // public; collection scans are intentionally impossible from browsers.
+    match /racingLeaderboards/{mapDocumentId} {
+      allow get: if true;
+      allow list, create, update, delete: if false;
+    }
+
+    match /racingOverall/{documentId} {
+      allow get: if documentId == 'current';
+      allow list, create, update, delete: if false;
+    }
   }
 }

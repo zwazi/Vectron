@@ -1,6 +1,6 @@
 "use strict";
 
-const {initializeApp} = require("firebase-admin/app");
+const {getApps, initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
 const {FieldValue, getFirestore} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
@@ -9,20 +9,73 @@ const logger = require("firebase-functions/logger");
 const {onDocumentWritten} = require("firebase-functions/v2/firestore");
 const {onRequest} = require("firebase-functions/v2/https");
 const {buildCatalogArtifacts} = require("./catalog-manifest");
+const {
+  IdentityBridgeError,
+  bearerToken,
+  createIdentityBridgeController,
+  firestoreLinkRepository
+} = require("./identity-bridge");
 
 initializeApp();
+const neotronApp = getApps().find(app => app.name === "neotron-identity") ||
+  initializeApp({projectId: "neotron-7ba2a"}, "neotron-identity");
 
 const adminAuth = getAuth();
 const db = getFirestore();
 const bucket = getStorage().bucket();
+const neotronAuth = getAuth(neotronApp);
 const MAP_CATEGORY = "maps";
 const MAX_MAP_BYTES = 10 * 1024 * 1024;
 const allowedOrigins = [
+  "https://tronner.io",
+  "https://www.tronner.io",
   "https://vectron.tronner.io",
   "https://zwazi.github.io",
   "http://localhost:8000",
   "http://127.0.0.1:8000"
 ];
+
+const identityBridge = createIdentityBridgeController({
+  // Cross-project verification can validate the Neotron signature/audience
+  // without granting the repository service account access to Neotron users.
+  // Revoked tokens naturally expire within one hour; the Neotron handoff also
+  // performs the same-project disabled/profile check before minting a token.
+  verifyNeotronToken: token => neotronAuth.verifyIdToken(token),
+  repositoryAuth: adminAuth,
+  links: firestoreLinkRepository(db)
+});
+
+exports.exchangeNeotronIdentity = onRequest({
+  region: "us-central1",
+  cors: allowedOrigins,
+  timeoutSeconds: 15,
+  memory: "256MiB"
+}, async (request, response) => {
+  response.set("Cache-Control", "no-store, max-age=0");
+  if(request.method !== "POST") {
+    response.set("Allow", "POST");
+    requestError(response, 405, "Use POST to open Vectron.");
+    return;
+  }
+  try {
+    response.status(200).json(await identityBridge.exchange(bearerToken(request)));
+  } catch(error) {
+    if(!(error instanceof IdentityBridgeError)) {
+      logger.error("Neotron identity bridge failed", {
+        errorName: error?.name || "Error",
+        errorMessage: String(error?.message || "Unknown error").slice(0, 300)
+      });
+    }
+    response.status(error instanceof IdentityBridgeError ? error.status : 500).json({
+      error: {
+        code: error instanceof IdentityBridgeError ? error.code : "internal-error",
+        message: error instanceof IdentityBridgeError
+          ? error.message
+          : "Vectron could not open this Neotron account."
+      }
+    });
+  }
+});
 
 function requestError(response, status, message) {
   response.status(status).json({error: message});
