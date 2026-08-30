@@ -4430,7 +4430,7 @@ function showEditorMessage(message) {
 function showMapFileCommand(mapName, mapVersion, storagePath) {
     if(!mapFileCommandOverlay || !mapFileCommandValue) return "";
     const command = mapFileCommand(
-        FIREBASE_CONFIG.storageBucket,
+        REPOSITORY_FIREBASE_CONFIG.storageBucket,
         storagePath,
         mapName,
         mapVersion
@@ -5041,7 +5041,7 @@ window.vectron_uploadCurrentMap = uploadCurrentMap;
 
 function firebaseStorageMediaUrl(fullPath) {
     const objectUrl = new URL(
-        `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_CONFIG.storageBucket)}/o/${encodeURIComponent(fullPath)}`
+        `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(REPOSITORY_FIREBASE_CONFIG.storageBucket)}/o/${encodeURIComponent(fullPath)}`
     );
     objectUrl.searchParams.set("alt", "media");
     return objectUrl;
