@@ -13,6 +13,7 @@ const firebaseRc = JSON.parse(read(".firebaserc"));
 const storageRules = read("storage.rules");
 const firestoreRules = read("firestore.rules");
 const firestoreIndexes = JSON.parse(read("firestore.indexes.json"));
+const databaseRules = JSON.parse(read("database.rules.json"));
 const index = read("index.html");
 const authSource = read("js/auth.js");
 const authCss = read("css/auth.css");
@@ -507,6 +508,22 @@ assert.match(firestoreRules, /match \/notifications\/\{uid\}\/items\/\{notificat
 assert.match(firestoreRules, /affectedKeys\(\)\.hasOnly\(\['readAt'\]\)/);
 assert.match(firestoreRules, /match \/auditEvents\/\{eventId\}/);
 assert.doesNotMatch(firestoreRules, /allow write: if true/);
+
+const commandRules = databaseRules.rules.racing.admin.commands.$serverId.$commandId;
+const commandFields = [
+    "schemaVersion", "type", "state", "requestedAt", "expiresAt", "requestedBy",
+    "requestedName", "target", "message", "mapKey", "reason", "option", "value",
+    "durationMinutes", "scope", "clientVersion"
+];
+assert.match(commandRules[".write"], /auth\.token\.admin == true/);
+assert.match(commandRules[".write"], /auth\.token\.neotron == true/);
+assert.match(commandRules[".validate"], /newData\.hasChildren/);
+for(const field of commandFields) {
+    assert.deepStrictEqual(commandRules[field], {".validate": true},
+        `Realtime Database commands must explicitly allow ${field} before the unknown-field catch-all`);
+}
+assert.strictEqual(commandRules.$other[".validate"], false,
+    "Realtime Database commands must reject undeclared fields");
 
 assert.match(functionsSource, /exports\.denyRegistration = onRequest/);
 assert.match(functionsSource, /exports\.createMapSubmission = onRequest/);
