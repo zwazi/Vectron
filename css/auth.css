@@ -1,8 +1,8 @@
 :root {
-  --auth-accent: #55f4dc;
-  --auth-accent-strong: #9a7cff;
-  --auth-cyan: #55f4dc;
-  --auth-violet: #9a7cff;
+  --auth-accent: #ef4444;
+  --auth-accent-strong: #dc2626;
+  --auth-cyan: #ef4444;
+  --auth-violet: #dc2626;
   --auth-ink: #f5f7ff;
   --auth-muted: #a7aab3;
   --auth-surface: rgba(42, 42, 42, 0.97);
@@ -78,9 +78,9 @@ body.auth-locked {
   height: 38px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(85, 244, 220, 0.34);
+  border: 1px solid rgba(239, 68, 68, 0.34);
   border-radius: 10px;
-  background: linear-gradient(145deg, rgba(85, 244, 220, 0.16), rgba(154, 124, 255, 0.12));
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.16), rgba(220, 38, 38, 0.12));
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.16);
 }
 
@@ -191,7 +191,7 @@ body.auth-locked {
 .auth-tab.active {
   color: #fff;
   background: rgba(255, 255, 255, 0.075);
-  box-shadow: inset 0 0 0 1px rgba(85, 244, 220, 0.2), 0 4px 12px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.2), 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
 .auth-field {
@@ -261,16 +261,16 @@ body.auth-locked {
 }
 
 .auth-input-wrap input:focus {
-  border-color: rgba(85, 244, 220, 0.58);
+  border-color: rgba(239, 68, 68, 0.58);
   background: #202020;
-  box-shadow: 0 0 0 3px rgba(85, 244, 220, 0.08);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08);
 }
 
 #top-settings-bar .tsb-input[readonly] {
   cursor: default;
   color: #d8d9df;
-  border-color: rgba(85, 244, 220, 0.24);
-  background: rgba(85, 244, 220, 0.045);
+  border-color: rgba(239, 68, 68, 0.24);
+  background: rgba(239, 68, 68, 0.045);
 }
 
 .auth-upload-button.auth-uploading {
@@ -312,9 +312,9 @@ body.auth-locked {
 }
 
 .auth-status.success {
-  border-color: rgba(85, 244, 220, 0.24);
-  color: #9ffbea;
-  background: rgba(85, 244, 220, 0.07);
+  border-color: rgba(239, 68, 68, 0.24);
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.07);
 }
 
 .auth-submit {
@@ -325,10 +325,10 @@ body.auth-locked {
   justify-content: center;
   gap: 9px;
   padding: 9px 15px;
-  border: 1px solid rgba(85, 244, 220, 0.34);
+  border: 1px solid rgba(239, 68, 68, 0.34);
   border-radius: 8px;
   color: #fff;
-  background: linear-gradient(135deg, rgba(85, 244, 220, 0.14), rgba(154, 124, 255, 0.12));
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.14), rgba(220, 38, 38, 0.12));
   box-shadow: 0 9px 25px rgba(0, 0, 0, 0.22), inset 0 1px rgba(255, 255, 255, 0.12);
   font-size: 11px;
   font-weight: 700;
@@ -347,8 +347,8 @@ body.auth-locked {
 
 .auth-submit:hover,
 .auth-submit:focus-visible {
-  border-color: rgba(85, 244, 220, 0.58);
-  background: linear-gradient(135deg, rgba(85, 244, 220, 0.2), rgba(154, 124, 255, 0.17));
+  border-color: rgba(239, 68, 68, 0.58);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.17));
   box-shadow: 0 11px 30px rgba(0, 0, 0, 0.3), inset 0 1px rgba(255, 255, 255, 0.16);
   outline: none;
   transform: translateY(-1px);
@@ -440,8 +440,8 @@ body.auth-locked {
 
 .auth-guest-button:hover,
 .auth-guest-button:focus-visible {
-  border-color: rgba(85, 244, 220, 0.34);
-  background: rgba(85, 244, 220, 0.06);
+  border-color: rgba(239, 68, 68, 0.34);
+  background: rgba(239, 68, 68, 0.06);
   outline: none;
   transform: translateY(-1px);
 }
@@ -461,10 +461,10 @@ body.auth-locked {
   display: grid;
   place-items: center;
   flex: 0 0 29px;
-  border: 1px solid rgba(85, 244, 220, 0.22);
+  border: 1px solid rgba(239, 68, 68, 0.22);
   border-radius: 7px;
   color: var(--auth-cyan);
-  background: rgba(85, 244, 220, 0.07);
+  background: rgba(239, 68, 68, 0.07);
 }
 
 .auth-guest-copy {
@@ -506,7 +506,7 @@ body.auth-locked {
   position: relative;
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(85, 244, 220, 0.22);
+  border: 1px solid rgba(239, 68, 68, 0.22);
   border-radius: 50%;
 }
 
@@ -596,10 +596,10 @@ body.auth-locked {
   display: grid;
   place-items: center;
   flex: 0 0 25px;
-  border: 1px solid rgba(85, 244, 220, 0.34);
+  border: 1px solid rgba(239, 68, 68, 0.34);
   border-radius: 7px;
   color: #f5f7ff;
-  background: linear-gradient(145deg, rgba(85, 244, 220, 0.16), rgba(154, 124, 255, 0.12));
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.16), rgba(220, 38, 38, 0.12));
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.2);
   font-size: 9px;
   font-weight: 800;
@@ -639,10 +639,10 @@ body.auth-locked {
   align-items: center;
   margin-left: 5px;
   padding: 1px 4px;
-  border: 1px solid rgba(85, 244, 220, 0.28);
+  border: 1px solid rgba(239, 68, 68, 0.28);
   border-radius: 999px;
   color: var(--auth-cyan);
-  background: rgba(85, 244, 220, 0.08);
+  background: rgba(239, 68, 68, 0.08);
   font-size: 6px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -652,9 +652,9 @@ body.auth-locked {
 }
 
 .auth-role-badge[data-role="admin"] {
-  border-color: rgba(154, 124, 255, 0.44);
+  border-color: rgba(220, 38, 38, 0.44);
   color: #c8b9ff;
-  background: rgba(154, 124, 255, 0.12);
+  background: rgba(220, 38, 38, 0.12);
 }
 
 .auth-role-badge[data-role="guest"] {
@@ -693,24 +693,24 @@ body.auth-locked {
   align-items: center;
   gap: 5px;
   padding: 0 8px;
-  border: 1px solid rgba(85, 244, 220, 0.32);
+  border: 1px solid rgba(239, 68, 68, 0.32);
   border-radius: 6px;
-  color: #55f4dc;
-  background: rgba(85, 244, 220, 0.055);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.055);
   font-size: 9px;
   font-weight: 700;
 }
 
 .auth-repository-button {
-  border-color: rgba(154, 124, 255, 0.32);
+  border-color: rgba(220, 38, 38, 0.32);
   color: #c8baff;
-  background: rgba(154, 124, 255, 0.055);
+  background: rgba(220, 38, 38, 0.055);
 }
 
 .auth-review-publish-button {
-  border-color: rgba(154, 124, 255, 0.48);
+  border-color: rgba(220, 38, 38, 0.48);
   color: #d5caff;
-  background: rgba(154, 124, 255, 0.1);
+  background: rgba(220, 38, 38, 0.1);
 }
 
 .auth-review-deny-button {
@@ -728,7 +728,7 @@ body.auth-locked {
 }
 
 .auth-admin-button {
-  border-color: rgba(154, 124, 255, 0.38);
+  border-color: rgba(220, 38, 38, 0.38);
   color: #c8baff;
 }
 
@@ -752,9 +752,9 @@ body.auth-locked {
 
 .auth-upload-button:hover,
 .auth-upload-button:focus-visible {
-  border-color: rgba(85, 244, 220, 0.55);
+  border-color: rgba(239, 68, 68, 0.55);
   color: #fff;
-  background: rgba(85, 244, 220, 0.11);
+  background: rgba(239, 68, 68, 0.11);
   outline: none;
 }
 
@@ -767,17 +767,17 @@ body.auth-locked {
 .auth-admin-button:hover,
 .auth-admin-button:focus-visible,
 .auth-admin-button[aria-expanded="true"] {
-  border-color: rgba(154, 124, 255, 0.55);
+  border-color: rgba(220, 38, 38, 0.55);
   color: #fff;
-  background: rgba(154, 124, 255, 0.12);
+  background: rgba(220, 38, 38, 0.12);
   outline: none;
 }
 
 .auth-signout-button:hover,
 .auth-signout-button:focus-visible {
-  border-color: rgba(154, 124, 255, 0.42);
+  border-color: rgba(220, 38, 38, 0.42);
   color: #fff;
-  background: rgba(154, 124, 255, 0.08);
+  background: rgba(220, 38, 38, 0.08);
   outline: none;
 }
 
@@ -815,6 +815,44 @@ body.auth-locked {
   min-height: 420px;
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 48px);
+}
+
+.local-library-dialog {
+  width: min(720px, 100%);
+  height: min(680px, calc(100vh - 48px));
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+}
+
+.local-library-dialog > .repository-summary { grid-row: 3; }
+.local-library-dialog > .repository-status { grid-row: 4; }
+.local-library-dialog > .repository-list { grid-row: 5; }
+
+.local-library-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.local-library-card .account-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  white-space: normal;
+}
+
+.local-library-card .account-card-copy strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.local-library-actions {
+  margin: 0;
 }
 
 .repository-header {
@@ -863,10 +901,10 @@ body.auth-locked {
   display: grid;
   place-items: center;
   flex: 0 0 34px;
-  border: 1px solid rgba(85, 244, 220, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 9px;
   color: var(--auth-cyan);
-  background: linear-gradient(145deg, rgba(85, 244, 220, 0.12), rgba(154, 124, 255, 0.11));
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.12), rgba(220, 38, 38, 0.11));
   font-size: 13px;
 }
 
@@ -898,9 +936,9 @@ body.auth-locked {
 
 .repository-layout-switch .repository-icon-button.active,
 .repository-layout-switch .repository-icon-button[aria-pressed="true"] {
-  border-color: rgba(85, 244, 220, 0.28);
+  border-color: rgba(239, 68, 68, 0.28);
   color: var(--auth-cyan);
-  background: rgba(85, 244, 220, 0.09);
+  background: rgba(239, 68, 68, 0.09);
 }
 
 .repository-icon-button {
@@ -913,9 +951,9 @@ body.auth-locked {
 .repository-icon-button:focus-visible,
 .repository-refresh-button:hover,
 .repository-refresh-button:focus-visible {
-  border-color: rgba(154, 124, 255, 0.42);
+  border-color: rgba(220, 38, 38, 0.42);
   color: #fff;
-  background: rgba(154, 124, 255, 0.08);
+  background: rgba(220, 38, 38, 0.08);
   outline: none;
 }
 
@@ -982,8 +1020,8 @@ body.auth-locked {
 }
 
 .repository-search input:focus {
-  border-color: rgba(85, 244, 220, 0.55);
-  box-shadow: 0 0 0 3px rgba(85, 244, 220, 0.07);
+  border-color: rgba(239, 68, 68, 0.55);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.07);
 }
 
 .repository-search input::placeholder {
@@ -1044,16 +1082,16 @@ body.auth-locked {
 
 .repository-tab.active,
 .repository-tab[aria-selected="true"] {
-  border-color: rgba(85, 244, 220, 0.25);
+  border-color: rgba(239, 68, 68, 0.25);
   color: #fff;
-  background: linear-gradient(135deg, rgba(85, 244, 220, 0.11), rgba(154, 124, 255, 0.1));
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.11), rgba(220, 38, 38, 0.1));
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .repository-tab.active span,
 .repository-tab[aria-selected="true"] span {
   color: var(--auth-cyan);
-  background: rgba(85, 244, 220, 0.09);
+  background: rgba(239, 68, 68, 0.09);
 }
 
 .repository-summary {
@@ -1120,7 +1158,7 @@ button.repository-author-heading {
 button.repository-author-heading:hover,
 button.repository-author-heading:focus-visible {
   color: #fff;
-  background: rgba(85, 244, 220, 0.07);
+  background: rgba(239, 68, 68, 0.07);
   outline: none;
 }
 
@@ -1248,9 +1286,9 @@ button.repository-author-heading:disabled {
 }
 
 .repository-map-status.resubmitted {
-  border-color: rgba(85, 244, 220, 0.27);
+  border-color: rgba(239, 68, 68, 0.27);
   color: var(--auth-cyan);
-  background: rgba(85, 244, 220, 0.08);
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .repository-map-copy small {
@@ -1265,33 +1303,33 @@ button.repository-author-heading:disabled {
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  border: 1px solid rgba(85, 244, 220, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
   color: var(--auth-cyan);
-  background: rgba(85, 244, 220, 0.045);
+  background: rgba(239, 68, 68, 0.045);
   font-size: 9px;
   font-weight: 700;
 }
 
 .repository-remix-button:hover,
 .repository-remix-button:focus-visible {
-  border-color: rgba(85, 244, 220, 0.55);
+  border-color: rgba(239, 68, 68, 0.55);
   color: #fff;
-  background: rgba(85, 244, 220, 0.1);
+  background: rgba(239, 68, 68, 0.1);
   outline: none;
 }
 
 .repository-remix-button[data-repository-action="edit"] {
-  border-color: rgba(154, 124, 255, 0.38);
+  border-color: rgba(220, 38, 38, 0.38);
   color: #c8b9ff;
-  background: rgba(154, 124, 255, 0.06);
+  background: rgba(220, 38, 38, 0.06);
 }
 
 .repository-remix-button[data-repository-action="edit"]:hover,
 .repository-remix-button[data-repository-action="edit"]:focus-visible {
-  border-color: rgba(154, 124, 255, 0.64);
+  border-color: rgba(220, 38, 38, 0.64);
   color: #fff;
-  background: rgba(154, 124, 255, 0.13);
+  background: rgba(220, 38, 38, 0.13);
 }
 
 .repository-remix-button.danger {
@@ -1548,6 +1586,40 @@ button.repository-author-heading:disabled {
   justify-content: flex-end;
 }
 
+.submission-choice-dialog {
+  width: min(720px, 100%);
+  height: min(680px, calc(100vh - 48px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.submission-choice-content {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(260px, 1fr);
+  gap: 10px;
+  padding: 14px 18px;
+  overflow: auto;
+}
+
+.submission-choice-content p {
+  margin: 0;
+  color: #c9cbd2;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.submission-choice-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.submission-choice-actions .account-card-button {
+  min-height: 36px;
+}
+
 .admin-dialog.positioned {
   position: fixed;
   margin: 0;
@@ -1568,7 +1640,7 @@ button.repository-author-heading:disabled {
   z-index: 19000;
   width: min(340px, calc(100vw - 24px));
   padding: 13px;
-  border: 1px solid rgba(85, 244, 220, 0.28);
+  border: 1px solid rgba(239, 68, 68, 0.28);
   border-radius: 10px;
   color: #e9eaee;
   background: linear-gradient(155deg, rgba(51, 51, 51, 0.995), rgba(29, 29, 31, 0.995));
@@ -1615,10 +1687,26 @@ button.repository-author-heading:disabled {
 }
 
 .auth-deny-quick-reasons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  display: block;
+  width: 100%;
   margin-top: 7px;
+}
+
+.auth-deny-quick-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.auth-deny-quick-actions .account-card-button.auth-deny-quick-add,
+.auth-deny-quick-actions .account-card-button.auth-deny-quick-remove {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  border-radius: 6px;
+  font-size: 9px;
 }
 
 .auth-deny-quick-select {
@@ -1717,8 +1805,8 @@ button.repository-author-heading:disabled {
 }
 
 .account-card.unread {
-  border-color: rgba(85, 244, 220, 0.3);
-  background: rgba(85, 244, 220, 0.045);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.045);
 }
 
 .account-card-header,
@@ -1793,10 +1881,10 @@ button.repository-author-heading:disabled {
 .account-card-button {
   min-height: 29px;
   padding: 0 10px;
-  border: 1px solid rgba(85, 244, 220, 0.34);
+  border: 1px solid rgba(239, 68, 68, 0.34);
   border-radius: 6px;
   color: var(--auth-cyan);
-  background: rgba(85, 244, 220, 0.05);
+  background: rgba(239, 68, 68, 0.05);
   font-size: 9px;
   font-weight: 700;
 }
@@ -1846,9 +1934,9 @@ button.repository-author-heading:disabled {
   gap: 4px;
   margin-top: 10px;
   padding: 8px 9px;
-  border-left: 2px solid rgba(154, 124, 255, 0.5);
+  border-left: 2px solid rgba(220, 38, 38, 0.5);
   color: #c9cbd2;
-  background: rgba(154, 124, 255, 0.055);
+  background: rgba(220, 38, 38, 0.055);
   font-size: 9px;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -1890,7 +1978,7 @@ button.repository-author-heading:disabled {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid rgba(85, 244, 220, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.18);
   border-radius: 8px;
   color: #92959e;
   background-color: #101113;
@@ -1927,7 +2015,7 @@ button.repository-author-heading:disabled {
 }
 
 .map-preview-zone {
-  fill: rgba(154, 124, 255, 0.17);
+  fill: rgba(220, 38, 38, 0.17);
   stroke: #aa96ff;
   stroke-width: 1.15;
   vector-effect: non-scaling-stroke;
@@ -1940,15 +2028,27 @@ button.repository-author-heading:disabled {
 }
 
 .map-preview-zone-win,
-.map-preview-zone-winzone,
-.map-preview-zone-fortress {
-  fill: rgba(85, 244, 220, 0.15);
-  stroke: #55f4dc;
+.map-preview-zone-winzone {
+  fill: rgba(34, 197, 94, 0.16);
+  stroke: #22c55e;
 }
 
-.map-preview-zone-checkpoint {
-  fill: rgba(190, 127, 255, 0.14);
-  stroke: #c58cff;
+.map-preview-zone-rubber,
+.map-preview-zone-rubberzone {
+  fill: rgba(250, 204, 21, 0.16);
+  stroke: #facc15;
+}
+
+.map-preview-zone-fortress,
+.map-preview-zone-fortresszone {
+  fill: rgba(59, 130, 246, 0.16);
+  stroke: #3b82f6;
+}
+
+.map-preview-zone-checkpoint,
+.map-preview-zone-checkpointzone {
+  fill: rgba(255, 255, 255, 0.12);
+  stroke: #fff;
 }
 
 .map-preview-zone-teleport {
@@ -1957,7 +2057,7 @@ button.repository-author-heading:disabled {
 }
 
 .map-preview-checkpoint-label {
-  fill: #e2c8ff;
+  fill: #fff;
   font-size: 9px;
   font-weight: 700;
   paint-order: stroke;

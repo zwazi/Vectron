@@ -1,6 +1,6 @@
 :root {
-  --workspace-cyan: #55f4dc;
-  --workspace-violet: #9a7cff;
+  --workspace-cyan: #ef4444;
+  --workspace-violet: #dc2626;
   --workspace-ink: #f5f7ff;
   --workspace-muted: #a7aab3;
   --workspace-surface: rgba(38, 38, 42, 0.98);
@@ -36,7 +36,7 @@
   width: 36%;
   height: 1px;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(85, 244, 220, 0.65), rgba(154, 124, 255, 0.55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.65), rgba(220, 38, 38, 0.55), transparent);
 }
 
 .tsb-field label,
@@ -81,7 +81,7 @@
 .info-icon-btn:hover,
 #symmetry-menu input[type="number"]:hover,
 #map-adjust-menu input[type="number"]:hover {
-  border-color: rgba(85, 244, 220, 0.34);
+  border-color: rgba(239, 68, 68, 0.34);
 }
 
 .tsb-input:focus,
@@ -92,8 +92,8 @@
 #symmetry-menu input[type="number"]:focus,
 #map-adjust-menu input[type="number"]:focus {
   outline: none;
-  border-color: rgba(85, 244, 220, 0.72);
-  box-shadow: 0 0 0 2px rgba(85, 244, 220, 0.12);
+  border-color: rgba(239, 68, 68, 0.72);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
 }
 
 .tsb-input[readonly],
@@ -148,7 +148,7 @@
 #tool_bar #zones-menu a:hover,
 #tool_bar #zones-menu a:focus {
   color: #fff;
-  background: linear-gradient(90deg, rgba(85, 244, 220, 0.09), rgba(154, 124, 255, 0.09));
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.09), rgba(220, 38, 38, 0.09));
 }
 
 #contextMenu .dropdown-menu .divider,
@@ -194,8 +194,8 @@
 #tool_bar a.toolbar-export:hover,
 #tool_bar a.toolbar-armawebtron-preview:hover {
   color: #fff;
-  border-color: rgba(154, 124, 255, 0.3);
-  background-color: rgba(154, 124, 255, 0.1);
+  border-color: rgba(220, 38, 38, 0.3);
+  background-color: rgba(220, 38, 38, 0.1);
   transform: translateY(-1px);
 }
 
@@ -203,8 +203,10 @@
 #tool_bar ul li a.active,
 #tool_bar a.toolbar-help-toggle.toolbar-tool-active {
   color: var(--workspace-cyan);
-  border-color: rgba(85, 244, 220, 0.32);
-  background: linear-gradient(145deg, rgba(85, 244, 220, 0.13), rgba(154, 124, 255, 0.08));
+  border-color: rgba(239, 68, 68, 0.32);
+  /* Legacy toolbar icons are background sprites. The background shorthand
+     clears background-image and made active icons disappear. */
+  background-color: rgba(239, 68, 68, 0.13);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.07);
 }
 
@@ -238,7 +240,7 @@
 }
 
 .info-anchor-values:focus-visible {
-  outline: 1px solid rgba(85, 244, 220, 0.55);
+  outline: 1px solid rgba(239, 68, 68, 0.55);
   outline-offset: 2px;
 }
 
@@ -250,8 +252,8 @@
 .info-icon-btn:focus-visible,
 .info-icon-btn.active {
   color: var(--workspace-cyan);
-  border-color: rgba(85, 244, 220, 0.38);
-  background: rgba(85, 244, 220, 0.08);
+  border-color: rgba(239, 68, 68, 0.38);
+  background: rgba(239, 68, 68, 0.08);
 }
 
 #symmetry-menu,
@@ -267,8 +269,8 @@
 #map-adjust-menu button:hover,
 #map-adjust-menu button:focus {
   color: #fff;
-  border-color: rgba(154, 124, 255, 0.4);
-  background: rgba(154, 124, 255, 0.1);
+  border-color: rgba(220, 38, 38, 0.4);
+  background: rgba(220, 38, 38, 0.1);
 }
 
 /* Floating editor windows */
@@ -276,6 +278,7 @@
 #wall-tool-window,
 #zone-tool-window,
 #edit-selected-window,
+#review-admin-window,
 #action-history-window,
 #xml-editor-box,
 #new-map-popover,
@@ -291,6 +294,7 @@
 #wall-tool-header,
 #zone-tool-header,
 #edit-selected-header,
+#review-admin-header,
 #action-history-header,
 #xml-editor-header {
   position: relative;
@@ -307,6 +311,7 @@
 #wall-tool-header::before,
 #zone-tool-header::before,
 #edit-selected-header::before,
+#review-admin-header::before,
 #action-history-header::before,
 #xml-editor-header::before {
   content: "";
@@ -349,8 +354,8 @@
 #xml-editor-tabs > li.active > a,
 #xml-editor-tabs > li.active > a:hover {
   color: var(--workspace-cyan);
-  background: rgba(85, 244, 220, 0.07);
-  border-color: rgba(85, 244, 220, 0.2);
+  background: rgba(239, 68, 68, 0.07);
+  border-color: rgba(239, 68, 68, 0.2);
   border-bottom-color: transparent;
 }
 
@@ -390,6 +395,8 @@
 #zone-tool-window select,
 #edit-selected-window input,
 #edit-selected-window select,
+#review-admin-window input,
+#review-admin-window textarea,
 #xml-editor-find-bar input,
 #xml-editor-content {
   color: var(--workspace-ink);
@@ -409,16 +416,19 @@
 #zone-tool-window select:focus,
 #edit-selected-window input:focus,
 #edit-selected-window select:focus,
+#review-admin-window input:focus,
+#review-admin-window textarea:focus,
 #xml-editor-find-bar input:focus,
 #xml-editor-content:focus {
   outline: none;
-  border-color: rgba(85, 244, 220, 0.65);
-  box-shadow: 0 0 0 2px rgba(85, 244, 220, 0.1);
+  border-color: rgba(239, 68, 68, 0.65);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
 }
 
 #wall-tool-body,
 #zone-tool-body,
-#edit-selected-body {
+#edit-selected-body,
+#review-admin-body {
   color: #d9dbe2;
 }
 
@@ -456,16 +466,16 @@
 #new-map-popover .btn-default:hover,
 #armawebtron-preview-popover .btn-default:hover {
   color: #fff;
-  background: rgba(154, 124, 255, 0.1);
-  border-color: rgba(154, 124, 255, 0.42);
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.42);
 }
 
 #wall-tool-body .wall-tool-mode-btn.active,
 #zone-tool-types-row .zone-type-btn.active-zone-type {
   color: var(--workspace-cyan);
-  background: linear-gradient(145deg, rgba(85, 244, 220, 0.12), rgba(154, 124, 255, 0.09));
-  border-color: rgba(85, 244, 220, 0.48);
-  box-shadow: 0 0 0 2px rgba(85, 244, 220, 0.08);
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.12), rgba(220, 38, 38, 0.09));
+  border-color: rgba(239, 68, 68, 0.48);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.08);
 }
 
 #wall-tool-body .wall-tool-mode-btn img {
@@ -485,13 +495,13 @@
 }
 
 #action-history-list li.ah-undo {
-  color: #a4e8de;
+  color: #fca5a5;
 }
 
 #action-history-list li.ah-current {
   color: var(--workspace-cyan);
-  background: rgba(85, 244, 220, 0.05);
-  border-color: rgba(85, 244, 220, 0.18);
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.18);
 }
 
 .btn-primary,
@@ -502,16 +512,16 @@
 #xml-editor-box .btn-primary,
 .tooltip-welcome-popover .btn-primary {
   color: #101214;
-  background: linear-gradient(135deg, var(--workspace-cyan), #86ddf2);
-  border-color: rgba(85, 244, 220, 0.7);
-  box-shadow: 0 6px 18px rgba(85, 244, 220, 0.12);
+  background: linear-gradient(135deg, var(--workspace-cyan), #f87171);
+  border-color: rgba(239, 68, 68, 0.7);
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.12);
   font-weight: 700;
 }
 
 .btn-primary:hover,
 .btn-primary:focus {
   color: #111;
-  background: linear-gradient(135deg, #75ffe9, #a695ff);
+  background: linear-gradient(135deg, #fb7185, #dc2626);
   border-color: rgba(255, 255, 255, 0.45);
 }
 
@@ -581,10 +591,6 @@
   display: none !important;
 }
 
-html[data-tooltips-enabled="false"] .tooltip {
-  display: none !important;
-}
-
 /* First-visit tooltip onboarding */
 .tooltip-welcome-popover {
   position: fixed;
@@ -627,8 +633,8 @@ html[data-tooltips-enabled="false"] .tooltip {
   display: grid;
   place-items: center;
   color: var(--workspace-cyan);
-  background: linear-gradient(145deg, rgba(85, 244, 220, 0.13), rgba(154, 124, 255, 0.12));
-  border: 1px solid rgba(85, 244, 220, 0.3);
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.13), rgba(220, 38, 38, 0.12));
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 10px;
 }
 
@@ -671,8 +677,8 @@ html[data-tooltips-enabled="false"] .tooltip {
 .tooltip-welcome-close:hover,
 .tooltip-welcome-close:focus-visible {
   color: #fff;
-  background: rgba(154, 124, 255, 0.1);
-  border-color: rgba(154, 124, 255, 0.32);
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.32);
   outline: none;
 }
 
@@ -696,14 +702,14 @@ html[data-tooltips-enabled="false"] .tooltip {
 
 .repository-toolbar-select:hover,
 .admin-filter-control select:hover {
-  border-color: rgba(85, 244, 220, 0.32);
+  border-color: rgba(239, 68, 68, 0.32);
 }
 
 .repository-toolbar-select:focus,
 .admin-filter-control select:focus {
   outline: none;
-  border-color: rgba(85, 244, 220, 0.65);
-  box-shadow: 0 0 0 2px rgba(85, 244, 220, 0.1);
+  border-color: rgba(239, 68, 68, 0.65);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
 }
 
 .repository-layout-switch {

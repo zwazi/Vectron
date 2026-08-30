@@ -1,8 +1,9 @@
 "use strict";
 
 const {getApps, initializeApp} = require("firebase-admin/app");
+const {getAppCheck} = require("firebase-admin/app-check");
 const {getAuth} = require("firebase-admin/auth");
-const {FieldValue, getFirestore} = require("firebase-admin/firestore");
+const {FieldValue, Timestamp, getFirestore} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
 const {createHash} = require("node:crypto");
 const logger = require("firebase-functions/logger");
@@ -25,7 +26,11 @@ const db = getFirestore();
 const bucket = getStorage().bucket();
 const neotronAuth = getAuth(neotronApp);
 const MAP_CATEGORY = "maps";
-const MAX_MAP_BYTES = 10 * 1024 * 1024;
+const MAX_MAP_BYTES = 2 * 1024 * 1024;
+const SUBMISSION_GRANT_LIFETIME_MS = 10 * 60 * 1000;
+const SUBMISSION_RATE_WINDOW_MS = 60 * 60 * 1000;
+const SUBMISSION_RATE_MINIMUM_GAP_MS = 30 * 1000;
+const SUBMISSION_RATE_MAXIMUM = 5;
 const allowedOrigins = [
   "https://tronner.io",
   "https://www.tronner.io",
@@ -85,7 +90,19 @@ async function authenticatedUser(request) {
   const authorization = String(request.get("authorization") || "");
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   if(!match) throw Object.assign(new Error("Sign in before submitting a map."), {status: 401});
-  return adminAuth.verifyIdToken(match[1], true);
+  const appCheckToken = String(request.get("x-firebase-appcheck") || "");
+  if(!appCheckToken || appCheckToken.length > 8192) {
+    throw Object.assign(new Error("Vectron could not verify this browser."), {status: 401});
+  }
+  try {
+    const [user] = await Promise.all([
+      adminAuth.verifyIdToken(match[1], true),
+      getAppCheck().verifyToken(appCheckToken)
+    ]);
+    return user;
+  } catch {
+    throw Object.assign(new Error("Vectron could not verify this browser."), {status: 401});
+  }
 }
 
 async function authenticatedAdmin(request) {
@@ -161,8 +178,11 @@ function submissionPayload(body) {
     sourceRevisionId: string("sourceRevisionId", 128),
     sourceMapId: string("sourceMapId", 128),
     resubmissionOf: string("resubmissionOf", 128),
+    replacesSubmissionId: string("replacesSubmissionId", 128),
     submissionReason: string("submissionReason", 1000),
     sha256: string("sha256", 64),
+    contentSha256: string("contentSha256", 64),
+    clientMapId: string("clientMapId", 128),
     contentBytes: Number(data.contentBytes)
   };
   if(!/^[A-Za-z0-9_-]{1,128}$/.test(payload.submissionId) ||
@@ -176,6 +196,8 @@ function submissionPayload(body) {
     throw httpError(400, "The map name, version, or category is invalid.");
   }
   if(!/^[0-9a-f]{64}$/.test(payload.sha256) ||
+     !/^[0-9a-f]{64}$/.test(payload.contentSha256) ||
+     !/^[A-Za-z0-9._:-]{1,128}$/.test(payload.clientMapId) ||
      !Number.isInteger(payload.contentBytes) || payload.contentBytes <= 0 ||
      payload.contentBytes >= MAX_MAP_BYTES) {
     throw httpError(400, "The submitted map checksum or size is invalid.");
@@ -195,16 +217,20 @@ function activeResourcePath(payload) {
     mapFileName(payload.mapName, payload.mapVersion);
 }
 
-function duplicatePendingSubmission(snapshot, payload) {
-  return snapshot.docs.find(document => {
-    if(document.id === payload.submissionId) return false;
-    const existing = document.data();
-    return existing.status === "pending" &&
-      existing.authorId === payload.authorId &&
-      existing.mapName === payload.mapName &&
-      existing.mapVersion === payload.mapVersion &&
-      existing.category === MAP_CATEGORY;
-  });
+function pendingHashId(uid, sha256) {
+  return `${uid}_${sha256}`;
+}
+
+function pendingClientMapId(uid, clientMapId) {
+  return `${uid}_${createHash("sha256").update(clientMapId).digest("hex")}`;
+}
+
+function submissionPayloadDigest(payload) {
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+function timestampMillis(value) {
+  return value && typeof value.toMillis === "function" ? value.toMillis() : 0;
 }
 
 exports.createMapSubmission = onRequest({
@@ -220,7 +246,12 @@ exports.createMapSubmission = onRequest({
   }
   try {
     const user = await authenticatedUser(request);
+    const stage = String(request.body && request.body.stage || "finalize");
+    if(!["reserve", "finalize"].includes(stage)) {
+      throw httpError(400, "The map submission stage is invalid.");
+    }
     const payload = submissionPayload(request.body);
+    const payloadDigest = submissionPayloadDigest(payload);
     const accountRef = db.collection("accounts").doc(user.uid);
     const accountSnapshot = await accountRef.get();
     const account = accountSnapshot.exists ? accountSnapshot.data() : null;
@@ -237,6 +268,168 @@ exports.createMapSubmission = onRequest({
       mapFileName(payload.mapName, payload.mapVersion);
     if(payload.storagePath !== expectedStoragePath) {
       throw httpError(400, "The uploaded revision path does not match this submission.");
+    }
+
+    const resourcePath = activeResourcePath(payload);
+    const pendingResourceId = resourceKey(resourcePath);
+    const submissionRef = db.collection("mapSubmissions").doc(payload.submissionId);
+    const resourceRef = db.collection("resourcePaths").doc(pendingResourceId);
+    const pendingRef = db.collection("pendingResourcePaths").doc(pendingResourceId);
+    const resubmissionRef = payload.resubmissionOf
+      ? db.collection("mapSubmissions").doc(payload.resubmissionOf) : null;
+    const replacementRef = payload.replacesSubmissionId
+      ? db.collection("mapSubmissions").doc(payload.replacesSubmissionId) : null;
+    const hashRef = db.collection("pendingSubmissionHashes")
+      .doc(pendingHashId(user.uid, payload.sha256));
+    const clientMapRef = db.collection("pendingClientMaps")
+      .doc(pendingClientMapId(user.uid, payload.clientMapId));
+    const rateRef = db.collection("submissionRateLimits").doc(user.uid);
+    const grantRef = db.collection("submissionUploadGrants").doc(payload.submissionId);
+
+    let replacementData = null;
+    let replacementPendingRef = null;
+    let replacementHashRef = null;
+    if(replacementRef) {
+      const replacementSnapshot = await replacementRef.get();
+      replacementData = replacementSnapshot.exists ? replacementSnapshot.data() : null;
+      if(!replacementData || replacementData.status !== "pending" ||
+         replacementData.submittedBy !== user.uid) {
+        throw httpError(409, "The queued submission can no longer be updated.");
+      }
+      if(replacementData.pendingResourceId) {
+        replacementPendingRef = db.collection("pendingResourcePaths")
+          .doc(replacementData.pendingResourceId);
+      }
+      if(/^[0-9a-f]{64}$/.test(String(replacementData.sha256 || ""))) {
+        replacementHashRef = db.collection("pendingSubmissionHashes")
+          .doc(pendingHashId(user.uid, replacementData.sha256));
+      }
+    }
+
+    if(stage === "reserve") {
+      let reusedGrant = false;
+      await db.runTransaction(async transaction => {
+        const reads = await Promise.all([
+          transaction.get(accountRef),
+          transaction.get(submissionRef),
+          transaction.get(resourceRef),
+          transaction.get(pendingRef),
+          resubmissionRef ? transaction.get(resubmissionRef) : Promise.resolve(null),
+          replacementRef ? transaction.get(replacementRef) : Promise.resolve(null),
+          transaction.get(hashRef),
+          transaction.get(clientMapRef),
+          transaction.get(rateRef),
+          transaction.get(grantRef)
+        ]);
+        const [freshAccount, existingSubmission, publishedResource, pendingResource, deniedSource,
+          replacementSnapshot, hashSnapshot, clientMapSnapshot, rateSnapshot, grantSnapshot] = reads;
+        const now = Date.now();
+        if(grantSnapshot.exists) {
+          const existingGrant = grantSnapshot.data();
+          if(existingGrant.ownerUid === user.uid && existingGrant.payloadDigest === payloadDigest &&
+             timestampMillis(existingGrant.expiresAt) > now) {
+            reusedGrant = true;
+            return;
+          }
+          throw httpError(409, "This submission identifier already has a different upload reservation.");
+        }
+        const freshAccountData = freshAccount.exists ? freshAccount.data() : null;
+        if(!admin && (!freshAccountData || freshAccountData.status !== "approved" ||
+           freshAccountData.authorId !== payload.authorId ||
+           normalizedIdentityText(freshAccountData.authorName) !== payload.authorName)) {
+          throw httpError(403, "Your linked author changed before the upload was reserved.");
+        }
+        if(existingSubmission.exists) {
+          throw httpError(409, "This submission identifier has already been used.");
+        }
+        const replacement = replacementSnapshot && replacementSnapshot.exists
+          ? replacementSnapshot.data() : null;
+        if(payload.replacesSubmissionId && (!replacement || replacement.status !== "pending" ||
+           replacement.submittedBy !== user.uid)) {
+          throw httpError(409, "The queued submission can no longer be updated.");
+        }
+        if(hashSnapshot.exists &&
+           hashSnapshot.data().submissionId !== payload.replacesSubmissionId) {
+          throw httpError(409, "This exact map is already waiting in the review queue.");
+        }
+        if(clientMapSnapshot.exists &&
+           clientMapSnapshot.data().submissionId !== payload.replacesSubmissionId) {
+          throw httpError(409, "This local map already has a queued submission. Update it instead.");
+        }
+        if(publishedResource.exists) {
+          throw httpError(
+            409,
+            `${payload.mapName} ${payload.mapVersion} is already published. Choose a new version.`
+          );
+        }
+        if(pendingResource.exists &&
+           pendingResource.data().submissionId !== payload.replacesSubmissionId) {
+          throw httpError(
+            409,
+            `${payload.mapName} ${payload.mapVersion} is already pending review. ` +
+            "Edit that submission or choose a new version."
+          );
+        }
+        if(payload.resubmissionOf) {
+          const denied = deniedSource && deniedSource.exists ? deniedSource.data() : null;
+          if(!denied || denied.status !== "denied" || denied.submittedBy !== user.uid ||
+             denied.mapId !== payload.mapId || denied.operation !== payload.operation ||
+             denied.authorId !== payload.authorId ||
+             String(denied.sourceRevisionId || "") !== payload.sourceRevisionId) {
+            throw httpError(409, "The denied review is not valid for this resubmission.");
+          }
+        }
+        if(!admin && rateSnapshot.exists) {
+          const rate = rateSnapshot.data();
+          const windowStarted = timestampMillis(rate.windowStartedAt);
+          const lastReserved = timestampMillis(rate.lastReservedAt);
+          if(now - lastReserved < SUBMISSION_RATE_MINIMUM_GAP_MS) {
+            throw httpError(429, "Please wait 30 seconds before reserving another map upload.");
+          }
+          if(now - windowStarted < SUBMISSION_RATE_WINDOW_MS &&
+             Number(rate.count || 0) >= SUBMISSION_RATE_MAXIMUM) {
+            throw httpError(429, "This account reached the hourly map upload limit.");
+          }
+        }
+        transaction.create(grantRef, {
+          ...payload,
+          ownerUid: user.uid,
+          payloadDigest,
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromMillis(now + SUBMISSION_GRANT_LIFETIME_MS)
+        });
+        if(!admin) {
+          const previousRate = rateSnapshot.exists ? rateSnapshot.data() : {};
+          const previousStart = timestampMillis(previousRate.windowStartedAt);
+          const continuing = now - previousStart < SUBMISSION_RATE_WINDOW_MS;
+          transaction.set(rateRef, {
+            windowStartedAt: continuing && previousRate.windowStartedAt
+              ? previousRate.windowStartedAt : FieldValue.serverTimestamp(),
+            count: continuing ? Number(previousRate.count || 0) + 1 : 1,
+            lastReservedAt: FieldValue.serverTimestamp()
+          });
+        }
+      });
+      logger.info("Vectron map upload reserved", {
+        submissionId: payload.submissionId,
+        mapId: payload.mapId,
+        resourcePath,
+        submittedBy: user.uid,
+        reusedGrant
+      });
+      response.status(reusedGrant ? 200 : 201).json({
+        reserved: true,
+        submissionId: payload.submissionId,
+        expiresInSeconds: Math.floor(SUBMISSION_GRANT_LIFETIME_MS / 1000)
+      });
+      return;
+    }
+
+    const grantSnapshot = await grantRef.get();
+    const grant = grantSnapshot.exists ? grantSnapshot.data() : null;
+    if(!grant || grant.ownerUid !== user.uid || grant.payloadDigest !== payloadDigest ||
+       timestampMillis(grant.expiresAt) <= Date.now()) {
+      throw httpError(409, "This upload reservation is missing or expired. Please submit again.");
     }
 
     let objectMetadata;
@@ -259,35 +452,24 @@ exports.createMapSubmission = onRequest({
       throw httpError(400, "The uploaded map metadata does not match this submission.");
     }
 
-    // This query also catches pending submissions created before deterministic
-    // pending-version reservations were introduced.
-    const authorSubmissions = await db.collection("mapSubmissions")
-      .where("status", "==", "pending").get();
-    if(duplicatePendingSubmission(authorSubmissions, payload)) {
-      throw httpError(
-        409,
-        `${payload.mapName} ${payload.mapVersion} is already pending review. ` +
-        "Edit that submission or choose a new version."
-      );
-    }
-
-    const resourcePath = activeResourcePath(payload);
-    const pendingResourceId = resourceKey(resourcePath);
-    const submissionRef = db.collection("mapSubmissions").doc(payload.submissionId);
-    const resourceRef = db.collection("resourcePaths").doc(pendingResourceId);
-    const pendingRef = db.collection("pendingResourcePaths").doc(pendingResourceId);
-    const resubmissionRef = payload.resubmissionOf
-      ? db.collection("mapSubmissions").doc(payload.resubmissionOf) : null;
-
     await db.runTransaction(async transaction => {
       const reads = await Promise.all([
         transaction.get(accountRef),
         transaction.get(submissionRef),
         transaction.get(resourceRef),
         transaction.get(pendingRef),
-        resubmissionRef ? transaction.get(resubmissionRef) : Promise.resolve(null)
+        resubmissionRef ? transaction.get(resubmissionRef) : Promise.resolve(null),
+        replacementRef ? transaction.get(replacementRef) : Promise.resolve(null),
+        transaction.get(hashRef),
+        transaction.get(clientMapRef),
+        transaction.get(grantRef),
+        replacementPendingRef ? transaction.get(replacementPendingRef) : Promise.resolve(null),
+        replacementHashRef && replacementHashRef.path !== hashRef.path
+          ? transaction.get(replacementHashRef) : Promise.resolve(null)
       ]);
-      const [freshAccount, existingSubmission, publishedResource, pendingResource, deniedSource] = reads;
+      const [freshAccount, existingSubmission, publishedResource, pendingResource, deniedSource,
+        replacementSnapshot, hashSnapshot, clientMapSnapshot, freshGrantSnapshot,
+        replacementPendingSnapshot, replacementHashSnapshot] = reads;
       const freshAccountData = freshAccount.exists ? freshAccount.data() : null;
       if(!admin && (!freshAccountData || freshAccountData.status !== "approved" ||
          freshAccountData.authorId !== payload.authorId ||
@@ -297,13 +479,34 @@ exports.createMapSubmission = onRequest({
       if(existingSubmission.exists) {
         throw httpError(409, "This submission identifier has already been used.");
       }
+      const freshGrant = freshGrantSnapshot.exists ? freshGrantSnapshot.data() : null;
+      if(!freshGrant || freshGrant.ownerUid !== user.uid ||
+         freshGrant.payloadDigest !== payloadDigest ||
+         timestampMillis(freshGrant.expiresAt) <= Date.now()) {
+        throw httpError(409, "This upload reservation expired before it could be finalized.");
+      }
+      const replacement = replacementSnapshot && replacementSnapshot.exists
+        ? replacementSnapshot.data() : null;
+      if(payload.replacesSubmissionId && (!replacement || replacement.status !== "pending" ||
+         replacement.submittedBy !== user.uid)) {
+        throw httpError(409, "The queued submission can no longer be updated.");
+      }
+      if(hashSnapshot.exists &&
+         hashSnapshot.data().submissionId !== payload.replacesSubmissionId) {
+        throw httpError(409, "This exact map is already waiting in the review queue.");
+      }
+      if(clientMapSnapshot.exists &&
+         clientMapSnapshot.data().submissionId !== payload.replacesSubmissionId) {
+        throw httpError(409, "This local map already has a queued submission. Update it instead.");
+      }
       if(publishedResource.exists) {
         throw httpError(
           409,
           `${payload.mapName} ${payload.mapVersion} is already published. Choose a new version.`
         );
       }
-      if(pendingResource.exists) {
+      if(pendingResource.exists &&
+         pendingResource.data().submissionId !== payload.replacesSubmissionId) {
         throw httpError(
           409,
           `${payload.mapName} ${payload.mapVersion} is already pending review. ` +
@@ -319,6 +522,23 @@ exports.createMapSubmission = onRequest({
           throw httpError(409, "The denied review is not valid for this resubmission.");
         }
       }
+      if(replacementRef) {
+        transaction.update(replacementRef, {
+          status: "superseded",
+          replacedBy: payload.submissionId,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        if(replacementPendingRef && replacementPendingRef.path !== pendingRef.path &&
+           replacementPendingSnapshot && replacementPendingSnapshot.exists &&
+           replacementPendingSnapshot.data().submissionId === payload.replacesSubmissionId) {
+          transaction.delete(replacementPendingRef);
+        }
+        if(replacementHashRef && replacementHashRef.path !== hashRef.path &&
+           replacementHashSnapshot && replacementHashSnapshot.exists &&
+           replacementHashSnapshot.data().submissionId === payload.replacesSubmissionId) {
+          transaction.delete(replacementHashRef);
+        }
+      }
       transaction.create(submissionRef, {
         ...payload,
         status: "pending",
@@ -329,7 +549,7 @@ exports.createMapSubmission = onRequest({
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
       });
-      transaction.create(pendingRef, {
+      transaction.set(pendingRef, {
         pendingResourceId,
         resourcePath,
         submissionId: payload.submissionId,
@@ -343,8 +563,21 @@ exports.createMapSubmission = onRequest({
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
       });
+      transaction.set(hashRef, {
+        submissionId:payload.submissionId,
+        submittedBy:user.uid,
+        sha256:payload.sha256,
+        createdAt:FieldValue.serverTimestamp()
+      });
+      transaction.set(clientMapRef, {
+        submissionId:payload.submissionId,
+        submittedBy:user.uid,
+        clientMapId:payload.clientMapId,
+        createdAt:FieldValue.serverTimestamp()
+      });
+      transaction.delete(grantRef);
     });
-    logger.info("Vectron map submission reserved", {
+    logger.info("Vectron map submission finalized", {
       submissionId: payload.submissionId,
       mapId: payload.mapId,
       resourcePath,
@@ -432,6 +665,33 @@ exports.publishCatalogSettingsManifest = onDocumentWritten({
   ...catalogPublisherOptions,
   document: "catalogSettings/{settingId}"
 }, publishCatalogState);
+
+exports.cleanupPendingSubmissionReservations = onDocumentWritten({
+  region: "us-central1",
+  timeoutSeconds: 30,
+  memory: "256MiB",
+  document: "mapSubmissions/{submissionId}"
+}, async event => {
+  const before = event.data?.before?.exists ? event.data.before.data() : null;
+  const after = event.data?.after?.exists ? event.data.after.data() : null;
+  if(!before || before.status !== "pending" || (after && after.status === "pending")) return;
+  const submittedBy = String(before.submittedBy || "");
+  const submissionId = String(event.params.submissionId || "");
+  if(!submittedBy || !submissionId) return;
+  const refs = [];
+  if(/^[0-9a-f]{64}$/.test(String(before.sha256 || ""))) {
+    refs.push(db.collection("pendingSubmissionHashes")
+      .doc(pendingHashId(submittedBy, before.sha256)));
+  }
+  if(before.clientMapId) {
+    refs.push(db.collection("pendingClientMaps")
+      .doc(pendingClientMapId(submittedBy, before.clientMapId)));
+  }
+  await Promise.all(refs.map(async ref => {
+    const snapshot = await ref.get();
+    if(snapshot.exists && snapshot.data().submissionId === submissionId) await ref.delete();
+  }));
+});
 
 exports.denyRegistration = onRequest({
   region: "us-central1",

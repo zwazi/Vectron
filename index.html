@@ -8,10 +8,10 @@
         <!-- Bootstrap -->
         <link href="./css/bootstrap.min.css" rel="stylesheet">
         <link href="./css/bootstrap-extra.css" rel="stylesheet">
-        <link href="./css/vectron.css" rel="stylesheet">
-        <link href="./css/auth.css" rel="stylesheet">
+        <link href="./css/vectron.css?v=20260830-red-studio-2" rel="stylesheet">
+        <link href="./css/auth.css?v=20260830-red-studio-2" rel="stylesheet">
         <link id="theme" rel="stylesheet">
-        <link href="./css/workspace-theme.css" rel="stylesheet">
+        <link href="./css/workspace-theme.css?v=20260830-red-studio-2" rel="stylesheet">
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer">
         <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400,300,700,600" rel="stylesheet" type="text/css">
         <script type="text/javascript" src="./js/libs/jquery.js"></script>
@@ -24,10 +24,10 @@
         <script type="text/javascript" src="./js/AamapObjects/Wall.js"></script>
         <script type="text/javascript" src="./js/AamapObjects/Zone.js"></script>
         <script type="text/javascript" src="./js/AamapTools/spawnTool.js"></script>
-        <script type="text/javascript" src="./js/AamapTools/wallTool.js"></script>
-        <script type="text/javascript" src="./js/AamapTools/zoneTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/wallTool.js?v=20260830-red-studio-2"></script>
+        <script type="text/javascript" src="./js/AamapTools/zoneTool.js?v=20260830-red-studio-2"></script>
         <script type="text/javascript" src="./js/AamapTools/navigationTool.js"></script>
-        <script type="text/javascript" src="./js/AamapTools/selectTool.js"></script>
+        <script type="text/javascript" src="./js/AamapTools/selectTool.js?v=20260830-red-studio-2"></script>
         <script type="text/javascript" src="./js/AamapTools/editSelectedTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/wallVertexMoveTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/splitTool.js"></script>
@@ -37,11 +37,12 @@
         <script type="text/javascript" src="./js/aamap.js"></script>
         <script type="text/javascript" src="./js/cursor.js"></script>
         <script type="text/javascript" src="./js/xmlEditorFind.js"></script>
-        <script type="text/javascript" src="./js/eventHandler.js"></script>
-        <script type="text/javascript" src="./js/gui.js"></script>
-        <script type="text/javascript" src="./js/config.js"></script>
-        <script type="text/javascript" src="./js/localDraft.js"></script>
-        <script type="text/javascript" src="./js/vectron.js"></script>
+        <script type="text/javascript" src="./js/eventHandler.js?v=20260830-red-studio-2"></script>
+        <script type="text/javascript" src="./js/gui.js?v=20260830-red-studio-2"></script>
+        <script type="text/javascript" src="./js/config.js?v=20260830-red-studio-2"></script>
+        <script type="text/javascript" src="./js/localDraft.js?v=20260830-red-studio-2"></script>
+        <script type="text/javascript" src="./js/localLibrary.js?v=20260830-red-studio-2"></script>
+        <script type="text/javascript" src="./js/vectron.js?v=20260830-red-studio-2"></script>
 
         <script type="text/javascript">
             var targetVersion = 1.115;
@@ -271,13 +272,12 @@
                             <thead><tr><th>Tool</th><th>Key</th><th>Description</th></tr></thead>
                             <tbody>
                                 <tr><td><b>Select</b></td><td><kbd>1</kbd></td><td>Click an object to select it. Drag on empty space to box-select. The Edit Selected panel groups walls, zones, and spawns for batch changes. A selected teleport's exit marker can be dragged independently. <kbd>Del</kbd> deletes the selection.</td></tr>
-                                <tr><td><b>Wall</b></td><td><kbd>3</kbd></td><td>Open the Wall Tool window to choose freeform walls, rectangles, circles, arcs, ellipses, or text walls. For shape tools, click the requested points, set the wall count if prompted, then press <b>Generate Walls</b>. Text walls use a typed string, a two-corner box, and <b>Submit</b>. Double-click or press <kbd>Shift+W</kbd> to finish freeform walls. Press <kbd>Esc</kbd> to cancel.</td></tr>
-                                <tr><td><b>Zone</b></td><td><kbd>4</kbd></td><td>Choose a zone type in the Zone Tool window, then click to place. <kbd>+</kbd>/<kbd>=</kbd> increase radius; <kbd>-</kbd>/<kbd>_</kbd> decrease radius. <kbd>Shift+Z</kbd> cycles zone types.</td></tr>
-                                <tr><td><b>Spawn</b></td><td><kbd>5</kbd></td><td>Click to place a spawn point. Move the cursor to set the spawn direction, then click again to confirm.</td></tr>
-                                <tr><td><b>Snap Toggle</b></td><td><kbd>6</kbd></td><td>Toggles grid snapping on/off. The lock/unlock icon in the toolbar reflects the current state.</td></tr>
-                                <tr><td><b>Wall Split</b></td><td><kbd>7</kbd></td><td>Click on a wall to split it at the nearest point. Hover over the wall to see the split preview.</td></tr>
-                                <tr><td><b>Wall Join</b></td><td><kbd>8</kbd></td><td>Click the endpoint of one wall, then the endpoint of another to merge them into a single wall.</td></tr>
-                                <tr><td><b>Vertex Move</b></td><td><kbd>0</kbd></td><td>Click to select a wall, then drag its vertex dots to reposition them. <kbd>Del</kbd> deletes the selected vertex.</td></tr>
+                                <tr><td><b>Wall</b></td><td><kbd>2</kbd></td><td>Open the Wall Tool window to choose freeform walls, rectangles, circles, arcs, ellipses, or text walls. For shape tools, click the requested points, set the wall count if prompted, then press <b>Generate Walls</b>. Text walls use a typed string, a two-corner box, and <b>Submit</b>. Double-click or press <kbd>Shift+W</kbd> to finish freeform walls. Press <kbd>Esc</kbd> to cancel.</td></tr>
+                                <tr><td><b>Zone</b></td><td><kbd>3</kbd></td><td>Choose a zone type in the Zone Tool window, then click to place. <kbd>+</kbd>/<kbd>=</kbd> increase radius; <kbd>-</kbd>/<kbd>_</kbd> decrease radius. <kbd>Shift+Z</kbd> cycles zone types.</td></tr>
+                                <tr><td><b>Spawn</b></td><td><kbd>4</kbd></td><td>Click to place a spawn point. Move the cursor to set the spawn direction, then click again to confirm.</td></tr>
+                                <tr><td><b>Wall Split</b></td><td><kbd>5</kbd></td><td>Click on a wall to split it at the nearest point. Hover over the wall to see the split preview.</td></tr>
+                                <tr><td><b>Wall Join</b></td><td><kbd>6</kbd></td><td>Click the endpoint of one wall, then the endpoint of another to merge them into a single wall.</td></tr>
+                                <tr><td><b>Vertex Move</b></td><td><kbd>7</kbd></td><td>Click to select a wall, then drag its vertex dots to reposition them. <kbd>Del</kbd> deletes the selected vertex.</td></tr>
                             </tbody>
                         </table>
 
@@ -288,6 +288,7 @@
                                 <tr><td><kbd>Ctrl+Shift+Z</kbd></td><td>Redo</td></tr>
                                 <tr><td><kbd>Ctrl+C</kbd></td><td>Copy selected objects</td></tr>
                                 <tr><td><kbd>Ctrl+V</kbd></td><td>Paste copied objects</td></tr>
+                                <tr><td><kbd>Ctrl+N</kbd></td><td>Create a new map</td></tr>
                                 <tr><td><kbd>Del</kbd></td><td>Delete selected objects (or selected vertex in Vertex Move tool)</td></tr>
                                 <tr><td><kbd>Ctrl+0</kbd></td><td>Fit map to screen</td></tr>
                                 <tr><td><kbd>Ctrl+1</kbd></td><td>Zoom to 100%</td></tr>
@@ -298,7 +299,7 @@
                                 <tr><td><kbd>Shift+Z</kbd></td><td>Cycle zone type (Zone tool)</td></tr>
                                 <tr><td><kbd>+</kbd> / <kbd>=</kbd></td><td>Increase zone radius (Zone tool)</td></tr>
                                 <tr><td><kbd>-</kbd> / <kbd>_</kbd></td><td>Decrease zone radius (Zone tool)</td></tr>
-                                <tr><td><kbd>1</kbd>–<kbd>8</kbd>, <kbd>0</kbd></td><td>Switch tools (customizable in Configure tab)</td></tr>
+                                <tr><td><kbd>1</kbd>–<kbd>7</kbd></td><td>Switch tools (customizable in Configure tab)</td></tr>
                             </tbody>
                         </table>
 
@@ -360,7 +361,7 @@
                         <label><input type="checkbox" id="show-action-history" name="show-action-history"> Show action history window</label>
                       </div>
                       <div class="checkbox cfg-checkbox">
-                        <label><input type="checkbox" id="show-tooltips" name="show-tooltips"> Show helpful tooltips</label>
+                        <label><input type="checkbox" id="show-tooltips" name="show-tooltips"> Keep helpful tooltips visible</label>
                       </div>
                       <hr class="cfg-divider" />
                       <p class="cfg-section-label">Behavior</p>
@@ -465,8 +466,6 @@
                 <button class="auth-admin-button" type="button" data-admin-review hidden aria-expanded="false" aria-controls="admin-overlay" title="Review registrations and maps" aria-label="Review registrations and maps"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span class="auth-action-label">Review</span><span class="auth-count-badge" data-admin-count hidden>0</span></button>
                 <button class="auth-repository-button" type="button" data-map-repository aria-expanded="false" aria-controls="map-repository-overlay" title="Browse repository maps" aria-label="Browse repository maps"><i class="fa-solid fa-map" aria-hidden="true"></i><span>Maps</span></button>
                 <button class="auth-upload-button" type="button" data-map-upload title="Upload map" aria-label="Upload map"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Upload</span></button>
-                <button class="auth-upload-button auth-review-deny-button" type="button" data-map-review-deny hidden title="Deny" aria-label="Deny"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span>Deny</span></button>
-                <button class="auth-upload-button auth-review-publish-button" type="button" data-map-review-publish hidden title="Approve" aria-label="Approve"><i class="fa-solid fa-check" aria-hidden="true"></i><span>Approve</span></button>
                 <button class="auth-signout-button" type="button" data-auth-signout title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Sign out</span></button>
             </div>
         </div>
@@ -596,6 +595,23 @@
                 <div id="edit-selected-groups"></div>
             </div>
         </div>
+        <div id="review-admin-window" style="display:none;">
+            <div id="review-admin-header">Admin Review <span id="review-admin-reset-size" title="Reset to default size" class="vt-window-action">↺</span><span id="review-admin-close" title="Close" class="vt-window-action">✕</span></div>
+            <div id="review-admin-body">
+                <label class="review-admin-field">Submitted for review because
+                    <textarea id="review-admin-submitted-reason" maxlength="1000" rows="3"></textarea>
+                </label>
+                <label class="review-admin-field">Decision reason
+                    <input id="review-admin-decision-reason" type="text" maxlength="1000" autocomplete="off" placeholder="Search quick reasons or type a custom reason">
+                </label>
+                <div id="review-admin-quick-reasons" class="auth-deny-quick-reasons" aria-label="Manage quick decision reasons"></div>
+                <div class="review-admin-actions">
+                    <button id="review-admin-save" class="btn btn-sm btn-default" type="button"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>Save</span></button>
+                    <button class="btn btn-sm btn-danger auth-review-deny-button" type="button" data-map-review-deny title="Deny" aria-label="Deny"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span>Deny</span></button>
+                    <button class="btn btn-sm btn-primary auth-review-publish-button" type="button" data-map-review-publish title="Approve" aria-label="Approve"><i class="fa-solid fa-check" aria-hidden="true"></i><span>Approve</span></button>
+                </div>
+            </div>
+        </div>
         <div id="tool_bar">
             <ul>
                 <li>
@@ -645,6 +661,9 @@
             <ul>
                 <li>
                     <a class="toolbar-newMap" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="New Map"><i class="fa-regular fa-file" aria-hidden="true"></i></a>
+                </li>
+                <li>
+                    <a class="toolbar-local-library" data-local-library href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Local Maps"><i class="fa-solid fa-hard-drive" aria-hidden="true"></i></a>
                 </li>
                 <li>
                     <a class="toolbar-import" href="#" rel="tooltip" data-trigger="hover" data-placement="right" data-original-title="Import"><i class="fa-solid fa-folder-open" aria-hidden="true"></i></a>
@@ -749,14 +768,12 @@
         <div id="armawebtron-preview-popover" style="display:none;">
             <div class="armawebtron-preview-popover-body">
                 <strong>Armawebtron Preview</strong>
-                <p>Install the Tampermonkey receiver once, then open preview to send this map and tampermonkey/settings_custom.cfg into Armawebtron.</p>
+                <p>Open Vectron’s self-hosted Armawebtron to play-test this map. No userscript or third-party preview host is required.</p>
                 <ol>
-                    <li>Open the userscript link and install it in Tampermonkey.</li>
-                    <li>Allow the Armawebtron popup if your browser blocks it.</li>
-                    <li>Click Open Preview after map or settings_custom.cfg changes.</li>
+                    <li>Click Open Preview to launch the browser game.</li>
+                    <li>Vectron sends this map and its custom settings directly.</li>
                 </ol>
                 <div class="armawebtron-preview-popover-actions">
-                    <a id="armawebtron-userscript-link" class="btn btn-sm btn-default" href="./tampermonkey/armawebtron-vectron-preview.user.js" target="_blank" rel="noopener">Userscript</a>
                     <span id="armawebtron-preview-open-tooltip" class="disabled-button-tooltip" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="Open preview" tabindex="0"><button id="armawebtron-preview-open" class="btn btn-sm btn-primary">Open Preview</button></span>
                     <button id="armawebtron-preview-cancel" class="btn btn-sm btn-default">Cancel</button>
                 </div>
@@ -768,8 +785,8 @@
             <div>
                 <strong id="tooltip-welcome-title">Welcome!</strong>
                 <p>Thanks for using Vectron.</p>
-                <button id="tooltip-welcome-disable" class="btn btn-sm btn-primary" type="button">Disable tooltips</button>
-                <small>You can re-enable them any time with the <i class="fa-solid fa-question" aria-hidden="true"></i> button or in Settings → Configure.</small>
+                <button id="tooltip-welcome-disable" class="btn btn-sm btn-primary" type="button">Show only on hover</button>
+                <small>Hover help always remains available. You can pin every tooltip again with the <i class="fa-solid fa-question" aria-hidden="true"></i> button or in Settings → Configure.</small>
             </div>
         </aside>
         <div id="action-history-window" style="display:none;">
@@ -807,6 +824,29 @@
                 <div id="map-repository-summary" class="repository-summary" aria-live="polite">Open the repository to remix maps.</div>
                 <div id="map-repository-status" class="repository-status" role="status" aria-live="polite" hidden></div>
                 <div id="map-repository-list" class="repository-list" aria-label="Repository maps"></div>
+            </section>
+        </div>
+        <div id="local-library-overlay" class="repository-overlay" hidden>
+            <section class="repository-dialog local-library-dialog" role="dialog" aria-modal="true" aria-labelledby="local-library-title">
+                <header class="repository-header">
+                    <div class="repository-title-wrap">
+                        <span class="repository-title-icon" aria-hidden="true"><i class="fa-solid fa-hard-drive"></i></span>
+                        <span><strong id="local-library-title">Local maps</strong><small>Private maps stored only in this browser</small></span>
+                    </div>
+                    <button id="local-library-close" class="repository-icon-button" type="button" aria-label="Close local maps" title="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                </header>
+                <div class="repository-tools">
+                    <label class="repository-search" for="local-library-search">
+                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                        <input id="local-library-search" type="search" autocomplete="off" placeholder="Search local maps">
+                    </label>
+                    <button id="local-library-search-submit" class="repository-refresh-button" type="button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span></button>
+                    <button id="local-library-save" class="repository-refresh-button" type="button"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>Save current</span></button>
+                    <button id="local-library-save-copy" class="repository-refresh-button" type="button"><i class="fa-solid fa-copy" aria-hidden="true"></i><span>Save as copy</span></button>
+                </div>
+                <div id="local-library-summary" class="repository-summary" aria-live="polite">Local maps stay on this device and create no Firebase reads or writes.</div>
+                <div id="local-library-status" class="repository-status" role="status" aria-live="polite" hidden></div>
+                <div id="local-library-list" class="repository-list account-list" aria-label="Maps saved in this browser"></div>
             </section>
         </div>
         <div id="notification-overlay" class="repository-overlay" hidden>
@@ -918,6 +958,25 @@
                 </div>
             </section>
         </div>
+        <div id="submission-choice-overlay" class="repository-overlay" hidden>
+            <section class="repository-dialog submission-choice-dialog" role="dialog" aria-modal="true" aria-labelledby="submission-choice-title">
+                <header class="repository-header">
+                    <div class="repository-title-wrap">
+                        <span class="repository-title-icon" aria-hidden="true"><i class="fa-solid fa-code-compare"></i></span>
+                        <span><strong id="submission-choice-title">Update your queued map?</strong><small id="submission-choice-subtitle">Vectron found an earlier submission from this local map.</small></span>
+                    </div>
+                </header>
+                <div class="submission-choice-content">
+                    <p id="submission-choice-message"></p>
+                    <div id="submission-choice-preview" class="map-review-preview" role="img" aria-label="Preview of the version already in review"></div>
+                </div>
+                <div class="submission-choice-actions">
+                    <button id="submission-choice-cancel" class="account-card-button" type="button">Keep editing</button>
+                    <button id="submission-choice-new" class="account-card-button" type="button">Submit as a new map</button>
+                    <button id="submission-choice-update" class="account-card-button" type="button">Update queued submission</button>
+                </div>
+            </section>
+        </div>
         <div id="auth-confirm-popover" class="auth-confirm-popover" role="dialog" aria-modal="false" aria-labelledby="auth-confirm-message" hidden>
             <div id="auth-confirm-message" class="auth-confirm-message"></div>
             <label id="auth-confirm-reason-field" class="auth-confirm-reason-field" for="auth-confirm-reason" hidden>
@@ -943,7 +1002,7 @@
         </div>
         <input type="file" id="toolbar-files" name="file" style="display:none;" />
 
-        <script type="module" src="./js/auth.js?v=20260830-neotron-identity"></script>
+        <script type="module" src="./js/auth.js?v=20260830-red-studio-2"></script>
 
     </body>
 </html>

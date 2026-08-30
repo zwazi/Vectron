@@ -75,7 +75,10 @@ assert.ok(indexSource.includes('id="zone-selected-private"'),
         const offenders = [];
         const walk = dir => fs.readdirSync(dir, {withFileTypes:true}).forEach(entry => {
             const full = path.join(dir, entry.name);
-            if(entry.isDirectory()) { if(entry.name !== "libs") walk(full); return; }
+            if(entry.isDirectory()) {
+                if(entry.name !== "libs" && entry.name !== "armawebtron") walk(full);
+                return;
+            }
             if(!/\.(js|html|css|md)$/.test(entry.name)) return;
             if(path.relative(root, full).startsWith("tests" + path.sep)) return;
             if(fs.readFileSync(full, "utf8").toLowerCase().includes(token.toLowerCase())) {

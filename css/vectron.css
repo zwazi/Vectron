@@ -1018,7 +1018,8 @@ body.noscroll {
 /* Wall Tool and Zone Tool floating windows */
 #wall-tool-window,
 #zone-tool-window,
-#edit-selected-window {
+#edit-selected-window,
+#review-admin-window {
   position: fixed;
   left: 66px;
   top: 46px;
@@ -1050,10 +1051,16 @@ body.noscroll {
   width: 310px;
   height: fit-content;
 }
+#review-admin-window {
+  left: 704px;
+  width: 360px;
+  height: fit-content;
+}
 
 #wall-tool-header,
 #zone-tool-header,
-#edit-selected-header {
+#edit-selected-header,
+#review-admin-header {
   background: rgba(220,220,220,0.98);
   padding: 5px 10px;
   cursor: move;
@@ -1066,6 +1073,37 @@ body.noscroll {
 
 #edit-selected-body {
   padding: 10px;
+}
+
+#review-admin-body {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.review-admin-field {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.review-admin-field input,
+.review-admin-field textarea {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  resize: vertical;
+}
+
+.review-admin-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.review-admin-actions .btn {
+  min-height: 34px;
 }
 
 #edit-selected-summary {

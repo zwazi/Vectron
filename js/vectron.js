@@ -99,6 +99,9 @@ function vectron_resetForInitialMap() {
     if(typeof window.vectron_clearRepositoryEditState === "function") {
         window.vectron_clearRepositoryEditState();
     }
+    if(typeof window.vectron_localMapIdentityReset === "function") {
+        window.vectron_localMapIdentityReset();
+    }
     vectron_panX = 0;
     vectron_panY = 0;
     vectron_zoom = 1;

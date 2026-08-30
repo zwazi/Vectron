@@ -500,7 +500,7 @@ function selectTool_start() {
     selectTool_mapY = aamap_mapY(cursor_neverSnappedY);
 
     selectTool_guideObj = vectron_screen.rect(cursor_realX, cursor_realY, 0, 0)
-    .attr({"stroke": "#51a0ff", "stroke-opacity": "0.5", "fill": "#51a0ff", "fill-opacity": "0.3"});
+    .attr({"stroke": "#ef4444", "stroke-opacity": "0.5", "fill": "#ef4444", "fill-opacity": "0.3"});
     vectron_toolActive = true;
 }
 
@@ -576,7 +576,7 @@ function selectTool_progress() {
 
     // draw selecting box
     selectTool_guideObj = vectron_screen.rect(realX, realY, width, height)
-    .attr({"stroke": "#51a0ff", "stroke-opacity": "0.5", "fill": "#51a0ff", "fill-opacity": "0.3"});
+    .attr({"stroke": "#ef4444", "stroke-opacity": "0.5", "fill": "#ef4444", "fill-opacity": "0.3"});
 }
 
 function selectTool_complete() {
@@ -776,9 +776,9 @@ function selectTool_selectArea(xStart, yStart, xEnd, yEnd, select, toggle)
         }
     ) : (function()
         {
-            // give to-be-selected items a green glow
+            // Preview the selection with the workspace accent.
             if(curObj.glowObj) {
-                curObj.glowObj.attr({"stroke": "#44ff44", "stroke-opacity": 0.45, "fill-opacity": 0.08});
+                curObj.glowObj.attr({"stroke": "#ef4444", "stroke-opacity": 0.45, "fill-opacity": 0.08});
             }
         }
     );
@@ -1055,7 +1055,7 @@ function selectTool_circIntersectsRect(p1, r, x0, y0, x1, y1) {
 }
 
 function selectTool_addInvisibleGlow(aamapObject) {
-    var color = config_isDark ? "#77bbff" : "#375ffc";
+    var color = config_isDark ? "#ef4444" : "#dc2626";
     if(aamapObject instanceof Wall) {
         aamapObject.glowObj = vectron_screen.path(selectTool_wallGlowPath(aamapObject));
     } else if(aamapObject instanceof Zone) {

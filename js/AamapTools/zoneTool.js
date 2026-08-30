@@ -359,6 +359,10 @@ function zoneTool_syncSelectedProperties() {
         (zoneTool_typeArray[zoneTool_selectedZone.type] || [])[0] : "";
     if(!zoneTool_selectedZone) {
         $("#zone-selected-properties").hide();
+        if(typeof vectron_currentTool === "undefined" || vectron_currentTool !== "zone") {
+            $("#zone-tool-window").hide();
+            if(typeof gui_refreshFloatingWindows === "function") gui_refreshFloatingWindows();
+        }
         return;
     }
     $("#zone-selected-properties").show();
