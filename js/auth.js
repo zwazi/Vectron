@@ -5047,6 +5047,19 @@ function firebaseStorageMediaUrl(fullPath) {
     return objectUrl;
 }
 
+async function firebaseStorageRequestHeaders() {
+    const headers = {};
+    if(repositoryAppCheck && appCheckSdk) {
+        const appCheckToken = (await appCheckSdk.getToken(repositoryAppCheck, false)).token;
+        if(appCheckToken) headers["X-Firebase-AppCheck"] = appCheckToken;
+    }
+    if(auth && auth.currentUser) {
+        const idToken = await authSdk.getIdToken(auth.currentUser);
+        headers.Authorization = `Firebase ${idToken}`;
+    }
+    return headers;
+}
+
 async function loadPublicCatalog(force = false, stateOverride = undefined) {
     let state = stateOverride;
     if(state === undefined) {
@@ -5060,7 +5073,9 @@ async function loadPublicCatalog(force = false, stateOverride = undefined) {
         if(!force && publicCatalogManifest && publicCatalogGeneration === state.generation) {
             return publicCatalogManifest.maps;
         }
-        const response = await fetch(firebaseStorageMediaUrl(state.publicManifestPath));
+        const response = await fetch(firebaseStorageMediaUrl(state.publicManifestPath), {
+            headers:await firebaseStorageRequestHeaders()
+        });
         if(!response.ok) throw new Error(`Catalog manifest download failed (${response.status}).`);
         const manifest = await response.json();
         if(!manifest || manifest.generation !== state.generation || !Array.isArray(manifest.maps)) {
@@ -5206,11 +5221,7 @@ function startRepositoryStatusListeners() {
 
 async function downloadRepositoryMap(fullPath) {
     const objectUrl = firebaseStorageMediaUrl(fullPath);
-    const headers = {};
-    if(auth && auth.currentUser) {
-        const idToken = await authSdk.getIdToken(auth.currentUser);
-        headers.Authorization = `Firebase ${idToken}`;
-    }
+    const headers = await firebaseStorageRequestHeaders();
     const response = await fetch(objectUrl, {headers});
     if(!response.ok) {
         const error = new Error(`Repository download failed (${response.status}).`);
