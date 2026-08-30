@@ -8,8 +8,12 @@
         ".read": true
       },
       "chat": {
-        ".read": true,
+        ".read": "auth != null && auth.token.admin == true && auth.token.neotron == true",
         ".indexOn": ["sentAt"]
+      },
+      "activity": {
+        ".read": true,
+        ".indexOn": ["finishedAt"]
       },
       "admin": {
         ".read": "auth != null && auth.token.admin == true && auth.token.neotron == true",

@@ -509,6 +509,11 @@ assert.match(firestoreRules, /affectedKeys\(\)\.hasOnly\(\['readAt'\]\)/);
 assert.match(firestoreRules, /match \/auditEvents\/\{eventId\}/);
 assert.doesNotMatch(firestoreRules, /allow write: if true/);
 
+assert.match(databaseRules.rules.racing.chat[".read"], /auth\.token\.admin == true/);
+assert.match(databaseRules.rules.racing.chat[".read"], /auth\.token\.neotron == true/);
+assert.strictEqual(databaseRules.rules.racing.activity[".read"], true);
+assert.deepStrictEqual(databaseRules.rules.racing.activity[".indexOn"], ["finishedAt"]);
+
 const commandRules = databaseRules.rules.racing.admin.commands.$serverId.$commandId;
 const commandFields = [
     "schemaVersion", "type", "state", "requestedAt", "expiresAt", "requestedBy",
