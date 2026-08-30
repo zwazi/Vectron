@@ -1,5 +1,7 @@
 # Vectron 1.1
 
+Security and Firebase cost controls are documented in [SECURITY.md](SECURITY.md).
+
 A map editor for Armagetron Advanced.
 
 Originally created by Carlo Veneziano and re-written by Tristan Whitcher.

@@ -572,14 +572,16 @@ body {
 /* Object editing floating windows dark mode */
 #wall-tool-window,
 #zone-tool-window,
-#edit-selected-window {
+#edit-selected-window,
+#review-admin-window {
     background: rgba(28,28,28,0.97);
     color: #eee;
     border-color: #555;
 }
 #wall-tool-header,
 #zone-tool-header,
-#edit-selected-header {
+#edit-selected-header,
+#review-admin-header {
     background: rgba(50,50,50,0.95);
     border-bottom-color: #444;
     color: #eee;

@@ -42,14 +42,16 @@ const NEOTRON_FIREBASE_CONFIG = Object.freeze({
 const FIREBASE_SDK_VERSION = "12.17.0";
 const FIREBASE_APP_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`;
 const FIREBASE_AUTH_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`;
+const FIREBASE_APP_CHECK_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app-check.js`;
 const FIREBASE_STORAGE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-storage.js`;
 const FIREBASE_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`;
 const REGISTRATION_DENIAL_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/denyRegistration";
 const MAP_SUBMISSION_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/createMapSubmission";
 const IDENTITY_BRIDGE_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/exchangeNeotronIdentity";
 const NEOTRON_HANDOFF_EXCHANGE_URL = "https://us-central1-neotron-7ba2a.cloudfunctions.net/vectronAuthExchange";
+const APP_CHECK_SITE_KEY = "6Ld3iJ8tAAAAAP9bIQBdZE6P2HvTEhigwKQ0q__L";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
-const QUICK_DENY_REASONS = Object.freeze([
+const DEFAULT_QUICK_DENY_REASONS = Object.freeze([
     "Tunnel Trouble",
     "Too Easy",
     "Too Long",
@@ -57,6 +59,7 @@ const QUICK_DENY_REASONS = Object.freeze([
     "duplicate"
 ]);
 const CUSTOM_QUICK_DENY_REASONS_KEY = "vectron.quickDenyReasons.v1";
+const QUICK_DENY_REASONS_KEY = "vectron.quickDecisionReasons.v2";
 
 const gate = document.getElementById("auth-gate");
 const loading = document.getElementById("auth-loading");
@@ -89,6 +92,12 @@ const profileSignout = document.getElementById("auth-profile-signout");
 const uploadButton = document.querySelector("[data-map-upload]");
 const reviewPublishButton = document.querySelector("[data-map-review-publish]");
 const reviewDenyButton = document.querySelector("[data-map-review-deny]");
+const reviewAdminWindow = document.getElementById("review-admin-window");
+const reviewAdminClose = document.getElementById("review-admin-close");
+const reviewAdminSave = document.getElementById("review-admin-save");
+const reviewAdminSubmittedReason = document.getElementById("review-admin-submitted-reason");
+const reviewAdminDecisionReason = document.getElementById("review-admin-decision-reason");
+const reviewAdminQuickReasons = document.getElementById("review-admin-quick-reasons");
 const repositoryButton = document.querySelector("[data-map-repository]");
 const repositoryOverlay = document.getElementById("map-repository-overlay");
 const repositoryCloseButton = document.getElementById("map-repository-close");
@@ -163,10 +172,20 @@ const metadataForm = document.getElementById("map-metadata-form");
 const metadataCloseButton = document.getElementById("map-metadata-close");
 const metadataCancelButton = document.getElementById("map-metadata-cancel");
 const metadataStatus = document.getElementById("map-metadata-status");
+const submissionChoiceOverlay = document.getElementById("submission-choice-overlay");
+const submissionChoiceTitle = document.getElementById("submission-choice-title");
+const submissionChoiceSubtitle = document.getElementById("submission-choice-subtitle");
+const submissionChoiceMessage = document.getElementById("submission-choice-message");
+const submissionChoicePreview = document.getElementById("submission-choice-preview");
+const submissionChoiceCancel = document.getElementById("submission-choice-cancel");
+const submissionChoiceNew = document.getElementById("submission-choice-new");
+const submissionChoiceUpdate = document.getElementById("submission-choice-update");
 
 let auth = null;
 let identityAuth = null;
 let authSdk = null;
+let appCheckSdk = null;
+let repositoryAppCheck = null;
 let storage = null;
 let storageSdk = null;
 let firestore = null;
@@ -192,6 +211,7 @@ let repositoryExpandedAuthors = new Set();
 let guestMode = false;
 let currentAccount = null;
 let currentUserAdminClaim = false;
+let pendingRepositoryMapKey = new URLSearchParams(window.location.search).get("mapKey") || "";
 let accountUnsubscribe = null;
 let notifications = [];
 let notificationUnsubscribe = null;
@@ -242,11 +262,13 @@ const adminPreviewTargets = new WeakMap();
 let confirmResolver = null;
 let confirmAnchor = null;
 let confirmOptions = null;
-let customQuickDenyReasons = readCustomQuickDenyReasons();
+let quickDecisionReasons = readQuickDecisionReasons();
+let quickReasonListSequence = 0;
 let adminDragging = null;
 let adminResizing = null;
 let metadataMapId = "";
 let metadataPreviousFocus = null;
+let submissionChoiceResolver = null;
 
 function readRepositoryLayout() {
     try {
@@ -657,12 +679,13 @@ function updateUploadButtonLabel() {
     const resubmitting = Boolean(repositoryEditState && repositoryEditState.deniedSubmissionId);
     if(uploadButton) {
         const label = uploadButton.querySelector("span");
-        if(label) label.textContent = reviewing ? "Save review changes" :
+        if(label) label.textContent = reviewing ? "Save" :
             resubmitting ? "Resubmit" : repositoryEditState ? "Submit edit" : "Upload";
         uploadButton.title = reviewing ? "Save changes to this pending review" :
             resubmitting ? "Resubmit edited map" :
             repositoryEditState ? "Submit edited map" : "Upload map";
         uploadButton.setAttribute("aria-label", uploadButton.title);
+        uploadButton.hidden = reviewing && currentUserIsAdmin();
     }
     if(reviewPublishButton) {
         reviewPublishButton.hidden = !(reviewing && currentUserIsAdmin());
@@ -680,6 +703,33 @@ function updateUploadButtonLabel() {
         const label = reviewDenyButton.querySelector("span");
         if(label) label.textContent = "Deny";
     }
+    syncReviewAdminPanel();
+}
+
+function syncReviewAdminPanel() {
+    if(!reviewAdminWindow) return;
+    const reviewing = Boolean(repositoryEditState && repositoryEditState.reviewSubmissionId && currentUserIsAdmin());
+    reviewAdminWindow.style.display = reviewing ? "block" : "none";
+    if(!reviewing) return;
+    if(reviewAdminSubmittedReason && reviewAdminSubmittedReason.value !== repositoryEditState.submissionReason) {
+        reviewAdminSubmittedReason.value = repositoryEditState.submissionReason || "";
+    }
+    if(reviewAdminDecisionReason && reviewAdminDecisionReason.value !== repositoryEditState.reviewDecisionReason) {
+        reviewAdminDecisionReason.value = repositoryEditState.reviewDecisionReason || "";
+    }
+    if(reviewAdminQuickReasons && reviewAdminDecisionReason) {
+        populateQuickDenyReasons(reviewAdminQuickReasons, reviewAdminDecisionReason);
+    }
+    if(typeof window.gui_refreshFloatingWindows === "function") window.gui_refreshFloatingWindows();
+}
+
+function updateReviewAdminStateFromFields() {
+    if(!repositoryEditState || !repositoryEditState.reviewSubmissionId) return;
+    repositoryEditState = {
+        ...repositoryEditState,
+        submissionReason:String(reviewAdminSubmittedReason && reviewAdminSubmittedReason.value || "").trim().slice(0, 1000),
+        reviewDecisionReason:String(reviewAdminDecisionReason && reviewAdminDecisionReason.value || "").trim().slice(0, 1000)
+    };
 }
 
 function normalizeRepositoryEditState(value) {
@@ -700,6 +750,7 @@ function normalizeRepositoryEditState(value) {
     const reviewSubmissionId = String(value.reviewSubmissionId || "");
     const reviewSourceOperation = String(value.reviewSourceOperation || "");
     const reviewDecisionReason = String(value.reviewDecisionReason || "").trim().slice(0, 1000);
+    const submissionReason = String(value.submissionReason || "").trim().slice(0, 1000);
     const signedInAuthor = sessionAuthorName();
     if(!sourcePath || !rawSourceName || !sourceCategory || sourceCategory.includes("/") ||
        !targetAuthor || !targetAuthorId || !mapId) return null;
@@ -708,7 +759,7 @@ function normalizeRepositoryEditState(value) {
         sourcePath, sourceName, sourceVersion, sourceCategory, targetAuthor,
         targetAuthorId, sourceOwnerUid, mapId, sourceRevisionId,
         sourceOperation, deniedSubmissionId,
-        reviewSubmissionId, reviewSourceOperation, reviewDecisionReason
+        reviewSubmissionId, reviewSourceOperation, reviewDecisionReason, submissionReason
     };
 }
 
@@ -846,6 +897,7 @@ function unlockWorkspace(draftOwner) {
         window.vectron_loadInitialMap();
     }
     queueEditorStart();
+    if(pendingRepositoryMapKey) window.setTimeout(openDeepLinkedRepositoryMap, 0);
 }
 
 function unlockEditor(user) {
@@ -1159,7 +1211,10 @@ async function loadAccountSession(user) {
         ["pending", "deleting"].includes(currentAccount.status) ? "pending" :
         currentAccount.status === "denied" ? "denied" : "user");
     startNotificationListener(user.uid);
-    if(isAdminClaim) startAdminQueueListeners();
+    if(isAdminClaim) {
+        startAdminQueueListeners();
+        void loadQuickDecisionReasons();
+    }
     startAccountListener(user);
     return currentAccount;
 }
@@ -1470,33 +1525,62 @@ function normalizedQuickDenyReason(value) {
     return String(value || "").replace(/\s+/g, " ").trim().slice(0, 1000);
 }
 
-function readCustomQuickDenyReasons() {
+function uniqueQuickReasons(values) {
+    const seen = new Set();
+    return (Array.isArray(values) ? values : []).map(normalizedQuickDenyReason).filter(reason => {
+        const key = reason.toLocaleLowerCase("en-US");
+        if(!reason || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    }).slice(0, 100);
+}
+
+function readQuickDecisionReasons() {
     try {
-        const saved = JSON.parse(window.localStorage.getItem(CUSTOM_QUICK_DENY_REASONS_KEY) || "[]");
-        if(!Array.isArray(saved)) return [];
-        const seen = new Set(QUICK_DENY_REASONS.map(reason => reason.toLocaleLowerCase("en-US")));
-        return saved.map(normalizedQuickDenyReason).filter(reason => {
-            const key = reason.toLocaleLowerCase("en-US");
-            if(!reason || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
+        const current = JSON.parse(window.localStorage.getItem(QUICK_DENY_REASONS_KEY) || "null");
+        if(Array.isArray(current)) return uniqueQuickReasons(current);
+        const legacyCustom = JSON.parse(window.localStorage.getItem(CUSTOM_QUICK_DENY_REASONS_KEY) || "[]");
+        return uniqueQuickReasons([...DEFAULT_QUICK_DENY_REASONS, ...(Array.isArray(legacyCustom) ? legacyCustom : [])]);
     } catch(error) {
-        console.warn("Vectron could not load custom quick denial reasons.", error);
-        return [];
+        console.warn("Vectron could not load quick decision reasons.", error);
+        return [...DEFAULT_QUICK_DENY_REASONS];
     }
 }
 
-function saveCustomQuickDenyReasons() {
+function saveQuickDecisionReasons() {
+    let localSaved = false;
     try {
-        window.localStorage.setItem(
-            CUSTOM_QUICK_DENY_REASONS_KEY,
-            JSON.stringify(customQuickDenyReasons)
-        );
-        return true;
+        window.localStorage.setItem(QUICK_DENY_REASONS_KEY, JSON.stringify(quickDecisionReasons));
+        localSaved = true;
     } catch(error) {
-        console.warn("Vectron could not persist custom quick denial reasons.", error);
-        return false;
+        console.warn("Vectron could not persist quick decision reasons locally.", error);
+    }
+    if(currentUserIsAdmin() && firestore && firestoreSdk) {
+        firestoreSdk.setDoc(
+            firestoreSdk.doc(firestore, "catalogSettings", "reviewReasons"),
+            {reasons:quickDecisionReasons, updatedAt:firestoreSdk.serverTimestamp()},
+            {merge:true}
+        ).catch(error => console.error("Vectron could not share quick decision reasons.", error));
+    }
+    return localSaved;
+}
+
+async function loadQuickDecisionReasons() {
+    if(!currentUserIsAdmin() || !firestore || !firestoreSdk) return;
+    try {
+        const snapshot = await firestoreSdk.getDoc(
+            firestoreSdk.doc(firestore, "catalogSettings", "reviewReasons")
+        );
+        if(snapshot.exists() && Array.isArray(snapshot.data().reasons)) {
+            // An empty list is intentional: admins may delete every default.
+            quickDecisionReasons = uniqueQuickReasons(snapshot.data().reasons);
+            try {
+                window.localStorage.setItem(QUICK_DENY_REASONS_KEY, JSON.stringify(quickDecisionReasons));
+            } catch(error) {}
+            refreshQuickDenyReasons();
+        }
+    } catch(error) {
+        console.error("Vectron could not load shared quick decision reasons.", error);
     }
 }
 
@@ -1528,7 +1612,7 @@ function refreshQuickDenyReasons() {
     positionConfirmationPopover();
 }
 
-function addCustomQuickDenyReason(input) {
+function addQuickDecisionReason(input) {
     const reason = normalizedQuickDenyReason(input && input.value);
     if(!reason) {
         if(input) {
@@ -1538,86 +1622,73 @@ function addCustomQuickDenyReason(input) {
         showEditorMessage("Enter a denial reason before saving it as a quick message.");
         return;
     }
-    const allReasons = [...QUICK_DENY_REASONS, ...customQuickDenyReasons];
-    if(allReasons.some(item => item.toLocaleLowerCase("en-US") ===
+    if(quickDecisionReasons.some(item => item.toLocaleLowerCase("en-US") ===
        reason.toLocaleLowerCase("en-US"))) {
-        applyQuickDenyReason(input, allReasons.find(item =>
+        applyQuickDenyReason(input, quickDecisionReasons.find(item =>
             item.toLocaleLowerCase("en-US") === reason.toLocaleLowerCase("en-US")
         ));
-        showEditorMessage("That quick denial message is already available.");
+        showEditorMessage("That quick decision reason is already available.");
         return;
     }
-    customQuickDenyReasons.push(reason);
-    const persisted = saveCustomQuickDenyReasons();
+    quickDecisionReasons.push(reason);
+    const persisted = saveQuickDecisionReasons();
     refreshQuickDenyReasons();
     applyQuickDenyReason(input, reason);
     showEditorMessage(persisted
-        ? `Saved “${reason}” as a quick denial message.`
+        ? `Saved “${reason}” as a quick decision reason.`
         : `Added “${reason}” for this session; browser storage was unavailable.`);
 }
 
-function removeCustomQuickDenyReason(reason, input) {
-    customQuickDenyReasons = customQuickDenyReasons.filter(item => item !== reason);
-    saveCustomQuickDenyReasons();
+function removeQuickDecisionReason(input) {
+    const requested = normalizedQuickDenyReason(input && input.value);
+    const existing = quickDecisionReasons.find(item =>
+        item.toLocaleLowerCase("en-US") === requested.toLocaleLowerCase("en-US")
+    );
+    if(!existing) {
+        showEditorMessage("Choose or type an existing quick decision reason to remove.");
+        if(input) input.focus();
+        return;
+    }
+    quickDecisionReasons = quickDecisionReasons.filter(item => item !== existing);
+    saveQuickDecisionReasons();
     refreshQuickDenyReasons();
-    if(input) input.focus();
-    showEditorMessage(`Removed “${reason}” from quick denial messages.`);
+    if(input) {
+        input.value = "";
+        input.focus();
+    }
+    showEditorMessage(`Removed “${existing}” from quick decision reasons.`);
 }
 
 function populateQuickDenyReasons(container, input) {
     if(!container || !input) return;
     container.vectronDenyReasonInput = input;
-    const select = document.createElement("select");
-    select.className = "auth-deny-quick-select";
-    select.setAttribute("aria-label", "Quick denial reason");
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "Choose a quick reason…";
-    select.appendChild(placeholder);
-    const standardGroup = document.createElement("optgroup");
-    standardGroup.label = "Quick reasons";
-    QUICK_DENY_REASONS.forEach(reason => {
+    const list = document.createElement("datalist");
+    list.id = `quick-decision-reasons-${++quickReasonListSequence}`;
+    quickDecisionReasons.forEach(reason => {
         const option = document.createElement("option");
         option.value = reason;
-        option.textContent = reason;
-        standardGroup.appendChild(option);
+        list.appendChild(option);
     });
-    select.appendChild(standardGroup);
-    if(customQuickDenyReasons.length) {
-        const customGroup = document.createElement("optgroup");
-        customGroup.label = "Saved reasons";
-        customQuickDenyReasons.forEach(reason => {
-            const option = document.createElement("option");
-            option.value = reason;
-            option.textContent = reason;
-            customGroup.appendChild(option);
-        });
-        select.appendChild(customGroup);
-    }
-    select.addEventListener("change", () => {
-        if(select.value) applyQuickDenyReason(input, select.value);
-    });
+    input.setAttribute("list", list.id);
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute("placeholder", "Search quick reasons or type a custom reason");
     const addButton = document.createElement("button");
     addButton.type = "button";
     addButton.className = "account-card-button auth-deny-quick-add";
     addButton.dataset.denyQuickAdd = "";
     addButton.textContent = "+ Save current";
     addButton.title = "Save the current reason as a custom quick denial message";
-    addButton.addEventListener("click", () => addCustomQuickDenyReason(input));
+    addButton.addEventListener("click", () => addQuickDecisionReason(input));
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "account-card-button auth-deny-quick-remove";
-    removeButton.textContent = "Remove saved";
-    removeButton.title = "Remove the selected saved quick reason";
-    removeButton.addEventListener("click", () => {
-        if(customQuickDenyReasons.includes(select.value)) {
-            removeCustomQuickDenyReason(select.value, input);
-        } else {
-            showEditorMessage("Choose a saved quick reason to remove.");
-            select.focus();
-        }
-    });
-    container.replaceChildren(select, addButton, removeButton);
+    removeButton.textContent = "Remove reason";
+    removeButton.title = "Remove the selected quick decision reason, including a default";
+    removeButton.addEventListener("click", () => removeQuickDecisionReason(input));
+    const actions = document.createElement("div");
+    actions.className = "auth-deny-quick-actions";
+    actions.append(addButton, removeButton);
+    container.replaceChildren(list, actions);
 }
 
 function adminMapIdentity(card, fallback = {}) {
@@ -2194,7 +2265,7 @@ function renderAdminMap(map) {
 
 function adminQuickReasons() {
     const seen = new Set();
-    return [...QUICK_DENY_REASONS, ...customQuickDenyReasons].filter(reason => {
+    return quickDecisionReasons.filter(reason => {
         const key = normalizedQuickDenyReason(reason).toLocaleLowerCase("en-US");
         if(!key || seen.has(key)) return false;
         seen.add(key);
@@ -2775,10 +2846,12 @@ async function denyRegistration(accountId) {
     setAdminStatus("Denying registration and deleting user…");
     try {
         const idToken = await authSdk.getIdToken(reviewer, true);
+        const appCheckToken = (await appCheckSdk.getToken(repositoryAppCheck, false)).token;
         const response = await fetch(REGISTRATION_DENIAL_URL, {
             method: "POST",
             headers: {
                 Authorization: `Bearer ${idToken}`,
+                "X-Firebase-AppCheck": appCheckToken,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({accountId, reason})
@@ -3811,7 +3884,8 @@ async function loadPendingSubmissionIntoEditor(submission, identity, reviewDecis
             sourceRevisionId: submission.sourceRevisionId || "",
             reviewSubmissionId: submission.id,
             reviewSourceOperation: submission.operation || "edit",
-            reviewDecisionReason
+            reviewDecisionReason,
+            submissionReason: submission.submissionReason || ""
         });
         setCurrentMapName(identity.mapName);
         setCurrentMapVersion(identity.mapVersion);
@@ -3868,13 +3942,15 @@ async function denyCurrentReview() {
         showEditorMessage("This review is no longer pending. Open Vectron review to continue.");
         return;
     }
+    updateReviewAdminStateFromFields();
+    const currentEditState = getRepositoryEditState();
     const confirmation = await confirmAction(
         `Deny ${submission.mapName}? The submitter will be notified, then the next review will open.`,
         {
             confirmLabel:"Deny",
             danger:true,
             reasonRequired:true,
-            reason:editState.reviewDecisionReason,
+            reason:currentEditState.reviewDecisionReason,
             anchor:reviewDenyButton
         }
     );
@@ -4251,6 +4327,98 @@ async function sha256Hex(value) {
     return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function mapContentForHash(xml) {
+    const parsed = new DOMParser().parseFromString(xml, "application/xml");
+    if(parsed.querySelector("parsererror")) return String(xml || "");
+    const resource = parsed.documentElement;
+    if(!resource) return String(xml || "");
+    const serializer = new XMLSerializer();
+    return Array.from(resource.childNodes)
+        .filter(node => node.nodeType === 1)
+        .map(node => serializer.serializeToString(node))
+        .join("");
+}
+
+async function mapContentSha256(xml) {
+    return sha256Hex(mapContentForHash(xml));
+}
+
+function mapStructure(xml) {
+    const parsed = new DOMParser().parseFromString(xml, "application/xml");
+    if(parsed.querySelector("parsererror")) return null;
+    const count = names => names.reduce((total, name) => total + parsed.getElementsByTagName(name).length, 0);
+    return {
+        walls:count(["Wall", "ObstacleWall"]),
+        zones:count(["Zone", "ShapeCircle"]),
+        spawns:count(["Spawn"]),
+        points:count(["Point"])
+    };
+}
+
+function mapStructureSimilarity(first, second) {
+    if(!first || !second) return 0;
+    const fields = ["walls", "zones", "spawns", "points"];
+    return fields.reduce((score, field) => {
+        const maximum = Math.max(first[field], second[field], 1);
+        return score + (1 - Math.abs(first[field] - second[field]) / maximum);
+    }, 0) / fields.length;
+}
+
+async function pendingSubmissionsForUser(user) {
+    const snapshot = await firestoreSdk.getDocs(firestoreSdk.query(
+        firestoreSdk.collection(firestore, "mapSubmissions"),
+        firestoreSdk.where("submittedBy", "==", user.uid),
+        firestoreSdk.where("status", "==", "pending"),
+        firestoreSdk.limit(100)
+    ));
+    return snapshot.docs.map(item => ({id:item.id, ...item.data()}));
+}
+
+function pendingSubmissionMatch(items, details) {
+    const exact = items.find(item => item.sha256 && item.sha256 === details.sha256);
+    if(exact) return {kind:"unchanged", submission:exact};
+    const identity = items.find(item => item.clientMapId && details.clientMapId &&
+        item.clientMapId === details.clientMapId);
+    if(identity) return {kind:"changed", submission:identity};
+    const named = items.find(item =>
+        String(item.authorName || "").toLocaleLowerCase("en-US") === details.author.toLocaleLowerCase("en-US") &&
+        String(item.mapName || "").toLocaleLowerCase("en-US") === details.mapName.toLocaleLowerCase("en-US")
+    );
+    return named ? {kind:"changed", submission:named} : null;
+}
+
+function finishSubmissionChoice(choice) {
+    if(!submissionChoiceResolver) return;
+    const resolve = submissionChoiceResolver;
+    submissionChoiceResolver = null;
+    submissionChoiceOverlay.hidden = true;
+    resolve(choice);
+}
+
+async function promptSubmissionChoice(existing, currentXml) {
+    if(!submissionChoiceOverlay) return "cancel";
+    submissionChoiceOverlay.hidden = false;
+    submissionChoicePreview.replaceChildren();
+    submissionChoicePreview.textContent = "Loading the queued preview…";
+    let similarity = 0;
+    try {
+        const oldXml = await downloadRepositoryMap(existing.storagePath);
+        similarity = mapStructureSimilarity(mapStructure(oldXml), mapStructure(currentXml));
+        submissionChoicePreview.replaceChildren(buildAdminMapPreview(oldXml, existing));
+    } catch(error) {
+        submissionChoicePreview.textContent = "The queued preview is unavailable, but its review record is still intact.";
+    }
+    const substantiallyDifferent = similarity < 0.35;
+    submissionChoiceTitle.textContent = substantiallyDifferent
+        ? "Is this a different map?"
+        : "Update your queued map?";
+    submissionChoiceSubtitle.textContent = `${existing.mapName || "This map"} ${existing.mapVersion || ""} is already waiting for review.`;
+    submissionChoiceMessage.textContent = substantiallyDifferent
+        ? "This local map changed substantially. Choose Submit as a new map if you cleared the editor and started a different design; otherwise update the queued submission."
+        : "Vectron found edits since the queued version shown below. Updating replaces the pending review entry instead of creating a duplicate.";
+    return new Promise(resolve => { submissionChoiceResolver = resolve; });
+}
+
 function showEditorMessage(message) {
     if(typeof window.gui_toast === "function") window.gui_toast(message);
     else {
@@ -4303,11 +4471,11 @@ function friendlyUploadError(error) {
     return messages[code] || "The map could not be uploaded. Please try again.";
 }
 
-async function nextAvailableSubmissionVersion(user, author, category, mapName, startingVersion) {
-    const ownSubmissions = await firestoreSdk.getDocs(firestoreSdk.query(
-        firestoreSdk.collection(firestore, "mapSubmissions"),
-        firestoreSdk.where("submittedBy", "==", user.uid)
-    ));
+async function nextAvailableSubmissionVersion(user, author, category, mapName, startingVersion, options = {}) {
+    const ownSubmissions = Array.isArray(options.pendingSubmissions)
+        ? options.pendingSubmissions
+        : await pendingSubmissionsForUser(user);
+    const ignoredSubmissionId = String(options.ignoredSubmissionId || "");
     let version = normalizeMapVersion(startingVersion);
     for(let attempts = 0; attempts < 1000; attempts += 1) {
         const path = activeResourcePath(author, category, mapName, version);
@@ -4316,29 +4484,33 @@ async function nextAvailableSubmissionVersion(user, author, category, mapName, s
             firestoreSdk.getDoc(firestoreSdk.doc(firestore, "resourcePaths", resourceId)),
             firestoreSdk.getDoc(firestoreSdk.doc(firestore, "pendingResourcePaths", resourceId))
         ]);
-        const legacyPending = ownSubmissions.docs.some(item => {
-            const data = item.data();
+        const legacyPending = ownSubmissions.some(data => {
+            if(data.id === ignoredSubmissionId) return false;
             return data.status === "pending" &&
                 activeResourcePath(
                     data.authorName, data.category || MAP_CATEGORY,
                     data.mapName, data.mapVersion
                 ) === path;
         });
-        if(!published.exists() && !pending.exists() && !legacyPending) return version;
+        const pendingReservedElsewhere = pending.exists() &&
+            String(pending.data().submissionId || "") !== ignoredSubmissionId;
+        if(!published.exists() && !pendingReservedElsewhere && !legacyPending) return version;
         version = bumpMapVersion(version);
     }
     throw new Error("Could not find an available map version after 1,000 attempts.");
 }
 
-async function createMapSubmission(user, submission) {
+async function createMapSubmission(user, submission, stage) {
     const idToken = await authSdk.getIdToken(user, true);
+    const appCheckToken = (await appCheckSdk.getToken(repositoryAppCheck, false)).token;
     const response = await fetch(MAP_SUBMISSION_URL, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${idToken}`,
+            "X-Firebase-AppCheck": appCheckToken,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(submission)
+        body: JSON.stringify({...submission, stage})
     });
     let result = {};
     try {
@@ -4376,6 +4548,7 @@ async function savePendingReviewDraft(
     const notificationRef = publish && !serverOrigin && editState.sourceOwnerUid
         ? adminNotificationRef(editState.sourceOwnerUid) : null;
     const reviewReason = String(editState.reviewDecisionReason || "").trim();
+    const submissionReason = String(editState.submissionReason || "").trim();
     uploadBusy = true;
     if(uploadButton) {
         uploadButton.classList.add("auth-uploading");
@@ -4476,7 +4649,7 @@ async function savePendingReviewDraft(
                 contentBytes: new TextEncoder().encode(map.xml).byteLength,
                 reviewedAt: publish ? firestoreSdk.serverTimestamp() : null,
                 reviewedBy: publish ? user.uid : "",
-                reviewReason: publish ? reviewReason : "",
+                reviewReason,
                 historyVisible: false,
                 createdAt: firestoreSdk.serverTimestamp(),
                 updatedAt: firestoreSdk.serverTimestamp()
@@ -4499,7 +4672,8 @@ async function savePendingReviewDraft(
                 finalRevisionId: publish ? revisionRef.id : "",
                 reviewedAt: publish ? firestoreSdk.serverTimestamp() : null,
                 reviewedBy: publish ? user.uid : "",
-                reviewReason: publish ? reviewReason : "",
+                reviewReason,
+                submissionReason,
                 historyVisible: publish,
                 updatedAt: firestoreSdk.serverTimestamp()
             });
@@ -4704,6 +4878,43 @@ async function uploadCurrentMap(options = {}) {
     const mapName = setCurrentMapName(rawMapName);
     let mapVersion = setCurrentMapVersion(rawMapVersion);
     const requestedVersion = mapVersion;
+    let pendingSubmissions = [];
+    let replacesSubmission = null;
+    if(!editState || !editState.reviewSubmissionId) {
+        try {
+            const preliminaryMap = window.eventHandler_getExportMap();
+            const preliminarySha256 = await sha256Hex(preliminaryMap.xml);
+            pendingSubmissions = await pendingSubmissionsForUser(user);
+            const match = pendingSubmissionMatch(pendingSubmissions, {
+                sha256:preliminarySha256,
+                clientMapId:typeof window.vectron_localMapIdentity === "function"
+                    ? window.vectron_localMapIdentity() : "",
+                author,
+                mapName
+            });
+            if(match && match.kind === "unchanged") {
+                showEditorMessage(
+                    `${match.submission.mapName || mapName} is already in the review queue. ` +
+                    "There are no changes to upload, and it will be reviewed soon."
+                );
+                return;
+            }
+            if(match) {
+                const choice = await promptSubmissionChoice(match.submission, preliminaryMap.xml);
+                if(choice === "cancel") return;
+                if(choice === "update") {
+                    replacesSubmission = match.submission;
+                    mapVersion = setCurrentMapVersion(match.submission.mapVersion || mapVersion);
+                } else if(typeof window.vectron_localMapIdentityReset === "function") {
+                    window.vectron_localMapIdentityReset();
+                }
+            }
+        } catch(error) {
+            console.error("Vectron duplicate submission check failed.", error);
+            showEditorMessage("Vectron could not safely check the review queue. Nothing was uploaded; please try again.");
+            return;
+        }
+    }
     try {
         let availableVersion = mapVersion;
         if(editState && editState.reviewSubmissionId) {
@@ -4712,7 +4923,10 @@ async function uploadCurrentMap(options = {}) {
             );
         } else if(!editState || !editState.reviewSubmissionId) {
             availableVersion = await nextAvailableSubmissionVersion(
-                user, author, category, mapName, mapVersion
+                user, author, category, mapName, mapVersion, {
+                    pendingSubmissions,
+                    ignoredSubmissionId:replacesSubmission && replacesSubmission.id
+                }
             );
         }
         if(availableVersion !== mapVersion) {
@@ -4729,6 +4943,7 @@ async function uploadCurrentMap(options = {}) {
     syncMapMetadata(user);
     const map = window.eventHandler_getExportMap();
     const sha256 = await sha256Hex(map.xml);
+    const contentSha256 = await mapContentSha256(map.xml);
     if(editState && editState.reviewSubmissionId) {
         try {
             await savePendingReviewDraft(
@@ -4742,17 +4957,26 @@ async function uploadCurrentMap(options = {}) {
         return;
     }
     const submissionRef = firestoreSdk.doc(firestoreSdk.collection(firestore, "mapSubmissions"));
-    const mapId = editState ? editState.mapId :
+    const mapId = replacesSubmission ? replacesSubmission.mapId : editState ? editState.mapId :
         firestoreSdk.doc(firestoreSdk.collection(firestore, "maps")).id;
-    const operation = editState ? editState.sourceOperation : "create";
+    const operation = replacesSubmission ? replacesSubmission.operation :
+        editState ? editState.sourceOperation : "create";
     const resubmissionOf = editState ? editState.deniedSubmissionId : "";
-    const submissionReason = resubmissionOf
+    const submissionReason = replacesSubmission
+        ? (replacesSubmission.submissionReason || "Updated by the submitter before review.")
+        : resubmissionOf
         ? "Edited and resubmitted after a denied review."
         : "";
+    const clientMapId = typeof window.vectron_localMapIdentity === "function"
+        ? window.vectron_localMapIdentity() : "";
     const objectPath = revisionStoragePath(
         user.uid, submissionRef.id, mapName, mapVersion
     );
     const contentBytes = new TextEncoder().encode(map.xml).byteLength;
+    if(contentBytes >= MAX_MAP_BYTES) {
+        showEditorMessage("This map is too large to submit. Vectron map uploads must stay under 2 MB.");
+        return;
+    }
 
     uploadBusy = true;
     if(uploadButton) {
@@ -4762,14 +4986,7 @@ async function uploadCurrentMap(options = {}) {
     showEditorMessage("Submitting map for admin review…");
 
     try {
-        const mapRef = storageSdk.ref(storage, objectPath);
-        await storageSdk.uploadString(mapRef, map.xml, "raw", {
-            contentType: "application/xml; charset=UTF-8",
-            customMetadata: mapUploadMetadata(
-                user, submissionRef.id, authorId, author, category, mapName, mapVersion, operation, sha256
-            )
-        });
-        await createMapSubmission(user, {
+        const submission = {
             submissionId: submissionRef.id,
             mapId,
             operation,
@@ -4779,18 +4996,34 @@ async function uploadCurrentMap(options = {}) {
             mapName,
             mapVersion,
             storagePath: objectPath,
-            sourceRevisionId: editState && operation !== "create" ? editState.sourceRevisionId : "",
-            sourceMapId: editState && operation !== "create" ? editState.mapId : "",
+            sourceRevisionId: operation !== "create"
+                ? (replacesSubmission ? replacesSubmission.sourceRevisionId || "" : editState.sourceRevisionId)
+                : "",
+            sourceMapId: operation !== "create"
+                ? (replacesSubmission ? replacesSubmission.sourceMapId || replacesSubmission.mapId : editState.mapId)
+                : "",
             resubmissionOf,
+            replacesSubmissionId:replacesSubmission ? replacesSubmission.id : "",
             submissionReason,
             sha256,
+            contentSha256,
+            clientMapId,
             contentBytes
+        };
+        await createMapSubmission(user, submission, "reserve");
+        const mapRef = storageSdk.ref(storage, objectPath);
+        await storageSdk.uploadString(mapRef, map.xml, "raw", {
+            contentType: "application/xml; charset=UTF-8",
+            customMetadata: mapUploadMetadata(
+                user, submissionRef.id, authorId, author, category, mapName, mapVersion, operation, sha256
+            )
         });
+        await createMapSubmission(user, submission, "finalize");
         if(editState) clearRepositoryEditState();
         if(typeof window.vectron_localDraftSaveNow === "function") {
             window.vectron_localDraftSaveNow();
         }
-        showEditorMessage(`${mapName} was ${resubmissionOf ? "resubmitted" : "submitted"} for admin review. You’ll be notified when it is approved or denied.`);
+        showEditorMessage(`${mapName} was ${replacesSubmission ? "updated in" : resubmissionOf ? "resubmitted to" : "submitted for"} admin review. You’ll be notified when it is approved or denied.`);
         showMapFileCommand(mapName, mapVersion, objectPath);
     } catch(error) {
         console.error("Vectron map upload failed.", error);
@@ -5427,6 +5660,30 @@ async function openRepositoryMap(fullPath, requestedAction) {
     }
 }
 
+async function openDeepLinkedRepositoryMap() {
+    const mapKey = pendingRepositoryMapKey;
+    if(!mapKey || repositoryBusy || !repositoryCanRead()) return;
+    pendingRepositoryMapKey = "";
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("mapKey");
+    window.history.replaceState(null, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+    try {
+        const catalogMaps = await loadPublicCatalog();
+        repositoryMaps = catalogMaps.map(item =>
+            repositoryMapDetailsData(item.id || item.mapId, item)
+        );
+        const map = repositoryMaps.find(item =>
+            item.recordKey === mapKey || item.resourcePath === mapKey || item.fullPath === mapKey
+        );
+        if(!map) throw new Error("That repository map is no longer active.");
+        const action = repositoryMapCanEdit(map) ? "edit" : "remix";
+        await openRepositoryMap(map.fullPath, action);
+    } catch(error) {
+        console.error("Vectron repository deep link failed.", error);
+        showEditorMessage(error && error.message ? error.message : "That map could not be opened.");
+    }
+}
+
 window.vectron_openMapRepository = openRepository;
 
 function bindUi() {
@@ -5444,15 +5701,30 @@ function bindUi() {
             uploadCurrentMap();
         });
     }
+    if(reviewAdminSave) {
+        reviewAdminSave.addEventListener("click", event => {
+            event.preventDefault();
+            updateReviewAdminStateFromFields();
+            uploadCurrentMap();
+        });
+    }
+    if(reviewAdminClose) {
+        reviewAdminClose.addEventListener("click", event => {
+            event.preventDefault();
+            if(reviewAdminWindow) reviewAdminWindow.style.display = "none";
+        });
+    }
     if(reviewPublishButton) {
         reviewPublishButton.addEventListener("click", event => {
             event.preventDefault();
+            updateReviewAdminStateFromFields();
             uploadCurrentMap({publishReview: true});
         });
     }
     if(reviewDenyButton) {
         reviewDenyButton.addEventListener("click", event => {
             event.preventDefault();
+            updateReviewAdminStateFromFields();
             denyCurrentReview();
         });
     }
@@ -5466,6 +5738,9 @@ function bindUi() {
             if(event.key === "Escape") closeMapFileCommand();
         });
     }
+    if(submissionChoiceCancel) submissionChoiceCancel.addEventListener("click", () => finishSubmissionChoice("cancel"));
+    if(submissionChoiceNew) submissionChoiceNew.addEventListener("click", () => finishSubmissionChoice("new"));
+    if(submissionChoiceUpdate) submissionChoiceUpdate.addEventListener("click", () => finishSubmissionChoice("update"));
     if(repositoryButton) {
         repositoryButton.addEventListener("click", event => {
             event.preventDefault();
@@ -5866,17 +6141,23 @@ async function initializeAuthentication() {
     setMode("login");
 
     try {
-        const [appModule, loadedAuthSdk, loadedStorageSdk, loadedFirestoreSdk] = await Promise.all([
+        const [appModule, loadedAuthSdk, loadedAppCheckSdk, loadedStorageSdk, loadedFirestoreSdk] = await Promise.all([
             import(FIREBASE_APP_URL),
             import(FIREBASE_AUTH_URL),
+            import(FIREBASE_APP_CHECK_URL),
             import(FIREBASE_STORAGE_URL),
             import(FIREBASE_FIRESTORE_URL)
         ]);
         authSdk = loadedAuthSdk;
+        appCheckSdk = loadedAppCheckSdk;
         storageSdk = loadedStorageSdk;
         firestoreSdk = loadedFirestoreSdk;
         const identityApp = appModule.initializeApp(NEOTRON_FIREBASE_CONFIG);
         const repositoryApp = appModule.initializeApp(REPOSITORY_FIREBASE_CONFIG, "repository");
+        repositoryAppCheck = appCheckSdk.initializeAppCheck(repositoryApp, {
+            provider:new appCheckSdk.ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
+            isTokenAutoRefreshEnabled:false
+        });
         identityAuth = authSdk.getAuth(identityApp);
         auth = authSdk.getAuth(repositoryApp);
         storage = storageSdk.getStorage(repositoryApp);

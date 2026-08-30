@@ -8,6 +8,24 @@ var vectron_localDraftUserId = "";
 var vectron_localDraftSaveTimer = null;
 var vectron_localDraftRestoring = false;
 var vectron_localDraftSaveFailureShown = false;
+var vectron_localMapIdentityId = "";
+
+function vectron_newLocalMapIdentity() {
+    if(window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+    }
+    return "map-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+}
+
+function vectron_localMapIdentity() {
+    if(!vectron_localMapIdentityId) vectron_localMapIdentityId = vectron_newLocalMapIdentity();
+    return vectron_localMapIdentityId;
+}
+
+function vectron_localMapIdentityReset(identityId) {
+    vectron_localMapIdentityId = String(identityId || "").trim() || vectron_newLocalMapIdentity();
+    return vectron_localMapIdentityId;
+}
 
 function vectron_localDraftStorageKey(userId) {
     return vectron_localDraftStoragePrefix + encodeURIComponent(String(userId || ""));
@@ -21,6 +39,9 @@ function vectron_localDraftSetUser(userId) {
         vectron_localDraftSaveNow();
     }
     vectron_localDraftUserId = nextUserId;
+    if(typeof window.vectron_localLibrarySetUser === "function") {
+        window.vectron_localLibrarySetUser(nextUserId);
+    }
     return true;
 }
 
@@ -30,6 +51,7 @@ function vectron_localDraftPayload() {
     return {
         schema: 1,
         savedAt: new Date().toISOString(),
+        localMapId: vectron_localMapIdentity(),
         xml: map.xml,
         repositoryEdit: typeof window.vectron_getRepositoryEditState === "function"
             ? window.vectron_getRepositoryEditState()
@@ -100,6 +122,7 @@ function vectron_localDraftRestore() {
         }
         if(typeof aamap_disableSymmetry === "function") aamap_disableSymmetry();
         xml_process(draft.xml);
+        vectron_localMapIdentityReset(draft.localMapId);
         if(typeof window.vectron_setRepositoryEditState === "function") {
             window.vectron_setRepositoryEditState(draft.repositoryEdit || null);
         }
@@ -127,6 +150,8 @@ window.vectron_localDraftSetUser = vectron_localDraftSetUser;
 window.vectron_localDraftSaveNow = vectron_localDraftSaveNow;
 window.vectron_localDraftScheduleSave = vectron_localDraftScheduleSave;
 window.vectron_localDraftRestore = vectron_localDraftRestore;
+window.vectron_localMapIdentity = vectron_localMapIdentity;
+window.vectron_localMapIdentityReset = vectron_localMapIdentityReset;
 
 window.addEventListener("beforeunload", vectron_localDraftSaveNow);
 document.addEventListener("visibilitychange", function() {

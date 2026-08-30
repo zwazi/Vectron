@@ -50,6 +50,26 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Trusted duplicate/rate-limit reservations. Browser clients never need
+    // to enumerate or mutate these anti-abuse records.
+    match /pendingSubmissionHashes/{reservationId} {
+      allow read, write: if false;
+    }
+
+    match /pendingClientMaps/{reservationId} {
+      allow read, write: if false;
+    }
+
+    match /submissionRateLimits/{uid} {
+      allow read, write: if false;
+    }
+
+    // Storage Rules can inspect these short-lived grants, but browser clients
+    // cannot mint, inspect, or extend them directly.
+    match /submissionUploadGrants/{submissionId} {
+      allow read, write: if false;
+    }
+
     match /mapSubmissions/{submissionId} {
       allow read: if isAdmin() || (signedIn()
         && resource.data.submittedBy == request.auth.uid);
@@ -114,6 +134,21 @@ service cloud.firestore {
 
     match /racingOverall/{documentId} {
       allow get: if documentId == 'current';
+      allow list, create, update, delete: if false;
+    }
+
+    match /racingCatalog/{documentId} {
+      allow get: if documentId == 'current';
+      allow list, create, update, delete: if false;
+    }
+
+    match /racingProfiles/{playerId} {
+      allow get: if true;
+      allow list, create, update, delete: if false;
+    }
+
+    match /racingRunHistories/{historyId} {
+      allow get: if true;
       allow list, create, update, delete: if false;
     }
   }

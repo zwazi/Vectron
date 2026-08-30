@@ -31,7 +31,7 @@ var eventHandler_contextMenu = false;
 var eventHandler_middlePanning = false;
 var eventHandler_middleClickX = 0, eventHandler_middleClickY = 0;
 var eventHandler_middlePanStartX = 0, eventHandler_middlePanStartY = 0;
-var eventHandler_armawebtronPreviewUrl = "https://armawebtron.github.io/Armawebtron/main/";
+var eventHandler_armawebtronPreviewUrl = new URL("./armawebtron/", window.location.href).href;
 var eventHandler_armawebtronPreviewTimer = null;
 var eventHandler_armawebtronSettingsCustomCfgPath = "tampermonkey/settings_custom.cfg";
 var eventHandler_tooltipsPinned = false;
@@ -350,7 +350,6 @@ function eventHandler_getTooltipElements() {
 
 function eventHandler_initTooltips(trigger) {
     var $tooltipElements = eventHandler_getTooltipElements();
-    if(!eventHandler_tooltipsEnabled) return;
     $tooltipElements.tooltip({
         html: true,
         container: "body",
@@ -385,7 +384,7 @@ function eventHandler_resetTooltips(trigger) {
 
 function eventHandler_setTooltipsEnabled(enabled, persist) {
     eventHandler_tooltipsEnabled = enabled !== false;
-    eventHandler_tooltipsPinned = false;
+    eventHandler_tooltipsPinned = eventHandler_tooltipsEnabled;
     document.documentElement.dataset.tooltipsEnabled = eventHandler_tooltipsEnabled ? "true" : "false";
     if(typeof config_showTooltips !== "undefined") config_showTooltips = eventHandler_tooltipsEnabled;
     if(persist !== false && typeof _config_set === "function") {
@@ -397,8 +396,11 @@ function eventHandler_setTooltipsEnabled(enabled, persist) {
     var $toggle = $(eventHandler_pinnedTooltipHelpToggleSelector);
     $toggle.toggleClass("toolbar-tool-active", eventHandler_tooltipsEnabled);
     $toggle.attr("aria-pressed", eventHandler_tooltipsEnabled ? "true" : "false");
-    eventHandler_setTooltipText($toggle[0], eventHandler_tooltipsEnabled ? "Disable tooltips" : "Enable tooltips");
+    eventHandler_setTooltipText($toggle[0], eventHandler_tooltipsEnabled ? "Hide pinned tooltips" : "Keep tooltips visible");
     eventHandler_resetTooltips("hover focus");
+    if(eventHandler_tooltipsPinned) {
+        window.setTimeout(eventHandler_showPinnedTooltips, 0);
+    }
 }
 
 function eventHandler_closeTooltipWelcome() {
@@ -433,7 +435,7 @@ function eventHandler_updatePreviewButtonState() {
 
 function eventHandler_refreshPreviewButtonTooltip() {
     var $target = $("#armawebtron-preview-open-tooltip");
-    if(!$target.length || !$target.is(":visible") || !eventHandler_tooltipsEnabled) {
+    if(!$target.length || !$target.is(":visible")) {
         return;
     }
 
@@ -726,6 +728,7 @@ function eventHandler_previewInArmawebtron() {
     var map = eventHandler_getExportMap();
     var previewUrl = eventHandler_getArmawebtronPreviewUrl();
     var previewWindow = window.open(previewUrl, "vectron-armawebtron-preview");
+    var previewOrigin = new URL(previewUrl, window.location.href).origin;
 
     if(!previewWindow) {
         gui_writeLog("Armawebtron preview popup was blocked.");
@@ -749,7 +752,8 @@ function eventHandler_previewInArmawebtron() {
     }
 
     function onPreviewMessage(event) {
-        if(!event.data || event.data.type != "vectron-map-preview-ack") {
+        if(event.source !== previewWindow || event.origin !== previewOrigin ||
+           !event.data || event.data.type != "vectron-map-preview-ack") {
             return;
         }
 
@@ -770,7 +774,7 @@ function eventHandler_previewInArmawebtron() {
             return;
         }
 
-        previewWindow.postMessage(payload, "*");
+        previewWindow.postMessage(payload, previewOrigin);
         sentCount++;
     }
 
@@ -993,14 +997,6 @@ function eventHandler_init() {
         if(!active || !/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return;
         if(active === e.target || $.contains(active, e.target)) return;
         active.blur();
-    });
-
-    $(document).on("click.pinnedTooltips", function(e) {
-        if(eventHandler_tooltipsPinned &&
-           !$(e.target).closest(eventHandler_pinnedTooltipHelpToggleSelector).length &&
-           !$(e.target).closest(".tooltip").length) {
-            eventHandler_togglePinnedTooltips();
-        }
     });
 
     $(document).on("keydown", "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden'])", function(e) {
@@ -2747,6 +2743,12 @@ function eventHandler_init() {
         return false;
     });
 
+    Mousetrap.bind('mod+n', function(e) {
+        if(!aamap_active) return;
+        $(".toolbar-newMap").first().trigger("mouseup");
+        return false;
+    }, 'keydown');
+
     Mousetrap.bind('mod+1', function(e) {
         if(!aamap_active) return;
         vectron_zoom = 1;
@@ -2801,6 +2803,9 @@ function eventHandler_init() {
         if(typeof xml_clearRemixHistory == "function") xml_clearRemixHistory();
         if(typeof window.vectron_clearRepositoryEditState == "function") {
             window.vectron_clearRepositoryEditState();
+        }
+        if(typeof window.vectron_localMapIdentityReset == "function") {
+            window.vectron_localMapIdentityReset();
         }
         if(typeof window.vectron_syncLockedMetadata == "function") {
             window.vectron_syncLockedMetadata();

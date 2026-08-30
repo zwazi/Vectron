@@ -20,19 +20,42 @@ service firebase.storage {
       );
     }
 
+    function uploadGrant(submissionId) {
+      return firestore.get(
+        /databases/(default)/documents/submissionUploadGrants/$(submissionId)
+      );
+    }
+
     function hasApprovedAccount() {
       return signedIn()
         && account(request.auth.uid).data.status == 'approved'
         && account(request.auth.uid).data.authorId is string;
     }
 
-    function validRevisionUpload(ownerUid, submissionId) {
+    function validRevisionUpload(ownerUid, submissionId, expectedPath) {
       return resource == null
         && signedIn()
         && request.auth.uid == ownerUid
-        && (isAdmin() || hasApprovedAccount())
+        && (isAdmin() || (
+          hasApprovedAccount()
+          && firestore.exists(
+            /databases/(default)/documents/submissionUploadGrants/$(submissionId)
+          )
+          && uploadGrant(submissionId).data.ownerUid == ownerUid
+          && uploadGrant(submissionId).data.submissionId == submissionId
+          && uploadGrant(submissionId).data.storagePath == expectedPath
+          && uploadGrant(submissionId).data.expiresAt > request.time
+          && uploadGrant(submissionId).data.contentBytes == request.resource.size
+          && uploadGrant(submissionId).data.authorId == request.resource.metadata.authorId
+          && uploadGrant(submissionId).data.authorName == request.resource.metadata.authorName
+          && uploadGrant(submissionId).data.category == request.resource.metadata.category
+          && uploadGrant(submissionId).data.mapName == request.resource.metadata.mapName
+          && uploadGrant(submissionId).data.mapVersion == request.resource.metadata.mapVersion
+          && uploadGrant(submissionId).data.operation == request.resource.metadata.operation
+          && uploadGrant(submissionId).data.sha256 == request.resource.metadata.sha256
+        ))
         && request.resource.size > 0
-        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('application/xml.*')
         && request.resource.metadata.ownerUid == ownerUid
         && request.resource.metadata.submissionId == submissionId
@@ -48,6 +71,7 @@ service firebase.storage {
         && request.resource.metadata.mapVersion is string
         && request.resource.metadata.mapName.size() > 0
         && request.resource.metadata.mapVersion.size() > 0
+        && request.resource.metadata.operation is string
         && request.resource.metadata.sha256.matches('[0-9a-f]{64}')
         && (isAdmin()
           || request.resource.metadata.authorId == account(ownerUid).data.authorId);
@@ -72,6 +96,14 @@ service firebase.storage {
       allow read, write: if false;
     }
 
+    // Immutable, compact recordings and deduplicated settings snapshots.
+    // Their Firestore indexes are exact-read only, so clients cannot list the
+    // bucket or enumerate player histories.
+    match /_racing/{kind}/{serverId}/{fileName} {
+      allow get: if kind == 'replays' || kind == 'settings';
+      allow list, create, update, delete: if false;
+    }
+
     // Retain read support for immutable revisions uploaded before filenames
     // became part of the storage path.
     match /_revisions/{ownerUid}/{submissionId} {
@@ -80,7 +112,11 @@ service firebase.storage {
         submissionId,
         '_revisions/' + ownerUid + '/' + submissionId
       );
-      allow create: if validRevisionUpload(ownerUid, submissionId);
+      allow create: if validRevisionUpload(
+        ownerUid,
+        submissionId,
+        '_revisions/' + ownerUid + '/' + submissionId
+      );
       allow update: if false;
       allow delete: if isAdmin();
       allow list: if isAdmin();
@@ -93,7 +129,11 @@ service firebase.storage {
         '_revisions/' + ownerUid + '/' + submissionId + '/' + fileName
       );
       allow create: if fileName.matches('.*\\.aamap\\.xml')
-        && validRevisionUpload(ownerUid, submissionId);
+        && validRevisionUpload(
+          ownerUid,
+          submissionId,
+          '_revisions/' + ownerUid + '/' + submissionId + '/' + fileName
+        );
       allow update: if false;
       allow delete: if isAdmin();
       allow list: if isAdmin();

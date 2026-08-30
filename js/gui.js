@@ -63,9 +63,61 @@ function gui_refreshFloatingWindows() {
 
 function gui_applyClampedPosition(win, left, top) {
     if (!win) return;
-    var clamped = gui_clampToScreen(win, left, top);
+    var clamped = gui_findOpenPosition(win, left, top);
     win.style.left = clamped[0] + "px";
     win.style.top = clamped[1] + "px";
+}
+
+function gui_rectAt(win, left, top) {
+    var width = win.offsetWidth || win.getBoundingClientRect().width || 0;
+    var height = win.offsetHeight || win.getBoundingClientRect().height || 0;
+    return {left:left, top:top, right:left + width, bottom:top + height};
+}
+
+function gui_rectsOverlap(first, second) {
+    return first.left < second.right + GUI_FLOATING_WINDOW_MARGIN &&
+        first.right + GUI_FLOATING_WINDOW_MARGIN > second.left &&
+        first.top < second.bottom + GUI_FLOATING_WINDOW_MARGIN &&
+        first.bottom + GUI_FLOATING_WINDOW_MARGIN > second.top;
+}
+
+/** Find the nearest legal position that does not cover another open tool panel. */
+function gui_findOpenPosition(win, left, top) {
+    var preferred = gui_clampToScreen(win, left, top);
+    var blockers = gui_floatingWindowRegistry
+        .map(function(entry) { return entry && entry.win; })
+        .filter(function(other) {
+            return other && other !== win && other.style.display !== "none" &&
+                !other.hidden && other.offsetWidth > 0 && other.offsetHeight > 0;
+        })
+        .map(function(other) { return other.getBoundingClientRect(); });
+    if(!blockers.length) return preferred;
+
+    var candidates = [preferred];
+    blockers.forEach(function(blocker) {
+        candidates.push(
+            gui_clampToScreen(win, blocker.right + GUI_FLOATING_WINDOW_MARGIN, preferred[1]),
+            gui_clampToScreen(win, blocker.left - (win.offsetWidth || 0) - GUI_FLOATING_WINDOW_MARGIN, preferred[1]),
+            gui_clampToScreen(win, preferred[0], blocker.bottom + GUI_FLOATING_WINDOW_MARGIN),
+            gui_clampToScreen(win, preferred[0], blocker.top - (win.offsetHeight || 0) - GUI_FLOATING_WINDOW_MARGIN)
+        );
+    });
+
+    var open = candidates.filter(function(candidate, index) {
+        if(candidates.findIndex(function(value) {
+            return Math.round(value[0]) === Math.round(candidate[0]) &&
+                Math.round(value[1]) === Math.round(candidate[1]);
+        }) !== index) return false;
+        var rect = gui_rectAt(win, candidate[0], candidate[1]);
+        return blockers.every(function(blocker) { return !gui_rectsOverlap(rect, blocker); });
+    });
+    if(!open.length) return preferred;
+    open.sort(function(a, b) {
+        var distanceA = Math.pow(a[0] - preferred[0], 2) + Math.pow(a[1] - preferred[1], 2);
+        var distanceB = Math.pow(b[0] - preferred[0], 2) + Math.pow(b[1] - preferred[1], 2);
+        return distanceA - distanceB;
+    });
+    return open[0];
 }
 
 function gui_applyWindowDefaultSize(win, entry) {
@@ -149,7 +201,8 @@ function gui_init() {
     gui_setupFloatingWindow({ id: "wall-tool-window", headerId: "wall-tool-header", resetButtonId: "wall-tool-reset-size", order: 1, defaultWidth: 340, defaultHeight: "auto" });
     gui_setupFloatingWindow({ id: "zone-tool-window", headerId: "zone-tool-header", resetButtonId: "zone-tool-reset-size", order: 2, defaultWidth: 300, defaultHeight: "auto" });
     gui_setupFloatingWindow({ id: "edit-selected-window", headerId: "edit-selected-header", resetButtonId: "edit-selected-reset-size", order: 3, defaultWidth: 310, defaultHeight: "auto" });
-    gui_setupFloatingWindow({ id: "action-history-window", headerId: "action-history-header", resetButtonId: "action-history-reset-size", order: 4, defaultWidth: 220, defaultHeight: 240 });
+    gui_setupFloatingWindow({ id: "review-admin-window", headerId: "review-admin-header", resetButtonId: "review-admin-reset-size", order: 4, defaultWidth: 360, defaultHeight: "auto" });
+    gui_setupFloatingWindow({ id: "action-history-window", headerId: "action-history-header", resetButtonId: "action-history-reset-size", order: 5, defaultWidth: 220, defaultHeight: 240 });
     if(typeof editSelected_init === "function") editSelected_init();
     gui_refreshFloatingWindows();
     window.addEventListener("resize", gui_refreshFloatingWindows);

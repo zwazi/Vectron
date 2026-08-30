@@ -1,5 +1,5 @@
 export const MAP_CATEGORY = "maps";
-export const MAX_MAP_BYTES = 10 * 1024 * 1024;
+export const MAX_MAP_BYTES = 2 * 1024 * 1024;
 
 const CATEGORY_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,59}$/u;
 const LEGACY_AUTHOR_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} ._-]*$/u;

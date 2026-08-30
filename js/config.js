@@ -213,14 +213,18 @@ function _config_set_disable(item)
 // ---- Keybinds ----
 var vectron_defaultKeybinds = {
     select: '1',
-    navigation: '2',
-    wall: '3',
-    zone: '4',
-    spawn: '5',
-    snap: '6',
-    split: '7',
-    join: '8',
-    wallVertexMove: '0'
+    navigation: '',
+    wall: '2',
+    zone: '3',
+    spawn: '4',
+    snap: '',
+    split: '5',
+    join: '6',
+    wallVertexMove: '7'
+};
+var vectron_legacyDefaultKeybinds = {
+    select:'1', navigation:'2', wall:'3', zone:'4', spawn:'5', snap:'6',
+    split:'7', join:'8', wallVertexMove:'0'
 };
 var vectron_keybinds = {};
 
@@ -228,6 +232,18 @@ function keybinds_load() {
     var saved = _config_get('keybinds');
     if (saved) {
         try { vectron_keybinds = JSON.parse(saved); } catch(e) {}
+    }
+    // Upgrade untouched legacy defaults while preserving shortcuts the user
+    // actually customized.
+    if (_config_get('keybindsDefaultsVersion') !== '2') {
+        for (var legacyAction in vectron_legacyDefaultKeybinds) {
+            if (!vectron_keybinds[legacyAction] ||
+                vectron_keybinds[legacyAction] === vectron_legacyDefaultKeybinds[legacyAction]) {
+                vectron_keybinds[legacyAction] = vectron_defaultKeybinds[legacyAction];
+            }
+        }
+        _config_set('keybindsDefaultsVersion', '2');
+        _config_set('keybinds', JSON.stringify(vectron_keybinds));
     }
     // fill in any missing defaults
     for (var k in vectron_defaultKeybinds) {
@@ -376,7 +392,7 @@ function enable_dark_theme(noset)
         config_isDark = true;
         vectron_render();
     }
-    theme.href = "./css/vectron-dark.css";
+    theme.href = "./css/vectron-dark.css?v=20260830-red-studio-2";
     
     document.getElementById("dark-theme").checked = true;
     if(!noset) _config_set_enable("darkTheme");

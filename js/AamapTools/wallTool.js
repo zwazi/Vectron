@@ -1241,6 +1241,9 @@ function wallTool_disconnect() {
 
 function wallTool_connect() {
     $(".toolbar-toolWall").addClass("toolbar-tool-active");
+    // Selecting a zone can open its properties while Select remains active.
+    // Wall and Zone controls are mutually exclusive, so never stack them.
+    $("#zone-tool-window").hide();
     $("#wall-tool-window").show();
     if(!wallTool_mode) wallTool_mode = "freeform";
     wallTool_updateWindow();
