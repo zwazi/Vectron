@@ -400,23 +400,49 @@
                     <div class="tab-pane fade" id="gui-about">
                         <h3>Vectron 1.1</h3>
                         <p>
-                          A map editor for Armagetron Advanced.
-                          It was originally written in 2008 by Carlo Veneziano, then re-written 2010 as a Flash-based map editor, then re-written in 2014 by Tristan in Javascript.
-                          (David Dubois is also credited.)
+                          A map editor for Armagetron Advanced, carried forward by four maintainers over more than fifteen years.
                         </p>
+                        <h4>History</h4>
                         <p>
-                          The project was pretty much inactive until around 2017, when someone requested it be added to my (Armanelgtron) site.
-                          However, it still essentially remained with very few changes until 2021 when I finally decided to attempt to fix some annoyances and improve upon it.
+                          Vectron was originally written in 2008 by Carlo Veneziano, who re-wrote it in 2010 as a Flash-based map editor.
+                          In 2014 Tristan Whitcher re-wrote it in JavaScript, with contributions credited to David Dubois.
+                          The project then lay mostly dormant until 2017, when <a target="_blank" rel="noopener" href="https://github.com/armanelgtron">Glen Harpring ("Armanelgtron")</a> began hosting it on their site,
+                          and from 2021 fixed long-standing annoyances and substantially improved the editor; that era of the project is preserved at
+                          <a target="_blank" rel="noopener" href="https://gitlab.com/Armanelgtron/Vectron/">gitlab.com/Armanelgtron/Vectron</a>.
+                          It is currently maintained by <a target="_blank" rel="noopener" href="https://github.com/zwazi">zwazi</a>, who integrated Neotron accounts
+                          and account-backed map repository access.
                         </p>
-                        <br />
-                          Source code available at <a target=_blank href="https://gitlab.com/Armanelgtron/Vectron/">https://gitlab.com/Armanelgtron/Vectron/</a>.
+                        <h4>Credits</h4>
+                        <ul>
+                          <li>Carlo Veneziano — original author (2008) and Flash re-write (2010)</li>
+                          <li>Tristan Whitcher — JavaScript re-write (2014)</li>
+                          <li>David Dubois — contributions to the JavaScript editor</li>
+                          <li><a target="_blank" rel="noopener" href="https://github.com/armanelgtron">Glen Harpring ("Armanelgtron")</a> — maintenance and improvements (2017–2021+)</li>
+                          <li><a target="_blank" rel="noopener" href="https://github.com/zwazi">zwazi</a> — current maintainer: Neotron integration and the map repository</li>
+                        </ul>
                         <p>
+                          The <code>.aamap.xml</code> map format and its DTDs originate from
+                          <a target="_blank" rel="noopener" href="https://www.armagetronad.org/">Armagetron Advanced</a> and the AATeam.
+                        </p>
+                        <h4>Third-party components</h4>
+                        <ul>
+                          <li><a target="_blank" rel="noopener" href="https://jquery.com/">jQuery</a> 1.10.2 — © jQuery Foundation and contributors, <a target="_blank" rel="noopener" href="https://opensource.org/license/mit">MIT License</a></li>
+                          <li><a target="_blank" rel="noopener" href="https://getbootstrap.com/docs/3.4/">Bootstrap</a> 3.0.3 — © Twitter, Inc., <a target="_blank" rel="noopener" href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>; includes the Glyphicons Halflings icon font by Jan Kovařík (<a target="_blank" rel="noopener" href="https://glyphicons.com/">GLYPHICONS</a>)</li>
+                          <li><a target="_blank" rel="noopener" href="https://dmitrybaranovskiy.github.io/raphael/">Raphaël</a> 2.1.2 — © Dmitry Baranovskiy, Sencha Labs, <a target="_blank" rel="noopener" href="https://opensource.org/license/mit">MIT License</a>, with the Set.hoverset plugin</li>
+                          <li>Marknote 0.5.1 XML parser — © jbulb.org, <a target="_blank" rel="noopener" href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a></li>
+                          <li><a target="_blank" rel="noopener" href="https://craig.is/killing/mice">Mousetrap</a> 1.4.6 — © Craig Campbell, <a target="_blank" rel="noopener" href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a></li>
+                          <li><a target="_blank" rel="noopener" href="https://fontawesome.com/">Font Awesome Free</a> 6.5.1 — © Fonticons, Inc.; icons <a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, fonts <a target="_blank" rel="noopener" href="https://openfontlicense.org/">SIL OFL 1.1</a>, code <a target="_blank" rel="noopener" href="https://opensource.org/license/mit">MIT License</a></li>
+                          <li><a target="_blank" rel="noopener" href="https://firebase.google.com/">Firebase JS SDK</a> 12.17.0 — © Google LLC, <a target="_blank" rel="noopener" href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a></li>
+                          <li><a target="_blank" rel="noopener" href="https://github.com/Armawebtron/Armawebtron">Armawebtron</a> — vendored browser build used for the in-editor 3D preview, GPL-2.0-or-later; it bundles three.js and other libraries (see <code>armawebtron/src/lib/LICENSES</code> and <code>armawebtron/UPSTREAM.md</code>)</li>
+                        </ul>
+                        <h4>License and source</h4>
+                        <p>
+                          Vectron is free software licensed under the <a target="_blank" rel="noopener" href="https://www.gnu.org/licenses/gpl-3.0.html">GNU General Public License v3</a>.
+                          Source code is available in the <a target="_blank" rel="noopener" href="https://github.com/zwazi/Vectron">Vectron GitHub repository</a>.
                           This program comes with ABSOLUTELY NO WARRANTY, see <a href="https://www.gnu.org/licenses/gpl-3.0.html#section15" target=_blank>here</a>.
-                          This is free software, and you are welcome to redistribute it under <a href="https://www.gnu.org/licenses/gpl-3.0.html#terms" target=_blank>certain conditions</a>.
+                          You are welcome to redistribute it under <a href="https://www.gnu.org/licenses/gpl-3.0.html#terms" target=_blank>certain conditions</a>.
+                          If you encounter a bug or have a feature request, please <a target="_blank" rel="noopener" href="https://github.com/zwazi/Vectron/issues">submit an issue</a>.
                         </p>
-                        <br />
-                          If you encounter any bugs or think something should be added, please <a href="https://gitlab.com/Armanelgtron/Vectron/-/issues">submit an issue</a> or <a href="mailto:armanelgtron@gmail.com">send an e-mail</a>.
-                        <br />
                         <br />
                     </div>
 
