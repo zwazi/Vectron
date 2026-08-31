@@ -509,6 +509,11 @@ assert.match(firestoreRules, /affectedKeys\(\)\.hasOnly\(\['readAt'\]\)/);
 assert.match(firestoreRules, /match \/auditEvents\/\{eventId\}/);
 assert.doesNotMatch(firestoreRules, /allow write: if true/);
 
+assert.match(databaseRules.rules.racing.chat[".read"], /auth\.token\.admin == true/);
+assert.match(databaseRules.rules.racing.chat[".read"], /auth\.token\.neotron == true/);
+assert.strictEqual(databaseRules.rules.racing.activity[".read"], true);
+assert.deepStrictEqual(databaseRules.rules.racing.activity[".indexOn"], ["finishedAt"]);
+
 const commandRules = databaseRules.rules.racing.admin.commands.$serverId.$commandId;
 const commandFields = [
     "schemaVersion", "type", "state", "requestedAt", "expiresAt", "requestedBy",
@@ -517,13 +522,19 @@ const commandFields = [
 ];
 assert.match(commandRules[".write"], /auth\.token\.admin == true/);
 assert.match(commandRules[".write"], /auth\.token\.neotron == true/);
+assert.match(commandRules[".write"], /\$serverId == 'ams3'/);
 assert.match(commandRules[".validate"], /newData\.hasChildren/);
+assert.match(commandRules[".validate"], /start_console_stream/);
 for(const field of commandFields) {
     assert.deepStrictEqual(commandRules[field], {".validate": true},
         `Realtime Database commands must explicitly allow ${field} before the unknown-field catch-all`);
 }
 assert.strictEqual(commandRules.$other[".validate"], false,
     "Realtime Database commands must reject undeclared fields");
+assert.deepStrictEqual(
+    databaseRules.rules.racing.admin.console.$serverId[".indexOn"],
+    ["publishedAt"]
+);
 
 assert.match(functionsSource, /exports\.denyRegistration = onRequest/);
 assert.match(functionsSource, /exports\.createMapSubmission = onRequest/);
