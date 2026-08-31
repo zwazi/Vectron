@@ -594,8 +594,8 @@
 /* First-visit tooltip onboarding */
 .tooltip-welcome-popover {
   position: fixed;
-  left: 62px;
-  top: 48px;
+  left: 50%;
+  top: 50%;
   z-index: 1200;
   width: min(340px, calc(100vw - 78px));
   display: grid;
@@ -608,7 +608,7 @@
   border-radius: 11px;
   box-shadow: var(--workspace-shadow);
   opacity: 0;
-  transform: translateY(-8px) scale(0.98);
+  transform: translate(-50%, calc(-50% - 8px)) scale(0.98);
   transition: opacity 180ms ease, transform 180ms ease;
 }
 
@@ -624,7 +624,7 @@
 
 .tooltip-welcome-popover.visible {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .tooltip-welcome-icon {
