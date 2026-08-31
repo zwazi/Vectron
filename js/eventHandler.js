@@ -682,25 +682,50 @@ function eventHandler_showPinnedTooltips() {
 }
 
 // The editor chrome keeps settling after startup (fonts, async canvas
-// sizing), which would leave pinned tooltips anchored to stale positions.
-// Re-run the layout whenever the containers the bars hang off change size.
+// sizing, toolbar redistribution), and container sizes alone don't reveal
+// every anchor move — icons can shift inside a container whose own box
+// never changes. Watch container resizes for a fast response, and poll the
+// anchors' actual positions as the backstop that catches everything else.
 var eventHandler_pinnedTooltipAnchorObserver = null;
+var eventHandler_pinnedTooltipAnchorPoll = null;
+var eventHandler_pinnedTooltipAnchorFingerprint = "";
+
+function eventHandler_getPinnedTooltipAnchorFingerprint() {
+    var parts = [];
+    eventHandler_getPinnedTooltipElements().each(function() {
+        var rect = this.getBoundingClientRect();
+        parts.push(Math.round(rect.left) + "," + Math.round(rect.top));
+    });
+    parts.push(window.innerWidth + "x" + window.innerHeight);
+    return parts.join(";");
+}
+
 function eventHandler_watchPinnedTooltipAnchors() {
-    if(eventHandler_pinnedTooltipAnchorObserver || typeof ResizeObserver !== "function") return;
-    var debounce = null;
-    eventHandler_pinnedTooltipAnchorObserver = new ResizeObserver(function() {
-        clearTimeout(debounce);
-        debounce = setTimeout(eventHandler_layoutPinnedTooltips, 100);
-    });
-    $(document.body).add("#canvas_container, #tool_bar, #top-settings-bar, .info").each(function() {
-        eventHandler_pinnedTooltipAnchorObserver.observe(this);
-    });
+    if(!eventHandler_pinnedTooltipAnchorObserver && typeof ResizeObserver === "function") {
+        var debounce = null;
+        eventHandler_pinnedTooltipAnchorObserver = new ResizeObserver(function() {
+            clearTimeout(debounce);
+            debounce = setTimeout(eventHandler_layoutPinnedTooltips, 100);
+        });
+        $(document.body).add("#canvas_container, #tool_bar, #top-settings-bar, .info").each(function() {
+            eventHandler_pinnedTooltipAnchorObserver.observe(this);
+        });
+    }
+    if(eventHandler_pinnedTooltipAnchorPoll == null) {
+        eventHandler_pinnedTooltipAnchorPoll = setInterval(function() {
+            if(!eventHandler_tooltipsPinned) return;
+            if(eventHandler_getPinnedTooltipAnchorFingerprint() !== eventHandler_pinnedTooltipAnchorFingerprint) {
+                eventHandler_layoutPinnedTooltips();
+            }
+        }, 300);
+    }
 }
 
 function eventHandler_layoutPinnedTooltips() {
     if(!eventHandler_tooltipsPinned) return;
     var groups = eventHandler_getPinnedTooltipGroups();
 
+    eventHandler_pinnedTooltipAnchorFingerprint = eventHandler_getPinnedTooltipAnchorFingerprint();
     eventHandler_removePinnedTooltipConnectors();
     eventHandler_layoutPinnedTooltipColumn(eventHandler_collectPinnedTooltipItems(groups.sidebar));
     eventHandler_layoutPinnedTooltipRows(eventHandler_collectPinnedTooltipItems(groups.topBar),
@@ -760,10 +785,10 @@ function eventHandler_collectPinnedTooltipItems($elements) {
     return items;
 }
 
-// Lay the sidebar tooltips out as one left-aligned column beside the toolbar:
-// each tooltip sits level with its icon, nudged down just enough to clear the
-// one above, then the whole stack is pushed back up if it overflows the
-// viewport.
+// Every sidebar label stays vertically centred on its own icon so the
+// icon-to-label pairing is readable at a glance — a label never slides away
+// from its icon. A label that would overlap the one above it moves to the
+// next column over instead.
 function eventHandler_layoutPinnedTooltipColumn(items) {
     if(!items.length) return;
     var gap = eventHandler_pinnedTooltipGap;
@@ -778,21 +803,26 @@ function eventHandler_layoutPinnedTooltipColumn(items) {
         return (a.anchor.top + a.anchor.height / 2) - (b.anchor.top + b.anchor.height / 2);
     });
 
-    var tops = [];
-    var previousBottom = -Infinity;
-    items.forEach(function(item, index) {
-        var centered = item.anchor.top + item.anchor.height / 2 - item.height / 2;
-        tops[index] = Math.max(centered, previousBottom + gap, 4);
-        previousBottom = tops[index] + item.height;
+    var columns = [];
+    items.forEach(function(item) {
+        item.top = eventHandler_clamp(item.anchor.top + item.anchor.height / 2 - item.height / 2,
+            4, window.innerHeight - item.height - 4);
+        var index = 0;
+        while(columns[index] && item.top < columns[index].bottom + gap) index++;
+        if(!columns[index]) columns[index] = { bottom: -Infinity, width: 0 };
+        item.column = columns[index];
+        columns[index].bottom = item.top + item.height;
+        columns[index].width = Math.max(columns[index].width, item.width);
     });
-    var limit = window.innerHeight - 4;
-    for(var index = items.length - 1; index >= 0; index--) {
-        tops[index] = Math.max(Math.min(tops[index], limit - items[index].height), 4);
-        limit = tops[index] - gap;
-    }
 
-    items.forEach(function(item, index) {
-        item.$tip.css({ left: columnLeft + "px", top: tops[index] + "px" });
+    var left = columnLeft;
+    columns.forEach(function(column) {
+        column.left = left;
+        left += column.width + gap;
+    });
+
+    items.forEach(function(item) {
+        item.$tip.css({ left: item.column.left + "px", top: item.top + "px" });
         eventHandler_alignPinnedTooltipArrow(item.$tip, item.element, eventHandler_tooltipPlacementRight);
     });
 }
