@@ -675,43 +675,169 @@ function eventHandler_drawPinnedTooltipConnector($tip, element, placement) {
 }
 
 function eventHandler_showPinnedTooltips() {
-    var $tooltips = eventHandler_getPinnedTooltipElements();
-    var usedRects = [];
+    eventHandler_removePinnedTooltipConnectors();
+    eventHandler_getPinnedTooltipElements().tooltip("show");
+    eventHandler_watchPinnedTooltipAnchors();
+    setTimeout(eventHandler_layoutPinnedTooltips, 0);
+}
+
+// The editor chrome keeps settling after startup (fonts, async canvas
+// sizing), which would leave pinned tooltips anchored to stale positions.
+// Re-run the layout whenever the containers the bars hang off change size.
+var eventHandler_pinnedTooltipAnchorObserver = null;
+function eventHandler_watchPinnedTooltipAnchors() {
+    if(eventHandler_pinnedTooltipAnchorObserver || typeof ResizeObserver !== "function") return;
+    var debounce = null;
+    eventHandler_pinnedTooltipAnchorObserver = new ResizeObserver(function() {
+        clearTimeout(debounce);
+        debounce = setTimeout(eventHandler_layoutPinnedTooltips, 100);
+    });
+    $(document.body).add("#canvas_container, #tool_bar, #top-settings-bar, .info").each(function() {
+        eventHandler_pinnedTooltipAnchorObserver.observe(this);
+    });
+}
+
+function eventHandler_layoutPinnedTooltips() {
+    if(!eventHandler_tooltipsPinned) return;
+    var groups = eventHandler_getPinnedTooltipGroups();
 
     eventHandler_removePinnedTooltipConnectors();
-    $tooltips.tooltip("show");
-    setTimeout(function() {
-        $tooltips.each(function() {
+    eventHandler_layoutPinnedTooltipColumn(eventHandler_collectPinnedTooltipItems(groups.sidebar));
+    eventHandler_layoutPinnedTooltipRows(eventHandler_collectPinnedTooltipItems(groups.topBar),
+        eventHandler_tooltipPlacementBottom);
+    eventHandler_layoutPinnedTooltipRows(eventHandler_collectPinnedTooltipItems(groups.bottomBar),
+        eventHandler_tooltipPlacementTop);
+    groups.previewError.each(function() {
+        eventHandler_keepTooltipInViewport($(this));
+    });
+
+    [[groups.sidebar, eventHandler_tooltipPlacementRight],
+     [groups.topBar, eventHandler_tooltipPlacementBottom],
+     [groups.bottomBar, eventHandler_tooltipPlacementTop],
+     [groups.previewError, eventHandler_tooltipPlacementTop]].forEach(function(group) {
+        group[0].each(function() {
             var $tip = eventHandler_getBootstrapTooltip($(this));
             if(!$tip || !$tip.length || !$tip.is(":visible")) return;
-
-            var placement = ($(this).attr("data-placement") || eventHandler_tooltipPlacementRight).split(" ")[0];
-            usedRects.push(eventHandler_repositionPinnedTooltip($tip, this, usedRects, placement));
+            eventHandler_drawPinnedTooltipConnector($tip, this, group[1]);
         });
-        $tooltips.each(function() {
-            var $tip = eventHandler_getBootstrapTooltip($(this));
-            if(!$tip || !$tip.length || !$tip.is(":visible")) return;
+    });
+}
 
-            var placement = ($(this).attr("data-placement") || eventHandler_tooltipPlacementRight).split(" ")[0];
-            eventHandler_drawPinnedTooltipConnector($tip, this, placement);
+function eventHandler_getPinnedTooltipGroups() {
+    function visibleOnly($set) {
+        return $set.filter(function() {
+            return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
         });
-    }, 0);
+    }
+    var error = eventHandler_getPreviewValidationError();
+    return {
+        sidebar: visibleOnly($("#tool_bar [rel=tooltip]")),
+        topBar: visibleOnly($("#top-settings-bar [rel=tooltip]")),
+        bottomBar: visibleOnly($(".info [rel=tooltip]")),
+        previewError: error ? $("#armawebtron-preview-open-tooltip:visible") : $()
+    };
 }
 
 function eventHandler_getPinnedTooltipElements() {
-    var $sidebar = $("#tool_bar [rel=tooltip]").filter(function() {
-        return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
-    });
-    var $topBar = $("#top-settings-bar [rel=tooltip]").filter(function() {
-        return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
-    });
-    var $bottomBar = $(".info [rel=tooltip]").filter(function() {
-        return $(this).is(":visible") && $(this).closest(":hidden").length == 0;
-    });
-    var error = eventHandler_getPreviewValidationError();
-    var $previewError = error ? $("#armawebtron-preview-open-tooltip:visible") : $();
+    var groups = eventHandler_getPinnedTooltipGroups();
+    return groups.sidebar.add(groups.topBar).add(groups.bottomBar).add(groups.previewError);
+}
 
-    return $sidebar.add($topBar).add($bottomBar).add($previewError);
+function eventHandler_collectPinnedTooltipItems($elements) {
+    var items = [];
+    $elements.each(function() {
+        var $tip = eventHandler_getBootstrapTooltip($(this));
+        if(!$tip || !$tip.length || !$tip.is(":visible")) return;
+        var tipRect = $tip[0].getBoundingClientRect();
+        items.push({
+            $tip: $tip,
+            element: this,
+            anchor: this.getBoundingClientRect(),
+            width: tipRect.width,
+            height: tipRect.height
+        });
+    });
+    return items;
+}
+
+// Lay the sidebar tooltips out as one left-aligned column beside the toolbar:
+// each tooltip sits level with its icon, nudged down just enough to clear the
+// one above, then the whole stack is pushed back up if it overflows the
+// viewport.
+function eventHandler_layoutPinnedTooltipColumn(items) {
+    if(!items.length) return;
+    var gap = eventHandler_pinnedTooltipGap;
+
+    var columnLeft = -Infinity;
+    items.forEach(function(item) {
+        columnLeft = Math.max(columnLeft, item.anchor.right);
+    });
+    columnLeft += gap;
+
+    items.sort(function(a, b) {
+        return (a.anchor.top + a.anchor.height / 2) - (b.anchor.top + b.anchor.height / 2);
+    });
+
+    var tops = [];
+    var previousBottom = -Infinity;
+    items.forEach(function(item, index) {
+        var centered = item.anchor.top + item.anchor.height / 2 - item.height / 2;
+        tops[index] = Math.max(centered, previousBottom + gap, 4);
+        previousBottom = tops[index] + item.height;
+    });
+    var limit = window.innerHeight - 4;
+    for(var index = items.length - 1; index >= 0; index--) {
+        tops[index] = Math.max(Math.min(tops[index], limit - items[index].height), 4);
+        limit = tops[index] - gap;
+    }
+
+    items.forEach(function(item, index) {
+        item.$tip.css({ left: columnLeft + "px", top: tops[index] + "px" });
+        eventHandler_alignPinnedTooltipArrow(item.$tip, item.element, eventHandler_tooltipPlacementRight);
+    });
+}
+
+// Lay a bar's tooltips out as aligned rows hugging the bar: every tooltip is
+// centered under (or over) its control, and overlapping neighbours move to the
+// next uniform row instead of drifting to arbitrary offsets.
+function eventHandler_layoutPinnedTooltipRows(items, placement) {
+    if(!items.length) return;
+    var gap = eventHandler_pinnedTooltipGap;
+    var below = placement === eventHandler_tooltipPlacementBottom;
+
+    var base = below ? -Infinity : Infinity;
+    items.forEach(function(item) {
+        base = below ? Math.max(base, item.anchor.bottom) : Math.min(base, item.anchor.top);
+    });
+
+    items.forEach(function(item) {
+        var centered = item.anchor.left + item.anchor.width / 2 - item.width / 2;
+        item.left = eventHandler_clamp(centered, 4, window.innerWidth - item.width - 4);
+    });
+    items.sort(function(a, b) { return a.left - b.left; });
+
+    var tiers = [];
+    items.forEach(function(item) {
+        for(var index = 0; index < tiers.length; index++) {
+            if(item.left >= tiers[index].right + gap) break;
+        }
+        if(!tiers[index]) tiers[index] = { right: -Infinity, height: 0 };
+        item.tier = tiers[index];
+        tiers[index].right = item.left + item.width;
+        tiers[index].height = Math.max(tiers[index].height, item.height);
+    });
+
+    var offset = gap;
+    tiers.forEach(function(tier) {
+        tier.offset = offset;
+        offset += tier.height + gap;
+    });
+
+    items.forEach(function(item) {
+        var top = below ? base + item.tier.offset : base - item.tier.offset - item.height;
+        item.$tip.css({ left: item.left + "px", top: eventHandler_clamp(top, 4, window.innerHeight - item.height - 4) + "px" });
+        eventHandler_alignPinnedTooltipArrow(item.$tip, item.element, placement);
+    });
 }
 
 function eventHandler_togglePinnedTooltips() {
@@ -2892,5 +3018,8 @@ window.onresize = function() {
     vectron_screen.setViewBox((vectron_width-width)/2, (vectron_height-height)/2, width, height);
 
     clearTimeout(__resize_timeout);
-    __resize_timeout = setTimeout(function(){vectron_render()},150);
+    __resize_timeout = setTimeout(function(){
+        vectron_render();
+        eventHandler_layoutPinnedTooltips();
+    },150);
 }
