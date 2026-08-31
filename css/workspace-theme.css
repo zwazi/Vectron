@@ -587,8 +587,12 @@
 .tooltip.left .tooltip-arrow { border-left-color: #29292e; }
 .tooltip.right .tooltip-arrow { border-right-color: #29292e; }
 
+/* Pinned tooltips can sit a row or two away from their control; the
+   connector line is what keeps that ownership readable, so give it a
+   subtle treatment instead of hiding it. */
 .tooltip-connector {
-  display: none !important;
+  background: rgba(255, 255, 255, 0.32);
+  height: 1px;
 }
 
 /* First-visit tooltip onboarding */
