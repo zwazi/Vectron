@@ -1080,6 +1080,18 @@ body.auth-locked {
   outline: none;
 }
 
+.repository-tab:disabled,
+.repository-tab[aria-disabled="true"] {
+  cursor: not-allowed;
+  color: #5f626a;
+  opacity: 0.52;
+}
+
+.repository-tab:disabled:hover,
+.repository-tab[aria-disabled="true"]:hover {
+  color: #5f626a;
+}
+
 .repository-tab.active,
 .repository-tab[aria-selected="true"] {
   border-color: rgba(239, 68, 68, 0.25);
@@ -1289,6 +1301,24 @@ button.repository-author-heading:disabled {
   border-color: rgba(239, 68, 68, 0.27);
   color: var(--auth-cyan);
   background: rgba(239, 68, 68, 0.08);
+}
+
+.repository-map-status.review-unread {
+  border-color: rgba(250, 204, 21, 0.34);
+  color: #fde68a;
+  background: rgba(161, 98, 7, 0.13);
+}
+
+.repository-map-status.review-read {
+  border-color: rgba(96, 165, 250, 0.32);
+  color: #bfdbfe;
+  background: rgba(30, 64, 175, 0.13);
+}
+
+.repository-map-status.review-processing {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  background: rgba(153, 27, 27, 0.13);
 }
 
 .repository-map-copy small {

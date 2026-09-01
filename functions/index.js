@@ -10,6 +10,7 @@ const logger = require("firebase-functions/logger");
 const {onDocumentWritten} = require("firebase-functions/v2/firestore");
 const {onRequest} = require("firebase-functions/v2/https");
 const {buildCatalogArtifacts} = require("./catalog-manifest");
+const {validateSubmissionRevocation} = require("./submission-revocation");
 const {
   IdentityBridgeError,
   bearerToken,
@@ -542,6 +543,9 @@ exports.createMapSubmission = onRequest({
       transaction.create(submissionRef, {
         ...payload,
         status: "pending",
+        reviewState: "unread",
+        reviewReadAt: null,
+        reviewStartedAt: null,
         submittedBy: user.uid,
         submittedByName: account && account.authorName || user.name || user.email || user.uid,
         pendingResourceId,
@@ -595,6 +599,122 @@ exports.createMapSubmission = onRequest({
       response,
       Number.isInteger(error && error.status) ? error.status : 500,
       error && error.status ? error.message : "The map submission could not be created."
+    );
+  }
+});
+
+exports.revokeMapSubmission = onRequest({
+  region: "us-central1",
+  cors: allowedOrigins,
+  timeoutSeconds: 30,
+  memory: "256MiB"
+}, async (request, response) => {
+  response.set("Cache-Control", "no-store, max-age=0");
+  if(request.method !== "POST") {
+    response.set("Allow", "POST");
+    requestError(response, 405, "Use POST to revoke a map submission.");
+    return;
+  }
+  try {
+    const user = await authenticatedUser(request);
+    const submissionId = String(request.body && request.body.submissionId || "").trim();
+    const expectedStoragePath = String(
+      request.body && request.body.expectedStoragePath || ""
+    ).trim().slice(0, 2048);
+    if(!/^[A-Za-z0-9_-]{1,128}$/.test(submissionId)) {
+      throw httpError(400, "Choose a valid map submission.");
+    }
+    if(!expectedStoragePath) {
+      throw httpError(400, "The map revision to restore is required.");
+    }
+
+    const submissionRef = db.collection("mapSubmissions").doc(submissionId);
+    const auditRef = db.collection("auditEvents").doc();
+    let revokedSubmission = null;
+    await db.runTransaction(async transaction => {
+      const submissionSnapshot = await transaction.get(submissionRef);
+      const submission = validateSubmissionRevocation(
+        submissionSnapshot.exists ? submissionSnapshot.data() : null,
+        user.uid,
+        expectedStoragePath
+      );
+
+      const pendingResourceId = String(submission.pendingResourceId || resourceKey(
+        activeResourcePath(submission)
+      ));
+      const pendingRef = db.collection("pendingResourcePaths").doc(pendingResourceId);
+      const hashRef = /^[0-9a-f]{64}$/.test(String(submission.sha256 || ""))
+        ? db.collection("pendingSubmissionHashes")
+          .doc(pendingHashId(user.uid, submission.sha256)) : null;
+      const clientMapRef = submission.clientMapId
+        ? db.collection("pendingClientMaps")
+          .doc(pendingClientMapId(user.uid, submission.clientMapId)) : null;
+      const [pendingSnapshot, hashSnapshot, clientMapSnapshot] = await Promise.all([
+        transaction.get(pendingRef),
+        hashRef ? transaction.get(hashRef) : Promise.resolve(null),
+        clientMapRef ? transaction.get(clientMapRef) : Promise.resolve(null)
+      ]);
+
+      transaction.update(submissionRef, {
+        status: "revoked",
+        reviewState: "revoked",
+        revokedAt: FieldValue.serverTimestamp(),
+        revokedBy: user.uid,
+        historyVisible: false,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      if(pendingSnapshot.exists && pendingSnapshot.data().submissionId === submissionId) {
+        transaction.delete(pendingRef);
+      }
+      if(hashRef && hashSnapshot && hashSnapshot.exists &&
+         hashSnapshot.data().submissionId === submissionId) {
+        transaction.delete(hashRef);
+      }
+      if(clientMapRef && clientMapSnapshot && clientMapSnapshot.exists &&
+         clientMapSnapshot.data().submissionId === submissionId) {
+        transaction.delete(clientMapRef);
+      }
+      transaction.create(auditRef, {
+        actorUid: user.uid,
+        actorName: submission.submittedByName || user.name || user.email || user.uid,
+        action: "map.review.revoke",
+        targetType: "mapSubmission",
+        targetId: submissionId,
+        mapId: submission.mapId || "",
+        before: {status: "pending", reviewState: submission.reviewState || "unread"},
+        after: {status: "revoked"},
+        createdAt: FieldValue.serverTimestamp()
+      });
+      revokedSubmission = {
+        submissionId,
+        mapId: String(submission.mapId || ""),
+        operation: String(submission.operation || "create"),
+        authorId: String(submission.authorId || ""),
+        authorName: String(submission.authorName || ""),
+        category: MAP_CATEGORY,
+        mapName: String(submission.mapName || ""),
+        mapVersion: String(submission.mapVersion || ""),
+        storagePath: String(submission.storagePath || ""),
+        sourceRevisionId: String(submission.sourceRevisionId || ""),
+        sourceMapId: String(submission.sourceMapId || ""),
+        resubmissionOf: String(submission.resubmissionOf || ""),
+        clientMapId: String(submission.clientMapId || ""),
+        sha256: String(submission.sha256 || "")
+      };
+    });
+
+    logger.info("Vectron map submission revoked", {
+      submissionId,
+      mapId: revokedSubmission.mapId,
+      submittedBy: user.uid
+    });
+    response.status(200).json({revoked: true, submission: revokedSubmission});
+  } catch(error) {
+    logger.error("Vectron map submission revocation failed", error);
+    requestError(
+      response,
+      Number.isInteger(error && error.status) ? error.status : 500,
+      error && error.status ? error.message : "The map submission could not be revoked."
     );
   }
 });

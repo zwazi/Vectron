@@ -21,6 +21,15 @@ let repositoryEdit = {
     sourceOwnerUid: "target-owner"
 };
 let restoredRepositoryEdit = undefined;
+let metadataSyncCount = 0;
+
+const dollar = function() {
+    return {val() { return this; }};
+};
+dollar.parseXML = function(xml) {
+    if(typeof xml !== "string" || !xml.includes("<Resource")) throw new Error("Invalid XML");
+    return {};
+};
 
 const context = {
     console: {warn() {}},
@@ -39,12 +48,7 @@ const context = {
         setItem(key, value) { stored.set(key, value); },
         removeItem(key) { stored.delete(key); }
     },
-    $: {
-        parseXML(xml) {
-            if(typeof xml !== "string" || !xml.includes("<Resource")) throw new Error("Invalid XML");
-            return {};
-        }
-    },
+    $: dollar,
     vectron_started: true,
     vectron_panX: 12,
     vectron_panY: -8,
@@ -58,6 +62,15 @@ const context = {
     vectron_resetForInitialMap() { resetCount++; },
     aamap_disableSymmetry() {},
     aamap_clearHistory() {},
+    xml_name: "Draft",
+    xml_author: "Target Author",
+    xml_category: "maps",
+    xml_version: "1",
+    xml_dtd: "sty.dtd",
+    xml_axes: 4,
+    xml_settings: [],
+    xml_clearRemixHistory() {},
+    vectron_syncLockedMetadata() { metadataSyncCount++; },
     xml_process(xml) { processedXml = xml; },
     vectron_render() { renderCount++; },
     gui_toast(message) { toast = message; },
@@ -99,6 +112,16 @@ assert.strictEqual(resetCount, 1);
 assert.strictEqual(renderCount, 1);
 assert.strictEqual(toast, "Restored your local draft.");
 assert.deepStrictEqual(restoredRepositoryEdit, repositoryEdit);
+
+assert.strictEqual(context.vectron_localDraftSetUser("clear-user"), true);
+assert.strictEqual(context.vectron_localDraftSaveNow(), true);
+const clearKey = "vectron.localDraft.v1.clear-user";
+assert.strictEqual(stored.has(clearKey), true);
+assert.strictEqual(context.vectron_localDraftClearCurrent(), true);
+assert.strictEqual(stored.has(clearKey), false);
+assert.strictEqual(context.xml_name, "");
+assert.strictEqual(context.xml_settings.length, 0);
+assert.strictEqual(metadataSyncCount, 1);
 
 assert.strictEqual(context.vectron_localDraftSetUser("corrupt-user"), true);
 const corruptKey = "vectron.localDraft.v1.corrupt-user";

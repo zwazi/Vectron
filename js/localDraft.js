@@ -146,10 +146,53 @@ function vectron_localDraftRestore() {
     }
 }
 
+function vectron_localDraftClearCurrent() {
+    if(vectron_localDraftSaveTimer) {
+        window.clearTimeout(vectron_localDraftSaveTimer);
+        vectron_localDraftSaveTimer = null;
+    }
+    if(vectron_localDraftUserId) {
+        try {
+            localStorage.removeItem(vectron_localDraftStorageKey(vectron_localDraftUserId));
+        } catch(error) {
+            console.warn("Vectron could not remove the submitted local draft.", error);
+        }
+    }
+
+    vectron_localDraftRestoring = true;
+    try {
+        if(typeof vectron_resetForInitialMap === "function") {
+            vectron_resetForInitialMap();
+        } else {
+            aamap_objects = [];
+        }
+        $("#map_name,#map_author,#map_category,#map_version,#map_dtd,#map_settings").val("");
+        $("#map_dtd").val("sty.dtd");
+        $("#map_axes").val("4");
+        xml_name = "";
+        xml_author = "";
+        xml_category = "";
+        xml_version = "";
+        xml_dtd = "sty.dtd";
+        xml_axes = 4;
+        xml_settings = [];
+        if(typeof xml_clearRemixHistory === "function") xml_clearRemixHistory();
+        if(typeof window.vectron_syncLockedMetadata === "function") {
+            window.vectron_syncLockedMetadata();
+        }
+        if(typeof aamap_clearHistory === "function") aamap_clearHistory();
+        if(typeof vectron_render === "function") vectron_render();
+        return true;
+    } finally {
+        vectron_localDraftRestoring = false;
+    }
+}
+
 window.vectron_localDraftSetUser = vectron_localDraftSetUser;
 window.vectron_localDraftSaveNow = vectron_localDraftSaveNow;
 window.vectron_localDraftScheduleSave = vectron_localDraftScheduleSave;
 window.vectron_localDraftRestore = vectron_localDraftRestore;
+window.vectron_localDraftClearCurrent = vectron_localDraftClearCurrent;
 window.vectron_localMapIdentity = vectron_localMapIdentity;
 window.vectron_localMapIdentityReset = vectron_localMapIdentityReset;
 

@@ -33,6 +33,13 @@ An approved user can also see their denied submissions under **Maps → My maps*
 including the review reason. Opening **Edit and resubmit** loads the exact denied
 revision, preserves whether it was a new map or an edit, and links the new review
 to the denied submission without changing the original review record.
+Once a submission is accepted into the queue, Vectron clears that map from the
+active editor and removes its active local draft. **Maps → Under Review** remains
+visible at all times, is enabled only while the user has a pending submission,
+and reports whether each review is unread, read, or processing. The submitter can
+revoke a pending review there; revocation atomically releases its queue
+reservations, records an audit event, and restores the exact immutable submitted
+revision to the editor so work can continue.
 Submission creation is handled by a trusted Cloud Function that atomically
 reserves the normalized author/name/version resource path. Published versions,
 pending versions, concurrent uploads, stale browser clients, and independent

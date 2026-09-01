@@ -47,6 +47,7 @@ const FIREBASE_STORAGE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_
 const FIREBASE_FIRESTORE_URL = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`;
 const REGISTRATION_DENIAL_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/denyRegistration";
 const MAP_SUBMISSION_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/createMapSubmission";
+const MAP_SUBMISSION_REVOKE_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/revokeMapSubmission";
 const IDENTITY_BRIDGE_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/exchangeNeotronIdentity";
 const NEOTRON_HANDOFF_EXCHANGE_URL = "https://us-central1-neotron-7ba2a.cloudfunctions.net/vectronAuthExchange";
 const APP_CHECK_SITE_KEY = "6Ld3iJ8tAAAAAP9bIQBdZE6P2HvTEhigwKQ0q__L";
@@ -113,7 +114,9 @@ const repositoryStatus = document.getElementById("map-repository-status");
 const repositoryList = document.getElementById("map-repository-list");
 const repositoryTabs = Array.from(document.querySelectorAll("[data-repository-tab]"));
 const repositoryMineTab = document.getElementById("map-repository-mine-tab");
+const repositoryReviewTab = document.getElementById("map-repository-review-tab");
 const repositoryMineCount = document.getElementById("map-repository-mine-count");
+const repositoryReviewCount = document.getElementById("map-repository-review-count");
 const repositoryOthersCount = document.getElementById("map-repository-others-count");
 const notificationButton = document.querySelector("[data-notifications]");
 const notificationCount = document.querySelector("[data-notification-count]");
@@ -747,6 +750,7 @@ function normalizeRepositoryEditState(value) {
     const sourceOperation = ["create", "edit", "metadata", "size"].includes(value.sourceOperation)
         ? value.sourceOperation : "edit";
     const deniedSubmissionId = String(value.deniedSubmissionId || "");
+    const revokedSubmissionId = String(value.revokedSubmissionId || "");
     const reviewSubmissionId = String(value.reviewSubmissionId || "");
     const reviewSourceOperation = String(value.reviewSourceOperation || "");
     const reviewDecisionReason = String(value.reviewDecisionReason || "").trim().slice(0, 1000);
@@ -758,7 +762,7 @@ function normalizeRepositoryEditState(value) {
     return {
         sourcePath, sourceName, sourceVersion, sourceCategory, targetAuthor,
         targetAuthorId, sourceOwnerUid, mapId, sourceRevisionId,
-        sourceOperation, deniedSubmissionId,
+        sourceOperation, deniedSubmissionId, revokedSubmissionId,
         reviewSubmissionId, reviewSourceOperation, reviewDecisionReason, submissionReason
     };
 }
@@ -1936,6 +1940,30 @@ function buildAdminMapPreview(xml, submission) {
     return svg;
 }
 
+async function markSubmissionReviewState(submissionId, nextState) {
+    if(!currentUserIsAdmin() || !["read", "processing"].includes(nextState)) return false;
+    const submissionRef = firestoreSdk.doc(firestore, "mapSubmissions", submissionId);
+    return firestoreSdk.runTransaction(firestore, async transaction => {
+        const snapshot = await transaction.get(submissionRef);
+        if(!snapshot.exists() || snapshot.data().status !== "pending") return false;
+        const submission = snapshot.data();
+        if(nextState === "read" && (submission.reviewReadAt ||
+           submission.reviewState === "processing" || submission.reviewStartedAt)) return true;
+        const changes = {
+            reviewState:nextState,
+            updatedAt:firestoreSdk.serverTimestamp()
+        };
+        if(!submission.reviewReadAt) changes.reviewReadAt = firestoreSdk.serverTimestamp();
+        if(nextState === "processing") {
+            if(!submission.reviewStartedAt) changes.reviewStartedAt = firestoreSdk.serverTimestamp();
+            changes.reviewedBy = auth.currentUser.uid;
+            changes.reviewedByName = displayNameForUser(auth.currentUser);
+        }
+        transaction.update(submissionRef, changes);
+        return true;
+    });
+}
+
 async function loadAdminSubmissionPreview(preview, submission) {
     const path = String(submission.storagePath || "");
     if(!path) {
@@ -1954,6 +1982,7 @@ async function loadAdminSubmissionPreview(preview, submission) {
         if(!preview.isConnected || preview.dataset.adminPreviewPath !== path) return;
         preview.replaceChildren(buildAdminMapPreview(xml, submission));
         preview.classList.remove("error");
+        return true;
     } catch(error) {
         console.error("Vectron review preview failed.", error);
         if(!preview.isConnected || preview.dataset.adminPreviewPath !== path) return;
@@ -1962,6 +1991,7 @@ async function loadAdminSubmissionPreview(preview, submission) {
         message.textContent = error && error.message ? error.message : "Map preview unavailable.";
         preview.replaceChildren(message);
         preview.classList.add("error");
+        return false;
     } finally {
         if(preview.isConnected && preview.dataset.adminPreviewPath === path) {
             preview.setAttribute("aria-busy", "false");
@@ -1971,7 +2001,14 @@ async function loadAdminSubmissionPreview(preview, submission) {
 
 function queueAdminSubmissionPreview(preview, submission) {
     adminPreviewTargets.set(preview, submission);
-    const load = () => loadAdminSubmissionPreview(preview, submission);
+    const load = async () => {
+        const loaded = await loadAdminSubmissionPreview(preview, submission);
+        if(loaded && submission.status === "pending") {
+            markSubmissionReviewState(submission.id, "read").catch(error => {
+                console.error("Vectron could not mark the review as read.", error);
+            });
+        }
+    };
     if(typeof IntersectionObserver !== "function") {
         window.setTimeout(load, 0);
         return;
@@ -3914,6 +3951,9 @@ async function editPendingSubmission(submissionId) {
     setAdminBusy(true);
     setAdminStatus("Opening the pending revision in Vectron…");
     try {
+        if(!await markSubmissionReviewState(submission.id, "processing")) {
+            throw new Error("This review is no longer pending.");
+        }
         await loadPendingSubmissionIntoEditor(
             submission, identity, decisionReason(card, false)
         );
@@ -5019,11 +5059,24 @@ async function uploadCurrentMap(options = {}) {
             )
         });
         await createMapSubmission(user, submission, "finalize");
+        repositorySubmissions = [
+            {id:submission.submissionId, data:() => ({
+                ...submission, status:"pending", reviewState:"unread"
+            })},
+            ...repositorySubmissions.filter(item => item.id !== submission.submissionId &&
+                item.id !== submission.replacesSubmissionId)
+        ];
+        syncRepositoryReviewTab();
         if(editState) clearRepositoryEditState();
-        if(typeof window.vectron_localDraftSaveNow === "function") {
-            window.vectron_localDraftSaveNow();
+        if(typeof window.vectron_localDraftClearCurrent === "function") {
+            window.vectron_localDraftClearCurrent();
+        } else if(typeof window.vectron_resetForInitialMap === "function") {
+            window.vectron_resetForInitialMap();
         }
-        showEditorMessage(`${mapName} was ${replacesSubmission ? "updated in" : resubmissionOf ? "resubmitted to" : "submitted for"} admin review. You’ll be notified when it is approved or denied.`);
+        showEditorMessage(
+            `${mapName} was ${replacesSubmission ? "updated in" : resubmissionOf ? "resubmitted to" : "submitted for"} ` +
+            "admin review and cleared from the editor. Track it in Maps → Under Review."
+        );
         showMapFileCommand(mapName, mapVersion, objectPath);
     } catch(error) {
         console.error("Vectron map upload failed.", error);
@@ -5186,6 +5239,36 @@ function repositoryCatalogSummary() {
     return summary;
 }
 
+function repositoryPendingReviews() {
+    return repositorySubmissions
+        .filter(item => item && typeof item.data === "function" && item.data().status === "pending")
+        .map(item => ({id:item.id, ...item.data()}));
+}
+
+function repositoryReviewStatus(submission) {
+    if(submission.reviewState === "processing" || submission.reviewStartedAt ||
+       submission.reviewRevisionId || submission.reviewEditedAt) {
+        return {key:"processing", label:"Processing"};
+    }
+    if(submission.reviewState === "read" || submission.reviewReadAt) {
+        return {key:"read", label:"Read"};
+    }
+    return {key:"unread", label:"Unread"};
+}
+
+function syncRepositoryReviewTab() {
+    const count = repositoryPendingReviews().length;
+    if(repositoryReviewCount) repositoryReviewCount.textContent = String(count);
+    if(repositoryReviewTab) {
+        repositoryReviewTab.disabled = count === 0;
+        repositoryReviewTab.setAttribute("aria-disabled", count === 0 ? "true" : "false");
+        repositoryReviewTab.title = count
+            ? `${count} map ${count === 1 ? "is" : "are"} waiting for review`
+            : "No maps are currently under review";
+    }
+    return count;
+}
+
 function stopRepositoryStatusListeners() {
     repositoryStatusUnsubscribes.forEach(unsubscribe => unsubscribe());
     repositoryStatusUnsubscribes = [];
@@ -5206,6 +5289,21 @@ function startRepositoryStatusListeners() {
             renderRepositoryMaps();
         }
     }, error => console.error("Vectron catalog status failed to refresh.", error)));
+    if(!guestMode && auth && auth.currentUser) {
+        const pendingReference = firestoreSdk.query(
+            firestoreSdk.collection(firestore, "mapSubmissions"),
+            firestoreSdk.where("submittedBy", "==", auth.currentUser.uid),
+            firestoreSdk.where("status", "==", "pending"),
+            firestoreSdk.limit(100)
+        );
+        repositoryStatusUnsubscribes.push(firestoreSdk.onSnapshot(pendingReference, snapshot => {
+            const retained = repositorySubmissions.filter(item => item.data().status !== "pending");
+            repositorySubmissions = [...retained, ...snapshot.docs];
+            const count = syncRepositoryReviewTab();
+            if(repositoryTab === "review" && count === 0) setRepositoryTab("mine");
+            else if(repositoryOverlay && !repositoryOverlay.hidden) renderRepositoryMaps();
+        }, error => console.error("Vectron review status failed to refresh.", error)));
+    }
     if(currentUserIsAdmin()) {
         repositoryStatusUnsubscribes.push(firestoreSdk.onSnapshot(
             firestoreSdk.collection(firestore, "serverCatalogState"),
@@ -5282,7 +5380,10 @@ function repositoryCanRead() {
 
 function setRepositoryTab(nextTab, focusTab = false) {
     const previousTab = repositoryTab;
-    repositoryTab = guestMode || nextTab === "others" ? "others" : "mine";
+    const reviewCount = syncRepositoryReviewTab();
+    repositoryTab = guestMode ? "others" :
+        nextTab === "review" && reviewCount ? "review" :
+        nextTab === "others" ? "others" : "mine";
     if(repositoryTab === "others" && previousTab !== "others") repositoryExpandedAuthors.clear();
     repositoryTabs.forEach(tab => {
         const selected = tab.dataset.repositoryTab === repositoryTab;
@@ -5295,16 +5396,86 @@ function setRepositoryTab(nextTab, focusTab = false) {
     if(repositoryMaps.length || repositorySubmissions.length) renderRepositoryMaps();
 }
 
+function renderRepositoryPendingReviews(pendingReviews) {
+    const query = repositorySearchQuery.toLocaleLowerCase("en-US");
+    const visible = pendingReviews.filter(submission => {
+        if(!query) return true;
+        const status = repositoryReviewStatus(submission).label;
+        return (`${submission.mapName || ""} ${submission.mapVersion || ""} ` +
+            `${submission.authorName || ""} ${status}`)
+            .toLocaleLowerCase("en-US").includes(query);
+    }).sort((left, right) => timestampMillis(right.createdAt) - timestampMillis(left.createdAt));
+
+    repositoryList.replaceChildren();
+    repositorySummary.textContent = `Showing ${visible.length} of ${pendingReviews.length} ` +
+        `${pendingReviews.length === 1 ? "map" : "maps"} under review. Status updates appear here automatically.`;
+    if(!visible.length) {
+        const empty = document.createElement("div");
+        empty.className = "repository-empty";
+        empty.textContent = "No reviews match that search.";
+        repositoryList.appendChild(empty);
+        return;
+    }
+
+    const group = document.createElement("section");
+    group.className = "repository-author-group";
+    const mapList = document.createElement("div");
+    mapList.className = "repository-author-maps";
+    visible.forEach(submission => {
+        const status = repositoryReviewStatus(submission);
+        const row = document.createElement("div");
+        row.className = "repository-map-row repository-map-under-review";
+        const copy = document.createElement("span");
+        copy.className = "repository-map-copy";
+        const name = document.createElement("strong");
+        name.textContent = `${submission.mapName || "Untitled map"} · ` +
+            `${normalizeMapVersion(submission.mapVersion)}`;
+        const badge = document.createElement("span");
+        badge.className = `repository-map-status review-${status.key}`;
+        badge.textContent = status.label;
+        name.append(" ", badge);
+        const statusTime = submission.reviewStartedAt || submission.reviewReadAt || submission.createdAt;
+        const detail = document.createElement("small");
+        detail.textContent = `Submitted ${formatTimestamp(submission.createdAt)} · ` +
+            `${status.label} ${formatTimestamp(statusTime)}`;
+        copy.append(name, detail);
+
+        const actions = document.createElement("span");
+        actions.className = "repository-map-actions";
+        const revoke = document.createElement("button");
+        revoke.type = "button";
+        revoke.className = "repository-remix-button danger";
+        revoke.dataset.repositoryRevoke = submission.id;
+        revoke.disabled = repositoryBusy;
+        revoke.innerHTML = '<i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Revoke &amp; edit</span>';
+        revoke.setAttribute(
+            "aria-label",
+            `Revoke ${submission.mapName || "this map"} from review and continue editing`
+        );
+        actions.appendChild(revoke);
+        row.append(copy, actions);
+        mapList.appendChild(row);
+    });
+    group.appendChild(mapList);
+    repositoryList.appendChild(group);
+}
+
 function renderRepositoryMaps() {
     if(repositoryPreviewObserver) {
         repositoryPreviewObserver.disconnect();
         repositoryPreviewObserver = null;
     }
     const items = repositoryItems();
+    const pendingReviews = repositoryPendingReviews();
     const mine = items.filter(repositoryMapIsMine);
     const others = repositoryMaps.filter(map => !repositoryMapIsMine(map));
     repositoryMineCount.textContent = String(mine.length);
+    syncRepositoryReviewTab();
     repositoryOthersCount.textContent = String(others.length);
+    if(repositoryTab === "review") {
+        renderRepositoryPendingReviews(pendingReviews);
+        return;
+    }
     const tabMaps = repositoryTab === "mine" ? mine : others;
     const query = repositorySearchQuery.toLocaleLowerCase("en-US");
     const visibleMaps = tabMaps.filter(map => {
@@ -5484,12 +5655,20 @@ async function refreshRepositoryMaps() {
                 firestoreSdk.getDocs(firestoreSdk.query(
                     firestoreSdk.collection(firestore, "mapSubmissions"),
                     firestoreSdk.where("submittedBy", "==", auth.currentUser.uid),
-                    firestoreSdk.where("status", "==", "denied")
+                    firestoreSdk.where("status", "==", "pending"),
+                    firestoreSdk.limit(100)
                 )),
                 firestoreSdk.getDocs(firestoreSdk.query(
                     firestoreSdk.collection(firestore, "mapSubmissions"),
                     firestoreSdk.where("submittedBy", "==", auth.currentUser.uid),
-                    firestoreSdk.where("resubmissionOf", ">", "")
+                    firestoreSdk.where("status", "==", "denied"),
+                    firestoreSdk.limit(100)
+                )),
+                firestoreSdk.getDocs(firestoreSdk.query(
+                    firestoreSdk.collection(firestore, "mapSubmissions"),
+                    firestoreSdk.where("submittedBy", "==", auth.currentUser.uid),
+                    firestoreSdk.where("resubmissionOf", ">", ""),
+                    firestoreSdk.limit(100)
                 ))
             ]).then(snapshots => ({
                 docs:Array.from(new Map(snapshots.flatMap(snapshot => snapshot.docs)
@@ -5554,6 +5733,123 @@ function closeRepository() {
     stopRepositoryStatusListeners();
     if(repositoryPreviousFocus && typeof repositoryPreviousFocus.focus === "function") {
         repositoryPreviousFocus.focus();
+    }
+}
+
+async function requestSubmissionRevocation(submission) {
+    const user = auth && auth.currentUser;
+    if(!user) throw new Error("Sign in before revoking a map review.");
+    const idToken = await authSdk.getIdToken(user, true);
+    const appCheckToken = (await appCheckSdk.getToken(repositoryAppCheck, false)).token;
+    const response = await fetch(MAP_SUBMISSION_REVOKE_URL, {
+        method:"POST",
+        headers:{
+            Authorization:`Bearer ${idToken}`,
+            "X-Firebase-AppCheck":appCheckToken,
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+            submissionId:submission.id,
+            expectedStoragePath:submission.storagePath
+        })
+    });
+    let result = {};
+    try {
+        result = await response.json();
+    } catch(error) {
+        result = {};
+    }
+    if(!response.ok) {
+        throw new Error(result.error || `Map revocation failed (${response.status}).`);
+    }
+    if(!result.revoked || !result.submission) {
+        throw new Error("Vectron did not confirm the map revocation.");
+    }
+    return result.submission;
+}
+
+async function revokeRepositorySubmission(submissionId) {
+    if(repositoryBusy || guestMode || !auth || !auth.currentUser) return;
+    const submission = repositoryPendingReviews().find(item => item.id === submissionId);
+    if(!submission) {
+        setRepositoryStatus("This map is no longer waiting for review. Refreshing…");
+        await refreshRepositoryMaps();
+        return;
+    }
+    if(!await confirmAction(
+        `Revoke ${submission.mapName || "this map"} from review and continue editing it? ` +
+        "This replaces the map currently on your editor screen.",
+        {confirmLabel:"Revoke and edit", danger:true}
+    )) return;
+
+    setRepositoryBusy(true);
+    setRepositoryStatus("Restoring the submitted revision before revoking its review…");
+    try {
+        const xml = await downloadRepositoryMap(submission.storagePath);
+        const parsed = $.parseXML(xml);
+        const resource = parsed.documentElement;
+        if(!resource || resource.tagName.toLocaleLowerCase() !== "resource" ||
+           resource.getAttribute("type") !== "aamap") {
+            throw new Error("The submitted revision is not an Armagetron map resource.");
+        }
+        if(submission.sha256 && await sha256Hex(xml) !== submission.sha256) {
+            throw new Error("The submitted revision no longer matches its review record.");
+        }
+
+        setRepositoryStatus("Revoking the review…");
+        const revoked = await requestSubmissionRevocation(submission);
+        if(revoked.storagePath !== submission.storagePath) {
+            throw new Error("The revoked review did not return the revision Vectron prepared.");
+        }
+
+        if(typeof window.vectron_localDraftSaveNow === "function") {
+            window.vectron_localDraftSaveNow();
+        }
+        if(typeof window.vectron_resetForInitialMap === "function") {
+            window.vectron_resetForInitialMap();
+        } else {
+            window.aamap_objects = [];
+        }
+        window.xml_process(xml);
+        if(typeof window.vectron_localMapIdentityReset === "function") {
+            window.vectron_localMapIdentityReset(revoked.clientMapId);
+        }
+        setRepositoryEditState({
+            sourcePath:revoked.storagePath,
+            sourceName:revoked.mapName,
+            sourceVersion:revoked.mapVersion,
+            sourceCategory:MAP_CATEGORY,
+            targetAuthor:revoked.authorName,
+            targetAuthorId:revoked.authorId,
+            sourceOwnerUid:auth.currentUser.uid,
+            mapId:revoked.mapId,
+            sourceRevisionId:revoked.sourceRevisionId,
+            sourceOperation:revoked.operation,
+            deniedSubmissionId:revoked.resubmissionOf,
+            revokedSubmissionId:revoked.submissionId
+        });
+        setCurrentMapName(revoked.mapName);
+        setCurrentMapVersion(revoked.mapVersion);
+        syncMapMetadata(auth.currentUser);
+        if(typeof window.vectron_localDraftSaveNow === "function") {
+            window.vectron_localDraftSaveNow();
+        }
+        repositorySubmissions = repositorySubmissions.filter(item => item.id !== submissionId);
+        syncRepositoryReviewTab();
+        setRepositoryStatus("");
+        closeRepository();
+        showEditorMessage(
+            `${revoked.mapName} was revoked from review and restored to your editor. ` +
+            "You can continue editing and submit it again when ready."
+        );
+    } catch(error) {
+        console.error("Vectron map review revocation failed.", error);
+        setRepositoryStatus(
+            error && error.message ? error.message : "The map review could not be revoked.",
+            "error"
+        );
+    } finally {
+        setRepositoryBusy(false);
     }
 }
 
@@ -5782,15 +6078,28 @@ function bindUi() {
         renderRepositoryMaps();
     });
     repositoryTabs.forEach(tab => {
-        tab.addEventListener("click", () => setRepositoryTab(tab.dataset.repositoryTab));
+        tab.addEventListener("click", () => {
+            if(!tab.disabled) setRepositoryTab(tab.dataset.repositoryTab);
+        });
         tab.addEventListener("keydown", event => {
             if(!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
             event.preventDefault();
-            const nextTab = event.key === "ArrowLeft" || event.key === "Home" ? "mine" : "others";
-            setRepositoryTab(nextTab, true);
+            const enabledTabs = repositoryTabs.filter(item => !item.hidden && !item.disabled);
+            if(!enabledTabs.length) return;
+            const currentIndex = Math.max(0, enabledTabs.indexOf(tab));
+            const nextIndex = event.key === "Home" ? 0 : event.key === "End"
+                ? enabledTabs.length - 1
+                : (currentIndex + (event.key === "ArrowLeft" ? -1 : 1) + enabledTabs.length) %
+                    enabledTabs.length;
+            setRepositoryTab(enabledTabs[nextIndex].dataset.repositoryTab, true);
         });
     });
     repositoryList.addEventListener("click", event => {
+        const revoke = event.target.closest("[data-repository-revoke]");
+        if(revoke) {
+            revokeRepositorySubmission(revoke.dataset.repositoryRevoke);
+            return;
+        }
         const authorToggle = event.target.closest("[data-repository-author]");
         if(authorToggle) {
             const author = authorToggle.dataset.repositoryAuthor;
