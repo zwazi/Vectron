@@ -9,6 +9,7 @@ import {
     mapFileCommand,
     mapFileName,
     mapNameError,
+    mapRatingSummary,
     normalizeCategory,
     normalizeMapVersion,
     mapVersionError,
@@ -21,6 +22,21 @@ import {
 } from "../js/catalog.js";
 
 assert.equal(normalizeMapVersion("v3"), "v3");
+assert.deepEqual(mapRatingSummary(4.25, 4), {
+    average:4.25,
+    count:4,
+    label:"4.25/5",
+    description:"4.25/5 from 4 ratings."
+});
+assert.equal(mapRatingSummary(5, 1).description, "5.00/5 from 1 rating.");
+assert.deepEqual(mapRatingSummary(null, 0), {
+    average:null,
+    count:0,
+    label:"Unrated",
+    description:"This map has not been rated yet."
+});
+assert.equal(mapRatingSummary(Number.NaN, 3).label, "Unrated");
+assert.equal(mapRatingSummary(6, 1).label, "Unrated");
 assert.equal(normalizeMapVersion("0.1"), "0.1");
 assert.equal(normalizeMapVersion("bad/$ version 💥"), "bad/$ version 💥");
 assert.equal(mapVersionError("bad/$ version 💥"), "");

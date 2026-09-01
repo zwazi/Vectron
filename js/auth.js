@@ -10,6 +10,7 @@ import {
     mapFileCommand,
     mapFileName,
     mapNameError,
+    mapRatingSummary,
     mapVersionError,
     normalizeAuthorName,
     normalizeCategory,
@@ -19,7 +20,7 @@ import {
     revisionStoragePath,
     rewriteResourceIdentity,
     safeMapName
-} from "./catalog.js";
+} from "./catalog.js?v=20260831-map-ratings-1";
 
 const REPOSITORY_FIREBASE_CONFIG = Object.freeze({
     apiKey: "AIzaSyCglVAiB3494_GQf2ESrE9y_2YWELpIfBg",
@@ -202,6 +203,7 @@ let uploadBusy = false;
 let repositoryBusy = false;
 let repositoryMaps = [];
 let repositorySubmissions = [];
+let repositoryRatings = new Map();
 let repositoryTab = "mine";
 let repositorySearchQuery = "";
 let repositoryLayout = readRepositoryLayout();
@@ -5151,6 +5153,63 @@ async function loadPublicCatalog(force = false, stateOverride = undefined) {
     return maps;
 }
 
+async function loadRepositoryRatings() {
+    const snapshot = await firestoreSdk.getDoc(
+        firestoreSdk.doc(firestore, "racingCatalog", "current")
+    );
+    const catalog = snapshot.exists() ? snapshot.data() : null;
+    const ratings = new Map();
+    const maps = catalog && Array.isArray(catalog.maps) ? catalog.maps : [];
+    maps.forEach(map => {
+        const summary = mapRatingSummary(map.rating, map.ratingCount);
+        const setRating = identifier => {
+            if(!identifier) return;
+            const existing = ratings.get(identifier);
+            if(!existing || summary.average !== null) ratings.set(identifier, summary);
+        };
+        setRating(map.mapId ? `map:${map.mapId}` : "");
+        setRating(map.ratingKey ? `rating:${map.ratingKey}` : "");
+        setRating(map.mapKey ? `record:${map.mapKey}` : "");
+    });
+    return ratings;
+}
+
+function repositoryRatingFor(map) {
+    const identifiers = [
+        map && map.mapId ? `map:${map.mapId}` : "",
+        map && map.sourceMapId ? `map:${map.sourceMapId}` : "",
+        map && map.ratingKey ? `rating:${map.ratingKey}` : "",
+        map && map.recordKey ? `record:${map.recordKey}` : ""
+    ];
+    for(const identifier of identifiers) {
+        if(identifier && repositoryRatings.has(identifier)) {
+            return repositoryRatings.get(identifier);
+        }
+    }
+    return mapRatingSummary(null, 0);
+}
+
+function repositoryRatingElement(map) {
+    const summary = repositoryRatingFor(map);
+    const rating = document.createElement("span");
+    rating.className = `repository-map-rating${summary.average === null ? " unrated" : ""}`;
+    rating.title = summary.description;
+    rating.setAttribute("aria-label", `Map rating: ${summary.description}`);
+    const star = document.createElement("i");
+    star.className = `${summary.average === null ? "fa-regular" : "fa-solid"} fa-star`;
+    star.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.textContent = summary.label;
+    if(summary.count) {
+        const count = document.createElement("small");
+        count.textContent = `(${summary.count})`;
+        rating.append(star, label, count);
+    } else {
+        rating.append(star, label);
+    }
+    return rating;
+}
+
 function repositoryMapDetailsData(id, data) {
     return {
         id,
@@ -5438,7 +5497,7 @@ function renderRepositoryPendingReviews(pendingReviews) {
         const detail = document.createElement("small");
         detail.textContent = `Submitted ${formatTimestamp(submission.createdAt)} · ` +
             `${status.label} ${formatTimestamp(statusTime)}`;
-        copy.append(name, detail);
+        copy.append(name, detail, repositoryRatingElement(submission));
 
         const actions = document.createElement("span");
         actions.className = "repository-map-actions";
@@ -5583,7 +5642,7 @@ function renderRepositoryMaps() {
                 } else {
                     path.textContent = map.resourcePath;
                 }
-                copy.append(name, path);
+                copy.append(name, path, repositoryRatingElement(map));
 
                 const actions = document.createElement("span");
                 actions.className = "repository-map-actions";
@@ -5675,10 +5734,15 @@ async function refreshRepositoryMaps() {
                     .map(item => [item.id, item])).values())
             }))
             : Promise.resolve({docs:[]});
-        const [catalogMaps, submissionSnapshot] = await Promise.all([
+        const [catalogMaps, submissionSnapshot, ratings] = await Promise.all([
             loadPublicCatalog(),
-            submissionsRequest
+            submissionsRequest,
+            loadRepositoryRatings().catch(error => {
+                console.error("Vectron map ratings failed to load.", error);
+                return new Map();
+            })
         ]);
+        repositoryRatings = ratings;
         repositoryMaps = catalogMaps.map(item =>
             repositoryMapDetailsData(item.id || item.mapId, item)
         )

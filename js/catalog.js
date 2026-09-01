@@ -1,6 +1,27 @@
 export const MAP_CATEGORY = "maps";
 export const MAX_MAP_BYTES = 2 * 1024 * 1024;
 
+export function mapRatingSummary(rating, ratingCount) {
+    const average = Number(rating);
+    const count = Number(ratingCount);
+    if(!Number.isFinite(average) || average < 1 || average > 5 ||
+       !Number.isInteger(count) || count < 1) {
+        return {
+            average:null,
+            count:0,
+            label:"Unrated",
+            description:"This map has not been rated yet."
+        };
+    }
+    const label = `${average.toFixed(2)}/5`;
+    return {
+        average,
+        count,
+        label,
+        description:`${label} from ${count} ${count === 1 ? "rating" : "ratings"}.`
+    };
+}
+
 const CATEGORY_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,59}$/u;
 const LEGACY_AUTHOR_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} ._-]*$/u;
 const LEGACY_MAP_NAME_PATTERN = /^[\p{L}\p{N} ._-]+$/u;

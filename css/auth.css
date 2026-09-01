@@ -1327,6 +1327,29 @@ button.repository-author-heading:disabled {
   font-size: 8px;
 }
 
+.repository-map-rating {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  color: #facc15;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.repository-map-rating small {
+  margin: 0;
+  color: #a7a9b2;
+  font-size: 7px;
+  font-weight: 600;
+}
+
+.repository-map-rating.unrated {
+  color: #858892;
+  font-weight: 600;
+}
+
 .repository-remix-button {
   height: 27px;
   display: inline-flex;
