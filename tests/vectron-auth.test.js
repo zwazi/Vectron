@@ -102,14 +102,20 @@ assert.match(index, /data-admin-tab="history"/);
 assert.match(index, /data-admin-tab="maps"/);
 assert.match(index, /id="map-repository-overlay"[^>]*repository-overlay/);
 assert.match(index, /id="map-repository-search"/);
-assert.match(index, /id="map-repository-search-submit"/);
+assert.match(index, /id="map-repository-search-submit"[^>]*aria-label="Search repository maps"[^>]*title="Search"/);
 assert.match(index, /id="map-repository-gallery"[^>]*class="repository-icon-button active"[^>]*aria-pressed="true"/);
-assert.match(index, /id="map-repository-list-layout"[^>]*aria-pressed="false"/);
+assert.match(index, /id="map-repository-preview-list"[^>]*aria-label="List with map previews"/);
+assert.match(index, /id="map-repository-list-layout"[^>]*aria-label="List without map previews"/);
+assert.match(index, /id="map-repository-group-authors"[^>]*aria-pressed="true"[^>]*aria-label="Ungroup maps"/);
+assert.match(index, /id="map-repository-refresh"[^>]*aria-label="Refresh repository maps"[^>]*title="Refresh"/);
+assert.doesNotMatch(index, /id="map-repository-(?:search-submit|refresh)"[^>]*>\s*<i[^>]*><\/i>\s*<span>/);
 assert.match(index, /id="map-repository-sort"/);
 assert.match(index, /id="map-repository-sort-order"/);
 assert.match(index, /id="map-repository-list"/);
-assert.match(index, /css\/auth\.css\?v=20260831-map-ratings-1/);
-assert.match(index, /js\/auth\.js\?v=20260901-feature-suggestions-1/);
+assert.strictEqual((index.match(/data-repository-resize=/g) || []).length, 8);
+assert.match(index, /css\/auth\.css\?v=20260901-repository-modes-1/);
+assert.match(index, /css\/workspace-theme\.css\?v=20260901-repository-modes-1/);
+assert.match(index, /js\/auth\.js\?v=20260901-repository-modes-1/);
 assert.match(authSource, /\.\/catalog\.js\?v=20260831-map-ratings-1/);
 assert.match(index, /id="map-repository-mine-tab"[^>]*aria-selected="false"/);
 assert.match(index, /id="map-repository-review-tab"[^>]*aria-disabled="true"[^>]*disabled[^>]*>Under Review /);
@@ -380,10 +386,16 @@ assert.match(authSource, /adminPageFirst\.addEventListener\("click"/);
 assert.match(authSource, /adminPageLast\.addEventListener\("click"/);
 assert.match(authSource, /adminPageNumber\.addEventListener\("keydown"/);
 assert.match(authSource, /repositoryLayout = readRepositoryLayout\(\)/);
+assert.match(authSource, /vectron\.repositoryLayout\.v3/);
+assert.match(authSource, /\["gallery", "preview-list", "list"\]\.includes/);
 assert.match(authSource, /vectron\.repositoryLayout\.v2[\s\S]*\? "list" : "gallery"/);
+assert.match(authSource, /repositoryGroupedByAuthor = readRepositoryGrouping\(\)/);
+assert.match(authSource, /vectron\.repositoryGroupedByAuthor\.v1/);
+assert.match(authSource, /if\(!repositoryGroupedByAuthor\)[\s\S]*createMapList\(visibleMaps\)/);
 assert.match(authCss, /\.repository-browser-dialog\s*\{[\s\S]*width: min\(620px, 100%\);[\s\S]*height: calc\(100vh - 48px\);/);
-assert.match(authCss, /\.repository-author-maps\.gallery\s*\{[\s\S]*display: block/);
-assert.match(authCss, /\.repository-map-row\.gallery\s*\{[\s\S]*grid-template-columns: minmax\(180px, 0\.8fr\) minmax\(0, 1\.2fr\)/);
+assert.match(authCss, /\.repository-author-maps\.gallery\s*\{[\s\S]*display: grid[\s\S]*repeat\(auto-fill, minmax\(250px, 1fr\)\)/);
+assert.match(authCss, /\.repository-map-row\.gallery\s*\{[\s\S]*flex-direction: column/);
+assert.match(authCss, /\.repository-map-row\.preview-list\s*\{[\s\S]*grid-template-columns: minmax\(180px, 0\.9fr\) minmax\(0, 1\.1fr\)/);
 assert.match(authSource, /recipientUid:/);
 assert.match(authSource, /collection\(firestore, "auditEvents"\)/);
 assert.match(authSource, /Your registration is awaiting admin approval/);
@@ -391,12 +403,48 @@ assert.match(authSource, /you cannot submit yet/);
 assert.match(authSource, /function confirmAction\(/);
 assert.match(authSource, /function anchorAdminDialog\(/);
 assert.match(authSource, /adminDialog\.classList\.add\("positioned"\)/);
+assert.match(authSource, /function anchorRepositoryDialog\(/);
+assert.match(authSource, /repositoryDialog\.classList\.add\("positioned"\)/);
 assert.match(authSource, /function setAdminTab[\s\S]*adminList\.scrollTop = 0;[\s\S]*renderAdminList\(\)/);
 assert.match(authSource, /function refreshAdminQueues[\s\S]*adminList\.scrollTop = 0;[\s\S]*startAdminListeners\(\)/);
 assert.match(authSource, /function setRepositoryTab[\s\S]*repositoryList\.scrollTop = 0;[\s\S]*renderRepositoryMaps\(\)/);
 assert.match(authSource, /function refreshRepositoryMaps[\s\S]*repositoryList\.scrollTop = 0;/);
 assert.match(authSource, /adminRefreshButton\.addEventListener\("click", refreshAdminQueues\)/);
 assert.doesNotMatch(authSource, /window\.(?:confirm|alert)\s*\(/);
+
+const repositoryPreferenceSource = [
+    authSource.match(/function readRepositoryLayout\(\) \{[\s\S]*?\n\}/)[0],
+    authSource.match(/function readRepositoryGrouping\(\) \{[\s\S]*?\n\}/)[0]
+].join("\n");
+const repositoryPreferenceContext = {
+    window:{localStorage:{
+        values:new Map(),
+        getItem(key) { return this.values.has(key) ? this.values.get(key) : null; }
+    }},
+    result:null
+};
+vm.runInNewContext(
+    `${repositoryPreferenceSource}\nresult = [readRepositoryLayout(), readRepositoryGrouping()];`,
+    repositoryPreferenceContext
+);
+assert.deepStrictEqual(Array.from(repositoryPreferenceContext.result), ["gallery", true],
+    "The repository defaults to a grouped gallery");
+repositoryPreferenceContext.window.localStorage.values.set("vectron.repositoryLayout.v3", "preview-list");
+repositoryPreferenceContext.window.localStorage.values.set("vectron.repositoryGroupedByAuthor.v1", "false");
+vm.runInNewContext(
+    `${repositoryPreferenceSource}\nresult = [readRepositoryLayout(), readRepositoryGrouping()];`,
+    repositoryPreferenceContext
+);
+assert.deepStrictEqual(Array.from(repositoryPreferenceContext.result), ["preview-list", false],
+    "The preview-list and ungrouped choices persist");
+repositoryPreferenceContext.window.localStorage.values.delete("vectron.repositoryLayout.v3");
+repositoryPreferenceContext.window.localStorage.values.set("vectron.repositoryLayout.v2", "list");
+vm.runInNewContext(
+    `${repositoryPreferenceSource}\nresult = readRepositoryLayout();`,
+    repositoryPreferenceContext
+);
+assert.strictEqual(repositoryPreferenceContext.result, "list",
+    "The existing compact-list preference migrates without previews");
 
 const nextSubmissionSource = authSource.match(
     /function nextPendingSubmissionAfter\(submissionId\) \{[\s\S]*?\n\}/
@@ -460,6 +508,7 @@ assert.match(authCss, /\.map-review-card\s*\{[^}]*grid-template-columns:/s);
 assert.match(authCss, /\.map-review-actions\s*\{[^}]*flex-direction:\s*column/s);
 assert.match(authCss, /\.map-review-preview/);
 assert.match(authCss, /\.admin-dialog\s*\{[^}]*resize:\s*none/s);
+assert.match(authCss, /\.repository-browser-dialog\s*\{[^}]*resize:\s*none/s);
 assert.match(authCss, /\.admin-resize-n\s*\{[^}]*top:\s*-5px/s);
 assert.match(authCss, /\.admin-resize-e\s*\{[^}]*right:\s*-5px/s);
 assert.match(authCss, /\.admin-resize-s\s*\{[^}]*bottom:\s*-5px/s);
@@ -467,8 +516,8 @@ assert.match(authCss, /\.admin-resize-w\s*\{[^}]*left:\s*-5px/s);
 assert.match(authCss, /\.admin-dialog\s*\{[^}]*width:\s*min\(620px, 100%\)/s);
 assert.match(authCss, /\.admin-dialog\s*\{[^}]*height:\s*calc\(100vh - 48px\)/s);
 assert.match(authCss, /\.map-file-command-dialog\s*\{/);
-assert.match(authCss, /\.admin-dialog\.positioned\s*\{[^}]*position:\s*fixed/s);
-assert.match(authCss, /\.admin-dialog \.repository-header\s*\{[^}]*cursor:\s*move/s);
+assert.match(authCss, /\.admin-dialog\.positioned,[\s\S]*\.repository-browser-dialog\.positioned\s*\{[^}]*position:\s*fixed/s);
+assert.match(authCss, /\.admin-dialog \.repository-header,[\s\S]*\.repository-browser-dialog \.repository-header\s*\{[^}]*cursor:\s*move/s);
 assert.match(authCss, /\.auth-confirm-popover/);
 assert.match(authCss, /\.auth-review-deny-button/);
 assert.match(authCss, /\.auth-confirm-reason-field input/);

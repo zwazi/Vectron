@@ -722,6 +722,7 @@
 }
 
 .repository-tools > .repository-refresh-button,
+.repository-tools > .repository-toolbar-icon-button,
 .repository-tools > .sort-order-button {
   height: 36px;
   min-height: 36px;
@@ -730,6 +731,11 @@
 }
 
 .repository-tools > .sort-order-button {
+  width: 36px;
+  flex: 0 0 36px;
+}
+
+.repository-tools > .repository-toolbar-icon-button {
   width: 36px;
   flex: 0 0 36px;
 }

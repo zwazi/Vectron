@@ -108,7 +108,9 @@ const repositoryRefreshButton = document.getElementById("map-repository-refresh"
 const repositorySearchInput = document.getElementById("map-repository-search");
 const repositorySearchButton = document.getElementById("map-repository-search-submit");
 const repositoryGalleryButton = document.getElementById("map-repository-gallery");
+const repositoryPreviewListButton = document.getElementById("map-repository-preview-list");
 const repositoryListLayoutButton = document.getElementById("map-repository-list-layout");
+const repositoryGroupAuthorsButton = document.getElementById("map-repository-group-authors");
 const repositorySort = document.getElementById("map-repository-sort");
 const repositorySortOrder = document.getElementById("map-repository-sort-order");
 const repositorySummary = document.getElementById("map-repository-summary");
@@ -120,6 +122,7 @@ const repositoryReviewTab = document.getElementById("map-repository-review-tab")
 const repositoryMineCount = document.getElementById("map-repository-mine-count");
 const repositoryReviewCount = document.getElementById("map-repository-review-count");
 const repositoryOthersCount = document.getElementById("map-repository-others-count");
+const repositoryDialog = repositoryOverlay && repositoryOverlay.querySelector(".repository-browser-dialog");
 const notificationButton = document.querySelector("[data-notifications]");
 const notificationCount = document.querySelector("[data-notification-count]");
 const notificationOverlay = document.getElementById("notification-overlay");
@@ -213,6 +216,7 @@ let repositoryRatings = new Map();
 let repositoryTab = "others";
 let repositorySearchQuery = "";
 let repositoryLayout = readRepositoryLayout();
+let repositoryGroupedByAuthor = readRepositoryGrouping();
 let repositorySortState = {field:"author", direction:"asc"};
 let repositoryPreviewObserver = null;
 let repositoryPreviousFocus = null;
@@ -275,6 +279,8 @@ let confirmAnchor = null;
 let confirmOptions = null;
 let quickDecisionReasons = readQuickDecisionReasons();
 let quickReasonListSequence = 0;
+let repositoryDragging = null;
+let repositoryResizing = null;
 let adminDragging = null;
 let adminResizing = null;
 let metadataMapId = "";
@@ -283,6 +289,8 @@ let submissionChoiceResolver = null;
 
 function readRepositoryLayout() {
     try {
+        const saved = window.localStorage.getItem("vectron.repositoryLayout.v3");
+        if(["gallery", "preview-list", "list"].includes(saved)) return saved;
         return window.localStorage.getItem("vectron.repositoryLayout.v2") === "list"
             ? "list" : "gallery";
     } catch(error) {
@@ -290,20 +298,57 @@ function readRepositoryLayout() {
     }
 }
 
-function setRepositoryLayout(layout) {
-    repositoryLayout = layout === "list" ? "list" : "gallery";
+function readRepositoryGrouping() {
     try {
-        window.localStorage.setItem("vectron.repositoryLayout.v2", repositoryLayout);
+        return window.localStorage.getItem("vectron.repositoryGroupedByAuthor.v1") !== "false";
+    } catch(error) {
+        return true;
+    }
+}
+
+function setRepositoryLayout(layout) {
+    repositoryLayout = ["gallery", "preview-list", "list"].includes(layout)
+        ? layout : "gallery";
+    try {
+        window.localStorage.setItem("vectron.repositoryLayout.v3", repositoryLayout);
     } catch(error) {
         console.warn("Vectron could not persist the repository layout.", error);
     }
-    [[repositoryGalleryButton, "gallery"], [repositoryListLayoutButton, "list"]]
+    [
+        [repositoryGalleryButton, "gallery"],
+        [repositoryPreviewListButton, "preview-list"],
+        [repositoryListLayoutButton, "list"]
+    ]
         .forEach(([button, value]) => {
             if(!button) return;
             const active = repositoryLayout === value;
             button.classList.toggle("active", active);
             button.setAttribute("aria-pressed", String(active));
         });
+    if(repositoryOverlay && !repositoryOverlay.hidden) renderRepositoryMaps();
+}
+
+function setRepositoryGrouping(grouped) {
+    repositoryGroupedByAuthor = grouped !== false;
+    try {
+        window.localStorage.setItem(
+            "vectron.repositoryGroupedByAuthor.v1",
+            String(repositoryGroupedByAuthor)
+        );
+    } catch(error) {
+        console.warn("Vectron could not persist repository grouping.", error);
+    }
+    if(repositoryGroupAuthorsButton) {
+        repositoryGroupAuthorsButton.classList.toggle("active", repositoryGroupedByAuthor);
+        repositoryGroupAuthorsButton.setAttribute("aria-pressed", String(repositoryGroupedByAuthor));
+        repositoryGroupAuthorsButton.title = repositoryGroupedByAuthor
+            ? "Grouped by author" : "Maps sorted together";
+        repositoryGroupAuthorsButton.setAttribute(
+            "aria-label",
+            repositoryGroupedByAuthor ? "Ungroup maps" : "Group maps by author"
+        );
+    }
+    repositoryExpandedAuthors.clear();
     if(repositoryOverlay && !repositoryOverlay.hidden) renderRepositoryMaps();
 }
 
@@ -447,6 +492,35 @@ function anchorAdminDialog() {
         adminDialog.classList.add("positioned");
     }
     clampAdminDialog();
+}
+
+function clampRepositoryDialog() {
+    if(!repositoryDialog || !repositoryDialog.classList.contains("positioned")) return;
+    const margin = 12;
+    const rect = repositoryDialog.getBoundingClientRect();
+    const left = Math.max(
+        margin,
+        Math.min(rect.left, window.innerWidth - Math.min(rect.width, 120) - margin)
+    );
+    const top = Math.max(
+        margin,
+        Math.min(rect.top, window.innerHeight - Math.min(rect.height, 80) - margin)
+    );
+    repositoryDialog.style.left = `${Math.round(left)}px`;
+    repositoryDialog.style.top = `${Math.round(top)}px`;
+}
+
+function anchorRepositoryDialog() {
+    if(!repositoryDialog || repositoryOverlay.hidden) return;
+    if(!repositoryDialog.classList.contains("positioned")) {
+        const rect = repositoryDialog.getBoundingClientRect();
+        repositoryDialog.style.left = `${Math.round(rect.left)}px`;
+        repositoryDialog.style.top = `${Math.round(rect.top)}px`;
+        repositoryDialog.style.width = `${Math.round(rect.width)}px`;
+        repositoryDialog.style.height = `${Math.round(rect.height)}px`;
+        repositoryDialog.classList.add("positioned");
+    }
+    clampRepositoryDialog();
 }
 
 function setEditorInert(locked) {
@@ -5410,7 +5484,9 @@ function setRepositoryBusy(nextBusy) {
     repositoryRefreshButton.disabled = nextBusy;
     if(repositorySearchButton) repositorySearchButton.disabled = nextBusy;
     if(repositoryGalleryButton) repositoryGalleryButton.disabled = nextBusy;
+    if(repositoryPreviewListButton) repositoryPreviewListButton.disabled = nextBusy;
     if(repositoryListLayoutButton) repositoryListLayoutButton.disabled = nextBusy;
+    if(repositoryGroupAuthorsButton) repositoryGroupAuthorsButton.disabled = nextBusy;
     if(repositorySort) repositorySort.disabled = nextBusy;
     if(repositorySortOrder) repositorySortOrder.disabled = nextBusy;
     repositorySearchInput.disabled = nextBusy && !repositoryMaps.length;
@@ -5616,6 +5692,8 @@ function renderRepositoryMaps() {
     });
 
     repositoryList.replaceChildren();
+    repositoryList.dataset.layout = repositoryLayout;
+    repositoryList.dataset.grouped = String(repositoryGroupedByAuthor);
     repositorySummary.textContent = (items.length
         ? `Showing ${visibleMaps.length} of ${tabMaps.length} ${repositoryTab === "mine" ? "your" : "published"} ${tabMaps.length === 1 ? "map" : "maps"}${authors.size ? ` across ${authors.size} ${authors.size === 1 ? "author" : "authors"}` : ""}.`
         : "No repository maps loaded.") + repositoryCatalogSummary();
@@ -5632,18 +5710,109 @@ function renderRepositoryMaps() {
     }
 
     const fragment = document.createDocumentFragment();
-    Array.from(authors.keys()).sort((a, b) => {
-        const comparison = a.localeCompare(b, undefined, {sensitivity:"base"});
-        return repositorySortState.field === "author" && repositorySortState.direction === "desc"
-            ? -comparison : comparison;
-    })
-        .forEach((author, authorIndex) => {
+    const createMapRow = map => {
+        const row = document.createElement("div");
+        row.className = `repository-map-row ${repositoryLayout}`;
+        if(map.denied) row.classList.add("repository-map-denied");
+        let preview = null;
+        if(repositoryLayout !== "list") {
+            preview = document.createElement("div");
+            preview.className = "map-review-preview repository-map-preview";
+            preview.dataset.adminPreviewPath = map.storagePath || "";
+            preview.setAttribute("role", "img");
+            preview.setAttribute("aria-label", `Map preview for ${map.mapName || "Untitled"}`);
+            preview.setAttribute("aria-busy", "true");
+            const loading = document.createElement("span");
+            loading.className = "map-review-preview-message";
+            loading.textContent = "Loading map preview…";
+            preview.appendChild(loading);
+            queueRepositoryMapPreview(preview, map);
+        }
+        const copy = document.createElement("span");
+        copy.className = "repository-map-copy";
+        const name = document.createElement("strong");
+        name.textContent = map.name;
+        const path = document.createElement("small");
+        if(map.denied) {
+            const badge = document.createElement("span");
+            badge.className = `repository-map-status${map.resubmitted ? " resubmitted" : " denied"}`;
+            badge.textContent = map.resubmitted ? "Resubmitted" : "Denied";
+            name.append(" ", badge);
+            path.textContent = `${repositoryGroupedByAuthor ? "" : `By ${map.author} · `}` +
+                `${formatTimestamp(map.deniedAt)} · ${map.denialReason}`;
+            path.title = map.denialReason;
+        } else {
+            path.textContent = `${repositoryGroupedByAuthor ? "" : `By ${map.author} · `}` +
+                map.resourcePath;
+        }
+        copy.append(name, path, repositoryRatingElement(map));
+
+        const actions = document.createElement("span");
+        actions.className = "repository-map-actions";
+        const addAction = action => {
+            const button = document.createElement("button");
+            const editing = action === "edit" || action === "edit-denied";
+            button.className = "repository-remix-button";
+            button.type = "button";
+            button.dataset.repositoryOpen = map.fullPath;
+            button.dataset.repositoryAction = action;
+            button.disabled = repositoryBusy;
+            button.innerHTML = editing
+                ? `<i class="fa-solid fa-pen" aria-hidden="true"></i><span>${action === "edit-denied" ? "Edit and resubmit" : "Edit"}</span>`
+                : '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
+            button.setAttribute("aria-label", `${editing ? "Edit" : "Remix"} ${map.name} by ${map.author}`);
+            actions.appendChild(button);
+        };
+        const addAdminAction = (label, action, danger = false) => {
+            const button = document.createElement("button");
+            button.className = `repository-remix-button${danger ? " danger" : ""}`;
+            button.type = "button";
+            button.dataset.repositoryAdminAction = action;
+            button.dataset.repositoryMapId = map.mapId;
+            button.disabled = repositoryBusy;
+            button.textContent = label;
+            actions.appendChild(button);
+        };
+        if(repositoryMapCanEdit(map) && !map.resubmitted) {
+            addAction(map.denied ? "edit-denied" : "edit");
+        }
+        if(!map.denied && (!repositoryMapIsMine(map) || currentUserIsAdmin())) addAction("remix");
+        if(currentUserIsAdmin() && !map.denied) {
+            addAdminAction("Edit metadata", "metadata");
+            addAdminAction("Hold for review", "hold");
+            addAdminAction("Delete", "delete", true);
+        }
+        if(preview) {
+            const details = document.createElement("div");
+            details.className = "map-review-details repository-map-details";
+            details.append(copy, actions);
+            row.append(preview, details);
+        } else {
+            row.append(copy, actions);
+        }
+        return row;
+    };
+    const createMapList = (maps, id = "") => {
+        const mapList = document.createElement("div");
+        mapList.className = `repository-author-maps ${repositoryLayout}`;
+        if(id) mapList.id = id;
+        maps.forEach(map => mapList.appendChild(createMapRow(map)));
+        return mapList;
+    };
+
+    if(!repositoryGroupedByAuthor) {
+        const mapList = createMapList(visibleMaps);
+        mapList.classList.add("ungrouped");
+        fragment.appendChild(mapList);
+    } else {
+        Array.from(authors.keys()).sort((a, b) => {
+            const comparison = a.localeCompare(b, undefined, {sensitivity:"base"});
+            return repositorySortState.field === "author" && repositorySortState.direction === "desc"
+                ? -comparison : comparison;
+        }).forEach((author, authorIndex) => {
             const maps = authors.get(author);
             const group = document.createElement("section");
             group.className = "repository-author-group";
-            // Gallery cards stay visible, while their XML previews are fetched
-            // only as they approach the scroll viewport. List view keeps the
-            // compact author accordions for very large catalogs.
             const collapsible = repositoryTab === "others" && repositoryLayout === "list";
             const expanded = !collapsible || repositoryExpandedAuthors.has(author);
             group.classList.toggle("collapsed", !expanded);
@@ -5671,96 +5840,12 @@ function renderRepositoryMaps() {
             heading.append(authorName, count);
             group.appendChild(heading);
 
-            const mapList = document.createElement("div");
-            mapList.className = "repository-author-maps";
-            mapList.classList.toggle("gallery", repositoryLayout === "gallery");
-            mapList.id = `repository-author-maps-${authorIndex}`;
+            const mapList = createMapList(maps, `repository-author-maps-${authorIndex}`);
             mapList.hidden = !expanded;
-
-            maps.forEach(map => {
-                const row = document.createElement("div");
-                row.className = "repository-map-row";
-                row.classList.toggle("gallery", repositoryLayout === "gallery");
-                if(map.denied) row.classList.add("repository-map-denied");
-                let preview = null;
-                if(repositoryLayout === "gallery") {
-                    preview = document.createElement("div");
-                    preview.className = "map-review-preview repository-map-preview";
-                    preview.dataset.adminPreviewPath = map.storagePath || "";
-                    preview.setAttribute("role", "img");
-                    preview.setAttribute("aria-label", `Map preview for ${map.mapName || "Untitled"}`);
-                    preview.setAttribute("aria-busy", "true");
-                    const loading = document.createElement("span");
-                    loading.className = "map-review-preview-message";
-                    loading.textContent = "Loading map preview…";
-                    preview.appendChild(loading);
-                    queueRepositoryMapPreview(preview, map);
-                }
-                const copy = document.createElement("span");
-                copy.className = "repository-map-copy";
-                const name = document.createElement("strong");
-                name.textContent = map.name;
-                const path = document.createElement("small");
-                if(map.denied) {
-                    const badge = document.createElement("span");
-                    badge.className = `repository-map-status${map.resubmitted ? " resubmitted" : " denied"}`;
-                    badge.textContent = map.resubmitted ? "Resubmitted" : "Denied";
-                    name.append(" ", badge);
-                    path.textContent = `${formatTimestamp(map.deniedAt)} · ${map.denialReason}`;
-                    path.title = map.denialReason;
-                } else {
-                    path.textContent = map.resourcePath;
-                }
-                copy.append(name, path, repositoryRatingElement(map));
-
-                const actions = document.createElement("span");
-                actions.className = "repository-map-actions";
-                const addAction = action => {
-                    const button = document.createElement("button");
-                    const editing = action === "edit" || action === "edit-denied";
-                    button.className = "repository-remix-button";
-                    button.type = "button";
-                    button.dataset.repositoryOpen = map.fullPath;
-                    button.dataset.repositoryAction = action;
-                    button.disabled = repositoryBusy;
-                    button.innerHTML = editing
-                        ? `<i class="fa-solid fa-pen" aria-hidden="true"></i><span>${action === "edit-denied" ? "Edit and resubmit" : "Edit"}</span>`
-                        : '<i class="fa-solid fa-code-branch" aria-hidden="true"></i><span>Remix</span>';
-                    button.setAttribute("aria-label", `${editing ? "Edit" : "Remix"} ${map.name} by ${map.author}`);
-                    actions.appendChild(button);
-                };
-                const addAdminAction = (label, action, danger = false) => {
-                    const button = document.createElement("button");
-                    button.className = `repository-remix-button${danger ? " danger" : ""}`;
-                    button.type = "button";
-                    button.dataset.repositoryAdminAction = action;
-                    button.dataset.repositoryMapId = map.mapId;
-                    button.disabled = repositoryBusy;
-                    button.textContent = label;
-                    actions.appendChild(button);
-                };
-                if(repositoryMapCanEdit(map) && !map.resubmitted) {
-                    addAction(map.denied ? "edit-denied" : "edit");
-                }
-                if(!map.denied && (!repositoryMapIsMine(map) || currentUserIsAdmin())) addAction("remix");
-                if(currentUserIsAdmin() && !map.denied) {
-                    addAdminAction("Edit metadata", "metadata");
-                    addAdminAction("Hold for review", "hold");
-                    addAdminAction("Delete", "delete", true);
-                }
-                if(repositoryLayout === "gallery") {
-                    const details = document.createElement("div");
-                    details.className = "map-review-details repository-map-details";
-                    details.append(copy, actions);
-                    row.append(details, preview);
-                } else {
-                    row.append(copy, actions);
-                }
-                mapList.appendChild(row);
-            });
             group.appendChild(mapList);
             fragment.appendChild(group);
         });
+    }
     repositoryList.appendChild(fragment);
 }
 
@@ -5844,6 +5929,7 @@ function openRepository() {
     repositorySearchQuery = "";
     repositoryExpandedAuthors.clear();
     setRepositoryLayout(repositoryLayout);
+    setRepositoryGrouping(repositoryGroupedByAuthor);
     syncRepositorySortControls();
     setRepositoryTab("others");
     repositoryPreviousFocus = document.activeElement;
@@ -6210,8 +6296,20 @@ function bindUi() {
     if(repositoryGalleryButton) {
         repositoryGalleryButton.addEventListener("click", () => setRepositoryLayout("gallery"));
     }
+    if(repositoryPreviewListButton) {
+        repositoryPreviewListButton.addEventListener(
+            "click",
+            () => setRepositoryLayout("preview-list")
+        );
+    }
     if(repositoryListLayoutButton) {
         repositoryListLayoutButton.addEventListener("click", () => setRepositoryLayout("list"));
+    }
+    if(repositoryGroupAuthorsButton) {
+        repositoryGroupAuthorsButton.addEventListener(
+            "click",
+            () => setRepositoryGrouping(!repositoryGroupedByAuthor)
+        );
     }
     if(repositorySort) repositorySort.addEventListener("change", () => {
         repositorySortState.field = repositorySort.value;
@@ -6417,6 +6515,101 @@ function bindUi() {
             settleConfirmation(false);
         }
     }, true);
+    if(repositoryDialog) {
+        const header = repositoryDialog.querySelector(".repository-header");
+        repositoryDialog.querySelectorAll("[data-repository-resize]").forEach(handle => {
+            handle.addEventListener("mousedown", event => {
+                if(event.button !== 0) return;
+                anchorRepositoryDialog();
+                const rect = repositoryDialog.getBoundingClientRect();
+                repositoryDragging = null;
+                repositoryResizing = {
+                    direction:handle.dataset.repositoryResize,
+                    startX:event.clientX,
+                    startY:event.clientY,
+                    left:rect.left,
+                    right:rect.right,
+                    top:rect.top,
+                    bottom:rect.bottom
+                };
+                event.preventDefault();
+                event.stopPropagation();
+            });
+        });
+        header.addEventListener("mousedown", event => {
+            if(event.button !== 0 || event.target.closest("button,input,select,textarea,a")) return;
+            anchorRepositoryDialog();
+            const rect = repositoryDialog.getBoundingClientRect();
+            repositoryDragging = {
+                offsetX:event.clientX - rect.left,
+                offsetY:event.clientY - rect.top
+            };
+            event.preventDefault();
+        });
+        document.addEventListener("mousemove", event => {
+            if(repositoryResizing) {
+                const margin = 12;
+                const maximumRight = Math.max(margin + 120, window.innerWidth - margin);
+                const maximumBottom = Math.max(margin + 120, window.innerHeight - margin);
+                const minimumWidth = Math.min(420, maximumRight - margin);
+                const minimumHeight = Math.min(320, maximumBottom - margin);
+                const deltaX = event.clientX - repositoryResizing.startX;
+                const deltaY = event.clientY - repositoryResizing.startY;
+                let left = repositoryResizing.left;
+                let right = repositoryResizing.right;
+                let top = repositoryResizing.top;
+                let bottom = repositoryResizing.bottom;
+                const direction = repositoryResizing.direction;
+                if(direction.includes("w")) {
+                    left = Math.max(margin, Math.min(
+                        repositoryResizing.left + deltaX,
+                        right - minimumWidth
+                    ));
+                }
+                if(direction.includes("e")) {
+                    right = Math.min(maximumRight, Math.max(
+                        repositoryResizing.right + deltaX,
+                        left + minimumWidth
+                    ));
+                }
+                if(direction.includes("n")) {
+                    top = Math.max(margin, Math.min(
+                        repositoryResizing.top + deltaY,
+                        bottom - minimumHeight
+                    ));
+                }
+                if(direction.includes("s")) {
+                    bottom = Math.min(maximumBottom, Math.max(
+                        repositoryResizing.bottom + deltaY,
+                        top + minimumHeight
+                    ));
+                }
+                repositoryDialog.style.left = `${Math.round(left)}px`;
+                repositoryDialog.style.top = `${Math.round(top)}px`;
+                repositoryDialog.style.width = `${Math.round(right - left)}px`;
+                repositoryDialog.style.height = `${Math.round(bottom - top)}px`;
+                event.preventDefault();
+                return;
+            }
+            if(!repositoryDragging) return;
+            const rect = repositoryDialog.getBoundingClientRect();
+            const margin = 12;
+            const left = Math.max(margin, Math.min(
+                event.clientX - repositoryDragging.offsetX,
+                window.innerWidth - Math.min(rect.width, 120) - margin
+            ));
+            const top = Math.max(margin, Math.min(
+                event.clientY - repositoryDragging.offsetY,
+                window.innerHeight - Math.min(rect.height, 80) - margin
+            ));
+            repositoryDialog.style.left = `${Math.round(left)}px`;
+            repositoryDialog.style.top = `${Math.round(top)}px`;
+        });
+        document.addEventListener("mouseup", () => {
+            repositoryDragging = null;
+            repositoryResizing = null;
+        });
+    }
     if(adminDialog) {
         const header = adminDialog.querySelector(".repository-header");
         adminDialog.querySelectorAll("[data-admin-resize]").forEach(handle => {
@@ -6514,6 +6707,7 @@ function bindUi() {
     }
     window.addEventListener("resize", () => {
         positionConfirmationPopover();
+        clampRepositoryDialog();
         clampAdminDialog();
     });
     document.querySelectorAll("[data-auth-signout]").forEach(button => {
