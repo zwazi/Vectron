@@ -8,7 +8,7 @@
         <!-- Bootstrap -->
         <link href="./css/bootstrap.min.css" rel="stylesheet">
         <link href="./css/bootstrap-extra.css" rel="stylesheet">
-        <link href="./css/vectron.css?v=20260830-red-studio-2" rel="stylesheet">
+        <link href="./css/vectron.css?v=20260901-feature-suggestions-1" rel="stylesheet">
         <link href="./css/auth.css?v=20260831-map-ratings-1" rel="stylesheet">
         <link id="theme" rel="stylesheet">
         <link href="./css/workspace-theme.css?v=20260830-red-studio-2" rel="stylesheet">
@@ -227,6 +227,17 @@
             </span>
             <span class="info-sep">|</span>
             <span class="info-section info-anchor-section"><span class="info-anchor-values" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="The map coordinate currently anchored at the center of the editor." tabindex="0"><b>anchor</b>&nbsp;<span class="var">x:&nbsp;<span id="anchor-x">0</span></span>&nbsp;<span class="var">y:&nbsp;<span id="anchor-y">0</span></span></span><button id="anchor-reset-origin" class="info-icon-btn" type="button" rel="tooltip" data-trigger="hover focus" data-placement="top" data-original-title="Return the editor anchor to coordinate 0, 0." aria-label="Return to origin"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button></span>
+            <span class="info-feature-suggestion">
+                <button id="feature-suggestion-toggle" type="button" aria-expanded="false" aria-controls="feature-suggestion-popover"><i class="fa-regular fa-lightbulb" aria-hidden="true"></i><span>Suggest a feature</span></button>
+                <form id="feature-suggestion-popover" hidden>
+                    <strong>Suggest a feature</strong>
+                    <p>Send an idea to the Tronner administrators. Replies arrive in your tronner.io Messages notifications.</p>
+                    <label for="feature-suggestion-message">Your idea</label>
+                    <textarea id="feature-suggestion-message" name="message" rows="5" minlength="3" maxlength="2000" required placeholder="What should Vectron add or improve?"></textarea>
+                    <small id="feature-suggestion-status" role="status" aria-live="polite"></small>
+                    <span class="feature-suggestion-actions"><button id="feature-suggestion-cancel" type="button">Cancel</button><button type="submit">Send suggestion</button></span>
+                </form>
+            </span>
         </div>
 
         <div id="control_box">
@@ -835,8 +846,8 @@
                     </label>
                     <button id="map-repository-search-submit" class="repository-refresh-button" type="button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span></button>
                     <div class="repository-layout-switch" role="group" aria-label="Repository layout">
-                        <button id="map-repository-gallery" class="repository-icon-button" type="button" aria-pressed="false" title="Gallery layout" aria-label="Gallery layout"><i class="fa-solid fa-grip" aria-hidden="true"></i></button>
-                        <button id="map-repository-list-layout" class="repository-icon-button active" type="button" aria-pressed="true" title="List layout" aria-label="List layout"><i class="fa-solid fa-list" aria-hidden="true"></i></button>
+                        <button id="map-repository-gallery" class="repository-icon-button active" type="button" aria-pressed="true" title="Gallery layout" aria-label="Gallery layout"><i class="fa-solid fa-grip" aria-hidden="true"></i></button>
+                        <button id="map-repository-list-layout" class="repository-icon-button" type="button" aria-pressed="false" title="List layout" aria-label="List layout"><i class="fa-solid fa-list" aria-hidden="true"></i></button>
                     </div>
                     <label class="sr-only" for="map-repository-sort">Sort repository maps</label>
                     <select id="map-repository-sort" class="repository-toolbar-select" aria-label="Sort repository maps"><option value="author">Author</option><option value="mapName">Map name</option><option value="updatedAt">Last updated</option></select>
@@ -844,9 +855,9 @@
                     <button id="map-repository-refresh" class="repository-refresh-button" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>Refresh</span></button>
                 </div>
                 <div class="repository-tabs" role="tablist" aria-label="Repository map scope">
-                    <button id="map-repository-mine-tab" class="repository-tab active" type="button" role="tab" aria-selected="true" aria-controls="map-repository-list" data-repository-tab="mine">My maps <span id="map-repository-mine-count">0</span></button>
+                    <button id="map-repository-mine-tab" class="repository-tab" type="button" role="tab" aria-selected="false" aria-controls="map-repository-list" data-repository-tab="mine">My maps <span id="map-repository-mine-count">0</span></button>
                     <button id="map-repository-review-tab" class="repository-tab" type="button" role="tab" aria-selected="false" aria-disabled="true" aria-controls="map-repository-list" data-repository-tab="review" disabled>Under Review <span id="map-repository-review-count">0</span></button>
-                    <button id="map-repository-others-tab" class="repository-tab" type="button" role="tab" aria-selected="false" aria-controls="map-repository-list" data-repository-tab="others">Race maps <span id="map-repository-others-count">0</span></button>
+                    <button id="map-repository-others-tab" class="repository-tab active" type="button" role="tab" aria-selected="true" aria-controls="map-repository-list" data-repository-tab="others">All maps <span id="map-repository-others-count">0</span></button>
                 </div>
                 <div id="map-repository-summary" class="repository-summary" aria-live="polite">Open the repository to remix maps.</div>
                 <div id="map-repository-status" class="repository-status" role="status" aria-live="polite" hidden></div>
@@ -1029,7 +1040,7 @@
         </div>
         <input type="file" id="toolbar-files" name="file" style="display:none;" />
 
-        <script type="module" src="./js/auth.js?v=20260831-map-ratings-1"></script>
+        <script type="module" src="./js/auth.js?v=20260901-feature-suggestions-1"></script>
 
     </body>
 </html>

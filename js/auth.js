@@ -51,6 +51,7 @@ const MAP_SUBMISSION_URL = "https://us-central1-tronnerrepository.cloudfunctions
 const MAP_SUBMISSION_REVOKE_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/revokeMapSubmission";
 const IDENTITY_BRIDGE_URL = "https://us-central1-tronnerrepository.cloudfunctions.net/exchangeNeotronIdentity";
 const NEOTRON_HANDOFF_EXCHANGE_URL = "https://us-central1-neotron-7ba2a.cloudfunctions.net/vectronAuthExchange";
+const FEATURE_SUGGESTION_URL = "https://us-central1-neotron-7ba2a.cloudfunctions.net/submitFeatureSuggestion";
 const APP_CHECK_SITE_KEY = "6Ld3iJ8tAAAAAP9bIQBdZE6P2HvTEhigwKQ0q__L";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 const DEFAULT_QUICK_DENY_REASONS = Object.freeze([
@@ -127,6 +128,11 @@ const notificationMarkReadButton = document.getElementById("notification-mark-re
 const notificationSummary = document.getElementById("notification-summary");
 const notificationStatus = document.getElementById("notification-status");
 const notificationList = document.getElementById("notification-list");
+const featureSuggestionToggle = document.getElementById("feature-suggestion-toggle");
+const featureSuggestionPopover = document.getElementById("feature-suggestion-popover");
+const featureSuggestionMessage = document.getElementById("feature-suggestion-message");
+const featureSuggestionStatus = document.getElementById("feature-suggestion-status");
+const featureSuggestionCancel = document.getElementById("feature-suggestion-cancel");
 const adminButton = document.querySelector("[data-admin-review]");
 const adminCount = document.querySelector("[data-admin-count]");
 const adminOverlay = document.getElementById("admin-overlay");
@@ -204,7 +210,7 @@ let repositoryBusy = false;
 let repositoryMaps = [];
 let repositorySubmissions = [];
 let repositoryRatings = new Map();
-let repositoryTab = "mine";
+let repositoryTab = "others";
 let repositorySearchQuery = "";
 let repositoryLayout = readRepositoryLayout();
 let repositorySortState = {field:"author", direction:"asc"};
@@ -277,10 +283,10 @@ let submissionChoiceResolver = null;
 
 function readRepositoryLayout() {
     try {
-        return window.localStorage.getItem("vectron.repositoryLayout.v2") === "gallery"
-            ? "gallery" : "list";
+        return window.localStorage.getItem("vectron.repositoryLayout.v2") === "list"
+            ? "list" : "gallery";
     } catch(error) {
-        return "list";
+        return "gallery";
     }
 }
 
@@ -5455,6 +5461,67 @@ function setRepositoryTab(nextTab, focusTab = false) {
     if(repositoryMaps.length || repositorySubmissions.length) renderRepositoryMaps();
 }
 
+function closeFeatureSuggestion() {
+    if(!featureSuggestionPopover || featureSuggestionPopover.hidden) return;
+    featureSuggestionPopover.hidden = true;
+    featureSuggestionToggle.setAttribute("aria-expanded", "false");
+    featureSuggestionStatus.textContent = "";
+}
+
+function openFeatureSuggestion() {
+    if(!featureSuggestionPopover) return;
+    featureSuggestionPopover.hidden = false;
+    featureSuggestionToggle.setAttribute("aria-expanded", "true");
+    featureSuggestionStatus.textContent = guestMode || !identityAuth || !identityAuth.currentUser
+        ? "Sign in so administrators can reply to you."
+        : "";
+    window.setTimeout(() => featureSuggestionMessage.focus(), 0);
+}
+
+async function submitFeatureSuggestion(event) {
+    event.preventDefault();
+    if(guestMode || !identityAuth || !identityAuth.currentUser) {
+        featureSuggestionStatus.textContent = "Sign in so administrators can reply to you.";
+        return;
+    }
+    const message = featureSuggestionMessage.value.trim();
+    if(message.length < 3) {
+        featureSuggestionStatus.textContent = "Write at least three characters.";
+        return;
+    }
+    const submit = featureSuggestionPopover.querySelector('[type="submit"]');
+    submit.disabled = true;
+    featureSuggestionMessage.disabled = true;
+    featureSuggestionStatus.textContent = "Sending…";
+    try {
+        const response = await fetch(FEATURE_SUGGESTION_URL, {
+            method:"POST",
+            headers:{
+                Authorization:`Bearer ${await identityAuth.currentUser.getIdToken()}`,
+                "Content-Type":"application/json"
+            },
+            body:JSON.stringify({
+                source:"vectron",
+                message,
+                context:{
+                    mapName:String(document.getElementById("map_name")?.value || "").trim(),
+                    mapVersion:String(document.getElementById("map_version")?.value || "").trim()
+                }
+            })
+        });
+        await responseJson(response, "The suggestion could not be sent.");
+        featureSuggestionPopover.reset();
+        closeFeatureSuggestion();
+        showEditorMessage("Suggestion sent. Administrator replies will appear in tronner.io Messages.");
+    } catch(error) {
+        featureSuggestionStatus.textContent = error && error.message
+            ? error.message : friendlyAuthError(error);
+    } finally {
+        submit.disabled = false;
+        featureSuggestionMessage.disabled = false;
+    }
+}
+
 function renderRepositoryPendingReviews(pendingReviews) {
     const query = repositorySearchQuery.toLocaleLowerCase("en-US");
     const visible = pendingReviews.filter(submission => {
@@ -5527,15 +5594,14 @@ function renderRepositoryMaps() {
     const items = repositoryItems();
     const pendingReviews = repositoryPendingReviews();
     const mine = items.filter(repositoryMapIsMine);
-    const others = repositoryMaps.filter(map => !repositoryMapIsMine(map));
     repositoryMineCount.textContent = String(mine.length);
     syncRepositoryReviewTab();
-    repositoryOthersCount.textContent = String(others.length);
+    repositoryOthersCount.textContent = String(repositoryMaps.length);
     if(repositoryTab === "review") {
         renderRepositoryPendingReviews(pendingReviews);
         return;
     }
-    const tabMaps = repositoryTab === "mine" ? mine : others;
+    const tabMaps = repositoryTab === "mine" ? mine : repositoryMaps;
     const query = repositorySearchQuery.toLocaleLowerCase("en-US");
     const visibleMaps = tabMaps.filter(map => {
         if(!query) return true;
@@ -5551,7 +5617,7 @@ function renderRepositoryMaps() {
 
     repositoryList.replaceChildren();
     repositorySummary.textContent = (items.length
-        ? `Showing ${visibleMaps.length} of ${tabMaps.length} ${repositoryTab === "mine" ? "your" : "other"} ${tabMaps.length === 1 ? "map" : "maps"}${authors.size ? ` across ${authors.size} ${authors.size === 1 ? "author" : "authors"}` : ""}.`
+        ? `Showing ${visibleMaps.length} of ${tabMaps.length} ${repositoryTab === "mine" ? "your" : "published"} ${tabMaps.length === 1 ? "map" : "maps"}${authors.size ? ` across ${authors.size} ${authors.size === 1 ? "author" : "authors"}` : ""}.`
         : "No repository maps loaded.") + repositoryCatalogSummary();
 
     if(!visibleMaps.length) {
@@ -5575,7 +5641,10 @@ function renderRepositoryMaps() {
             const maps = authors.get(author);
             const group = document.createElement("section");
             group.className = "repository-author-group";
-            const collapsible = repositoryTab === "others";
+            // Gallery cards stay visible, while their XML previews are fetched
+            // only as they approach the scroll viewport. List view keeps the
+            // compact author accordions for very large catalogs.
+            const collapsible = repositoryTab === "others" && repositoryLayout === "list";
             const expanded = !collapsible || repositoryExpandedAuthors.has(author);
             group.classList.toggle("collapsed", !expanded);
 
@@ -5776,7 +5845,7 @@ function openRepository() {
     repositoryExpandedAuthors.clear();
     setRepositoryLayout(repositoryLayout);
     syncRepositorySortControls();
-    setRepositoryTab(guestMode ? "others" : "mine");
+    setRepositoryTab("others");
     repositoryPreviousFocus = document.activeElement;
     repositoryOverlay.hidden = false;
     repositoryButton.setAttribute("aria-expanded", "true");
@@ -6066,6 +6135,18 @@ function bindUi() {
     retryButton.addEventListener("click", () => window.location.reload());
     profileForm.addEventListener("submit", handleProfileSubmit);
     profileSignout.addEventListener("click", () => authSdk && authSdk.signOut(auth));
+    if(featureSuggestionToggle) featureSuggestionToggle.addEventListener("click", event => {
+        event.preventDefault();
+        if(featureSuggestionPopover.hidden) openFeatureSuggestion();
+        else closeFeatureSuggestion();
+    });
+    if(featureSuggestionPopover) featureSuggestionPopover.addEventListener("submit", submitFeatureSuggestion);
+    if(featureSuggestionCancel) featureSuggestionCancel.addEventListener("click", closeFeatureSuggestion);
+    document.addEventListener("mousedown", event => {
+        if(!featureSuggestionPopover || featureSuggestionPopover.hidden ||
+           event.target.closest(".info-feature-suggestion")) return;
+        closeFeatureSuggestion();
+    });
     if(uploadButton) {
         uploadButton.addEventListener("click", event => {
             event.preventDefault();
