@@ -815,6 +815,7 @@ body.auth-locked {
   min-height: 420px;
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 48px);
+  resize: none;
 }
 
 .local-library-dialog {
@@ -936,6 +937,13 @@ body.auth-locked {
 
 .repository-layout-switch .repository-icon-button.active,
 .repository-layout-switch .repository-icon-button[aria-pressed="true"] {
+  border-color: rgba(239, 68, 68, 0.28);
+  color: var(--auth-cyan);
+  background: rgba(239, 68, 68, 0.09);
+}
+
+.repository-toolbar-icon-button.active,
+.repository-toolbar-icon-button[aria-pressed="true"] {
   border-color: rgba(239, 68, 68, 0.28);
   color: var(--auth-cyan);
   background: rgba(239, 68, 68, 0.09);
@@ -1218,15 +1226,15 @@ button.repository-author-heading:disabled {
   border-bottom: 0;
 }
 
-.repository-author-maps.gallery {
+.repository-author-maps.preview-list {
   display: block;
   padding: 10px;
 }
 
-.repository-map-row.gallery {
+.repository-map-row.preview-list {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(180px, 0.9fr) minmax(0, 1.1fr);
   align-items: stretch;
   gap: 14px;
   margin-bottom: 10px;
@@ -1236,20 +1244,68 @@ button.repository-author-heading:disabled {
   background: rgba(12, 13, 15, 0.42);
 }
 
-.repository-map-row.gallery .repository-map-preview,
-.repository-map-row.gallery .repository-map-preview .map-review-preview-svg {
-  min-height: 300px;
+.repository-map-row.preview-list .repository-map-preview,
+.repository-map-row.preview-list .repository-map-preview .map-review-preview-svg {
+  min-height: 260px;
   height: 100%;
 }
 
+.repository-map-row.preview-list .repository-map-actions,
 .repository-map-row.gallery .repository-map-actions {
   flex-wrap: wrap;
   justify-content: flex-start;
   margin-top: 10px;
 }
 
+.repository-map-row.preview-list .repository-remix-button,
 .repository-map-row.gallery .repository-remix-button {
   flex: 1 1 auto;
+}
+
+.repository-author-maps.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  align-items: stretch;
+  gap: 10px;
+  padding: 10px;
+}
+
+.repository-map-row.gallery {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(12, 13, 15, 0.42);
+}
+
+.repository-map-row.gallery .repository-map-preview,
+.repository-map-row.gallery .repository-map-preview .map-review-preview-svg {
+  min-height: 190px;
+  height: 190px;
+}
+
+.repository-map-details {
+  flex: 1 1 auto;
+  justify-content: space-between;
+}
+
+.repository-author-maps.ungrouped {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.105);
+  border-radius: 9px;
+  background: rgba(24, 24, 24, 0.56);
+}
+
+.repository-author-maps.ungrouped.preview-list,
+.repository-author-maps.ungrouped.gallery {
+  overflow: visible;
+  border: 0;
+  background: transparent;
 }
 
 .repository-map-copy {
@@ -1673,18 +1729,22 @@ button.repository-author-heading:disabled {
   min-height: 36px;
 }
 
-.admin-dialog.positioned {
+.admin-dialog.positioned,
+.repository-browser-dialog.positioned {
   position: fixed;
   margin: 0;
 }
 
-.admin-dialog .repository-header {
+.admin-dialog .repository-header,
+.repository-browser-dialog .repository-header {
   cursor: move;
   user-select: none;
 }
 
 .admin-dialog .repository-header button,
-.admin-dialog .repository-header input {
+.admin-dialog .repository-header input,
+.repository-browser-dialog .repository-header button,
+.repository-browser-dialog .repository-header input {
   cursor: pointer;
 }
 
@@ -2285,7 +2345,8 @@ button.repository-author-heading:disabled {
     height: auto;
   }
 
-  .admin-dialog {
+  .admin-dialog,
+  .repository-browser-dialog {
     min-width: 0;
     min-height: 0;
     max-width: 100%;
@@ -2303,6 +2364,14 @@ button.repository-author-heading:disabled {
 
   .repository-search {
     flex-basis: calc(100% - 74px);
+  }
+
+  .repository-map-row.preview-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .repository-author-maps.gallery {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .metadata-fields {
