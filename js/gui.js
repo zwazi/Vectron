@@ -344,6 +344,9 @@ function gui_fillInput() {
     $("#map_dtd").val(xml_dtd);
 
     $("#map_axes").val(xml_axes);
+    if(typeof eventHandler_promptTriangleGridIfUseful === "function") {
+        window.setTimeout(eventHandler_promptTriangleGridIfUseful, 0);
+    }
     $("#map_settings").val(xml_settings.join("\n"));
     if(typeof window.vectron_syncLockedMetadata == "function") {
         window.vectron_syncLockedMetadata();

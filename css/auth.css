@@ -1729,6 +1729,86 @@ button.repository-author-heading:disabled {
   min-height: 36px;
 }
 
+.duplicate-map-dialog {
+  width: min(820px, 100%);
+  height: min(720px, calc(100vh - 48px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.duplicate-map-content {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 18px;
+  overflow: hidden;
+}
+
+.duplicate-map-content > p {
+  margin: 0;
+  color: #d9dbe1;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.duplicate-map-list {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-content: start;
+  gap: 12px;
+  overflow: auto;
+}
+
+.duplicate-map-card {
+  display: grid;
+  grid-template-rows: auto minmax(220px, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 9px;
+  background: rgba(120, 24, 24, 0.11);
+}
+
+.duplicate-map-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #b7bac2;
+  font-size: 9px;
+}
+
+.duplicate-map-card-copy strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duplicate-map-card .map-review-preview {
+  min-height: 220px;
+}
+
+.duplicate-map-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.duplicate-map-actions .account-card-button {
+  min-height: 36px;
+}
+
+#duplicate-map-approve {
+  border-color: rgba(255, 107, 107, 0.38);
+  color: #ffd1d1;
+  background: rgba(165, 48, 48, 0.18);
+}
+
 .admin-dialog.positioned,
 .repository-browser-dialog.positioned {
   position: fixed;

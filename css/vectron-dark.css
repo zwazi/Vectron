@@ -276,7 +276,8 @@ body {
 }
 
 #new-map-popover,
-#armawebtron-preview-popover {
+#armawebtron-preview-popover,
+#triangle-grid-popover {
 	background: #252525;
 	border-color: #555;
 	color: #eee;
@@ -284,14 +285,16 @@ body {
 }
 
 #armawebtron-preview-popover .btn-default,
-#new-map-popover .btn-default {
+#new-map-popover .btn-default,
+#triangle-grid-popover .btn-default {
 	background: #333;
 	border-color: #666;
 	color: #eee;
 }
 
 #armawebtron-preview-popover .btn-default:hover,
-#new-map-popover .btn-default:hover {
+#new-map-popover .btn-default:hover,
+#triangle-grid-popover .btn-default:hover {
 	background: #444;
 	color: #fff;
 }

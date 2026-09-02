@@ -26,6 +26,8 @@ const aamapSource = read("js/aamap.js");
 const selectSource = read("js/AamapTools/selectTool.js");
 const editSelectedSource = read("js/AamapTools/editSelectedTool.js");
 const zoneSource = read("js/AamapObjects/Zone.js");
+const wallToolSource = read("js/AamapTools/wallTool.js");
+const configSource = read("js/config.js");
 const xmlSource = read("js/xml.js");
 const localDraftSource = read("js/localDraft.js");
 const functionsSource = read("functions/index.js");
@@ -92,6 +94,12 @@ assert.match(index, /id="map-file-command-overlay"/);
 assert.match(index, /id="map-file-command-value"[^>]*readonly/);
 assert.match(index, /id="map-file-command-copy"/);
 assert.match(index, /id="auth-confirm-popover"[^>]*role="dialog"/);
+assert.match(index, /id="duplicate-map-overlay"[^>]*repository-overlay/);
+assert.match(index, /id="duplicate-map-list"[^>]*duplicate-map-list/);
+assert.match(index, /id="duplicate-map-approve"[^>]*>Approve anyway<\/button>/);
+assert.match(index, /id="show-axis-alignment-guides"/);
+assert.match(index, /id="triangle-grid-popover"[^>]*role="dialog"/);
+assert.match(index, /id="triangle-grid-switch"[^>]*>Switch to triangle<\/button>/);
 assert.match(index, /id="auth-confirm-reason"[^>]*type="text"[^>]*maxlength="1000"/);
 assert.doesNotMatch(index, /<textarea id="auth-confirm-reason"/);
 assert.match(index, /id="auth-confirm-reason-error"[^>]*role="alert"/);
@@ -113,9 +121,9 @@ assert.match(index, /id="map-repository-sort"/);
 assert.match(index, /id="map-repository-sort-order"/);
 assert.match(index, /id="map-repository-list"/);
 assert.strictEqual((index.match(/data-repository-resize=/g) || []).length, 8);
-assert.match(index, /css\/auth\.css\?v=20260901-repository-modes-1/);
-assert.match(index, /css\/workspace-theme\.css\?v=20260901-version-notes-1/);
-assert.match(index, /js\/auth\.js\?v=20260901-version-notes-1/);
+assert.match(index, /css\/auth\.css\?v=20260902-axis-review-1/);
+assert.match(index, /css\/workspace-theme\.css\?v=20260902-axis-review-1/);
+assert.match(index, /js\/auth\.js\?v=20260902-axis-review-1/);
 assert.match(authSource, /\.\/catalog\.js\?v=20260831-map-ratings-1/);
 assert.match(index, /id="map-repository-mine-tab"[^>]*aria-selected="false"/);
 assert.match(index, /id="map-repository-review-tab"[^>]*aria-disabled="true"[^>]*disabled[^>]*>Under Review /);
@@ -352,7 +360,7 @@ assert.match(authSource, /const nextSubmission = nextPendingSubmissionAfter\(edi
 assert.match(authSource, /Now editing [\s\S]*the next map in the review queue/);
 assert.match(authSource, /The map review queue is clear/);
 assert.match(authSource, /if\(publish\)[\s\S]*nextPendingSubmissionAfter[\s\S]*} else \{[\s\S]*showMapFileCommand\(mapName, mapVersion, objectPath\)/);
-assert.match(authSource, /confirmLabel:"Approve"/);
+assert.match(authSource, /confirmMapApproval\([\s\S]*"Approve"/);
 assert.match(authSource, /function nextAvailableReviewVersion[\s\S]*let version = normalizeMapVersion\(startingVersion\)/);
 assert.match(authSource, /function savePendingReviewDraft\(/);
 assert.match(authSource, /publish \? "map\.review\.edit-approve" : "map\.review\.edit"/);
@@ -401,6 +409,15 @@ assert.match(authSource, /collection\(firestore, "auditEvents"\)/);
 assert.match(authSource, /Your registration is awaiting admin approval/);
 assert.match(authSource, /you cannot submit yet/);
 assert.match(authSource, /function confirmAction\(/);
+assert.match(authSource, /function duplicatePublishedMaps\(/);
+assert.match(authSource, /function promptDuplicateMapApproval\(/);
+assert.match(authSource, /loadAdminSubmissionPreview\(preview, map\)/);
+assert.match(authSource, /confirmMapApproval\([\s\S]*finalIdentity\.mapName/);
+assert.match(authSource, /confirmMapApproval\([\s\S]*editState\.mapId/);
+assert.match(authCss, /\.duplicate-map-list\s*\{[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(260px, 1fr\)\)/);
+assert.match(wallToolSource, /function wallTool_axisGuideSegments\(/);
+assert.match(wallToolSource, /stroke: "#22c55e"/);
+assert.match(configSource, /case "showAxisAlignmentGuides": return "true"/);
 assert.match(authSource, /function anchorAdminDialog\(/);
 assert.match(authSource, /adminDialog\.classList\.add\("positioned"\)/);
 assert.match(authSource, /function anchorRepositoryDialog\(/);
@@ -411,6 +428,20 @@ assert.match(authSource, /function setRepositoryTab[\s\S]*repositoryList\.scroll
 assert.match(authSource, /function refreshRepositoryMaps[\s\S]*repositoryList\.scrollTop = 0;/);
 assert.match(authSource, /adminRefreshButton\.addEventListener\("click", refreshAdminQueues\)/);
 assert.doesNotMatch(authSource, /window\.(?:confirm|alert)\s*\(/);
+
+const duplicateFunctionSource = [
+    authSource.match(/function normalizedDuplicateMapName\(value\) \{[\s\S]*?\n\}/)[0],
+    authSource.match(/function duplicatePublishedMaps\(mapName, currentMapId, maps = adminData\.maps\) \{[\s\S]*?\n\}/)[0]
+].join("\n");
+const duplicateContext = {result:null};
+vm.runInNewContext(`${duplicateFunctionSource}\nresult = duplicatePublishedMaps("  Same   Map ", "keep", [
+    {id:"first", mapName:"same map", authorName:"One", mapVersion:"1"},
+    {id:"second", mapName:"Same Map", authorName:"Two", mapVersion:"9"},
+    {id:"keep", mapName:"SAME MAP", authorName:"Three", mapVersion:"4"},
+    {id:"other", mapName:"Different", authorName:"One", mapVersion:"1"}
+]);`, duplicateContext);
+assert.deepStrictEqual(Array.from(duplicateContext.result, item => item.id), ["first", "second"],
+    "Duplicate review ignores author and version while excluding the map being updated");
 
 const repositoryPreferenceSource = [
     authSource.match(/function readRepositoryLayout\(\) \{[\s\S]*?\n\}/)[0],
