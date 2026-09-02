@@ -774,6 +774,7 @@ function aamap_buildXml(name, author, category, version, dtd, axes, settings) {
         aamap_escapeXmlAttribute(version) +'" author="'+ aamap_escapeXmlAttribute(author) +
         '" category="'+ aamap_escapeXmlAttribute(category) +'">'+"\n";
     if(typeof xml_buildRemixComments == "function") xml += xml_buildRemixComments("  ");
+    if(typeof xml_buildVersionNotesComments == "function") xml += xml_buildVersionNotesComments("  ");
     xml += '  <Map version="0.2.8">'+"\n";
     var mapSettings = [];
     for(var i = 0, ii = settings.length; i < ii; i++)

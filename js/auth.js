@@ -99,6 +99,7 @@ const reviewAdminWindow = document.getElementById("review-admin-window");
 const reviewAdminClose = document.getElementById("review-admin-close");
 const reviewAdminSave = document.getElementById("review-admin-save");
 const reviewAdminSubmittedReason = document.getElementById("review-admin-submitted-reason");
+const reviewAdminVersionNotes = document.getElementById("review-admin-version-notes");
 const reviewAdminDecisionReason = document.getElementById("review-admin-decision-reason");
 const reviewAdminQuickReasons = document.getElementById("review-admin-quick-reasons");
 const repositoryButton = document.querySelector("[data-map-repository]");
@@ -799,6 +800,10 @@ function syncReviewAdminPanel() {
     if(reviewAdminSubmittedReason && reviewAdminSubmittedReason.value !== repositoryEditState.submissionReason) {
         reviewAdminSubmittedReason.value = repositoryEditState.submissionReason || "";
     }
+    const versionNotes = String(window.xml_versionNotes || "");
+    if(reviewAdminVersionNotes && reviewAdminVersionNotes.value !== versionNotes) {
+        reviewAdminVersionNotes.value = versionNotes;
+    }
     if(reviewAdminDecisionReason && reviewAdminDecisionReason.value !== repositoryEditState.reviewDecisionReason) {
         reviewAdminDecisionReason.value = repositoryEditState.reviewDecisionReason || "";
     }
@@ -810,6 +815,9 @@ function syncReviewAdminPanel() {
 
 function updateReviewAdminStateFromFields() {
     if(!repositoryEditState || !repositoryEditState.reviewSubmissionId) return;
+    if(currentUserIsAdmin() && typeof window.xml_setVersionNotes === "function") {
+        window.xml_setVersionNotes(reviewAdminVersionNotes && reviewAdminVersionNotes.value || "");
+    }
     repositoryEditState = {
         ...repositoryEditState,
         submissionReason:String(reviewAdminSubmittedReason && reviewAdminSubmittedReason.value || "").trim().slice(0, 1000),
@@ -6244,6 +6252,15 @@ function bindUi() {
             event.preventDefault();
             updateReviewAdminStateFromFields();
             uploadCurrentMap();
+        });
+    }
+    if(reviewAdminVersionNotes) {
+        reviewAdminVersionNotes.addEventListener("input", () => {
+            if(!currentUserIsAdmin() || typeof window.xml_setVersionNotes !== "function") return;
+            window.xml_setVersionNotes(reviewAdminVersionNotes.value);
+            if(typeof window.vectron_localDraftScheduleSave === "function") {
+                window.vectron_localDraftScheduleSave();
+            }
         });
     }
     if(reviewAdminClose) {

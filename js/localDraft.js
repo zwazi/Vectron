@@ -177,6 +177,7 @@ function vectron_localDraftClearCurrent() {
         xml_axes = 4;
         xml_settings = [];
         if(typeof xml_clearRemixHistory === "function") xml_clearRemixHistory();
+        if(typeof xml_clearVersionNotes === "function") xml_clearVersionNotes();
         if(typeof window.vectron_syncLockedMetadata === "function") {
             window.vectron_syncLockedMetadata();
         }

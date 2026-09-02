@@ -1789,6 +1789,7 @@ function eventHandler_init() {
             aamap_escapeXmlAttribute(xml_author || '') + '" category="' +
             aamap_escapeXmlAttribute(xml_category || '') + '">\n';
         if(typeof xml_buildRemixComments == "function") xml += xml_buildRemixComments('  ');
+        if(typeof xml_buildVersionNotesComments == "function") xml += xml_buildVersionNotesComments('  ');
         xml += '  <Map version="0.2.8">\n';
         var settings = xml_settings.filter(function(s) { return s.trim(); });
         if (settings.length > 0) {
@@ -2957,6 +2958,7 @@ function eventHandler_init() {
         xml_axes = 4;
         xml_settings = [];
         if(typeof xml_clearRemixHistory == "function") xml_clearRemixHistory();
+        if(typeof xml_clearVersionNotes == "function") xml_clearVersionNotes();
         if(typeof window.vectron_clearRepositoryEditState == "function") {
             window.vectron_clearRepositoryEditState();
         }
