@@ -596,9 +596,13 @@ const commandFields = [
 ];
 assert.match(commandRules[".write"], /auth\.token\.admin == true/);
 assert.match(commandRules[".write"], /auth\.token\.neotron == true/);
-assert.match(commandRules[".write"], /\$serverId == 'ams3'/);
+assert.match(commandRules[".write"], /\$serverId == 'nyc1'/);
+assert.doesNotMatch(commandRules[".write"], /sfo2|ams3/);
 assert.match(commandRules[".validate"], /newData\.hasChildren/);
 assert.match(commandRules[".validate"], /start_console_stream/);
+assert.match(commandRules[".validate"], /restart_server/);
+assert.match(commandRules[".validate"], /console_command/);
+assert.match(commandRules[".validate"], /scope'\)\.val\(\) == 'local'/);
 for(const field of commandFields) {
     assert.deepStrictEqual(commandRules[field], {".validate": true},
         `Realtime Database commands must explicitly allow ${field} before the unknown-field catch-all`);
