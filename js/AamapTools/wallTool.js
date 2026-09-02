@@ -142,9 +142,9 @@ function wallTool_drawAxisGuides() {
             "M", segment.x1, segment.y1, "L", segment.x2, segment.y2
         ]).attr({
             stroke: "#22c55e",
-            "stroke-width": 1.25,
+            "stroke-width": 0.5,
             "stroke-dasharray": "--",
-            opacity: 0.78
+            opacity: 0.28
         });
         if(path.node) {
             path.node.setAttribute("data-wall-axis-guide", "");
