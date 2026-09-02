@@ -16,6 +16,10 @@ vm.runInContext(
 );
 assert.match(wallSource, /"stroke-dasharray": "--"/,
     "8-axis alignment guides use a dashed stroke");
+assert.match(wallSource, /"stroke-width": 0\.5/,
+    "8-axis alignment guides use a half-pixel hairline");
+assert.match(wallSource, /opacity: 0\.28/,
+    "8-axis alignment guides remain deliberately subtle");
 
 const segments = context.wallTool_axisGuideSegments(
     [{x:50, y:40}, {x:20, y:20}],
