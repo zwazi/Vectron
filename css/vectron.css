@@ -1982,7 +1982,7 @@ button.vt-tool-grid-row,
 
 .grid-cfg-header {
   display: grid;
-  grid-template-columns: 120px 110px 130px;
+  grid-template-columns: 120px 110px 130px 120px;
   gap: 4px 8px;
   align-items: center;
   margin-bottom: 4px;
@@ -1994,7 +1994,7 @@ button.vt-tool-grid-row,
 }
 .grid-cfg-row {
   display: grid;
-  grid-template-columns: 120px 110px 130px;
+  grid-template-columns: 120px 110px 130px 120px;
   gap: 4px 8px;
   align-items: center;
   margin-bottom: 6px;
@@ -2006,6 +2006,9 @@ button.vt-tool-grid-row,
 }
 .grid-cfg-label {
   font-size: 12px;
+}
+.grid-cfg-unavailable {
+  color: #999;
 }
 
 /* Map Settings search list hover */

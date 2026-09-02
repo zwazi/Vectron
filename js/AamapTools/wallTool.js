@@ -122,6 +122,29 @@ function wallTool_axisGuideSegments(points, width, height) {
     return segments;
 }
 
+function wallTool_axisGuideStyle() {
+    var defaultColor = typeof WALL_AXIS_GUIDE_DEFAULT_COLOR !== "undefined"
+        ? WALL_AXIS_GUIDE_DEFAULT_COLOR : "#22c55e";
+    var defaultThickness = typeof WALL_AXIS_GUIDE_DEFAULT_THICKNESS !== "undefined"
+        ? WALL_AXIS_GUIDE_DEFAULT_THICKNESS : 0.5;
+    var defaultOpacity = typeof WALL_AXIS_GUIDE_DEFAULT_OPACITY !== "undefined"
+        ? WALL_AXIS_GUIDE_DEFAULT_OPACITY : 0.28;
+    var savedColor = typeof config_wallAxisGuideColor !== "undefined"
+        ? String(config_wallAxisGuideColor) : "";
+    var savedThickness = typeof config_wallAxisGuideThickness !== "undefined"
+        ? parseFloat(config_wallAxisGuideThickness) : 0;
+    var savedOpacity = typeof config_wallAxisGuideOpacity !== "undefined"
+        ? parseFloat(config_wallAxisGuideOpacity) : 0;
+    return {
+        stroke: /^#[0-9a-f]{6}$/i.test(savedColor) ? savedColor : defaultColor,
+        "stroke-width": savedThickness > 0
+            ? Math.max(0.1, Math.min(10, savedThickness)) : defaultThickness,
+        "stroke-dasharray": "--",
+        opacity: savedOpacity > 0
+            ? Math.max(0.01, Math.min(1, savedOpacity)) : defaultOpacity
+    };
+}
+
 function wallTool_drawAxisGuides() {
     wallTool_clearAxisGuides();
     if(typeof config_showAxisAlignmentGuides !== "undefined" && !config_showAxisAlignmentGuides) return;
@@ -135,17 +158,13 @@ function wallTool_drawAxisGuides() {
         {x: cursor_realX, y: cursor_realY}
     ];
     var segments = wallTool_axisGuideSegments(points, vectron_width, vectron_height);
+    var guideStyle = wallTool_axisGuideStyle();
     wallTool_axisGuideObj = vectron_screen.set();
     for(var i = 0; i < segments.length; i++) {
         var segment = segments[i];
         var path = vectron_screen.path([
             "M", segment.x1, segment.y1, "L", segment.x2, segment.y2
-        ]).attr({
-            stroke: "#22c55e",
-            "stroke-width": 0.5,
-            "stroke-dasharray": "--",
-            opacity: 0.28
-        });
+        ]).attr(guideStyle);
         if(path.node) {
             path.node.setAttribute("data-wall-axis-guide", "");
             path.node.style.pointerEvents = "none";
