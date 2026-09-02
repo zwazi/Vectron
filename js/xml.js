@@ -35,6 +35,7 @@ var xml_axes = 4;
 var xml_settings = [];
 var xml_latest_read_id = 0;
 var xml_remixHistory = [];
+var xml_versionNotes = "";
 var xml_playerPrivateZoneSetting = "PLAYER_PRIVATE_ZONES_V1";
 
 function xml_parsePlayerPrivateZoneOrdinals(value) {
@@ -115,9 +116,58 @@ function xml_buildRemixComments(indent) {
     return lines.join("\n") + "\n";
 }
 
+function xml_normalizeVersionNotes(value) {
+    return String(value || "").replace(/\r\n?/g, "\n").trim().slice(0, 2000);
+}
+
+function xml_setVersionNotes(value) {
+    xml_versionNotes = xml_normalizeVersionNotes(value);
+    return xml_versionNotes;
+}
+
+function xml_clearVersionNotes() {
+    xml_versionNotes = "";
+}
+
+function xml_readVersionNotes(xml) {
+    var pattern = /<!--\s*Vectron version notes data:\s*([A-Za-z0-9+/=]+)\s*-->/gi;
+    var encoded = "";
+    var match;
+    while((match = pattern.exec(String(xml || "")))) encoded = match[1];
+    if(encoded) {
+        try {
+            var value = JSON.parse(decodeURIComponent(atob(encoded)));
+            return xml_setVersionNotes(typeof value == "string" ? value : value && value.notes);
+        } catch(error) {
+            gui_writeLog("Ignored invalid Vectron version notes metadata.");
+        }
+    }
+    var readablePattern = /<!--\s*Vectron version notes:\s*([\s\S]*?)\s*-->/gi;
+    var readable = "";
+    while((match = readablePattern.exec(String(xml || "")))) readable = match[1];
+    return xml_setVersionNotes(readable.replace(/\s+/g, " "));
+}
+
+function xml_buildVersionNotesComments(indent) {
+    if(!xml_versionNotes) return "";
+    var prefix = indent || "";
+    var readable = xml_versionNotes
+        .replace(/[\r\n\t]+/g, " ")
+        .replace(/--/g, "- -")
+        .trim();
+    var payload = {version:1, notes:xml_versionNotes};
+    return prefix + "<!-- Vectron version notes: " + readable + " -->\n" +
+        prefix + "<!-- Vectron version notes data: " +
+        btoa(encodeURIComponent(JSON.stringify(payload))) + " -->\n";
+}
+
 window.xml_appendRemixSource = xml_appendRemixSource;
 window.xml_buildRemixComments = xml_buildRemixComments;
 window.xml_clearRemixHistory = xml_clearRemixHistory;
+window.xml_buildVersionNotesComments = xml_buildVersionNotesComments;
+window.xml_clearVersionNotes = xml_clearVersionNotes;
+window.xml_readVersionNotes = xml_readVersionNotes;
+window.xml_setVersionNotes = xml_setVersionNotes;
 
 function xml_init() {
 
@@ -148,6 +198,7 @@ function xml_process(xml, suppressHistoryClear) {
     xml_version = resource.attr("version");
     xml_category = resource.attr("category");
     xml_readRemixHistory(xml);
+    xml_readVersionNotes(xml);
 
     try{xml_dtd = $.parseXML(xml).firstChild.systemId;}
     catch(e){xml_dtd = "sty.dtd"; gui_writeLog("Could not determine dtd!");}

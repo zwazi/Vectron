@@ -101,4 +101,20 @@ context.xml_readRemixHistory('<Resource type="aamap" name="Fresh"></Resource>');
 assert.strictEqual(context.xml_remixHistory.length, 0,
     "A non-remixed map must clear the previous remix chain");
 
+context.xml_setVersionNotes("Added the wall detour -- now fairer.\nAdjusted the finish 💥");
+const notedMap = context.aamap_buildXml(
+    "Noted Map", "Reviewer", "maps", "2", "sty.dtd", 4, []
+).xml;
+assert.match(notedMap, /Vectron version notes: Added the wall detour - - now fairer\. Adjusted the finish 💥/);
+assert.match(notedMap, /Vectron version notes data:/);
+context.xml_clearVersionNotes();
+assert.strictEqual(context.xml_versionNotes, "");
+context.xml_readVersionNotes(notedMap);
+assert.strictEqual(context.xml_versionNotes,
+    "Added the wall detour -- now fairer.\nAdjusted the finish 💥",
+    "Encoded version notes preserve punctuation, newlines, and Unicode");
+context.xml_readVersionNotes('<Resource type="aamap" name="Unnoted"></Resource>');
+assert.strictEqual(context.xml_versionNotes, "",
+    "Loading an unnoted map clears notes from the previous revision");
+
 console.log("Vectron map format tests passed.");

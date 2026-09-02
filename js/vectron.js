@@ -96,6 +96,7 @@ function vectron_resetForInitialMap() {
     aamap_objects = [];
     if(typeof aamap_disableSymmetry === "function") aamap_disableSymmetry();
     if(typeof xml_clearRemixHistory === "function") xml_clearRemixHistory();
+    if(typeof xml_clearVersionNotes === "function") xml_clearVersionNotes();
     if(typeof window.vectron_clearRepositoryEditState === "function") {
         window.vectron_clearRepositoryEditState();
     }

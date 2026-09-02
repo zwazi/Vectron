@@ -435,6 +435,7 @@
 #wall-tool-status,
 #zone-tool-status,
 #edit-selected-summary,
+.review-admin-field small,
 .edit-selected-group > small,
 .edit-selected-subgroup > small {
   color: var(--workspace-muted) !important;
