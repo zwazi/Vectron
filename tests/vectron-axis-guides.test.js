@@ -16,10 +16,28 @@ vm.runInContext(
 );
 assert.match(wallSource, /"stroke-dasharray": "--"/,
     "8-axis alignment guides use a dashed stroke");
-assert.match(wallSource, /"stroke-width": 0\.5/,
-    "8-axis alignment guides use a half-pixel hairline");
-assert.match(wallSource, /opacity: 0\.28/,
-    "8-axis alignment guides remain deliberately subtle");
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(context.wallTool_axisGuideStyle())),
+    {stroke:"#22c55e", "stroke-width":0.5, "stroke-dasharray":"--", opacity:0.28},
+    "8-axis alignment guides retain subtle defaults"
+);
+context.config_wallAxisGuideColor = "#123456";
+context.config_wallAxisGuideThickness = 2.4;
+context.config_wallAxisGuideOpacity = 0.63;
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(context.wallTool_axisGuideStyle())),
+    {stroke:"#123456", "stroke-width":2.4, "stroke-dasharray":"--", opacity:0.63},
+    "Saved guide appearance settings override every tunable attribute"
+);
+
+const configSource = fs.readFileSync(path.join(root, "js/config.js"), "utf8");
+assert.match(configSource, /label: 'Wall alignment guides'/);
+assert.match(configSource, /_config_get\('wallAxisGuideColor'\)/);
+assert.match(configSource, /_config_get\('wallAxisGuideThickness'\)/);
+assert.match(configSource, /_config_get\('wallAxisGuideOpacity'\)/);
+assert.match(configSource, /opacityInp\.min = '1'/);
+const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
+assert.match(indexSource, /js\/config\.js\?v=20260902-guide-settings-1/);
 
 const segments = context.wallTool_axisGuideSegments(
     [{x:50, y:40}, {x:20, y:20}],

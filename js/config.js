@@ -33,6 +33,12 @@ var config_zoomStep = 0.02; // scroll wheel zoom step (fraction): 0.02 = finest
 var config_showTooltips = true;
 var config_advancedMapOptionsUnlocked = false;
 var config_showAxisAlignmentGuides = true;
+var config_wallAxisGuideColor = '';
+var config_wallAxisGuideThickness = 0;
+var config_wallAxisGuideOpacity = 0;
+var WALL_AXIS_GUIDE_DEFAULT_COLOR = '#22c55e';
+var WALL_AXIS_GUIDE_DEFAULT_THICKNESS = 0.5;
+var WALL_AXIS_GUIDE_DEFAULT_OPACITY = 0.28;
 
 // Grid line appearance (empty string = use theme default)
 var config_gridNarrowColor     = '';
@@ -364,6 +370,15 @@ function config_load()
     config_gridTenthThickness  = parseFloat(_config_get('gridTenthThickness'))  || 0;
     config_gridAxisXThickness  = parseFloat(_config_get('gridAxisXThickness'))  || 0;
     config_gridAxisYThickness  = parseFloat(_config_get('gridAxisYThickness'))  || 0;
+    var savedGuideColor = _config_get('wallAxisGuideColor') || '';
+    config_wallAxisGuideColor = /^#[0-9a-f]{6}$/i.test(savedGuideColor)
+        ? savedGuideColor : '';
+    var savedGuideThickness = parseFloat(_config_get('wallAxisGuideThickness'));
+    config_wallAxisGuideThickness = !isNaN(savedGuideThickness) && savedGuideThickness > 0
+        ? Math.max(0.1, Math.min(10, savedGuideThickness)) : 0;
+    var savedGuideOpacity = parseFloat(_config_get('wallAxisGuideOpacity'));
+    config_wallAxisGuideOpacity = !isNaN(savedGuideOpacity) && savedGuideOpacity > 0
+        ? Math.max(0.01, Math.min(1, savedGuideOpacity)) : 0;
     config_gridLayout          = _config_get('gridLayout') || 'square';
     if(GRID_LAYOUT_VALID_LAYOUTS.indexOf(config_gridLayout) < 0) {
         config_gridLayout = 'square';
@@ -534,12 +549,25 @@ function gridConfig_buildUI() {
           defaultColor: function(){ return defaultAxisX; }, defaultThick: defaultThickX },
         { label: 'Y axis (x=0)', colorKey: 'gridAxisYColor', thickKey: 'gridAxisYThickness',
           defaultColor: function(){ return defaultAxisY; }, defaultThick: defaultThickY },
+        { label: 'Wall alignment guides', colorKey: 'wallAxisGuideColor',
+          thickKey: 'wallAxisGuideThickness', opacityKey: 'wallAxisGuideOpacity',
+          defaultColor: function(){ return WALL_AXIS_GUIDE_DEFAULT_COLOR; },
+          defaultThick: WALL_AXIS_GUIDE_DEFAULT_THICKNESS,
+          defaultOpacity: WALL_AXIS_GUIDE_DEFAULT_OPACITY,
+          minThick: 0.1, thickStep: 0.1, refreshGuides: true },
     ];
+
+    function refreshLineAppearance(row) {
+        vectron_render();
+        if(row.refreshGuides && typeof wallTool_renderCurrent === 'function') {
+            wallTool_renderCurrent();
+        }
+    }
 
     // Header row
     var headerDiv = document.createElement('div');
     headerDiv.className = 'grid-cfg-header';
-    ['Line Type','Color','Thickness (px)'].forEach(function(h) {
+    ['Line Type','Color','Thickness (px)','Opacity'].forEach(function(h) {
         var span = document.createElement('span');
         span.textContent = h;
         headerDiv.appendChild(span);
@@ -563,8 +591,9 @@ function gridConfig_buildUI() {
         var colorInp = document.createElement('input');
         colorInp.type = 'color';
         colorInp.id = 'cfg-' + row.colorKey;
-        var savedColor = _config_get(row.colorKey);
-        colorInp.value = savedColor || row.defaultColor();
+        var savedColor = _config_get(row.colorKey) || '';
+        colorInp.value = /^#[0-9a-f]{6}$/i.test(savedColor)
+            ? savedColor : row.defaultColor();
         colorInp.style.cssText = 'width:50px;height:26px;padding:1px 2px;border:1px solid #aaa;border-radius:3px;cursor:pointer;background:transparent;';
 
         var colorResetBtn = document.createElement('button');
@@ -577,25 +606,25 @@ function gridConfig_buildUI() {
         }
         updateColorResetVisibility();
 
-        colorInp.onchange = (function(key, inp, defFn, resetBtn) {
+        colorInp.onchange = (function(key, inp, defFn, resetBtn, rowConfig) {
             return function() {
                 var val = inp.value;
                 window['config_' + key] = (val === defFn()) ? '' : val;
                 _config_set(key, val);
                 resetBtn.style.display = (val !== defFn()) ? '' : 'none';
-                vectron_render();
+                refreshLineAppearance(rowConfig);
             };
-        })(row.colorKey, colorInp, row.defaultColor, colorResetBtn);
+        })(row.colorKey, colorInp, row.defaultColor, colorResetBtn, row);
 
-        colorResetBtn.onclick = (function(key, inp, defFn, resetBtn) {
+        colorResetBtn.onclick = (function(key, inp, defFn, resetBtn, rowConfig) {
             return function() {
                 window['config_' + key] = '';
                 _config_set(key, '');
                 inp.value = defFn();
                 resetBtn.style.display = 'none';
-                vectron_render();
+                refreshLineAppearance(rowConfig);
             };
-        })(row.colorKey, colorInp, row.defaultColor, colorResetBtn);
+        })(row.colorKey, colorInp, row.defaultColor, colorResetBtn, row);
 
         colorCell.appendChild(colorInp);
         colorCell.appendChild(colorResetBtn);
@@ -608,9 +637,14 @@ function gridConfig_buildUI() {
         var thickInp = document.createElement('input');
         thickInp.type = 'number';
         thickInp.id = 'cfg-' + row.thickKey;
-        thickInp.min = '0.1'; thickInp.max = '10'; thickInp.step = '0.5';
+        thickInp.min = String(row.minThick || 0.1);
+        thickInp.max = '10';
+        thickInp.step = String(row.thickStep || 0.5);
         var savedThick = parseFloat(_config_get(row.thickKey));
-        thickInp.value = (savedThick > 0) ? savedThick : row.defaultThick;
+        var displayedThick = savedThick > 0
+            ? Math.max(parseFloat(thickInp.min), Math.min(parseFloat(thickInp.max), savedThick))
+            : row.defaultThick;
+        thickInp.value = displayedThick;
         thickInp.className = 'form-control';
         thickInp.style.cssText = 'width:72px;height:26px;padding:2px 6px;display:inline-block;';
 
@@ -624,30 +658,97 @@ function gridConfig_buildUI() {
         }
         updateThickResetVisibility();
 
-        thickInp.onchange = (function(key, inp, defThick, resetBtn) {
+        thickInp.onchange = (function(key, inp, defThick, resetBtn, rowConfig) {
             return function() {
                 var v = parseFloat(inp.value);
                 if(isNaN(v) || v <= 0) { v = defThick; inp.value = defThick; }
+                v = Math.max(parseFloat(inp.min), Math.min(parseFloat(inp.max), v));
+                inp.value = v;
                 window['config_' + key] = (v === defThick) ? 0 : v;
                 _config_set(key, String(v));
                 resetBtn.style.display = (v !== defThick) ? '' : 'none';
-                vectron_render();
+                refreshLineAppearance(rowConfig);
             };
-        })(row.thickKey, thickInp, row.defaultThick, thickResetBtn);
+        })(row.thickKey, thickInp, row.defaultThick, thickResetBtn, row);
 
-        thickResetBtn.onclick = (function(key, inp, defThick, resetBtn) {
+        thickResetBtn.onclick = (function(key, inp, defThick, resetBtn, rowConfig) {
             return function() {
                 window['config_' + key] = 0;
                 _config_set(key, String(defThick));
                 inp.value = defThick;
                 resetBtn.style.display = 'none';
-                vectron_render();
+                refreshLineAppearance(rowConfig);
             };
-        })(row.thickKey, thickInp, row.defaultThick, thickResetBtn);
+        })(row.thickKey, thickInp, row.defaultThick, thickResetBtn, row);
 
         thickCell.appendChild(thickInp);
         thickCell.appendChild(thickResetBtn);
         rowDiv.appendChild(thickCell);
+
+        var opacityCell = document.createElement('div');
+        opacityCell.className = 'grid-cfg-cell';
+        if(row.opacityKey) {
+            var opacityInp = document.createElement('input');
+            opacityInp.type = 'number';
+            opacityInp.id = 'cfg-' + row.opacityKey;
+            opacityInp.min = '1';
+            opacityInp.max = '100';
+            opacityInp.step = '1';
+            opacityInp.setAttribute('aria-label', row.label + ' opacity percentage');
+            var savedOpacity = parseFloat(_config_get(row.opacityKey));
+            var opacityValue = savedOpacity > 0
+                ? Math.max(0.01, Math.min(1, savedOpacity)) : row.defaultOpacity;
+            opacityInp.value = String(Math.round(opacityValue * 100));
+            opacityInp.className = 'form-control';
+            opacityInp.style.cssText = 'width:60px;height:26px;padding:2px 6px;display:inline-block;';
+
+            var opacitySuffix = document.createElement('span');
+            opacitySuffix.textContent = '%';
+
+            var opacityResetBtn = document.createElement('button');
+            opacityResetBtn.textContent = '↺';
+            opacityResetBtn.title = 'Reset to default';
+            opacityResetBtn.className = 'btn btn-xs btn-default';
+            opacityResetBtn.style.display = Math.abs(opacityValue - row.defaultOpacity) > 1e-9
+                ? '' : 'none';
+
+            opacityInp.onchange = (function(key, inp, defOpacity, resetBtn, rowConfig) {
+                return function() {
+                    var percent = parseFloat(inp.value);
+                    if(isNaN(percent)) percent = defOpacity * 100;
+                    percent = Math.max(1, Math.min(100, percent));
+                    inp.value = String(percent);
+                    var opacity = percent / 100;
+                    window['config_' + key] = Math.abs(opacity - defOpacity) < 1e-9
+                        ? 0 : opacity;
+                    _config_set(key, String(opacity));
+                    resetBtn.style.display = Math.abs(opacity - defOpacity) > 1e-9
+                        ? '' : 'none';
+                    refreshLineAppearance(rowConfig);
+                };
+            })(row.opacityKey, opacityInp, row.defaultOpacity, opacityResetBtn, row);
+
+            opacityResetBtn.onclick = (function(key, inp, defOpacity, resetBtn, rowConfig) {
+                return function() {
+                    window['config_' + key] = 0;
+                    _config_set(key, String(defOpacity));
+                    inp.value = String(Math.round(defOpacity * 100));
+                    resetBtn.style.display = 'none';
+                    refreshLineAppearance(rowConfig);
+                };
+            })(row.opacityKey, opacityInp, row.defaultOpacity, opacityResetBtn, row);
+
+            opacityCell.appendChild(opacityInp);
+            opacityCell.appendChild(opacitySuffix);
+            opacityCell.appendChild(opacityResetBtn);
+        } else {
+            var unavailable = document.createElement('span');
+            unavailable.className = 'grid-cfg-unavailable';
+            unavailable.textContent = '—';
+            unavailable.setAttribute('aria-hidden', 'true');
+            opacityCell.appendChild(unavailable);
+        }
+        rowDiv.appendChild(opacityCell);
 
         container.appendChild(rowDiv);
     });
