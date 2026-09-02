@@ -194,6 +194,12 @@ const submissionChoicePreview = document.getElementById("submission-choice-previ
 const submissionChoiceCancel = document.getElementById("submission-choice-cancel");
 const submissionChoiceNew = document.getElementById("submission-choice-new");
 const submissionChoiceUpdate = document.getElementById("submission-choice-update");
+const duplicateMapOverlay = document.getElementById("duplicate-map-overlay");
+const duplicateMapSubtitle = document.getElementById("duplicate-map-subtitle");
+const duplicateMapMessage = document.getElementById("duplicate-map-message");
+const duplicateMapList = document.getElementById("duplicate-map-list");
+const duplicateMapCancel = document.getElementById("duplicate-map-cancel");
+const duplicateMapApprove = document.getElementById("duplicate-map-approve");
 
 let auth = null;
 let identityAuth = null;
@@ -287,6 +293,7 @@ let adminResizing = null;
 let metadataMapId = "";
 let metadataPreviousFocus = null;
 let submissionChoiceResolver = null;
+let duplicateMapResolver = null;
 
 function readRepositoryLayout() {
     try {
@@ -2089,6 +2096,87 @@ async function loadAdminSubmissionPreview(preview, submission) {
     }
 }
 
+function normalizedDuplicateMapName(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
+}
+
+function duplicatePublishedMaps(mapName, currentMapId, maps = adminData.maps) {
+    const normalizedName = normalizedDuplicateMapName(mapName);
+    const excludedId = String(currentMapId || "");
+    if(!normalizedName) return [];
+    return maps.filter(map =>
+        normalizedDuplicateMapName(map.mapName || map.name) === normalizedName &&
+        String(map.id || map.mapId || "") !== excludedId
+    );
+}
+
+async function publishedMapsForDuplicateReview() {
+    if(adminData.maps.length) return adminData.maps;
+    const maps = await loadPublicCatalog(false, publicCatalogState || undefined);
+    adminData.maps = maps.map(item => ({...item, id:item.id || item.mapId}));
+    updateAdminBadge();
+    return adminData.maps;
+}
+
+function finishDuplicateMapApproval(approved) {
+    if(!duplicateMapResolver) return;
+    const resolve = duplicateMapResolver;
+    duplicateMapResolver = null;
+    duplicateMapOverlay.hidden = true;
+    duplicateMapList.replaceChildren();
+    resolve(Boolean(approved));
+}
+
+async function promptDuplicateMapApproval(mapName, currentMapId) {
+    if(!duplicateMapOverlay) return false;
+    const maps = await publishedMapsForDuplicateReview();
+    const duplicates = duplicatePublishedMaps(mapName, currentMapId, maps);
+    if(!duplicates.length) return null;
+
+    duplicateMapSubtitle.textContent = duplicates.length === 1
+        ? "One published map already uses this name."
+        : `${duplicates.length} published maps already use this name.`;
+    duplicateMapMessage.textContent =
+        `Map names are compared without author or version. Review the existing ` +
+        `${duplicates.length === 1 ? "map" : "maps"} below before adding another “${mapName}” to rotation.`;
+    duplicateMapList.replaceChildren();
+    duplicates.forEach(map => {
+        const card = document.createElement("article");
+        card.className = "duplicate-map-card";
+        const copy = document.createElement("div");
+        copy.className = "duplicate-map-card-copy";
+        const name = document.createElement("strong");
+        name.textContent = map.mapName || map.name || "Untitled";
+        const details = document.createElement("span");
+        details.textContent = `${map.authorName || map.author || "Unknown author"} · ` +
+            `${map.mapVersion || map.version || "Unknown version"}`;
+        copy.append(name, details);
+        const preview = document.createElement("div");
+        preview.className = "map-review-preview";
+        preview.dataset.adminPreviewId = `duplicate:${map.id || map.mapId}`;
+        preview.dataset.adminPreviewPath = map.storagePath || "";
+        preview.setAttribute("role", "img");
+        preview.setAttribute("aria-label", `Existing map preview for ${name.textContent}`);
+        preview.setAttribute("aria-busy", "true");
+        const loading = document.createElement("span");
+        loading.className = "map-review-preview-message";
+        loading.textContent = "Loading existing map preview…";
+        preview.appendChild(loading);
+        card.append(copy, preview);
+        duplicateMapList.appendChild(card);
+        void loadAdminSubmissionPreview(preview, map);
+    });
+    duplicateMapOverlay.hidden = false;
+    window.setTimeout(() => duplicateMapCancel.focus(), 0);
+    return new Promise(resolve => { duplicateMapResolver = resolve; });
+}
+
+async function confirmMapApproval(mapName, currentMapId, message, confirmLabel) {
+    const duplicateChoice = await promptDuplicateMapApproval(mapName, currentMapId);
+    if(duplicateChoice !== null) return duplicateChoice;
+    return confirmAction(message, {confirmLabel});
+}
+
 function queueAdminSubmissionPreview(preview, submission) {
     adminPreviewTargets.set(preview, submission);
     const load = async () => {
@@ -3199,12 +3287,20 @@ async function reviewSubmission(submissionId, approved, options = {}) {
             );
         }
     }
-    if(options.skipConfirmation !== true && !await confirmAction(
-        approved
-            ? `Approve and publish ${finalIdentity.mapName} ${finalIdentity.mapVersion}?`
-            : `Deny ${submission.mapName}?`,
-        {confirmLabel:approved ? "Approve and publish" : "Deny", danger:!approved}
-    )) return false;
+    if(options.skipConfirmation !== true) {
+        const confirmed = approved
+            ? await confirmMapApproval(
+                finalIdentity.mapName,
+                submission.mapId,
+                `Approve and publish ${finalIdentity.mapName} ${finalIdentity.mapVersion}?`,
+                "Approve and publish"
+            )
+            : await confirmAction(
+                `Deny ${submission.mapName}?`,
+                {confirmLabel:"Deny", danger:true}
+            );
+        if(!confirmed) return false;
+    }
     setAdminBusy(true);
     setAdminStatus(`${approved ? "Validating and publishing" : "Denying"} map submission…`);
     try {
@@ -4984,10 +5080,6 @@ async function uploadCurrentMap(options = {}) {
         showEditorMessage("Open a pending review before approving it.");
         return;
     }
-    if(publishReview && !await confirmAction(
-        "Approve and publish this map, then open the next review?",
-        {confirmLabel:"Approve"}
-    )) return;
     let authorIdentity;
     try {
         authorIdentity = uploadAuthorIdentity(user, editState);
@@ -5008,6 +5100,22 @@ async function uploadCurrentMap(options = {}) {
     const mapName = setCurrentMapName(rawMapName);
     let mapVersion = setCurrentMapVersion(rawMapVersion);
     const requestedVersion = mapVersion;
+    if(publishReview) {
+        try {
+            if(!await confirmMapApproval(
+                mapName,
+                editState.mapId,
+                "Approve and publish this map, then open the next review?",
+                "Approve"
+            )) return;
+        } catch(error) {
+            console.error("Vectron duplicate map review failed.", error);
+            showEditorMessage(
+                "Vectron could not safely check the published catalog. Nothing was approved; please try again."
+            );
+            return;
+        }
+    }
     let pendingSubmissions = [];
     let replacesSubmission = null;
     if(!editState || !editState.reviewSubmissionId) {
@@ -6296,6 +6404,16 @@ function bindUi() {
     if(submissionChoiceCancel) submissionChoiceCancel.addEventListener("click", () => finishSubmissionChoice("cancel"));
     if(submissionChoiceNew) submissionChoiceNew.addEventListener("click", () => finishSubmissionChoice("new"));
     if(submissionChoiceUpdate) submissionChoiceUpdate.addEventListener("click", () => finishSubmissionChoice("update"));
+    if(duplicateMapCancel) duplicateMapCancel.addEventListener("click", () => finishDuplicateMapApproval(false));
+    if(duplicateMapApprove) duplicateMapApprove.addEventListener("click", () => finishDuplicateMapApproval(true));
+    if(duplicateMapOverlay) {
+        duplicateMapOverlay.addEventListener("mousedown", event => {
+            if(event.target === duplicateMapOverlay) finishDuplicateMapApproval(false);
+        });
+        duplicateMapOverlay.addEventListener("keydown", event => {
+            if(event.key === "Escape") finishDuplicateMapApproval(false);
+        });
+    }
     if(repositoryButton) {
         repositoryButton.addEventListener("click", event => {
             event.preventDefault();

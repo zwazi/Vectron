@@ -35,6 +35,7 @@ function WallPoint(x, y) {
 
 var wallTool_currentObj = null;
 var wallTool_previewObj = null;
+var wallTool_axisGuideObj = null;
 var wallTool_mode = "freeform";
 var wallTool_step = 0;
 var wallTool_stagePoints = [];
@@ -63,6 +64,96 @@ function wallTool_clearPreview() {
     }
 }
 
+function wallTool_clearAxisGuides() {
+    if(wallTool_axisGuideObj != null) {
+        wallTool_axisGuideObj.remove();
+        wallTool_axisGuideObj = null;
+    }
+}
+
+function wallTool_clipGuideLine(point, direction, width, height) {
+    var epsilon = 1e-7;
+    var candidates = [];
+    function add(t, x, y) {
+        if(x < -epsilon || x > width + epsilon || y < -epsilon || y > height + epsilon) return;
+        for(var i = 0; i < candidates.length; i++) {
+            if(Math.abs(candidates[i].x - x) < epsilon && Math.abs(candidates[i].y - y) < epsilon) return;
+        }
+        candidates.push({t: t, x: Math.max(0, Math.min(width, x)), y: Math.max(0, Math.min(height, y))});
+    }
+    if(Math.abs(direction.x) > epsilon) {
+        var leftT = -point.x / direction.x;
+        var rightT = (width - point.x) / direction.x;
+        add(leftT, 0, point.y + leftT * direction.y);
+        add(rightT, width, point.y + rightT * direction.y);
+    }
+    if(Math.abs(direction.y) > epsilon) {
+        var topT = -point.y / direction.y;
+        var bottomT = (height - point.y) / direction.y;
+        add(topT, point.x + topT * direction.x, 0);
+        add(bottomT, point.x + bottomT * direction.x, height);
+    }
+    if(candidates.length < 2) return null;
+    candidates.sort(function(a, b) { return a.t - b.t; });
+    return {
+        x1: candidates[0].x,
+        y1: candidates[0].y,
+        x2: candidates[candidates.length - 1].x,
+        y2: candidates[candidates.length - 1].y
+    };
+}
+
+function wallTool_axisGuideSegments(points, width, height) {
+    var directions = [
+        {x: 1, y: 0},
+        {x: 0, y: 1},
+        {x: 1, y: 1},
+        {x: 1, y: -1}
+    ];
+    var segments = [];
+    for(var pointIndex = 0; pointIndex < points.length; pointIndex++) {
+        for(var directionIndex = 0; directionIndex < directions.length; directionIndex++) {
+            var segment = wallTool_clipGuideLine(
+                points[pointIndex], directions[directionIndex], width, height
+            );
+            if(segment) segments.push(segment);
+        }
+    }
+    return segments;
+}
+
+function wallTool_drawAxisGuides() {
+    wallTool_clearAxisGuides();
+    if(typeof config_showAxisAlignmentGuides !== "undefined" && !config_showAxisAlignmentGuides) return;
+    var axesInput = document.getElementById("map_axes");
+    if(!axesInput || parseInt(axesInput.value) !== 8 || !wallTool_currentObj ||
+       !wallTool_currentObj.points.length) return;
+
+    var last = wallTool_currentObj.points[wallTool_currentObj.points.length - 1];
+    var points = [
+        {x: aamap_realX(last.x), y: aamap_realY(last.y)},
+        {x: cursor_realX, y: cursor_realY}
+    ];
+    var segments = wallTool_axisGuideSegments(points, vectron_width, vectron_height);
+    wallTool_axisGuideObj = vectron_screen.set();
+    for(var i = 0; i < segments.length; i++) {
+        var segment = segments[i];
+        var path = vectron_screen.path([
+            "M", segment.x1, segment.y1, "L", segment.x2, segment.y2
+        ]).attr({
+            stroke: "#22c55e",
+            "stroke-width": 1.25,
+            "stroke-dasharray": "--",
+            opacity: 0.78
+        });
+        if(path.node) {
+            path.node.setAttribute("data-wall-axis-guide", "");
+            path.node.style.pointerEvents = "none";
+        }
+        wallTool_axisGuideObj.push(path);
+    }
+}
+
 function wallTool_clearCurrentWall() {
     if(wallTool_currentObj != null) {
         wallTool_currentObj.obj.remove();
@@ -73,6 +164,7 @@ function wallTool_clearCurrentWall() {
 
 function wallTool_resetDraft() {
     wallTool_clearPreview();
+    wallTool_clearAxisGuides();
     wallTool_clearCurrentWall();
     wallTool_step = 0;
     wallTool_stagePoints = [];
@@ -1101,6 +1193,9 @@ function wallTool_renderCurrent() {
         if(vectron_toolActive && wallTool_currentObj != null) {
             wallTool_currentObj.render();
             wallTool_currentObj.guide();
+            wallTool_drawAxisGuides();
+        } else {
+            wallTool_clearAxisGuides();
         }
         wallTool_updatePointsList();
         return;
@@ -1172,6 +1267,7 @@ function wallTool_complete() {
     if(wallTool_currentObj.points.length < 2) {
         wallTool_currentObj.obj.remove();
         wallTool_currentObj.guideObj.remove();
+        wallTool_clearAxisGuides();
         wallTool_currentObj = null;
         vectron_toolActive = false;
         gui_writeLog("Wall canceled, < 2 points");
@@ -1186,6 +1282,7 @@ function wallTool_complete() {
         }
     }
     wallTool_currentObj.guideObj.remove();
+    wallTool_clearAxisGuides();
     var completedWall = wallTool_currentObj;
     var addedWalls = aamap_addWithSymmetry(completedWall);
     aamap_recordAction({
@@ -1208,6 +1305,7 @@ function wallTool_finishWall() {
     if(wallTool_currentObj.points.length < 2) {
         wallTool_currentObj.obj.remove();
         wallTool_currentObj.guideObj.remove();
+        wallTool_clearAxisGuides();
         wallTool_currentObj = null;
         vectron_toolActive = false;
         gui_writeLog("Wall canceled, < 2 points");
@@ -1215,6 +1313,7 @@ function wallTool_finishWall() {
         return;
     }
     wallTool_currentObj.guideObj.remove();
+    wallTool_clearAxisGuides();
     var completedWall = wallTool_currentObj;
     var addedWalls = aamap_addWithSymmetry(completedWall);
     aamap_recordAction({
@@ -1230,6 +1329,7 @@ function wallTool_finishWall() {
 
 function wallTool_disconnect() {
     wallTool_clearPreview();
+    wallTool_clearAxisGuides();
     wallTool_clearCurrentWall();
     wallTool_step = 0;
     wallTool_stagePoints = [];

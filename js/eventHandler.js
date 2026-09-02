@@ -46,6 +46,7 @@ var eventHandler_tooltipPlacementTop = "top";
 var eventHandler_tooltipPlacementBottom = "bottom";
 var eventHandler_tooltipPlacementLeft = "left";
 var eventHandler_tooltipPlacementRight = "right";
+var eventHandler_triangleGridPromptAxes = null;
 var eventHandler_armawebtronSettingsCustomCfgFallback = [
     "SP_NUM_AIS 0",
     "ARENA_AXES 8",
@@ -72,6 +73,54 @@ var eventHandler_armawebtronSettingsCustomCfgFallback = [
     "CYCLE_SPEED_MIN 0",
     "CYCLE_SPEED 125"
 ].join("\n");
+
+function eventHandler_shouldSuggestTriangleGrid(axes, layout) {
+    return (Number(axes) === 3 || Number(axes) === 6) && layout !== "triangle";
+}
+
+function eventHandler_hideTriangleGridPrompt() {
+    var popover = document.getElementById("triangle-grid-popover");
+    if(popover) popover.hidden = true;
+}
+
+function eventHandler_positionTriangleGridPrompt() {
+    var popover = document.getElementById("triangle-grid-popover");
+    var axesInput = document.getElementById("map_axes");
+    if(!popover || popover.hidden || !axesInput) return;
+    var margin = 12;
+    var gap = 8;
+    var anchor = axesInput.getBoundingClientRect();
+    var bounds = popover.getBoundingClientRect();
+    var left = Math.max(
+        margin,
+        Math.min(anchor.left, window.innerWidth - bounds.width - margin)
+    );
+    var top = anchor.bottom + gap;
+    if(top + bounds.height > window.innerHeight - margin) {
+        top = anchor.top - bounds.height - gap;
+    }
+    popover.style.left = Math.round(left) + "px";
+    popover.style.top = Math.round(Math.max(margin, top)) + "px";
+}
+
+function eventHandler_promptTriangleGridIfUseful() {
+    var axesInput = document.getElementById("map_axes");
+    var popover = document.getElementById("triangle-grid-popover");
+    if(!axesInput || !popover) return false;
+    var axes = parseInt(axesInput.value);
+    if(!eventHandler_shouldSuggestTriangleGrid(axes, config_gridLayout)) {
+        eventHandler_triangleGridPromptAxes = null;
+        eventHandler_hideTriangleGridPrompt();
+        return false;
+    }
+    if(eventHandler_triangleGridPromptAxes === axes) return false;
+    eventHandler_triangleGridPromptAxes = axes;
+    popover.hidden = false;
+    eventHandler_positionTriangleGridPrompt();
+    var switchButton = document.getElementById("triangle-grid-switch");
+    if(switchButton) switchButton.focus();
+    return true;
+}
 
 function eventHandler_getExportMap() {
     var mapName = $("#map_name").val().trim() || "map";
@@ -1307,6 +1356,7 @@ function eventHandler_init() {
     $('#map_version').on('input change', function() { xml_version = this.value; });
     $('#map_dtd').on('input change', function() { xml_dtd = this.value; });
     $('#map_axes').on('input change', function() { xml_axes = parseInt(this.value) || 4; });
+    $('#map_axes').on('change', function() { eventHandler_promptTriangleGridIfUseful(); });
     function eventHandler_updateSymmetry() {
         var transforms = aamap_symmetryTransforms();
         if($("#symmetry-check-toggle").is(":checked") && !transforms.length) {
@@ -1413,6 +1463,37 @@ function eventHandler_init() {
         config_advancedMapOptionsUnlocked = this.checked;
         _config_set("advancedMapOptionsUnlocked", this.checked ? "true" : "false");
         eventHandler_syncAdvancedOptionLocks();
+    });
+
+    $("#show-axis-alignment-guides").change(function() {
+        config_showAxisAlignmentGuides = this.checked;
+        _config_set("showAxisAlignmentGuides", this.checked ? "true" : "false");
+        if(typeof wallTool_renderCurrent === "function") wallTool_renderCurrent();
+    });
+
+    $("#grid-layout-select").on("change", function() {
+        eventHandler_promptTriangleGridIfUseful();
+    });
+
+    $("#triangle-grid-switch").on("click", function() {
+        config_gridLayout = "triangle";
+        _config_set("gridLayout", "triangle");
+        $("#grid-layout-select").val("triangle");
+        eventHandler_triangleGridPromptAxes = null;
+        eventHandler_hideTriangleGridPrompt();
+        vectron_render();
+    });
+
+    $("#triangle-grid-cancel").on("click", function() {
+        eventHandler_hideTriangleGridPrompt();
+    });
+
+    $("#triangle-grid-popover").on("keydown", function(event) {
+        if(event.key === "Escape") {
+            event.preventDefault();
+            eventHandler_hideTriangleGridPrompt();
+            $("#map_axes").focus();
+        }
     });
 
     $("#tooltip-welcome-close").on("click", eventHandler_closeTooltipWelcome);

@@ -1746,7 +1746,8 @@ button.vt-tool-grid-row,
 
 /* Toolbar popovers */
 #new-map-popover,
-#armawebtron-preview-popover {
+#armawebtron-preview-popover,
+#triangle-grid-popover {
   position: fixed;
   z-index: 500;
   background: #fff;
@@ -1759,17 +1760,26 @@ button.vt-tool-grid-row,
 #armawebtron-preview-popover {
   width: 330px;
 }
+#triangle-grid-popover {
+  width: min(330px, calc(100vw - 24px));
+}
 .new-map-popover-body,
-.armawebtron-preview-popover-body {
+.armawebtron-preview-popover-body,
+.triangle-grid-popover-body {
   padding: 12px 14px 10px;
 }
 .new-map-popover-body p,
-.armawebtron-preview-popover-body p {
+.armawebtron-preview-popover-body p,
+.triangle-grid-popover-body p {
   margin: 0 0 10px;
   font-size: 13px;
   line-height: 1.4;
 }
 .armawebtron-preview-popover-body strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.triangle-grid-popover-body strong {
   display: block;
   margin-bottom: 6px;
 }
@@ -1780,7 +1790,8 @@ button.vt-tool-grid-row,
   line-height: 1.4;
 }
 .new-map-popover-actions,
-.armawebtron-preview-popover-actions {
+.armawebtron-preview-popover-actions,
+.triangle-grid-popover-actions {
   display: flex;
   gap: 8px;
 }

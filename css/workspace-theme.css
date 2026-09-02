@@ -282,7 +282,8 @@
 #action-history-window,
 #xml-editor-box,
 #new-map-popover,
-#armawebtron-preview-popover {
+#armawebtron-preview-popover,
+#triangle-grid-popover {
   color: var(--workspace-ink);
   background: linear-gradient(155deg, rgba(45, 45, 50, 0.99), rgba(31, 31, 35, 0.99));
   border: 1px solid var(--workspace-border);
@@ -448,7 +449,8 @@
 #edit-selected-body .btn-default,
 #xml-editor-box .btn-default,
 #new-map-popover .btn-default,
-#armawebtron-preview-popover .btn-default {
+#armawebtron-preview-popover .btn-default,
+#triangle-grid-popover .btn-default {
   color: #d6d8de;
   background: rgba(15, 15, 17, 0.36);
   border-color: var(--workspace-border);
@@ -465,7 +467,8 @@
 #edit-selected-body .btn-default:hover,
 #xml-editor-box .btn-default:hover,
 #new-map-popover .btn-default:hover,
-#armawebtron-preview-popover .btn-default:hover {
+#armawebtron-preview-popover .btn-default:hover,
+#triangle-grid-popover .btn-default:hover {
   color: #fff;
   background: rgba(220, 38, 38, 0.1);
   border-color: rgba(220, 38, 38, 0.42);

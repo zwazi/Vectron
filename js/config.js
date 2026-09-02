@@ -32,6 +32,7 @@ var config_autoAdjustGridSpacing = true;
 var config_zoomStep = 0.02; // scroll wheel zoom step (fraction): 0.02 = finest
 var config_showTooltips = true;
 var config_advancedMapOptionsUnlocked = false;
+var config_showAxisAlignmentGuides = true;
 
 // Grid line appearance (empty string = use theme default)
 var config_gridNarrowColor     = '';
@@ -148,6 +149,7 @@ function _config_check_default(item)
         case "showActionHistory": return "true";
         case "showTooltips": return "true";
         case "advancedMapOptionsUnlocked": return "false";
+        case "showAxisAlignmentGuides": return "true";
         case "zoomStep": return "0.02";
     }
 }
@@ -329,10 +331,13 @@ function config_load()
 
     config_showTooltips = _config_check("showTooltips");
     config_advancedMapOptionsUnlocked = _config_check("advancedMapOptionsUnlocked");
+    config_showAxisAlignmentGuides = _config_check("showAxisAlignmentGuides");
     var showTooltipsCheckbox = document.getElementById("show-tooltips");
     var advancedOptionsCheckbox = document.getElementById("unlock-advanced-map-options");
+    var axisGuidesCheckbox = document.getElementById("show-axis-alignment-guides");
     if(showTooltipsCheckbox) showTooltipsCheckbox.checked = config_showTooltips;
     if(advancedOptionsCheckbox) advancedOptionsCheckbox.checked = config_advancedMapOptionsUnlocked;
+    if(axisGuidesCheckbox) axisGuidesCheckbox.checked = config_showAxisAlignmentGuides;
     if(typeof eventHandler_setTooltipsEnabled === "function") {
         eventHandler_setTooltipsEnabled(config_showTooltips, false);
     }
@@ -392,7 +397,7 @@ function enable_dark_theme(noset)
         config_isDark = true;
         vectron_render();
     }
-    theme.href = "./css/vectron-dark.css?v=20260830-red-studio-2";
+    theme.href = "./css/vectron-dark.css?v=20260902-axis-review-1";
     
     document.getElementById("dark-theme").checked = true;
     if(!noset) _config_set_enable("darkTheme");
