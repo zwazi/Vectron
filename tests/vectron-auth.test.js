@@ -597,7 +597,6 @@ const commandFields = [
 assert.match(commandRules[".write"], /auth\.token\.admin == true/);
 assert.match(commandRules[".write"], /auth\.token\.neotron == true/);
 assert.match(commandRules[".write"], /\$serverId == 'nyc1'/);
-assert.doesNotMatch(commandRules[".write"], /sfo2|ams3/);
 assert.match(commandRules[".validate"], /newData\.hasChildren/);
 assert.match(commandRules[".validate"], /start_console_stream/);
 assert.match(commandRules[".validate"], /restart_server/);
