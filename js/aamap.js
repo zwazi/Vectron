@@ -1049,6 +1049,52 @@ function aamap_realY(mapY) {
     return vectron_height/2 + (-1*(mapY + vectron_panY)*vectron_zoom);
 }
 
+function aamap_deviceAlignedStrokeCoordinate(coordinate, offset, strokeWidth, deviceScale) {
+    var scale = Number(deviceScale);
+    if(!isFinite(scale) || scale <= 0) scale = 1;
+    var width = Number(strokeWidth);
+    if(!isFinite(width) || width <= 0) width = 1;
+    var halfDeviceWidth = width * scale / 2;
+    var deviceCenter = (coordinate + offset) * scale;
+    return (Math.round(deviceCenter - halfDeviceWidth) + halfDeviceWidth) / scale - offset;
+}
+
+function aamap_alignGridLineToDevicePixels(line, strokeWidth, deviceScale, offsetX, offsetY) {
+    var aligned = {x1:line.x1, y1:line.y1, x2:line.x2, y2:line.y2};
+    var epsilon = 1e-9;
+    if(Math.abs(line.x1 - line.x2) < epsilon) {
+        aligned.x1 = aligned.x2 = aamap_deviceAlignedStrokeCoordinate(
+            line.x1, offsetX || 0, strokeWidth, deviceScale
+        );
+    }
+    if(Math.abs(line.y1 - line.y2) < epsilon) {
+        aligned.y1 = aligned.y2 = aamap_deviceAlignedStrokeCoordinate(
+            line.y1, offsetY || 0, strokeWidth, deviceScale
+        );
+    }
+    return aligned;
+}
+
+function aamap_renderGridLines(target, lines, color, strokeWidth, deviceScale, offsetX, offsetY) {
+    for(var i = 0; i < lines.length; i++) {
+        var line = aamap_alignGridLineToDevicePixels(
+            lines[i], strokeWidth, deviceScale, offsetX, offsetY
+        );
+        var path = vectron_screen.path([
+            "M", line.x1, line.y1, "L", line.x2, line.y2
+        ]).attr({stroke:color, "stroke-width":strokeWidth});
+        if(path.node) {
+            // Firefox can discard subpixel strokes when crispEdges enables
+            // WebRender pixel snapping. Preserve the exact configured width,
+            // align orthogonal strokes to device pixels, and let diagonal
+            // strokes use antialiasing instead of disappearing.
+            path.node.setAttribute("shape-rendering", "geometricPrecision");
+            path.node.setAttribute("vector-effect", "non-scaling-stroke");
+        }
+        target.push(path);
+    }
+}
+
 function aamap_drawGrid() {
     if(aamap_grid != null) {
         aamap_grid.remove();
@@ -1074,28 +1120,28 @@ function aamap_drawGrid() {
     var axisYArray = [];
 
     var families = gridLayout_getLineFamilies(config_gridLayout, gridSpacing);
-    var expandedLeft = -vectron_width;
-    var expandedRight = vectron_width * 2;
-    var expandedTop = -vectron_height;
-    var expandedBottom = vectron_height * 2;
+    var viewportLeft = 0;
+    var viewportRight = vectron_width;
+    var viewportTop = 0;
+    var viewportBottom = vectron_height;
     var corners = [
-        [expandedLeft - originX, expandedTop - originY],
-        [expandedRight - originX, expandedTop - originY],
-        [expandedLeft - originX, expandedBottom - originY],
-        [expandedRight - originX, expandedBottom - originY]
+        [viewportLeft - originX, viewportTop - originY],
+        [viewportRight - originX, viewportTop - originY],
+        [viewportLeft - originX, viewportBottom - originY],
+        [viewportRight - originX, viewportBottom - originY]
     ];
     function addLine(target, x1, y1, x2, y2) {
-        target.push("M", x1, y1, "L", x2, y2);
+        target.push({x1:x1, y1:y1, x2:x2, y2:y2});
     }
 
-    function lineIntersectionsWithExpandedViewport(px, py, dx, dy) {
+    function lineIntersectionsWithViewport(px, py, dx, dy) {
         var hits = [];
 
         function addHit(t) {
             var x = px + dx * t;
             var y = py + dy * t;
-            if(x < expandedLeft - GRID_LAYOUT_EPSILON || x > expandedRight + GRID_LAYOUT_EPSILON) return;
-            if(y < expandedTop - GRID_LAYOUT_EPSILON || y > expandedBottom + GRID_LAYOUT_EPSILON) return;
+            if(x < viewportLeft - GRID_LAYOUT_EPSILON || x > viewportRight + GRID_LAYOUT_EPSILON) return;
+            if(y < viewportTop - GRID_LAYOUT_EPSILON || y > viewportBottom + GRID_LAYOUT_EPSILON) return;
             for(var i = 0; i < hits.length; i++) {
                 if(Math.abs(hits[i].x - x) < GRID_LAYOUT_EPSILON && Math.abs(hits[i].y - y) < GRID_LAYOUT_EPSILON) return;
             }
@@ -1103,12 +1149,12 @@ function aamap_drawGrid() {
         }
 
         if(Math.abs(dx) > GRID_LAYOUT_EPSILON) {
-            addHit((expandedLeft - px) / dx);
-            addHit((expandedRight - px) / dx);
+            addHit((viewportLeft - px) / dx);
+            addHit((viewportRight - px) / dx);
         }
         if(Math.abs(dy) > GRID_LAYOUT_EPSILON) {
-            addHit((expandedTop - py) / dy);
-            addHit((expandedBottom - py) / dy);
+            addHit((viewportTop - py) / dy);
+            addHit((viewportBottom - py) / dy);
         }
 
         if(hits.length < 2) return null;
@@ -1154,7 +1200,7 @@ function aamap_drawGrid() {
             var offset = k * familySpacing;
             var centerX = originX + nx * offset;
             var centerY = originY + ny * offset;
-            var clipped = lineIntersectionsWithExpandedViewport(centerX, centerY, dx, dy);
+            var clipped = lineIntersectionsWithViewport(centerX, centerY, dx, dy);
             if(!clipped) continue;
             var category = lineCategory(angle, k);
             if(category === "axisX") {
@@ -1170,46 +1216,31 @@ function aamap_drawGrid() {
         }
     });
 
-    if(!hasOriginYAxis && originX >= expandedLeft && originX <= expandedRight) {
-        addLine(axisYArray, originX, expandedTop, originX, expandedBottom);
+    if(!hasOriginYAxis && originX >= viewportLeft && originX <= viewportRight) {
+        addLine(axisYArray, originX, viewportTop, originX, viewportBottom);
     }
-    if(!hasOriginXAxis && originY >= expandedTop && originY <= expandedBottom) {
-        addLine(axisXArray, expandedLeft, originY, expandedRight, originY);
+    if(!hasOriginXAxis && originY >= viewportTop && originY <= viewportBottom) {
+        addLine(axisXArray, viewportLeft, originY, viewportRight, originY);
     }
 
     var gridStyle = aamap_getGridStyle();
 
     aamap_grid = vectron_screen.set();
+    var gridCanvas = vectron_screen.canvas;
+    var gridRect = gridCanvas && typeof gridCanvas.getBoundingClientRect === "function"
+        ? gridCanvas.getBoundingClientRect() : {left:0, top:0};
+    var deviceScale = Number(window.devicePixelRatio) || 1;
 
-    if(regularArray.length > 0) {
-        var reg = vectron_screen.path(regularArray.join(" "))
-            .attr({stroke: gridStyle.narrowColor, "stroke-width": gridStyle.narrowStroke});
-        reg.node.style.shapeRendering = "crispedges";
-        aamap_grid.push(reg);
-    }
-
-    if(tenthArray.length > 0) {
-        var tenth = vectron_screen.path(tenthArray.join(" "))
-            .attr({stroke: gridStyle.tenthColor, "stroke-width": gridStyle.tenthStroke});
-        tenth.node.style.shapeRendering = "crispedges";
-        aamap_grid.push(tenth);
-    }
-
-    // Draw Y-axis (x=0) — vertical line
-    if(axisYArray.length > 0) {
-        var axY = vectron_screen.path(axisYArray.join(" "))
-            .attr({stroke: gridStyle.axisYColor, "stroke-width": gridStyle.axisYStroke});
-        axY.node.style.shapeRendering = "crispedges";
-        aamap_grid.push(axY);
-    }
-
-    // Draw X-axis (y=0) — horizontal line
-    if(axisXArray.length > 0) {
-        var axX = vectron_screen.path(axisXArray.join(" "))
-            .attr({stroke: gridStyle.axisXColor, "stroke-width": gridStyle.axisXStroke});
-        axX.node.style.shapeRendering = "crispedges";
-        aamap_grid.push(axX);
-    }
+    // Keep each line as its own SVG primitive. Firefox has historically culled
+    // random subpaths in large compound grid paths at particular pixel phases.
+    aamap_renderGridLines(aamap_grid, regularArray, gridStyle.narrowColor,
+        gridStyle.narrowStroke, deviceScale, gridRect.left, gridRect.top);
+    aamap_renderGridLines(aamap_grid, tenthArray, gridStyle.tenthColor,
+        gridStyle.tenthStroke, deviceScale, gridRect.left, gridRect.top);
+    aamap_renderGridLines(aamap_grid, axisYArray, gridStyle.axisYColor,
+        gridStyle.axisYStroke, deviceScale, gridRect.left, gridRect.top);
+    aamap_renderGridLines(aamap_grid, axisXArray, gridStyle.axisXColor,
+        gridStyle.axisXStroke, deviceScale, gridRect.left, gridRect.top);
 }
 
 function aamap_getGridStyle() {
