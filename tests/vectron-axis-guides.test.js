@@ -35,9 +35,50 @@ assert.match(configSource, /label: 'Wall alignment guides'/);
 assert.match(configSource, /_config_get\('wallAxisGuideColor'\)/);
 assert.match(configSource, /_config_get\('wallAxisGuideThickness'\)/);
 assert.match(configSource, /_config_get\('wallAxisGuideOpacity'\)/);
+assert.match(configSource, /_config_get\("showPreviousPointGuidelines"\)/);
+assert.match(configSource, /_config_get\("showCurrentPointGuidelines"\)/);
+assert.match(configSource, /legacyAxisGuidelines/,
+    "The former combined preference seeds both independent toggles");
 assert.match(configSource, /opacityInp\.min = '1'/);
 const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
-assert.match(indexSource, /js\/config\.js\?v=20260902-guide-settings-1/);
+assert.match(indexSource, /js\/config\.js\?v=20260903-guideline-toggles-1/);
+assert.match(indexSource, /id="show-previous-point-guidelines"/);
+assert.match(indexSource, /id="show-current-point-guidelines"/);
+assert.match(indexSource, />Previous point guidelines</);
+assert.match(indexSource, />Current point guidelines</);
+assert.doesNotMatch(indexSource, /id="show-axis-alignment-guides"/,
+    "Guideline visibility controls live in the Wall Tool instead of Settings");
+
+const previousPoint = {x:20, y:20};
+const currentPoint = {x:50, y:40};
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(context.wallTool_axisGuidePoints(
+        previousPoint, currentPoint, true, true
+    ))),
+    [previousPoint, currentPoint],
+    "Both guideline anchors are enabled by default"
+);
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(context.wallTool_axisGuidePoints(
+        previousPoint, currentPoint, true, false
+    ))),
+    [previousPoint],
+    "Previous-point guidelines can be shown independently"
+);
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(context.wallTool_axisGuidePoints(
+        previousPoint, currentPoint, false, true
+    ))),
+    [currentPoint],
+    "Current-point guidelines can be shown independently"
+);
+assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(context.wallTool_axisGuidePoints(
+        previousPoint, currentPoint, false, false
+    ))),
+    [],
+    "Both guideline families can be hidden"
+);
 
 const segments = context.wallTool_axisGuideSegments(
     [{x:50, y:40}, {x:20, y:20}],
@@ -67,6 +108,8 @@ assert.deepStrictEqual(
 );
 
 const eventSource = fs.readFileSync(path.join(root, "js/eventHandler.js"), "utf8");
+assert.match(eventSource, /#show-previous-point-guidelines/);
+assert.match(eventSource, /#show-current-point-guidelines/);
 const predicate = eventSource.match(
     /function eventHandler_shouldSuggestTriangleGrid\(axes, layout\) \{[\s\S]*?\n\}/
 );

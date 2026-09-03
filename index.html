@@ -24,7 +24,7 @@
         <script type="text/javascript" src="./js/AamapObjects/Wall.js"></script>
         <script type="text/javascript" src="./js/AamapObjects/Zone.js"></script>
         <script type="text/javascript" src="./js/AamapTools/spawnTool.js"></script>
-        <script type="text/javascript" src="./js/AamapTools/wallTool.js?v=20260902-guide-settings-1"></script>
+        <script type="text/javascript" src="./js/AamapTools/wallTool.js?v=20260903-guideline-toggles-1"></script>
         <script type="text/javascript" src="./js/AamapTools/zoneTool.js?v=20260830-red-studio-2"></script>
         <script type="text/javascript" src="./js/AamapTools/navigationTool.js"></script>
         <script type="text/javascript" src="./js/AamapTools/selectTool.js?v=20260830-red-studio-2"></script>
@@ -37,15 +37,15 @@
         <script type="text/javascript" src="./js/aamap.js?v=20260901-version-notes-1"></script>
         <script type="text/javascript" src="./js/cursor.js"></script>
         <script type="text/javascript" src="./js/xmlEditorFind.js"></script>
-        <script type="text/javascript" src="./js/eventHandler.js?v=20260902-axis-review-1"></script>
+        <script type="text/javascript" src="./js/eventHandler.js?v=20260903-firefox-lines-1"></script>
         <script type="text/javascript" src="./js/gui.js?v=20260902-axis-review-1"></script>
-        <script type="text/javascript" src="./js/config.js?v=20260902-guide-settings-1"></script>
+        <script type="text/javascript" src="./js/config.js?v=20260903-guideline-toggles-1"></script>
         <script type="text/javascript" src="./js/localDraft.js?v=20260901-version-notes-1"></script>
         <script type="text/javascript" src="./js/localLibrary.js?v=20260830-red-studio-2"></script>
-        <script type="text/javascript" src="./js/vectron.js?v=20260901-version-notes-1"></script>
+        <script type="text/javascript" src="./js/vectron.js?v=20260903-firefox-lines-1"></script>
 
         <script type="text/javascript">
-            var targetVersion = 1.115;
+            var targetVersion = 1.116;
             if(window.vtVersion != targetVersion) location.reload(true);
         </script>
 
@@ -376,9 +376,6 @@
                       </div>
                       <hr class="cfg-divider" />
                       <p class="cfg-section-label">Behavior</p>
-                      <div class="checkbox cfg-checkbox">
-                        <label><input type="checkbox" id="show-axis-alignment-guides" name="show-axis-alignment-guides"> Show 8-axis wall alignment guides</label>
-                      </div>
                       <div class="checkbox cfg-checkbox cfg-advanced-options">
                         <label><input type="checkbox" id="unlock-advanced-map-options" name="unlock-advanced-map-options"> Unlock advanced map options</label>
                         <small id="advanced-map-options-help">Allows changing the map DTD and player-private zone behavior. Leave locked unless you know the target server supports them.</small>
@@ -543,6 +540,16 @@
                     <span class="vt-tool-icon"><span class="glyphicon glyphicon-resize-vertical" aria-hidden="true"></span></span>
                     <label class="vt-tool-name" for="dWallHeight">Wall Height</label>
                     <span class="vt-tool-input"><input type="number" id="dWallHeight" name="dWallHeight" value="4" step="1" min="1" max="50" /></span>
+                </div>
+                <div class="wall-tool-section vt-tool-grid-row vt-setting-row" id="wall-tool-previous-guidelines-section">
+                    <span class="vt-tool-icon"><span class="glyphicon glyphicon-option-horizontal" aria-hidden="true"></span></span>
+                    <label class="vt-tool-name" for="show-previous-point-guidelines">Previous point guidelines</label>
+                    <span class="vt-tool-input"><input type="checkbox" id="show-previous-point-guidelines" name="show-previous-point-guidelines" /></span>
+                </div>
+                <div class="wall-tool-section vt-tool-grid-row vt-setting-row" id="wall-tool-current-guidelines-section">
+                    <span class="vt-tool-icon"><span class="glyphicon glyphicon-option-horizontal" aria-hidden="true"></span></span>
+                    <label class="vt-tool-name" for="show-current-point-guidelines">Current point guidelines</label>
+                    <span class="vt-tool-input"><input type="checkbox" id="show-current-point-guidelines" name="show-current-point-guidelines" /></span>
                 </div>
                 <div class="wall-tool-section vt-tool-grid-row vt-setting-row" id="wall-tool-points-section" style="display:none;">
                     <span class="vt-tool-icon"><span class="glyphicon glyphicon-map-marker" aria-hidden="true"></span></span>

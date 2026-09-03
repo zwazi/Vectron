@@ -32,7 +32,8 @@ var config_autoAdjustGridSpacing = true;
 var config_zoomStep = 0.02; // scroll wheel zoom step (fraction): 0.02 = finest
 var config_showTooltips = true;
 var config_advancedMapOptionsUnlocked = false;
-var config_showAxisAlignmentGuides = true;
+var config_showPreviousPointGuidelines = true;
+var config_showCurrentPointGuidelines = true;
 var config_wallAxisGuideColor = '';
 var config_wallAxisGuideThickness = 0;
 var config_wallAxisGuideOpacity = 0;
@@ -156,6 +157,8 @@ function _config_check_default(item)
         case "showTooltips": return "true";
         case "advancedMapOptionsUnlocked": return "false";
         case "showAxisAlignmentGuides": return "true";
+        case "showPreviousPointGuidelines": return "true";
+        case "showCurrentPointGuidelines": return "true";
         case "zoomStep": return "0.02";
     }
 }
@@ -337,13 +340,27 @@ function config_load()
 
     config_showTooltips = _config_check("showTooltips");
     config_advancedMapOptionsUnlocked = _config_check("advancedMapOptionsUnlocked");
-    config_showAxisAlignmentGuides = _config_check("showAxisAlignmentGuides");
+    var legacyAxisGuidelines = _config_check("showAxisAlignmentGuides");
+    var savedPreviousPointGuidelines = _config_get("showPreviousPointGuidelines");
+    var savedCurrentPointGuidelines = _config_get("showCurrentPointGuidelines");
+    config_showPreviousPointGuidelines = savedPreviousPointGuidelines === null
+        ? legacyAxisGuidelines : savedPreviousPointGuidelines === "true";
+    config_showCurrentPointGuidelines = savedCurrentPointGuidelines === null
+        ? legacyAxisGuidelines : savedCurrentPointGuidelines === "true";
+    if(savedPreviousPointGuidelines === null) {
+        _config_set("showPreviousPointGuidelines", config_showPreviousPointGuidelines ? "true" : "false");
+    }
+    if(savedCurrentPointGuidelines === null) {
+        _config_set("showCurrentPointGuidelines", config_showCurrentPointGuidelines ? "true" : "false");
+    }
     var showTooltipsCheckbox = document.getElementById("show-tooltips");
     var advancedOptionsCheckbox = document.getElementById("unlock-advanced-map-options");
-    var axisGuidesCheckbox = document.getElementById("show-axis-alignment-guides");
+    var previousPointGuidelinesCheckbox = document.getElementById("show-previous-point-guidelines");
+    var currentPointGuidelinesCheckbox = document.getElementById("show-current-point-guidelines");
     if(showTooltipsCheckbox) showTooltipsCheckbox.checked = config_showTooltips;
     if(advancedOptionsCheckbox) advancedOptionsCheckbox.checked = config_advancedMapOptionsUnlocked;
-    if(axisGuidesCheckbox) axisGuidesCheckbox.checked = config_showAxisAlignmentGuides;
+    if(previousPointGuidelinesCheckbox) previousPointGuidelinesCheckbox.checked = config_showPreviousPointGuidelines;
+    if(currentPointGuidelinesCheckbox) currentPointGuidelinesCheckbox.checked = config_showCurrentPointGuidelines;
     if(typeof eventHandler_setTooltipsEnabled === "function") {
         eventHandler_setTooltipsEnabled(config_showTooltips, false);
     }
