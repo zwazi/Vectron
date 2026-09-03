@@ -637,6 +637,7 @@ assert.match(commandRules[".validate"], /newData\.hasChildren/);
 assert.match(commandRules[".validate"], /start_console_stream/);
 assert.match(commandRules[".validate"], /restart_server/);
 assert.match(commandRules[".validate"], /console_command/);
+assert.match(commandRules[".validate"], /web_chat/);
 assert.match(commandRules[".validate"], /scope'\)\.val\(\) == 'local'/);
 for(const field of commandFields) {
     assert.deepStrictEqual(commandRules[field], {".validate": true},
