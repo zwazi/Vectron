@@ -3,6 +3,7 @@
 const {getApps, initializeApp} = require("firebase-admin/app");
 const {getAppCheck} = require("firebase-admin/app-check");
 const {getAuth} = require("firebase-admin/auth");
+const {getDatabase} = require("firebase-admin/database");
 const {FieldValue, Timestamp, getFirestore} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
 const {createHash} = require("node:crypto");
@@ -17,6 +18,13 @@ const {
   createIdentityBridgeController,
   firestoreLinkRepository
 } = require("./identity-bridge");
+const {
+  UserAuditError,
+  bearerToken: auditBearerToken,
+  createUserAuditController,
+  realtimeUserAuditRepository,
+  requestIp
+} = require("./user-audit");
 
 initializeApp();
 const neotronApp = getApps().find(app => app.name === "neotron-identity") ||
@@ -78,6 +86,53 @@ exports.exchangeNeotronIdentity = onRequest({
         message: error instanceof IdentityBridgeError
           ? error.message
           : "Vectron could not open this Neotron account."
+      }
+    });
+  }
+});
+
+exports.recordNeotronActivity = onRequest({
+  region: "us-central1",
+  cors: allowedOrigins,
+  timeoutSeconds: 15,
+  memory: "256MiB"
+}, async (request, response) => {
+  response.set("Cache-Control", "no-store, max-age=0");
+  response.set("X-Content-Type-Options", "nosniff");
+  if(request.method !== "POST") {
+    response.set("Allow", "POST");
+    requestError(response, 405, "Use POST to record website activity.");
+    return;
+  }
+  try {
+    const controller = createUserAuditController({
+      // This cross-project app can verify Neotron signatures and audience, but
+      // it intentionally has no permission to read Neotron user records for a
+      // revoked-token lookup. Tokens expire within one hour, as on the existing
+      // identity bridge above.
+      verifyToken: token => neotronAuth.verifyIdToken(token),
+      events: realtimeUserAuditRepository(getDatabase())
+    });
+    const result = await controller.recordSession({
+      idToken: auditBearerToken(request),
+      body: request.body && typeof request.body === "object" ? request.body : {},
+      ipAddress: requestIp(request),
+      userAgent: request.get("user-agent") || ""
+    });
+    response.status(200).json(result);
+  } catch(error) {
+    if(!(error instanceof UserAuditError)) {
+      logger.error("Website activity audit failed", {
+        errorName: error?.name || "Error",
+        errorMessage: String(error?.message || "Unknown error").slice(0, 300)
+      });
+    }
+    response.status(error instanceof UserAuditError ? error.status : 500).json({
+      error: {
+        code: error instanceof UserAuditError ? error.code : "internal-error",
+        message: error instanceof UserAuditError
+          ? error.message
+          : "Website activity could not be recorded."
       }
     });
   }

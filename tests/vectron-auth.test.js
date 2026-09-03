@@ -649,8 +649,13 @@ assert.deepStrictEqual(
     databaseRules.rules.racing.admin.console.$serverId[".indexOn"],
     ["publishedAt"]
 );
+assert.deepStrictEqual(
+    databaseRules.rules.racing.admin.audit.events[".indexOn"],
+    ["occurredAt"]
+);
 
 assert.match(functionsSource, /exports\.denyRegistration = onRequest/);
+assert.match(functionsSource, /exports\.recordNeotronActivity = onRequest/);
 assert.match(functionsSource, /exports\.createMapSubmission = onRequest/);
 assert.match(functionsSource, /exports\.revokeMapSubmission = onRequest/);
 assert.match(functionsSource, /function mapFileName\(/);

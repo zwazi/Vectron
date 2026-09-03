@@ -50,6 +50,11 @@
           "$serverId": {
             ".indexOn": ["publishedAt"]
           }
+        },
+        "audit": {
+          "events": {
+            ".indexOn": ["occurredAt"]
+          }
         }
       }
     }
