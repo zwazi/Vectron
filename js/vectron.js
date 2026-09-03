@@ -23,7 +23,7 @@ You should have received a copy of the GNU General Public License
 along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 */
-window.vtVersion = 1.117;
+window.vtVersion = 1.118;
 
 var vectron_width;
 var vectron_height;
@@ -175,10 +175,19 @@ function vectron_format_zoom(z) {
 
 var zoomControls_values = [10, 25, 50, 75, 100, 125, 150, 200, 300, 400, 800, 1600];
 
-function vectron_write_info()
+function vectron_write_zoom_preview_info()
 {
     var zoomText = document.getElementById("zoom");
     if(zoomText) zoomText.innerText = vectron_format_zoom(vectron_zoom);
+    var anchorX = document.getElementById("anchor-x");
+    var anchorY = document.getElementById("anchor-y");
+    if(anchorX) anchorX.innerText = vectron_format_coord(-(vectron_panX));
+    if(anchorY) anchorY.innerText = vectron_format_coord(-(vectron_panY));
+}
+
+function vectron_write_info()
+{
+    vectron_write_zoom_preview_info();
     if(document.getElementById("zoom-percent-select")) {
         zoomControls_sync();
     }
@@ -191,9 +200,6 @@ function vectron_write_info()
     if(document.getElementById("grid-visibility-toggle")) {
         gridVisibilityControls_sync();
     }
-    
-    document.getElementById("anchor-x").innerText = vectron_format_coord(-(vectron_panX));
-    document.getElementById("anchor-y").innerText = vectron_format_coord(-(vectron_panY));
 }
 
 function vectron_getAutoGridSpacing(baseSpacing) {

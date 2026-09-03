@@ -91,6 +91,33 @@ function eventHandler_createFrameScheduler(requestFrame, render) {
     };
 }
 
+function eventHandler_zoomPreviewViewBox(width, height, startZoom, currentZoom, anchorX, anchorY) {
+    var scale = currentZoom / startZoom;
+    if(!isFinite(scale) || scale <= 0) {
+        return {x:0, y:0, width:width, height:height};
+    }
+    return {
+        x: anchorX * (1 - 1 / scale),
+        y: anchorY * (1 - 1 / scale),
+        width: width / scale,
+        height: height / scale
+    };
+}
+
+function eventHandler_applySvgViewBox(svg, viewBox) {
+    if(!svg || typeof svg.setAttribute !== "function") return false;
+    function clean(value) {
+        var rounded = Math.round(value * 1000000) / 1000000;
+        return Math.abs(rounded) < 1e-9 ? 0 : rounded;
+    }
+    svg.setAttribute("viewBox", [
+        clean(viewBox.x), clean(viewBox.y),
+        clean(viewBox.width), clean(viewBox.height)
+    ].join(" "));
+    svg.setAttribute("preserveAspectRatio", "xMinYMin");
+    return true;
+}
+
 function eventHandler_hideTriangleGridPrompt() {
     var popover = document.getElementById("triangle-grid-popover");
     if(popover) popover.hidden = true;
@@ -2669,6 +2696,11 @@ function eventHandler_init() {
         cursor_pageX = event.pageX - 50;
         cursor_pageY = event.pageY - 36;
 
+        // Existing scene geometry already follows the native viewBox preview.
+        // Defer cursor/tool reconstruction until the exact settled render so
+        // pointer movement cannot reintroduce per-frame SVG churn while zooming.
+        if(zoomPreviewActive) return;
+
         if(eventHandler_middlePanning) {
             var xdir = eventHandler_middleClickX - cursor_pageX;
             var ydir = eventHandler_middleClickY - cursor_pageY;
@@ -2716,14 +2748,22 @@ function eventHandler_init() {
     var prev_vectron_panX = 0, prev_vectron_panY = 0;
     var zoom_mouse_x = 0, zoom_mouse_y = 0;
     var __zoom_timeout;
-    var scheduleZoomRender = eventHandler_createFrameScheduler(function(callback) {
+    var zoomPreviewActive = false;
+    var zoomCanvas = vectron_screen.canvas;
+    var scheduleZoomPreview = eventHandler_createFrameScheduler(function(callback) {
         if(typeof window.requestAnimationFrame === "function") {
             window.requestAnimationFrame(callback);
         } else {
             window.setTimeout(callback, 16);
         }
     }, function() {
-        vectron_render();
+        if(!zoomPreviewActive || prev_vectron_zoom === 0) return;
+        eventHandler_applySvgViewBox(zoomCanvas, eventHandler_zoomPreviewViewBox(
+            vectron_width, vectron_height,
+            prev_vectron_zoom, vectron_zoom,
+            zoom_mouse_x, zoom_mouse_y
+        ));
+        vectron_write_zoom_preview_info();
     });
     if(!("onwheel" in $("#canvas_container")[0]))
     {
@@ -2748,8 +2788,9 @@ function eventHandler_init() {
                 prev_vectron_zoom = vectron_zoom;
                 prev_vectron_panX = vectron_panX;
                 prev_vectron_panY = vectron_panY;
-                zoom_mouse_x = cursor_pageX;
-                zoom_mouse_y = cursor_pageY;
+                zoom_mouse_x = isFinite(cursor_pageX) ? cursor_pageX : vectron_width / 2;
+                zoom_mouse_y = isFinite(cursor_pageY) ? cursor_pageY : vectron_height / 2;
+                zoomPreviewActive = true;
             }
             var zoomFactor = 1 + config_zoomStep;
             if(event.deltaY > 0)
@@ -2766,18 +2807,18 @@ function eventHandler_init() {
             vectron_panX = prev_vectron_panX + (zoom_mouse_x - vectron_width/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
             vectron_panY = prev_vectron_panY - (zoom_mouse_y - vectron_height/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
 
-            // Draw at the real target zoom. Scaling the parent DOM node can make
-            // SVG strokes disappear in Firefox when they cross raster tiles.
-            // Coalescing wheel events to one render per frame keeps zoom smooth
-            // without ever shrinking the configured screen-space stroke widths.
-            scheduleZoomRender();
-            vectron_write_info();
+            // Preview with the SVG's native viewBox. This changes one root
+            // attribute per frame instead of clearing and rebuilding every map
+            // object, and avoids Firefox's CSS-transform raster tile bug.
+            scheduleZoomPreview();
 
             clearTimeout(__zoom_timeout);
             __zoom_timeout = setTimeout(function()
             {
+                zoomPreviewActive = false;
                 prev_vectron_zoom = 0;
-            }, 150);
+                vectron_render();
+            }, 80);
         }
     });
 

@@ -7,6 +7,16 @@
   bottom: 0;
 }
 
+#canvas_container svg path,
+#canvas_container svg circle,
+#canvas_container svg ellipse,
+#canvas_container svg rect,
+#canvas_container svg line,
+#canvas_container svg polyline,
+#canvas_container svg polygon {
+  vector-effect: non-scaling-stroke;
+}
+
 #rubber-zone-bar {
   display: none;
 }
