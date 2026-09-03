@@ -122,6 +122,13 @@ function wallTool_axisGuideSegments(points, width, height) {
     return segments;
 }
 
+function wallTool_axisGuidePoints(previousPoint, currentPoint, showPrevious, showCurrent) {
+    var points = [];
+    if(showPrevious) points.push(previousPoint);
+    if(showCurrent) points.push(currentPoint);
+    return points;
+}
+
 function wallTool_axisGuideStyle() {
     var defaultColor = typeof WALL_AXIS_GUIDE_DEFAULT_COLOR !== "undefined"
         ? WALL_AXIS_GUIDE_DEFAULT_COLOR : "#22c55e";
@@ -147,16 +154,22 @@ function wallTool_axisGuideStyle() {
 
 function wallTool_drawAxisGuides() {
     wallTool_clearAxisGuides();
-    if(typeof config_showAxisAlignmentGuides !== "undefined" && !config_showAxisAlignmentGuides) return;
     var axesInput = document.getElementById("map_axes");
     if(!axesInput || parseInt(axesInput.value) !== 8 || !wallTool_currentObj ||
        !wallTool_currentObj.points.length) return;
 
     var last = wallTool_currentObj.points[wallTool_currentObj.points.length - 1];
-    var points = [
+    var showPrevious = typeof config_showPreviousPointGuidelines === "undefined" ||
+        config_showPreviousPointGuidelines;
+    var showCurrent = typeof config_showCurrentPointGuidelines === "undefined" ||
+        config_showCurrentPointGuidelines;
+    var points = wallTool_axisGuidePoints(
         {x: aamap_realX(last.x), y: aamap_realY(last.y)},
-        {x: cursor_realX, y: cursor_realY}
-    ];
+        {x: cursor_realX, y: cursor_realY},
+        showPrevious,
+        showCurrent
+    );
+    if(!points.length) return;
     var segments = wallTool_axisGuideSegments(points, vectron_width, vectron_height);
     var guideStyle = wallTool_axisGuideStyle();
     wallTool_axisGuideObj = vectron_screen.set();
@@ -809,6 +822,8 @@ function wallTool_updateWindow() {
     var countSection = document.getElementById("wall-tool-count-section");
     var pointsSection = document.getElementById("wall-tool-points-section");
     var textSection = document.getElementById("wall-tool-text-section");
+    var previousGuidelinesSection = document.getElementById("wall-tool-previous-guidelines-section");
+    var currentGuidelinesSection = document.getElementById("wall-tool-current-guidelines-section");
     var actionsSection = document.getElementById("wall-tool-actions-section");
     var modeButtons = $(".wall-tool-mode-btn");
     var showFinish = isCountMode || (isTextMode && wallTool_stagePoints.length >= 2) || (isFreeform && wallTool_currentObj != null && wallTool_currentObj.points.length >= 2);
@@ -820,6 +835,8 @@ function wallTool_updateWindow() {
     if(pointsSection) pointsSection.style.display = isFreeform ? "" : "none";
     if(textSection) textSection.style.display = isTextMode ? "" : "none";
     if(countSection) countSection.style.display = usesCountInput ? "" : "none";
+    if(previousGuidelinesSection) previousGuidelinesSection.style.display = isFreeform ? "" : "none";
+    if(currentGuidelinesSection) currentGuidelinesSection.style.display = isFreeform ? "" : "none";
     if(finishBtn) {
         finishBtn.style.display = showFinish ? "" : "none";
         finishBtn.innerHTML = isTextMode ? WALL_TOOL_BUTTON_LABEL_SUBMIT : (isCountMode ? WALL_TOOL_BUTTON_LABEL_GENERATE : WALL_TOOL_BUTTON_LABEL_FINISH);

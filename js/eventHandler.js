@@ -78,6 +78,19 @@ function eventHandler_shouldSuggestTriangleGrid(axes, layout) {
     return (Number(axes) === 3 || Number(axes) === 6) && layout !== "triangle";
 }
 
+function eventHandler_createFrameScheduler(requestFrame, render) {
+    var framePending = false;
+    return function() {
+        if(framePending) return false;
+        framePending = true;
+        requestFrame(function() {
+            framePending = false;
+            render();
+        });
+        return true;
+    };
+}
+
 function eventHandler_hideTriangleGridPrompt() {
     var popover = document.getElementById("triangle-grid-popover");
     if(popover) popover.hidden = true;
@@ -1465,9 +1478,15 @@ function eventHandler_init() {
         eventHandler_syncAdvancedOptionLocks();
     });
 
-    $("#show-axis-alignment-guides").change(function() {
-        config_showAxisAlignmentGuides = this.checked;
-        _config_set("showAxisAlignmentGuides", this.checked ? "true" : "false");
+    $("#show-previous-point-guidelines").change(function() {
+        config_showPreviousPointGuidelines = this.checked;
+        _config_set("showPreviousPointGuidelines", this.checked ? "true" : "false");
+        if(typeof wallTool_renderCurrent === "function") wallTool_renderCurrent();
+    });
+
+    $("#show-current-point-guidelines").change(function() {
+        config_showCurrentPointGuidelines = this.checked;
+        _config_set("showCurrentPointGuidelines", this.checked ? "true" : "false");
         if(typeof wallTool_renderCurrent === "function") wallTool_renderCurrent();
     });
 
@@ -2697,22 +2716,15 @@ function eventHandler_init() {
     var prev_vectron_panX = 0, prev_vectron_panY = 0;
     var zoom_mouse_x = 0, zoom_mouse_y = 0;
     var __zoom_timeout;
-    var __zoom_render_timeout;
-    var __zoom_last_rendered_zoom = 1;
-    var __zoom_canvas = document.getElementById('canvas_container');
-    function clearZoomPreview()
-    {
-        clearTimeout(__zoom_render_timeout);
-        __zoom_render_timeout = null;
-        __zoom_canvas.style.transform = '';
-        __zoom_canvas.style.transformOrigin = '';
-    }
-    function renderZoomFinal()
-    {
-        clearZoomPreview();
-        __zoom_last_rendered_zoom = vectron_zoom;
+    var scheduleZoomRender = eventHandler_createFrameScheduler(function(callback) {
+        if(typeof window.requestAnimationFrame === "function") {
+            window.requestAnimationFrame(callback);
+        } else {
+            window.setTimeout(callback, 16);
+        }
+    }, function() {
         vectron_render();
-    }
+    });
     if(!("onwheel" in $("#canvas_container")[0]))
     {
         $("#canvas_container")[0].addEventListener("mousewheel",function(event)
@@ -2734,7 +2746,6 @@ function eventHandler_init() {
             if(prev_vectron_zoom == 0)
             {
                 prev_vectron_zoom = vectron_zoom;
-                __zoom_last_rendered_zoom = vectron_zoom;
                 prev_vectron_panX = vectron_panX;
                 prev_vectron_panY = vectron_panY;
                 zoom_mouse_x = cursor_pageX;
@@ -2755,20 +2766,12 @@ function eventHandler_init() {
             vectron_panX = prev_vectron_panX + (zoom_mouse_x - vectron_width/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
             vectron_panY = prev_vectron_panY - (zoom_mouse_y - vectron_height/2) * (1/vectron_zoom - 1/prev_vectron_zoom);
 
-            // Apply instant CSS scale transform for immediate visual feedback before the redraw
-            var cssScale = vectron_zoom / __zoom_last_rendered_zoom;
-            __zoom_canvas.style.transformOrigin = zoom_mouse_x + 'px ' + zoom_mouse_y + 'px';
-            __zoom_canvas.style.transform = 'scale(' + cssScale + ')';
+            // Draw at the real target zoom. Scaling the parent DOM node can make
+            // SVG strokes disappear in Firefox when they cross raster tiles.
+            // Coalescing wheel events to one render per frame keeps zoom smooth
+            // without ever shrinking the configured screen-space stroke widths.
+            scheduleZoomRender();
             vectron_write_info();
-
-            // Redraw once the wheel interaction settles instead of on every wheel tick.
-            clearTimeout(__zoom_render_timeout);
-            // Debounce the full redraw so wheel scrolling stays smooth while the
-            // preview transform provides immediate feedback.
-            __zoom_render_timeout = setTimeout(function()
-            {
-                renderZoomFinal();
-            }, 80);
 
             clearTimeout(__zoom_timeout);
             __zoom_timeout = setTimeout(function()
