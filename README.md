@@ -247,6 +247,7 @@ node tests/vectron-map-format.test.js
 node tests/vectron-catalog.test.mjs
 node tests/vectron-axis-guides.test.js
 node tests/vectron-zoom-rendering.test.js
+node tests/vectron-grid-rendering.test.js
 ```
 
 The authentication browser smoke test exercises the real Firebase project and

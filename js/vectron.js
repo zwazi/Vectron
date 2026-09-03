@@ -23,7 +23,7 @@ You should have received a copy of the GNU General Public License
 along with Vectron.  If not, see <http://www.gnu.org/licenses/>.
 
 */
-window.vtVersion = 1.116;
+window.vtVersion = 1.117;
 
 var vectron_width;
 var vectron_height;
