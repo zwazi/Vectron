@@ -101,18 +101,41 @@ context.xml_readRemixHistory('<Resource type="aamap" name="Fresh"></Resource>');
 assert.strictEqual(context.xml_remixHistory.length, 0,
     "A non-remixed map must clear the previous remix chain");
 
-context.xml_setVersionNotes("Added the wall detour -- now fairer.\nAdjusted the finish 💥");
+context.xml_setVersionNotes(
+    "Added the wall detour -- now fairer.\nAdjusted the finish 💥",
+    {username:"Review--Admin", timestamp:"2026-09-03T20:15:30.987Z"}
+);
 const notedMap = context.aamap_buildXml(
     "Noted Map", "Reviewer", "maps", "2", "sty.dtd", 4, []
 ).xml;
-assert.match(notedMap, /Vectron version notes: Added the wall detour - - now fairer\. Adjusted the finish 💥/);
+assert.match(notedMap, /Vectron version notes: Added the wall detour - - now fairer\. Adjusted the finish 💥 - Review- -Admin @ 2026\.09\.03 20\.15\.30 UTC/);
 assert.match(notedMap, /Vectron version notes data:/);
 context.xml_clearVersionNotes();
 assert.strictEqual(context.xml_versionNotes, "");
+assert.strictEqual(context.xml_versionNotesAttribution, null);
 context.xml_readVersionNotes(notedMap);
 assert.strictEqual(context.xml_versionNotes,
     "Added the wall detour -- now fairer.\nAdjusted the finish 💥",
     "Encoded version notes preserve punctuation, newlines, and Unicode");
+assert.deepStrictEqual(JSON.parse(JSON.stringify(context.xml_versionNotesAttribution)), {
+    username:"Review--Admin",
+    timestamp:"2026-09-03T20:15:30.987Z"
+}, "Encoded version notes preserve their author and exact timestamp");
+assert.strictEqual(
+    context.xml_formatVersionNotesTimestamp(context.xml_versionNotesAttribution.timestamp),
+    "2026.09.03 20.15.30 UTC"
+);
+
+const legacyVersionNotes = Buffer.from(encodeURIComponent(JSON.stringify({
+    version:1,
+    notes:"Legacy note"
+})), "binary").toString("base64");
+context.xml_readVersionNotes(
+    `<Resource><!-- Vectron version notes data: ${legacyVersionNotes} --></Resource>`
+);
+assert.strictEqual(context.xml_versionNotes, "Legacy note");
+assert.strictEqual(context.xml_versionNotesAttribution, null,
+    "Version-one notes remain readable without invented attribution");
 context.xml_readVersionNotes('<Resource type="aamap" name="Unnoted"></Resource>');
 assert.strictEqual(context.xml_versionNotes, "",
     "Loading an unnoted map clears notes from the previous revision");

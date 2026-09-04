@@ -820,11 +820,22 @@ function syncReviewAdminPanel() {
     if(typeof window.gui_refreshFloatingWindows === "function") window.gui_refreshFloatingWindows();
 }
 
+function updateVersionNotesFromCurrentAdmin(value) {
+    if(!currentUserIsAdmin() || typeof window.xml_setVersionNotes !== "function") return;
+    const normalized = typeof window.xml_normalizeVersionNotes === "function"
+        ? window.xml_normalizeVersionNotes(value)
+        : String(value || "").replace(/\r\n?/g, "\n").trim().slice(0, 2000);
+    if(normalized === String(window.xml_versionNotes || "")) return;
+    const user = auth && auth.currentUser;
+    window.xml_setVersionNotes(normalized, normalized && user ? {
+        username:displayNameForUser(user),
+        timestamp:new Date().toISOString()
+    } : null);
+}
+
 function updateReviewAdminStateFromFields() {
     if(!repositoryEditState || !repositoryEditState.reviewSubmissionId) return;
-    if(currentUserIsAdmin() && typeof window.xml_setVersionNotes === "function") {
-        window.xml_setVersionNotes(reviewAdminVersionNotes && reviewAdminVersionNotes.value || "");
-    }
+    updateVersionNotesFromCurrentAdmin(reviewAdminVersionNotes && reviewAdminVersionNotes.value || "");
     repositoryEditState = {
         ...repositoryEditState,
         submissionReason:String(reviewAdminSubmittedReason && reviewAdminSubmittedReason.value || "").trim().slice(0, 1000),
@@ -6364,8 +6375,7 @@ function bindUi() {
     }
     if(reviewAdminVersionNotes) {
         reviewAdminVersionNotes.addEventListener("input", () => {
-            if(!currentUserIsAdmin() || typeof window.xml_setVersionNotes !== "function") return;
-            window.xml_setVersionNotes(reviewAdminVersionNotes.value);
+            updateVersionNotesFromCurrentAdmin(reviewAdminVersionNotes.value);
             if(typeof window.vectron_localDraftScheduleSave === "function") {
                 window.vectron_localDraftScheduleSave();
             }

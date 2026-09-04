@@ -36,6 +36,7 @@ var xml_settings = [];
 var xml_latest_read_id = 0;
 var xml_remixHistory = [];
 var xml_versionNotes = "";
+var xml_versionNotesAttribution = null;
 var xml_playerPrivateZoneSetting = "PLAYER_PRIVATE_ZONES_V1";
 
 function xml_parsePlayerPrivateZoneOrdinals(value) {
@@ -120,13 +121,48 @@ function xml_normalizeVersionNotes(value) {
     return String(value || "").replace(/\r\n?/g, "\n").trim().slice(0, 2000);
 }
 
-function xml_setVersionNotes(value) {
+function xml_normalizeVersionNotesAttribution(value) {
+    if(!value || typeof value != "object") return null;
+    var username = String(value.username || "")
+        .replace(/[\r\n\t]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 128);
+    var timestamp = new Date(value.timestamp || "");
+    if(!username || !isFinite(timestamp.getTime())) return null;
+    return {username:username, timestamp:timestamp.toISOString()};
+}
+
+function xml_formatVersionNotesTimestamp(value) {
+    var timestamp = new Date(value || "");
+    if(!isFinite(timestamp.getTime())) return "";
+    var pad = function(part) { return String(part).padStart(2, "0"); };
+    return timestamp.getUTCFullYear() + "." +
+        pad(timestamp.getUTCMonth() + 1) + "." +
+        pad(timestamp.getUTCDate()) + " " +
+        pad(timestamp.getUTCHours()) + "." +
+        pad(timestamp.getUTCMinutes()) + "." +
+        pad(timestamp.getUTCSeconds()) + " UTC";
+}
+
+function xml_versionNotesAttributionLine() {
+    if(!xml_versionNotesAttribution) return "";
+    var timestamp = xml_formatVersionNotesTimestamp(xml_versionNotesAttribution.timestamp);
+    return timestamp
+        ? "- " + xml_versionNotesAttribution.username + " @ " + timestamp
+        : "";
+}
+
+function xml_setVersionNotes(value, attribution) {
     xml_versionNotes = xml_normalizeVersionNotes(value);
+    xml_versionNotesAttribution = xml_normalizeVersionNotesAttribution(attribution);
+    if(!xml_versionNotes) xml_versionNotesAttribution = null;
     return xml_versionNotes;
 }
 
 function xml_clearVersionNotes() {
     xml_versionNotes = "";
+    xml_versionNotesAttribution = null;
 }
 
 function xml_readVersionNotes(xml) {
@@ -137,7 +173,10 @@ function xml_readVersionNotes(xml) {
     if(encoded) {
         try {
             var value = JSON.parse(decodeURIComponent(atob(encoded)));
-            return xml_setVersionNotes(typeof value == "string" ? value : value && value.notes);
+            return xml_setVersionNotes(
+                typeof value == "string" ? value : value && value.notes,
+                typeof value == "object" && value ? value.attribution : null
+            );
         } catch(error) {
             gui_writeLog("Ignored invalid Vectron version notes metadata.");
         }
@@ -145,17 +184,23 @@ function xml_readVersionNotes(xml) {
     var readablePattern = /<!--\s*Vectron version notes:\s*([\s\S]*?)\s*-->/gi;
     var readable = "";
     while((match = readablePattern.exec(String(xml || "")))) readable = match[1];
-    return xml_setVersionNotes(readable.replace(/\s+/g, " "));
+    return xml_setVersionNotes(readable.replace(/\s+/g, " "), null);
 }
 
 function xml_buildVersionNotesComments(indent) {
     if(!xml_versionNotes) return "";
     var prefix = indent || "";
-    var readable = xml_versionNotes
+    var attributionLine = xml_versionNotesAttributionLine();
+    var displayNotes = xml_versionNotes + (attributionLine ? "\n" + attributionLine : "");
+    var readable = displayNotes
         .replace(/[\r\n\t]+/g, " ")
         .replace(/--/g, "- -")
         .trim();
-    var payload = {version:1, notes:xml_versionNotes};
+    var payload = {
+        version:2,
+        notes:xml_versionNotes,
+        attribution:xml_versionNotesAttribution
+    };
     return prefix + "<!-- Vectron version notes: " + readable + " -->\n" +
         prefix + "<!-- Vectron version notes data: " +
         btoa(encodeURIComponent(JSON.stringify(payload))) + " -->\n";
@@ -168,6 +213,8 @@ window.xml_buildVersionNotesComments = xml_buildVersionNotesComments;
 window.xml_clearVersionNotes = xml_clearVersionNotes;
 window.xml_readVersionNotes = xml_readVersionNotes;
 window.xml_setVersionNotes = xml_setVersionNotes;
+window.xml_normalizeVersionNotes = xml_normalizeVersionNotes;
+window.xml_formatVersionNotesTimestamp = xml_formatVersionNotesTimestamp;
 
 function xml_init() {
 

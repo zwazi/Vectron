@@ -68,8 +68,9 @@ Admins may:
 - freely correct the final author, map name, and version before approval, with
   occupied versions automatically advanced until the resource path is free;
 - add version notes in the editor's Admin Review window. Vectron stores the
-  notes as DTD-safe XML comments in the immutable revision, and tronner.io
-  reads them from that exact version rather than duplicating catalog data;
+  notes with the reviewing admin's username and UTC timestamp as DTD-safe XML
+  comments in the immutable revision, and tronner.io reads them from that exact
+  version rather than duplicating catalog data;
 - review each pending map in a two-column card with its submitted reason,
   metadata and vertically stacked actions beside an inline map preview, in a
   desktop review panel that can be dragged by its header and resized from its
