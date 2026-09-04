@@ -15,6 +15,13 @@
         ".read": true,
         ".indexOn": ["finishedAt"]
       },
+      "ratingCommands": {
+        ".read": false,
+        ".write": false,
+        "$serverId": {
+          ".indexOn": ["state", "requestedAt"]
+        }
+      },
       "admin": {
         ".read": "auth != null && auth.token.admin == true && auth.token.neotron == true",
         ".write": false,

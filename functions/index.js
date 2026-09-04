@@ -19,6 +19,11 @@ const {
   firestoreLinkRepository
 } = require("./identity-bridge");
 const {
+  RacingRatingError,
+  createRacingRatingController,
+  firestoreProfileRepository
+} = require("./racing-rating");
+const {
   UserAuditError,
   bearerToken: auditBearerToken,
   createUserAuditController,
@@ -59,6 +64,44 @@ const identityBridge = createIdentityBridgeController({
   links: firestoreLinkRepository(db)
 });
 
+const racingRating = createRacingRatingController({
+  verifyToken:token => neotronAuth.verifyIdToken(token),
+  verifyAppCheck:token => getAppCheck().verifyToken(token),
+  profiles:firestoreProfileRepository(),
+  rateLimits:{
+    async reserve(uid, requestedAt) {
+      const reference = db.collection("racingRatingRateLimits").doc(uid);
+      await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(reference);
+        const previous = snapshot.exists ? snapshot.data() : {};
+        const windowStartedAt = Number(previous.windowStartedAt || 0);
+        const lastRequestedAt = Number(previous.lastRequestedAt || 0);
+        const sameWindow = requestedAt - windowStartedAt < 60 * 60 * 1000;
+        const count = sameWindow ? Number(previous.count || 0) : 0;
+        if(requestedAt - lastRequestedAt < 1500 || count >= 60) {
+          throw new RacingRatingError(
+            429,
+            "rate-limited",
+            "Please wait before changing another map rating."
+          );
+        }
+        transaction.set(reference, {
+          windowStartedAt:sameWindow ? windowStartedAt : requestedAt,
+          lastRequestedAt:requestedAt,
+          count:count + 1
+        });
+      });
+    }
+  },
+  commands:{
+    async enqueue(command) {
+      const reference = getDatabase().ref("racing/ratingCommands/nyc1").push();
+      await reference.set(command);
+      return reference.key;
+    }
+  }
+});
+
 exports.exchangeNeotronIdentity = onRequest({
   region: "us-central1",
   cors: allowedOrigins,
@@ -86,6 +129,44 @@ exports.exchangeNeotronIdentity = onRequest({
         message: error instanceof IdentityBridgeError
           ? error.message
           : "Vectron could not open this Neotron account."
+      }
+    });
+  }
+});
+
+exports.submitRacingMapRating = onRequest({
+  region:"us-central1",
+  cors:allowedOrigins,
+  timeoutSeconds:15,
+  memory:"256MiB"
+}, async (request, response) => {
+  response.set("Cache-Control", "no-store, max-age=0");
+  response.set("X-Content-Type-Options", "nosniff");
+  if(request.method !== "POST") {
+    response.set("Allow", "POST");
+    requestError(response, 405, "Use POST to rate a map.");
+    return;
+  }
+  try {
+    const result = await racingRating.submit({
+      idToken:bearerToken(request),
+      appCheckToken:String(request.get("x-firebase-appcheck") || ""),
+      body:request.body
+    });
+    response.status(202).json(result);
+  } catch(error) {
+    if(!(error instanceof RacingRatingError)) {
+      logger.error("Racing map rating failed", {
+        errorName:error?.name || "Error",
+        errorMessage:String(error?.message || "Unknown error").slice(0, 300)
+      });
+    }
+    response.status(error instanceof RacingRatingError ? error.status : 500).json({
+      error:{
+        code:error instanceof RacingRatingError ? error.code : "internal-error",
+        message:error instanceof RacingRatingError
+          ? error.message
+          : "The map rating could not be submitted."
       }
     });
   }

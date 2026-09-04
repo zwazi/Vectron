@@ -8,7 +8,7 @@
     "node": "22"
   },
   "scripts": {
-    "check": "node --check index.js && node --check user-audit.js",
+    "check": "node --check index.js && node --check racing-rating.js && node --check user-audit.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
