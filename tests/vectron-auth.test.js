@@ -524,6 +524,9 @@ assert.match(xmlSource, /Original map:/);
 assert.match(xmlSource, /xml_appendRemixSource/);
 assert.match(xmlSource, /Vectron version notes data:/);
 assert.match(authSource, /reviewAdminVersionNotes/);
+assert.match(authSource, /username:displayNameForUser\(user\)/);
+assert.match(authSource, /timestamp:new Date\(\)\.toISOString\(\)/);
+assert.match(xmlSource, /version:2,[\s\S]*notes:xml_versionNotes,[\s\S]*attribution:xml_versionNotesAttribution/);
 assert.match(index, /id="review-admin-version-notes"/);
 
 assert.match(localDraftSource, /vectron\.localDraft\.v1\./);
