@@ -1,6 +1,6 @@
 "use strict";
 
-const {getApps, initializeApp} = require("firebase-admin/app");
+const {getApp, getApps, initializeApp} = require("firebase-admin/app");
 const {getAppCheck} = require("firebase-admin/app-check");
 const {getAuth} = require("firebase-admin/auth");
 const {getDatabase} = require("firebase-admin/database");
@@ -8,7 +8,7 @@ const {FieldValue, Timestamp, getFirestore} = require("firebase-admin/firestore"
 const {getStorage} = require("firebase-admin/storage");
 const {createHash} = require("node:crypto");
 const logger = require("firebase-functions/logger");
-const {onDocumentWritten} = require("firebase-functions/v2/firestore");
+const {onDocumentCreated, onDocumentWritten} = require("firebase-functions/v2/firestore");
 const {onRequest} = require("firebase-functions/v2/https");
 const {buildCatalogArtifacts} = require("./catalog-manifest");
 const {validateSubmissionRevocation} = require("./submission-revocation");
@@ -1044,3 +1044,19 @@ exports.denyRegistration = onRequest({
     );
   }
 });
+
+// Notify only on new pending records, never on reads or subsequent admin edits.
+const {deliverAdminEmail, reviewEmail} = require("./admin-email");
+for(const [name, collection, kind] of [
+  ["emailMapReview", "mapSubmissions", "map"],
+  ["emailRegistrationReview", "accounts", "registration"]
+]) {
+  exports[name] = onDocumentCreated({
+    region:"us-central1", timeoutSeconds:60, memory:"256MiB", maxInstances:2,
+    retry:true, document:`${collection}/{itemId}`
+  }, event => deliverAdminEmail({
+    db, fieldValue:FieldValue, credential:getApp().options.credential,
+    key:`vectron/${kind}/${event.params.itemId}`,
+    email:reviewEmail(kind, event.params.itemId, event.data?.data())
+  }));
+}

@@ -5715,7 +5715,7 @@ async function submitFeatureSuggestion(event) {
         await responseJson(response, "The suggestion could not be sent.");
         featureSuggestionPopover.reset();
         closeFeatureSuggestion();
-        showEditorMessage("Suggestion sent. Administrator replies will appear in tronner.io Messages.");
+        showEditorMessage("Suggestion received. An email notification is queued for the administrator.");
     } catch(error) {
         featureSuggestionStatus.textContent = error && error.message
             ? error.message : friendlyAuthError(error);
